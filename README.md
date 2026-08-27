@@ -6,22 +6,24 @@ The framework owns reusable metadata-driven behaviour: typed dataset configurati
 
 ## Current implementation
 
-Source package version: **0.2.0**.
+Source package version: **0.3.0**.
 
-Implemented through the first end-to-end reference slice:
+Implemented capabilities include:
 
 - strict immutable dataset/source/target/load/orchestration/DQ/reconciliation metadata;
 - composite WATERMARK planning with `(column, tie_breaker)` and optional overlap-window semantics;
 - normalized `_framework_*` Bronze envelope;
 - reusable row-validation and quarantine primitives;
 - deterministic SCD2 insert/change/unchanged handling with one-current-row invariant and idempotent rerun;
-- explicit rejection of late/out-of-order SCD2 events until a later policy is implemented;
 - reconciliation and state/watermark commit gates;
-- in-memory control-plane and SCD2 target adapters for deterministic integration tests;
-- pipeline/dataset/step audit contracts and row accounting;
-- provider-neutral logical control-plane schema and deployment/provenance contracts.
+- in-memory reference control-plane/target adapters and end-to-end tests;
+- provider-neutral relational control-plane schema;
+- immutable release/config-bundle identity and environment-local deployment bindings;
+- idempotent semantic metadata materialization that preserves runtime state;
+- deployment-history persistence;
+- GitHub Actions CI and tag-triggered wheel release workflow.
 
-The reference package still does **not** implement CDC/snapshot-diff/full strategy breadth, physical Fabric control-store adapters, Fabric item deployment automation, enterprise CI workflows or Terraform.
+The reference package still does **not** claim a real enterprise Fabric deployment until an authorized tenant identity and workspace bindings are exercised. Terraform and the remaining capture/apply strategy catalog are also intentionally later work.
 
 ## Local development
 
@@ -29,6 +31,19 @@ The reference package still does **not** implement CDC/snapshot-diff/full strate
 python -m pip install -e '.[dev]'
 pytest
 ```
+
+## Delivery CLI
+
+```text
+fabric-framework validate-tag ...
+fabric-framework control-plane-migrate ...
+fabric-framework metadata-materialize ...
+fabric-framework release-manifest ...
+fabric-framework deployment-plan ...
+fabric-framework deployment-record ...
+```
+
+The CLI separates immutable release definitions from environment-local bindings and runtime state. GitHub Actions, Azure Pipelines or Fabric-native deployment automation can call the same contracts; credentials and physical Fabric IDs remain outside the package.
 
 ## Canonical project memory
 
