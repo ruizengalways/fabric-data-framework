@@ -71,6 +71,7 @@ def test_watermark_can_advance_after_target_and_reconciliation():
             target_committed=True,
             reconciliation_required=True,
             reconciliation_passed=True,
+            batch_quarantined=False,
         ),
     )
     assert transition.gate.can_advance_state

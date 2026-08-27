@@ -94,13 +94,13 @@ class StateCommitGate(FrozenModel):
     target_committed: bool
     reconciliation_required: bool = True
     reconciliation_passed: bool = False
-    quarantined: bool = False
+    batch_quarantined: bool = False
 
     @property
     def can_advance_state(self) -> bool:
         return (
             self.target_committed
-            and not self.quarantined
+            and not self.batch_quarantined
             and (not self.reconciliation_required or self.reconciliation_passed)
         )
 
