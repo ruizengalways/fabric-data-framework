@@ -1,24 +1,27 @@
 # fabric-data-framework
 
-Reusable, versioned Microsoft Fabric data-engineering runtime contracts for the Enterprise Fabric Data Engineering Platform reference implementation.
+Reusable, versioned Microsoft Fabric data-engineering runtime for the Enterprise Fabric Data Engineering Platform reference implementation.
 
-The framework owns reusable metadata-driven behaviour: typed dataset configuration, audited operational overrides, runtime/control-plane contracts, failure isolation, audit, quarantine, reconciliation, recovery semantics, environment resolution and deployment provenance. Domain repositories consume a pinned framework version and keep business-specific transformations explicit.
+The framework owns reusable metadata-driven behaviour: typed dataset configuration, operational overrides, WATERMARK capture semantics, normalized Bronze envelopes, validation/quarantine primitives, SCD2, reconciliation/state gates, control-plane contracts, failure isolation, recovery semantics, environment resolution and deployment provenance. Domain repositories consume the framework and keep business-specific mappings/rules explicit.
 
 ## Current implementation
 
-Phase 1 foundation is implemented as package version `0.1.0` and currently includes:
+Source package version: **0.2.0**.
 
-- strict immutable metadata models for source/target/load/orchestration/DQ/reconciliation policy;
-- separate capture/apply strategy enums and watermark correctness validation;
-- allow-listed, audited operational overrides and immutable `EffectiveDatasetConfig` hashing;
-- provider-neutral logical Fabric resource resolution contracts;
-- immutable runtime context, dataset/pipeline status aggregation and state/watermark commit gates;
-- pipeline/dataset/step audit, quarantine and reconciliation contracts;
-- a provider-neutral relational control-plane schema baseline with versioned idempotent initialization;
-- explicit classification of deployable semantic-definition rows vs environment-local runtime state;
-- provider-neutral release bundle and deployment provenance contracts for Fabric-native or external CI/CD.
+Implemented through the first end-to-end reference slice:
 
-Actual WATERMARK extraction, SCD2/CDC mutation logic, Fabric item deployment automation and Terraform are intentionally not implemented yet.
+- strict immutable dataset/source/target/load/orchestration/DQ/reconciliation metadata;
+- composite WATERMARK planning with `(column, tie_breaker)` and optional overlap-window semantics;
+- normalized `_framework_*` Bronze envelope;
+- reusable row-validation and quarantine primitives;
+- deterministic SCD2 insert/change/unchanged handling with one-current-row invariant and idempotent rerun;
+- explicit rejection of late/out-of-order SCD2 events until a later policy is implemented;
+- reconciliation and state/watermark commit gates;
+- in-memory control-plane and SCD2 target adapters for deterministic integration tests;
+- pipeline/dataset/step audit contracts and row accounting;
+- provider-neutral logical control-plane schema and deployment/provenance contracts.
+
+The reference package still does **not** implement CDC/snapshot-diff/full strategy breadth, physical Fabric control-store adapters, Fabric item deployment automation, enterprise CI workflows or Terraform.
 
 ## Local development
 
@@ -29,10 +32,10 @@ pytest
 
 ## Canonical project memory
 
-- `docs/ECOSYSTEM_BLUEPRINT.md` — cross-repository architecture and ownership model.
-- `docs/PROJECT_BLUEPRINT.md` — framework architecture, implementation boundaries and roadmap.
-- `docs/CONTROL_PLANE_DESIGN.md` — metadata-driven runtime/control-plane design.
-- `docs/CICD_DESIGN.md` — enterprise Git/Fabric CI/CD and environment promotion design.
-- `docs/CURRENT_STATUS.md` — exact implementation state and next coherent step.
-- `docs/adr/` — accepted architecture decisions.
-- `docs/runbooks/` — operational/recovery procedures as capabilities are implemented.
+- `docs/ECOSYSTEM_BLUEPRINT.md`
+- `docs/PROJECT_BLUEPRINT.md`
+- `docs/CONTROL_PLANE_DESIGN.md`
+- `docs/CICD_DESIGN.md`
+- `docs/CURRENT_STATUS.md`
+- `docs/adr/`
+- `docs/runbooks/`
