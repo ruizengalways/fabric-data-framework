@@ -7,7 +7,7 @@ Last updated: 2026-08-28
 - Phase 0 — canonical architecture: **COMPLETE**.
 - Phase 1 — framework foundation: **COMPLETE**.
 - Phase 2 — first executable Customer WATERMARK/SCD2 vertical slice: **COMPLETE**.
-- Phase 3 — enterprise delivery spine core: **IMPLEMENTED LOCALLY; REMOTE GITHUB CI VALIDATION PENDING**.
+- Phase 3 — enterprise delivery spine core: **COMPLETE WITH EXTERNAL RUNNER/ESTATE VALIDATION BLOCKERS RECORDED**.
 
 ## Last completed step
 
@@ -69,11 +69,29 @@ Semantic materialization updates only release-definition tables. It does not cop
 
 New Phase 3 tests cover config-bundle hashing, same-release DEV/UAT/PROD planning, environment-local bindings, idempotent semantic materialization, preservation of existing watermark state, deployment-history recording, release tag/version guardrails and the CLI migrate -> materialize -> manifest -> plan flow.
 
-## Remote CI/release state
+## Remote GitHub Actions validation
 
-GitHub workflow definitions are implemented but have not yet run on GitHub at the time this status file is written. The Phase 3 PR must be validated by actual GitHub Actions before merge.
+A real pull-request workflow was triggered for Phase 3 (`framework-ci`, run `33127392418`). Two attempts were made.
 
-The tag-triggered `v0.3.0` release workflow is defined but no immutable `v0.3.0` release exists yet. The release should be created only after the Phase 3 PR is green and merged.
+Both attempts failed **before any workflow step executed**. All three jobs (`test-python-3.11`, `test-python-3.13`, `build-wheel`) reported:
+
+```text
+runner_id = 0
+runner_name = ""
+steps = []
+```
+
+and terminated within roughly two seconds. The failed-job rerun request itself was accepted by GitHub, so the workflow exists and Actions mutation permission is available, but no GitHub-hosted runner was assigned on either attempt.
+
+Therefore this is recorded as an external GitHub Actions runner/account infrastructure blocker, not as a code/test failure. The repository API available to this project does not expose enough billing/hosted-runner account detail to state whether the root cause is quota, billing/payment, account policy or another hosted-runner restriction. That cause must not be guessed.
+
+The workflow remains in the repository so it becomes the real PR gate once runner availability is restored.
+
+## Immutable release state
+
+The tag-triggered `v0.3.0` release workflow is defined, but no immutable `v0.3.0` framework release is claimed yet. Creating the tag before hosted-runner availability is restored would only trigger the same external execution blocker and would not prove the release workflow.
+
+Customer must not claim successful exact-release integration against `0.3.0` until this immutable framework artifact exists.
 
 ## Current Microsoft Fabric external boundary
 
@@ -81,8 +99,10 @@ Current Microsoft documentation confirms Fabric CI/CD is built on Fabric REST AP
 
 The framework does not embed tenant credentials or claim a real Fabric deployment has succeeded. The external write edge remains an adapter/integration task requiring an approved company Fabric identity and target bindings.
 
-## Known limitations
+## Known limitations / external blockers
 
+- GitHub-hosted runner assignment is currently blocked before job execution on this private repository; two real attempts produced `runner_id=0` and no steps.
+- Consequently no tag-triggered `v0.3.0` GitHub Release has yet been proven/published.
 - No real Fabric item deployment has been executed from these workflows.
 - No service principal/managed identity is configured in this repository.
 - No physical enterprise control-plane database adapter has been exercised; SQLite/SQLAlchemy is the local contract proof.
@@ -93,7 +113,7 @@ The framework does not embed tenant credentials or claim a real Fabric deploymen
 
 ## Exact next implementation step
 
-After Phase 3 GitHub workflows are green and the `0.3.0` framework artifact is released, the next coherent runtime slice is metadata-driven multi-dataset orchestration and failure isolation:
+The next coherent runtime slice is metadata-driven multi-dataset orchestration and failure isolation, while the delivery infrastructure blocker can be resolved independently:
 
 1. generic dataset dispatcher/executor selection from metadata;
 2. execution-group filtering and bounded concurrency contract;
@@ -103,4 +123,6 @@ After Phase 3 GitHub workflows are green and the `0.3.0` framework artifact is r
 6. Customer fixtures with multiple datasets proving one failure does not stop unrelated datasets;
 7. preserve the same audit/quarantine/reconciliation/state semantics per dataset.
 
-A real GitHub-driven Fabric deployment adapter can be wired in parallel as soon as an approved tenant identity/workspace binding is available. Do not fake that external validation.
+When GitHub-hosted runners become available, rerun PR/main CI and then create/prove the immutable `v0.3.0` release before Customer exact-release integration is marked complete.
+
+A real GitHub-driven Fabric deployment adapter can be wired as soon as an approved tenant identity/workspace binding is available. Do not fake either external validation path.
