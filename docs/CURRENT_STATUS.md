@@ -4,102 +4,125 @@ Last updated: 2026-08-28
 
 ## Current phase
 
-Phase 0 — canonical architecture: **COMPLETE**.
-
-Phase 1 — framework foundation: **COMPLETE**.
-
-Phase 2 — first executable Customer WATERMARK/SCD2 vertical-slice framework capability: **COMPLETE**.
+- Phase 0 — canonical architecture: **COMPLETE**.
+- Phase 1 — framework foundation: **COMPLETE**.
+- Phase 2 — first executable Customer WATERMARK/SCD2 vertical slice: **COMPLETE**.
+- Phase 3 — enterprise delivery spine core: **COMPLETE WITH EXTERNAL RUNNER/ESTATE VALIDATION BLOCKERS RECORDED**.
 
 ## Last completed step
 
-Extended source package version from `0.1.0` to `0.2.0` with the reusable algorithms/adapters required by the first realistic domain slice:
+Implemented the provider-neutral delivery spine required before a real Fabric estate is authorized:
 
-- environment-local in-memory control-plane repository adapter;
-- composite WATERMARK filtering;
-- normalized Bronze envelope;
-- reusable row validation/quarantine;
-- deterministic SCD2;
-- reconciliation;
-- target/state commit sequencing;
-- end-to-end reference executor;
-- integration tests with Customer domain fixtures.
+- framework package version advanced to `0.3.0`;
+- GitHub Actions PR/main CI with Python 3.11/3.13 test matrix, Ruff/static checks and wheel build;
+- tag-triggered framework release workflow with version/tag guardrail, wheel SHA-256 and no-overwrite GitHub Release behaviour;
+- deterministic semantic config-bundle hashing;
+- immutable `ReleaseManifest` and release identity;
+- environment-local `EnvironmentBindings` and credential-free deployment planning;
+- control-plane migration CLI;
+- idempotent semantic metadata materialization into relational control-plane definition tables;
+- deployment-history persistence;
+- `fabric-framework` CLI entry point for CI/CD runners;
+- explicit protection of runtime state during promotion.
 
-## Implemented components
+No enterprise Fabric workspace, tenant setting, capacity, connection, credential or runtime state was modified by this implementation.
 
-New Phase 2 modules:
+## Implemented Phase 3 commands
 
-- `repository.py`
-- `watermark.py`
-- `bronze.py`
-- `quality.py`
-- `scd2.py`
-- `reconciliation.py`
-- `execution.py`
+```text
+fabric-framework validate-tag
+fabric-framework control-plane-migrate
+fabric-framework metadata-materialize
+fabric-framework release-manifest
+fabric-framework deployment-plan
+fabric-framework deployment-record
+```
 
-Existing `runtime.StateCommitGate` was refined so **batch** quarantine blocks state advancement while policy-accounted row-level quarantine can advance state after successful reconciliation. This matches the canonical no-silent-loss/quarantine model.
+These commands are provider-neutral. GitHub Actions, Azure Pipelines, Fabric Deployment Pipeline automation, `fabric-cicd`, Fabric CLI or a future internal deployment service can call the same release/control-plane contracts.
 
-## Correctness now demonstrated
+## Promotion correctness now enforced
 
-- `(watermark, tie_breaker)` ordering avoids duplicate-timestamp loss.
-- Null watermark/tie-breaker values fail capture ordering rather than being silently quarantined after an unsafe position decision.
-- Row-level DQ quarantine is lineage-recorded and included in row accounting.
-- SCD2 insert/change/unchanged behaviour maintains one current row per business key.
-- Unchanged later source records do not create SCD2 versions.
-- Exact reruns are idempotent.
-- Late/out-of-order records are explicitly rejected until a supported correction policy is implemented.
-- Required reconciliation failure commits neither proposed target rows nor watermark.
-- Target is committed before watermark/state; future physical adapters must use idempotent recovery for uncertain cross-store commit outcomes because no distributed transaction is assumed.
+The immutable release identity contains:
 
-## Tests/checks executed
+```text
+domain_release_version
+domain_git_sha
+framework_version
+config_bundle_hash
+config_schema_version
+control_plane_schema_version
+fabric_item_manifest_version
+build_id
+```
 
-Framework local validation:
+Environment bindings are outside that identity. DEV/UAT/PROD can therefore resolve different workspace/Lakehouse/Warehouse/connection resources while proving they received the same release hash.
 
-- `pytest -q`: **30 passed**.
-- Phase 1 24 tests remain green plus new WATERMARK/SCD2/executor tests.
+Semantic materialization updates only release-definition tables. It does not copy or reset watermark, dataset state/lease, runtime overrides, run history, reconciliation/quarantine/schema observations, reprocess history or deployment history. `deployment_history` is appended independently in the target environment.
+
+## Tests/checks executed locally
+
+- `pytest -q`: **37 passed**.
 - `python -m compileall`: PASS.
-- wheel build: PASS (`fabric_data_framework-0.2.0-py3-none-any.whl`) and new Phase 2 modules verified in wheel contents.
+- wheel build: PASS (`fabric_data_framework-0.3.0-py3-none-any.whl`).
+- wheel contents include new `delivery.py` and `cli.py`: PASS.
+- Framework/Customer GitHub Actions workflow YAML files parse successfully.
 
-Cross-package Customer integration validation:
+New Phase 3 tests cover config-bundle hashing, same-release DEV/UAT/PROD planning, environment-local bindings, idempotent semantic materialization, preservation of existing watermark state, deployment-history recording, release tag/version guardrails and the CLI migrate -> materialize -> manifest -> plan flow.
 
-- Customer `pytest -q`: **3 passed** against framework `0.2.0` source under test.
-- Covers source-controlled metadata loading, initial batch, duplicate watermark timestamps, row quarantine, changed/unchanged SCD2 records, rerun/idempotency and failed-reconciliation/no-state-advance.
+## Remote GitHub Actions validation
 
-## Known limitations
+A real pull-request workflow was triggered for Phase 3 (`framework-ci`, run `33127392418`). Two attempts were made.
 
-- In-memory repository and target are reference/test adapters, not Fabric persistence implementations.
-- Late/out-of-order SCD2 correction policy is not implemented; such records fail explicitly.
-- Delete semantics are not yet implemented by the SCD2 engine.
-- No FULL/SNAPSHOT/CDC capture runtime yet.
-- No UPSERT/SCD1/SNAPSHOT_DIFF runtime yet.
-- No Fabric Pipeline/Notebook deployment item yet.
-- No GitHub Actions/Azure Pipelines CI workflow or immutable package publishing yet.
-- No physical enterprise Fabric control-plane adapter/integration test yet.
+Both attempts failed **before any workflow step executed**. All three jobs (`test-python-3.11`, `test-python-3.13`, `build-wheel`) reported:
+
+```text
+runner_id = 0
+runner_name = ""
+steps = []
+```
+
+and terminated within roughly two seconds. The failed-job rerun request itself was accepted by GitHub, so the workflow exists and Actions mutation permission is available, but no GitHub-hosted runner was assigned on either attempt.
+
+Therefore this is recorded as an external GitHub Actions runner/account infrastructure blocker, not as a code/test failure. The repository API available to this project does not expose enough billing/hosted-runner account detail to state whether the root cause is quota, billing/payment, account policy or another hosted-runner restriction. That cause must not be guessed.
+
+The workflow remains in the repository so it becomes the real PR gate once runner availability is restored.
+
+## Immutable release state
+
+The tag-triggered `v0.3.0` release workflow is defined, but no immutable `v0.3.0` framework release is claimed yet. Creating the tag before hosted-runner availability is restored would only trigger the same external execution blocker and would not prove the release workflow.
+
+Customer must not claim successful exact-release integration against `0.3.0` until this immutable framework artifact exists.
+
+## Current Microsoft Fabric external boundary
+
+Current Microsoft documentation confirms Fabric CI/CD is built on Fabric REST APIs, supports Git integration with GitHub/Azure DevOps, supports deployment-pipeline automation, and supports noninteractive identities subject to tenant settings, permissions and per-API/item identity support.
+
+The framework does not embed tenant credentials or claim a real Fabric deployment has succeeded. The external write edge remains an adapter/integration task requiring an approved company Fabric identity and target bindings.
+
+## Known limitations / external blockers
+
+- GitHub-hosted runner assignment is currently blocked before job execution on this private repository; two real attempts produced `runner_id=0` and no steps.
+- Consequently no tag-triggered `v0.3.0` GitHub Release has yet been proven/published.
+- No real Fabric item deployment has been executed from these workflows.
+- No service principal/managed identity is configured in this repository.
+- No physical enterprise control-plane database adapter has been exercised; SQLite/SQLAlchemy is the local contract proof.
+- No Fabric Pipeline/Notebook item definition exists yet.
+- No protected GitHub environments/approval rules are configured through code in this repository.
+- Late/out-of-order correction, deletes and remaining capture/apply strategy catalog are pending.
 - No Terraform.
-
-## Open issues/blockers
-
-No architecture blocker for Phase 3.
-
-External DEV/UAT/PROD deployment cannot be proven without selecting/authorizing an enterprise Fabric deployment mechanism and credentials, but provider-neutral CI/build/release plumbing can be implemented before that external integration.
-
-## Package/version state
-
-Source package version: `0.2.0`.
-
-No immutable published framework package release exists yet; Phase 3 introduces release automation.
 
 ## Exact next implementation step
 
-**Phase 3 — enterprise delivery spine, implemented as another coherent slice rather than micro-steps.**
+The next coherent runtime slice is metadata-driven multi-dataset orchestration and failure isolation, while the delivery infrastructure blocker can be resolved independently:
 
-1. Add GitHub Actions PR CI for framework and customer (lint/compile/test/package/metadata validation).
-2. Add an immutable framework build/release artifact workflow and version/tag guardrails without publishing mutable branch dependencies.
-3. Add Customer dependency validation for exact `fabric-data-framework==0.2.0` (or the released Phase 2 version) and config-bundle hashing.
-4. Add CLI/command entry points for control-plane schema migration and semantic metadata materialization so Fabric-native or external deployment tooling calls one contract.
-5. Add release/deployment manifest generation containing Git SHA, framework version, config hash/schema version and Fabric item manifest version.
-6. Add deployment-history write contract/adapters suitable for later Fabric estate binding.
-7. Implement/test provider-neutral environment binding inputs and dry-run deployment planning.
-8. Keep DEV/UAT/PROD runtime state explicitly non-promotable.
-9. Where credentials/estate access are available, wire one GitHub-driven Fabric deployment path and a Fabric Deployment Pipeline-compatible promotion path; otherwise leave only the external execution edge unverified and record it precisely.
+1. generic dataset dispatcher/executor selection from metadata;
+2. execution-group filtering and bounded concurrency contract;
+3. dependency blocking without cancelling unrelated branches;
+4. critical vs non-critical failure aggregation into `SUCCESS`, `PARTIAL_SUCCESS` or `FAILED`;
+5. retry eligibility and dataset-level attempt lineage;
+6. Customer fixtures with multiple datasets proving one failure does not stop unrelated datasets;
+7. preserve the same audit/quarantine/reconciliation/state semantics per dataset.
 
-Do not implement Terraform or the entire remaining strategy catalog in Phase 3.
+When GitHub-hosted runners become available, rerun PR/main CI and then create/prove the immutable `v0.3.0` release before Customer exact-release integration is marked complete.
+
+A real GitHub-driven Fabric deployment adapter can be wired as soon as an approved tenant identity/workspace binding is available. Do not fake either external validation path.
