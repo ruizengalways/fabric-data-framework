@@ -6,132 +6,202 @@ Last updated: 2026-08-28
 
 Phase 0 — Canonical architecture and repository boundaries: **COMPLETE**.
 
-Phase 1 — Framework foundation: **READY TO START**.
+Phase 1 — Coherent framework foundation: **COMPLETE**.
+
+Phase 2 — Customer WATERMARK -> Bronze -> SCD2 vertical slice: **READY TO START** after this Phase 1 PR is merged.
 
 ## Last completed step
 
-Extended the canonical architecture with two production-grade concerns before implementation begins:
+Implemented the first runnable `fabric-data-framework` package foundation (`0.1.0`) following the accepted metadata-driven, failure-isolated and enterprise CI/CD architecture.
 
-1. metadata-driven runtime/control-plane design, including per-dataset semantic metadata, audited runtime overrides, multi-dataset failure isolation, quarantine, pipeline/dataset/step audit, reconciliation gates, dataset leases and reprocess/replay lineage;
-2. enterprise CI/CD and environment-promotion design supporting GitHub/Azure DevOps Git integration, Fabric Deployment Pipelines and external GitHub Actions/Azure Pipelines automation behind one provider-neutral deployment contract.
+The implementation establishes strict immutable dataset metadata, audited operational override resolution, runtime/state correctness contracts, audit/quarantine/reconciliation contracts, a logical control-plane schema baseline, provider-neutral environment resolution and provider-neutral deployment/release provenance.
 
-The CI/CD design explicitly defines DEV/UAT/PROD as separate runtime/control-plane environments: released definitions are promoted; runtime state is not.
+No actual WATERMARK extraction, SCD2/CDC mutation or Fabric deployment automation was implemented in this slice.
 
 ## Current implementation
 
-Documentation-only foundation. No framework runtime package or Fabric execution code has been implemented yet.
+### Package foundation
 
-The architecture now explicitly supports domains with tens of tables without requiring one bespoke pipeline per table or making the entire batch fail immediately when one independent dataset fails.
+- Python package under `src/fabric_data_framework/`.
+- `pyproject.toml` with Python `>=3.11`.
+- Pydantic v2 typed contract dependency.
+- SQLAlchemy 2.x Core dependency for logical relational control-plane schema definition.
+- setuptools build backend and editable/wheel package support.
 
-It also supports enterprise release management without coupling runtime code to one CI/CD provider.
+### Metadata/effective configuration
 
-## Important decisions made
+Implemented:
 
-- Three repositories have distinct Infrastructure Platform, Reusable Data Runtime and Customer Domain ownership.
-- Domains consume a versioned framework package; they do not invoke one shared cross-workspace runtime.
-- Metadata-driven execution is a first-class framework capability.
-- Source-controlled semantic metadata is canonical; deployed metadata snapshots are runtime-readable versions of that configuration.
-- Runtime operational overrides are audited and restricted to approved operational knobs; they cannot silently change PROD merge keys, apply strategy, schema contracts or equivalent semantics.
-- Capture strategy and apply strategy are independent configuration axes.
-- Merge/business keys, watermark/event-time/tie-breaker columns and stable execution policy are declared per dataset.
-- A dataset is the default failure boundary; unrelated datasets continue where safe.
-- Parent orchestration aggregates dataset outcomes into `SUCCESS`, `PARTIAL_SUCCESS` or `FAILED` after eligible independent work completes.
-- Dataset dependencies block only dependent work; unrelated branches continue.
-- Control-plane schema/migrations are a framework concern; physical hosting is an infrastructure concern.
-- Pipeline, dataset and significant-step audits are durable control-plane state; text logs alone are insufficient.
-- Quarantine is first-class and distinct from system/infrastructure failure.
-- Production reconciliation accounts for accepted, quarantined/rejected and intentionally filtered records according to policy; no silent row loss.
-- Watermark/state advances only after target commit and required reconciliation gates.
-- A dataset lease/optimistic concurrency mechanism protects stateful datasets from overlapping writers.
-- Retry/backfill/replay/full rebuild are explicit run modes with lineage.
-- Framework/domain code resolves Fabric resources through an infrastructure contract and does not hard-code enterprise workspace/resource identities.
-- Initial infrastructure implementation is deferred while using a pre-provisioned enterprise Fabric estate.
-- Delivery is trunk-based and promotes the same immutable release identity/Git SHA through environments.
-- Fabric source-control integration may use GitHub or Azure DevOps; Fabric does not host a separate native Git repository service.
-- Enterprise CD may use Fabric Deployment Pipelines or external GitHub Actions/Azure Pipelines with Fabric APIs/`fabric-cicd`/Fabric CLI behind the same deployment contract.
-- DEV, UAT and PROD each own an isolated control-plane instance or namespace.
-- CI/CD promotes control-plane schema migrations, Fabric item definitions and semantic metadata/config definitions.
-- CI/CD never promotes runtime state such as watermark, dataset state/lease, run history, reconciliation results, quarantine execution state, runtime overrides or reprocess history from one environment to another.
-- `deployment_history` is written independently in each environment when a release reaches that stage.
-- Environment-specific resource bindings, secrets and operational values are resolved per stage rather than implemented as environment branches.
-- Implementation will proceed in coherent, testable capability slices; routine work inside accepted architecture does not pause for approval after every small class/file.
+- `CaptureStrategy`: FULL, WATERMARK, CDC, MIRROR, STREAM, SNAPSHOT.
+- `ApplyStrategy`: APPEND, REPLACE, UPSERT, SCD1, SCD2, SNAPSHOT_DIFF.
+- run mode, dataset status, pipeline status and criticality enums.
+- source/target/load/orchestration/DQ/reconciliation models.
+- business/merge key validation.
+- WATERMARK `(column, tie_breaker)` or overlap-window correctness requirement.
+- immutable config hash.
+- allow-listed `RuntimeOverride` fields only.
+- override validity windows, audit identity, precedence and conflict detection.
+- immutable `EffectiveDatasetConfig` with base/effective hash and applied override IDs.
+
+Semantic fields such as merge key or apply strategy cannot be changed through `RuntimeOverride`.
+
+### Infrastructure/runtime contracts
+
+Implemented:
+
+- logical `ResourceKind` / `LogicalResourceRef` / `ResolvedResource` models;
+- provider-neutral `EnvironmentResolver` protocol;
+- immutable `RuntimeContext` with pipeline/dataset/correlation IDs and release/config provenance;
+- final pipeline status aggregation after terminal dataset outcomes;
+- non-critical dataset failure -> `PARTIAL_SUCCESS` capability;
+- critical dataset failure -> `FAILED` capability;
+- `StateCommitGate` and `WatermarkTransition` preventing state advancement before target commit + required reconciliation or when quarantined.
+
+### Audit/quarantine/reconciliation contracts
+
+Implemented:
+
+- pipeline/dataset/step audit models;
+- exact source row accounting invariant: `rows_read = rows_accepted + rows_quarantined + rows_filtered`;
+- target insert/update/delete mutation counts;
+- row/batch quarantine lineage model;
+- reconciliation metric/result model;
+- validation preventing `PASS` reconciliation from hiding a failed metric.
+
+### Control-plane schema foundation
+
+Implemented a logical provider-neutral relational schema with 19 tables:
+
+- `schema_migration_history`;
+- `dataset`, `dataset_contract`, `load_policy`, `orchestration_policy`, `data_quality_policy`, `reconciliation_policy`;
+- `runtime_override`;
+- `watermark`, `dataset_state`, `dataset_lease`;
+- `pipeline_run`, `dataset_run`, `step_run`;
+- `reconciliation_result`, `quarantine_batch`, `schema_change`, `reprocess_request`, `deployment_history`.
+
+The Phase 1 baseline has schema version `1` and an idempotent baseline initialization contract used in tests.
+
+Definition rows and runtime-state rows are explicitly separated:
+
+- deploy/materialize semantic definition rows per environment;
+- never copy environment-local watermarks, leases, runs, runtime overrides, quarantine/reprocess state or deployment history from DEV to UAT/PROD.
+
+### Enterprise deployment/provenance contracts
+
+Implemented:
+
+- environment-neutral `ReleaseBundleIdentity`;
+- deterministic release hash;
+- `DeploymentRequest` adding stage-specific logical binding profile without rebuilding the release;
+- CI-provider and Fabric deployment-mechanism enums;
+- `DeploymentProvenance` contract;
+- `ControlPlaneDeploymentAdapter` protocol for later Fabric-native or external CD implementations;
+- explicit control-plane record classification into release definition vs environment-local runtime state.
 
 ## Files/components implemented
 
-Documentation only:
-
+- `pyproject.toml`
 - `README.md`
-- `docs/ECOSYSTEM_BLUEPRINT.md`
-- `docs/PROJECT_BLUEPRINT.md`
-- `docs/CONTROL_PLANE_DESIGN.md`
-- `docs/CICD_DESIGN.md`
-- `docs/CURRENT_STATUS.md`
-- `docs/adr/0001-three-repository-ownership.md`
-- `docs/adr/0002-capture-vs-apply-strategy.md`
-- `docs/adr/0003-control-plane-ownership.md`
-- `docs/adr/0004-metadata-driven-orchestration-and-failure-isolation.md`
-- `docs/adr/0005-enterprise-cicd-and-environment-local-control-plane.md`
-- `docs/runbooks/README.md`
+- `src/fabric_data_framework/__init__.py`
+- `src/fabric_data_framework/config.py`
+- `src/fabric_data_framework/infrastructure.py`
+- `src/fabric_data_framework/runtime.py`
+- `src/fabric_data_framework/operations.py`
+- `src/fabric_data_framework/control_plane.py`
+- `src/fabric_data_framework/deployment.py`
+- `tests/test_config.py`
+- `tests/test_infrastructure.py`
+- `tests/test_runtime.py`
+- `tests/test_operations.py`
+- `tests/test_control_plane.py`
+- `tests/test_deployment.py`
+- canonical docs under `docs/`.
 
 ## Tests/checks executed
 
-Architecture/documentation validation:
+Local isolated validation before writing the coherent Git commit:
 
-- re-read canonical ecosystem/framework/customer state before changing design;
-- verified metadata-driven Pipeline direction against current Microsoft Fabric Data Factory documentation for parameterized pipelines, Lookup-driven dynamic selection, ForEach bounded parallelism and control-flow dependencies;
-- checked current Microsoft Fabric CI/CD documentation and confirmed workspace Git integration supports GitHub and Azure DevOps;
-- confirmed current Fabric CI/CD options include Fabric Deployment Pipelines and external automation using Fabric APIs/tooling such as `fabric-cicd`/Fabric CLI;
-- confirmed Fabric deployment pipelines copy/deploy metadata rather than treating environment data as a release artifact, which aligns with environment-local runtime state;
-- checked the design preserves Git as semantic source of truth while allowing audited operational control-table overrides;
-- checked a single dataset failure does not require cancellation of unrelated dataset executions;
-- checked critical failures still produce a truthful final failed aggregate for alerting;
-- checked quarantine does not hide system errors and cannot advance state for quarantined batches;
-- checked audit/reconciliation/state models support retry/replay diagnosis and provenance;
-- checked control-plane promotion distinguishes deployable definitions/schema from environment-local runtime state.
+1. `pytest -q` — **24 passed**.
+2. `python -m compileall -q src tests` — PASS.
+3. import/package contract check using `PYTHONPATH=src` — PASS.
+4. editable installation using local build backend with `--no-build-isolation --no-deps` — PASS.
+5. import from editable install — PASS (`fabric_data_framework.__version__ == 0.1.0`).
+6. wheel build using `pip wheel --no-build-isolation --no-deps` — PASS.
+7. wheel content inspection — PASS; package contains framework modules.
+8. SQLAlchemy in-memory baseline migration — tested twice to prove idempotent schema initialization and schema version `1`.
+
+The test suite covers:
+
+- valid WATERMARK -> SCD2 metadata;
+- missing tie-breaker/overlap correctness rejection;
+- stateful apply merge-key requirement;
+- semantic override rejection;
+- operational override expiry/precedence/conflict;
+- deterministic effective config hashes;
+- critical/non-critical orchestration aggregation;
+- final-state-only aggregation;
+- watermark/state commit gating;
+- no-silent-loss row accounting;
+- reconciliation consistency;
+- quarantine lineage validation;
+- provider-neutral environment resolver protocol;
+- control-plane table/classification invariants;
+- same release identity across DEV and PROD with different binding profiles;
+- deployment provenance contracts.
 
 ## Test results
 
-PASS — architecture is internally consistent and maps to current Fabric orchestration and ALM capabilities. No runtime code exists yet, so no unit/integration test suite has run.
+**PASS — 24 unit/contract tests.**
+
+Phase 1 foundation is runnable and package-buildable. No Fabric estate was mutated or required for these tests.
 
 ## Known limitations
 
-- No Python package skeleton yet.
-- No typed metadata/effective-config implementation yet.
-- No control-plane migration implementation yet.
-- No dispatcher/dataset executor implementation yet.
-- No WATERMARK/SCD2/CDC runtime algorithms yet.
-- No CI workflow, framework package release, Fabric deployment adapter or environment promotion automation yet.
-- No Fabric runtime has been exercised.
-- The exact physical control-plane store is not selected yet; architecture requires environment isolation and migration support, not one specific storage product.
+- No actual source connector or WATERMARK extraction algorithm.
+- No Bronze writer/normalizer implementation.
+- No SCD1/SCD2/UPSERT/SNAPSHOT_DIFF/CDC mutation algorithm.
+- No physical control-plane repository/store adapter yet; SQLAlchemy schema is the logical baseline contract.
+- No dataset lease persistence implementation yet; only the schema and runtime correctness contract exist.
+- No metadata dispatcher/Fabric Pipeline item yet.
+- No published framework package/release automation yet.
+- No GitHub Actions/Azure Pipelines workflow or Fabric Deployment Pipeline adapter yet.
+- No Fabric runtime/integration test against an enterprise workspace yet.
+- No Terraform implementation.
 
 ## Open issues/blockers
 
-No architecture blocker identified for Phase 1.
+No architecture blocker for Phase 2.
 
-The physical control-plane store and exact Fabric deployment mechanism are implementation choices to finalize when needed; they must not change the framework contracts. Fabric limits/syntax/authentication and preview/GA status must be rechecked against current official documentation at implementation time.
+The physical Fabric control-store choice remains deliberately deferred. Phase 2 can validate algorithms and control-plane contracts with small local/integration adapters before Phase 3 selects/deploys the enterprise Fabric delivery spine.
 
 ## Last known-good release / commit
 
-No framework package release exists yet. Current state is architecture/documentation only.
+Package source version: `0.1.0`.
+
+No published immutable package release exists yet. The exact Git commit for this validated Phase 1 slice is the merge commit of the Phase 1 PR; Git history remains the authoritative commit provenance.
 
 ## Exact next implementation step
 
-**Phase 1 — coherent framework foundation slice.**
+**Phase 2 — one coherent Customer WATERMARK -> Bronze -> SCD2 vertical slice across `fabric-data-framework` and `fabric-customer`.**
 
-Implement substantially more than the earlier micro-step, while staying inside the accepted architecture:
+Complete substantially more than an algorithm stub:
 
-1. create `pyproject.toml`, `src/fabric_data_framework/`, `tests/` and minimal quality/test tooling;
-2. implement typed enums for capture/apply strategy, run mode, dataset status, pipeline status and criticality;
-3. implement typed dataset/source/target/load/orchestration/DQ/reconciliation metadata models, including business/merge keys, watermark `(column, tie_breaker)`, event-time and execution-group metadata;
-4. implement semantic-vs-operational override allow-list validation plus immutable `EffectiveDatasetConfig` resolution/hash;
-5. implement the typed infrastructure/environment resolution contract;
-6. implement immutable runtime context and correlation/run identifiers;
-7. define audit/quarantine/reconciliation contracts for pipeline, dataset and step execution;
-8. establish initial control-plane schema/migration definitions for dataset metadata, runtime override, watermark/dataset state/lease, pipeline/dataset/step run, reconciliation, quarantine, reprocess and deployment history at an appropriate first-slice depth;
-9. define provider-neutral deployment-manifest/provenance types plus environment-local control-plane migration/materialization contracts needed later by both Fabric-native and GitHub/Azure external CD;
-10. add high-value unit/contract tests for valid/invalid metadata, forbidden overrides, effective-config precedence/hash, state/watermark invariants at contract level, status aggregation policy, audit/quarantine model validation, deployment manifest identity and environment-local/non-promotable state classification;
-11. update Blueprint/ADR/CURRENT_STATUS after the coherent slice is complete.
+### Framework work required for the slice
 
-Do **not** stop for review after each small implementation item above. Complete the coherent foundation slice unless a real architecture conflict or unsafe external action is encountered.
+1. implement a small control-plane repository interface plus a local test adapter for deployed dataset metadata, watermark/state, dataset runs, reconciliation and quarantine lineage;
+2. implement WATERMARK planning/filter semantics using `(modified_at, customer_id)` and explicit before/after positions;
+3. implement normalized Bronze framework metadata for the captured rows;
+4. implement reusable validation/quarantine execution primitives needed by the Customer fixture;
+5. implement a deterministic SCD2 apply engine with business/merge keys, tracked-attribute change detection, one-current-row invariant and idempotent rerun behaviour;
+6. implement reconciliation and atomic state-commit sequencing for the slice;
+7. add integration tests for new, changed, unchanged, duplicate watermark timestamp, invalid/quarantined row, rerun/idempotency and failed reconciliation/no-watermark-advance.
 
-Do **not** yet implement actual WATERMARK extraction, SCD2/CDC algorithms, full Fabric deployment automation or Terraform in this Phase 1 foundation slice. Full CI/CD automation remains Phase 3, but its contracts/provenance foundations begin in Phase 1.
+### Customer work required for the slice
+
+1. add the source-controlled `crm.customer` dataset definition using framework types/schema;
+2. add tiny deterministic CRM fixtures and expected Silver SCD2 output;
+3. add the Customer-specific mapping/DQ rule needed by the fixture without duplicating framework algorithms;
+4. add cross-package integration tests pinned to the framework version/source under test;
+5. update Customer Blueprint/CURRENT_STATUS.
+
+Do **not** build the complete capture/apply strategy catalog, full Fabric CI/CD automation or Terraform in Phase 2. Prove one correct vertical slice first.
