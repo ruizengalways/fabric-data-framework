@@ -93,11 +93,16 @@ src/fabric_data_framework/
 ├── recovery/
 │   └── runtime.py
 ├── adapters/
-│   └── fabric/
-│       ├── contracts.py
-│       ├── adapter.py
+│   ├── fabric/
+│   │   ├── contracts.py
+│   │   ├── adapter.py
+│   │   └── __init__.py
+│   └── cdc/
+│       ├── debezium_kafka.py
+│       ├── resume.py
+│       ├── registry.py
 │       └── __init__.py
-├── extensions.py
+├── extensions/
 ├── config.py
 ├── control_plane.py
 ├── control_plane_io.py
@@ -117,11 +122,13 @@ Some older modules remain top-level for compatibility/incremental refactoring. N
 
 ### `contracts/`
 
-Dependency-light stable value objects/interfaces: execution plan, capture receipt, recovery requests/lineage, dispatch/runtime/binding contracts. No Fabric client dependencies.
+Dependency-light stable value objects/interfaces: execution plan, capture receipt, recovery requests/lineage, dispatch/runtime/binding contracts. No provider client dependencies.
 
 ### `metadata/`
 
 Turns source-controlled metadata into immutable effective semantics. Owns validation, hashing, compatibility and `(engine, capability_profile)` resolution.
+
+Current named profiles include Dataflow incremental capture and `EXTERNAL_CDC/debezium_kafka_v1`.
 
 ### `capture/`
 
@@ -176,19 +183,45 @@ Owns lifecycle execution and physical backend boundaries. Thin Fabric SJD/notebo
 
 ### `recovery/`
 
-Owns retry classification/backoff, attempt lineage, reprocess intent and unknown-target-outcome recovery. Future replay/rebuild executors belong here or under strategy-specific execution with explicit recovery contracts.
+Owns retry classification/backoff, attempt lineage, reprocess intent and unknown-target-outcome recovery. Quarantine replay and FULL_REBUILD execution belong here with explicit data/state provider contracts.
 
-### `adapters/`
+### `adapters/fabric/`
 
-Provider-specific translation only. Semantic correctness remains in provider-neutral packages.
+Translates already-compiled physical Fabric capture units into provider invocation/evidence boundaries. Fabric service APIs must not leak into semantic algorithms.
 
-Current Fabric adapter layer handles physical capture request/evidence/receipt conversion. Future CDC provider adapters normalize provider envelopes into `CDCEvent`/`CDCCheckpoint`.
+### `adapters/cdc/`
+
+Owns provider-specific CDC envelope/checkpoint translation and provider recovery-range evidence.
+
+Current built-in provider:
+
+```text
+DebeziumKafkaCDCAdapter
+  engine/profile: EXTERNAL_CDC / debezium_kafka_v1
+  canonical order: topic + partition + offset
+```
+
+Files:
+
+```text
+debezium_kafka.py
+  strict envelope -> CDCEvent/CDCCheckpoint
+  tombstone/snapshot-read policy
+
+resume.py
+  retention-aware seek range derived from framework CDC apply checkpoint
+
+registry.py
+  explicit (engine, capability_profile) -> provider adapter mapping
+```
+
+The adapter package does not construct Kafka credentials/clients, commit consumer offsets, or own UPSERT/SCD1/SCD2 semantics.
 
 ### `control_plane.py` / `control_plane_io.py` / `repository.py`
 
-Current compatibility-era split for schema, small relational persistence helpers and repository interfaces/reference adapter.
+Current compatibility-era split for schema, relational persistence helpers and repository interfaces/reference adapter.
 
-Current environment-local state now includes `cdc_checkpoint` with optimistic concurrency.
+Environment-local state includes `cdc_checkpoint` with optimistic concurrency.
 
 Long-term package target remains `control_plane/` once migration can preserve public compatibility cleanly.
 
@@ -231,6 +264,9 @@ src/fabric_data_framework/
 ├── orchestration/
 ├── execution/
 ├── recovery/
+│   ├── runtime.py
+│   ├── replay.py
+│   └── rebuild.py
 ├── state/
 │   ├── watermark.py
 │   ├── cdc.py
@@ -268,7 +304,7 @@ provider envelope
   Debezium / database-native / Copy Job / custom
         |
         v
-adapter / connector
+provider adapter / connector
         |
         v
 CDCEvent + CDCCheckpoint
@@ -279,6 +315,8 @@ capture/cdc.py
         v
 apply/cdc.py or apply/cdc_scd2.py
 ```
+
+The current Debezium/Kafka implementation is the reference example: provider JSON and Kafka offset semantics stop at `adapters/cdc/`.
 
 Do not put provider-specific JSON field names or LSN string parsing inside apply algorithms.
 
@@ -297,13 +335,13 @@ Domain/source parent Pipeline
        -> framework semantic runtime
 ```
 
-A child pipeline with one thin SJD/notebook can be professional when the reusable algorithms/state/recovery/audit are in released packages/control plane and parameters/bindings are explicit. Activity count is not an architecture-quality metric.
+A child pipeline with one thin SJD/notebook can be professional when reusable algorithms/state/recovery/audit are in released packages/control plane and parameters/bindings are explicit. Activity count is not an architecture-quality metric.
 
 Use separate pipelines/execution groups when operational boundaries differ materially: source/gateway, capture engine, schedule/SLA, volume, criticality, dependency, capacity or blast radius.
 
 ## 9. Test ownership
 
-Tests should mirror ownership concerns rather than one giant integration file:
+Tests mirror ownership concerns:
 
 ```text
 test_scd1.py
@@ -312,12 +350,14 @@ test_cdc.py
 test_cdc_scd2.py
 test_bootstrap_cdc.py
 test_cdc_checkpoint_persistence.py
+test_debezium_kafka_cdc_adapter.py
+test_cdc_provider_registry.py
 test_fabric_capture_adapters.py
 test_recovery.py
 ...
 ```
 
-Provider adapter tests prove mapping/evidence boundaries. Semantic tests must remain runnable without Fabric.
+Provider adapter tests prove mapping/evidence boundaries. Semantic tests remain runnable without Fabric/Kafka.
 
 ## 10. Refactoring rule
 
@@ -333,9 +373,10 @@ When moving a public/released symbol:
 
 ## 11. Current structural next steps
 
-1. add provider CDC adapter/connectors under a clear provider boundary;
-2. implement APPEND under `apply/`;
-3. add file/API capture guardrails under `capture/`/connectors;
-4. complete recovery executors under `recovery/`;
-5. move persistent state/query concerns toward `control_plane/` and `state/` only when compatibility-safe;
-6. add actual Fabric transport/backend modules without leaking service APIs into semantic packages.
+1. implement quarantine REPLAY under `recovery/` with an external payload-provider boundary;
+2. implement FULL_REBUILD execution under `recovery/` with explicit destructive-reset authority;
+3. implement APPEND under `apply/`;
+4. add file/API capture guardrails under `capture/`/connectors;
+5. add additional CDC provider adapters only when product scope requires them;
+6. move persistent state/query concerns toward `control_plane/` and `state/` only when compatibility-safe;
+7. add actual Fabric/Kafka transport/backend modules without leaking service APIs into semantic packages.
