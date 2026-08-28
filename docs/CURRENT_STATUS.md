@@ -8,61 +8,38 @@ Last updated: 2026-08-28
 - Phase 1 — framework foundation: **COMPLETE**.
 - Phase 2 — first executable Customer WATERMARK/SCD2 vertical slice: **COMPLETE**.
 - Phase 3 — enterprise delivery spine: **COMPLETE AND RELEASED AS `v0.3.0`**.
+- Phase 4 — metadata-driven multi-dataset dispatcher/failure isolation: **MERGED TO `main` AS 0.4.0; IMMUTABLE `v0.4.0` RELEASE PENDING**.
 - Public-repository GitHub-hosted CI: **VALIDATED ON `ubuntu-latest`**.
 - UI-driven immutable release path: **VALIDATED IN PRODUCTION USE**.
-- Phase 4 — metadata-driven multi-dataset dispatcher/failure isolation: **0.4.0 CANDIDATE BEING REBASED/REVALIDATED ON PR #9**.
 
 ## Last completed step
 
-Framework `v0.3.0` was successfully published by GitHub Actions run `33156000907` from `main`.
+Framework PR #9 was reconstructed on the released 0.3.0 baseline, revalidated, and squash-merged to `main` as commit `aaf346ba048f20d113208de566c648b0da58e373`.
 
-Published release assets:
+Rebased PR CI run `33158138943` and merge-triggered `main` run `33158188037` both passed:
+
+```text
+build-wheel       SUCCESS
+test-python-3.11  SUCCESS
+test-python-3.13  SUCCESS
+```
+
+Framework source version on `main` is now `0.4.0`.
+
+## Released baseline
+
+Framework `v0.3.0` remains the latest immutable GitHub Release. Release run `33156000907` published:
 
 ```text
 fabric_data_framework-0.3.0-py3-none-any.whl
 SHA256SUMS
 ```
 
-GitHub records the wheel digest as:
+Customer exact released-wheel integration passed against those assets, and Customer Phase 3 PR #6 was squash-merged as commit `32f6cabc093541270b271ae37754ba8fe1e9544b`.
 
-```text
-sha256:37a4734e48e5a43240035c19174924231f565ca2fedb30484e691bc19c2cafc0
-```
+## Phase 4 dispatcher
 
-Customer PR #6 then reran exact released-artifact integration. It downloaded the `v0.3.0` wheel and checksum, verified SHA-256, installed the released framework, ran cross-package tests, and validated release-manifest plus DEV/UAT/PROD deployment plans. Final Customer CI run `33157883463` passed both jobs, and Customer PR #6 was squash-merged as commit `32f6cabc093541270b271ae37754ba8fe1e9544b`.
-
-The 0.3.0 immutable release boundary is therefore frozen and proven end to end.
-
-## Existing delivery spine
-
-Framework `v0.3.0` provides:
-
-```text
-fabric-framework validate-tag
-fabric-framework control-plane-migrate
-fabric-framework metadata-materialize
-fabric-framework release-manifest
-fabric-framework deployment-plan
-fabric-framework deployment-record
-```
-
-Release workflow capabilities include:
-
-- GitHub Actions UI initiation via `workflow_dispatch`;
-- manual release restricted to `main`;
-- package/tag identity validation;
-- Ruff, compile, dependency and pytest gates;
-- explicit build-backend installation;
-- immutable wheel build;
-- portable `SHA256SUMS` generation and verification;
-- annotated tag creation only after validation/build succeeds;
-- GitHub Release creation;
-- recovery when a tag exists without a Release;
-- refusal to overwrite an existing Release or move an existing tag.
-
-## Phase 4 dispatcher candidate
-
-Framework PR #9 contains version `0.4.0` and implements the generic metadata-driven dispatcher above dataset executors:
+The merged 0.4.0 dispatcher provides:
 
 ```text
 pipeline request
@@ -90,7 +67,21 @@ Implemented contracts include:
 - pipeline/dataset lineage IDs;
 - thread-safe in-memory control-plane support and pipeline-run upsert.
 
-The original Phase 4 branch was opened before later 0.3.0 release-workflow hardening, so it is being reconstructed on current `main` rather than merging stale release/docs state. Its earlier GitHub-hosted validation passed wheel build, Python 3.11, Python 3.13 and **44 tests**.
+The framework test suite now contains **44 tests** covering the dispatcher plus prior runtime/delivery contracts.
+
+## Current release boundary
+
+`main` contains 0.4.0 source, but immutable GitHub Release `v0.4.0` does not yet exist.
+
+Before Customer consumes the dispatcher, publish `v0.4.0` through the same proven UI release path:
+
+```text
+GitHub -> fabric-data-framework -> Actions -> framework-release -> Run workflow
+Use workflow from: main
+version: 0.4.0
+```
+
+Customer must then exact-pin/install the published 0.4.0 wheel rather than consuming framework `main`.
 
 ## Current external boundary
 
@@ -98,8 +89,8 @@ No enterprise Fabric workspace, tenant setting, capacity, connection, credential
 
 ## Known limitations / blockers
 
-- Phase 4 must complete rebased CI before merge.
-- No tiny Customer multi-dataset dispatcher scenario yet.
+- Immutable Framework `v0.4.0` release is pending.
+- Customer multi-dataset dispatcher scenario must wait for the published 0.4.0 artifact.
 - Retry/backfill/replay attempt orchestration is not implemented yet.
 - FULL/SNAPSHOT -> SNAPSHOT_DIFF and CDC -> UPSERT representative executors are not implemented yet.
 - Delete, schema-evolution and general late/out-of-order correction policies remain future slices.
@@ -109,8 +100,8 @@ No enterprise Fabric workspace, tenant setting, capacity, connection, credential
 
 ## Exact next implementation sequence
 
-1. Rebase/revalidate and merge Framework PR #9 as the `0.4.0` dispatcher slice.
-2. Add a tiny Customer multi-dataset graph proving `SUCCESS`, `PARTIAL_SUCCESS`, dependency blocking and unrelated sibling continuation.
+1. Publish/prove immutable Framework `v0.4.0` from the GitHub Actions UI.
+2. Upgrade Customer exact framework pin/integration to 0.4.0 and add a tiny multi-dataset graph proving `SUCCESS`, `PARTIAL_SUCCESS`, dependency blocking and unrelated sibling continuation.
 3. Implement retry/backfill/replay and attempt lineage.
 4. Add representative SNAPSHOT_DIFF and CDC/UPSERT executors.
 5. Implement delete/late-arrival/schema-evolution correctness policies.
