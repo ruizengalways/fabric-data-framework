@@ -50,6 +50,16 @@ CDC checkpoint persistence + optimistic concurrency
 Actions 33216281126
 171 tests passed
 snapshot/bootstrap -> CDC no-gap/no-double-apply handoff
+
+1087ab9231b9cb638a87bc2f78ef0c1b1fe32beb
+Actions 33219601375
+179 tests passed
+Debezium/Kafka envelope adapter + retention-aware resume planning
+
+ecdca38099a4f21c6f40701dc14889b464c20608
+Actions 33219783325
+183 tests passed
+Debezium/Kafka capability profile + explicit provider-adapter registry
 ```
 
 Earlier hardening evidence remains relevant:
@@ -97,10 +107,15 @@ The hardening branch now provides:
 - CDC -> SCD2 history apply with source-order/valid-time separation;
 - durable environment-local CDC apply checkpoints with optimistic concurrency;
 - snapshot/bootstrap -> CDC no-gap/no-double-apply handoff contract;
+- built-in Debezium/Kafka envelope adapter using topic/partition/offset as canonical order;
+- Debezium snapshot-read and tombstone handling policies;
+- retention-aware Kafka resume planning from the framework committed apply checkpoint;
+- source-controlled `EXTERNAL_CDC/debezium_kafka_v1` capability profile;
+- explicit provider CDC adapter registry keyed by engine/profile;
 - additive control-plane schema v2 including capture/apply execution policy, ordering policy, capture receipt, recovery lineage and CDC checkpoint;
 - immutable release/delivery contracts and CLI.
 
-## CDC is now implemented as a provider-neutral semantic core
+## CDC semantic core
 
 Canonical design: `docs/CDC_DESIGN.md`.
 
@@ -112,26 +127,42 @@ provider LSN / binlog / Kafka offset / native coordinate
        -> CDCEvent
 ```
 
-Current normalization certifies:
-
-```text
-INSERT / UPDATE / DELETE
-event identity
-canonical key
-source position
-before / after
-event time / transaction metadata
-frozen upper checkpoint
-completeness through upper
-exact duplicate ignore
-conflicting duplicate fail
-shared-position ambiguity fail
-same-key cross-partition ambiguity fail
-committed overlap ignore
-deterministic ordering
-```
+Current normalization certifies INSERT/UPDATE/DELETE, event identity, canonical key, source position, before/after, event time/transaction metadata, frozen upper checkpoint, completeness evidence, duplicate handling, conflict detection, committed-overlap ignore and deterministic ordering.
 
 The framework intentionally fails closed if an adapter has not supplied enough sequence information to prove a unique event position.
+
+## Debezium/Kafka provider adapter
+
+Current built-in provider profile:
+
+```text
+execution engine: EXTERNAL_CDC
+capability profile: debezium_kafka_v1
+progress owner: EXTERNAL
+apply engine: independently selected; framework/Spark by default
+```
+
+The adapter maps Debezium records consumed from Kafka into canonical `CDCEvent`/`CDCCheckpoint` using:
+
+```text
+topic + partition + offset -> canonical source position
+```
+
+Database LSN/binlog values remain metadata only; they are not guessed into a total row order.
+
+Certified adapter behavior includes:
+
+- Debezium `c/u/d` -> canonical INSERT/UPDATE/DELETE;
+- Kafka tombstone -> provider cleanup, not a second business delete;
+- Debezium snapshot `op=r` rejected by default to avoid bootstrap double-apply;
+- explicit policy may map `r` to INSERT when intentionally required;
+- explicit Kafka record key required; business key is not inferred from arbitrary payload;
+- mixed topic / missing partition / record beyond frozen upper offset fail closed;
+- provider adapter resolution is explicit through `(EXTERNAL_CDC, debezium_kafka_v1)`.
+
+Resume planning deliberately ignores an external consumer-group cursor when deciding safe downstream recovery. It derives the next required offset from the framework committed CDC apply checkpoint and fails with a retention-gap error if Kafka no longer retains that offset.
+
+This is reference/provider-adapter evidence only. No real Kafka broker, Debezium connector or consumer group has been exercised by this branch.
 
 ## CDC apply semantics
 
@@ -154,7 +185,7 @@ Same `event_time` with distinct source positions is legal. A newer source event 
 
 ## Durable CDC checkpoint
 
-Environment-local control plane now includes:
+Environment-local control plane includes:
 
 ```text
 cdc_checkpoint
@@ -184,8 +215,6 @@ consume buffered CDC
    >  B -> apply
 ```
 
-This prevents both source-position gaps and double apply for the currently certified partition model.
-
 Bootstrap fails closed for incomplete snapshot evidence, stream start after the snapshot fence, partition-set changes, or a first CDC upper checkpoint below the snapshot boundary.
 
 ## Recovery core
@@ -201,7 +230,7 @@ UNKNOWN_OUTCOME -> reconcile first
   UNRESOLVED    -> stop
 ```
 
-Attempt root/previous lineage and reprocess requests are environment-local evidence. Strategy-specific REPLAY/FULL_REBUILD/native-progress execution remains incomplete.
+Attempt root/previous lineage and reprocess requests are environment-local evidence. Debezium/Kafka now has a provider-specific safe source-resume planner, but quarantine REPLAY, FULL_REBUILD execution and other native-progress recovery remain incomplete.
 
 ## Fabric adapter status
 
@@ -242,7 +271,7 @@ data_quality_policy
 reconciliation_policy
 ```
 
-Environment-local runtime/evidence now includes:
+Environment-local runtime/evidence includes:
 
 ```text
 schema_migration_history
@@ -273,14 +302,14 @@ SQLAlchemy/SQLite control-plane evidence is a schema/transaction reference proof
 
 ## Exact next implementation sequence
 
-1. Add selected built-in/provider CDC envelope adapters and capability profiles, while preserving canonical CDC contracts.
-2. Complete strategy-specific recovery: quarantine REPLAY, FULL_REBUILD execution and native/external progress recovery.
+1. Complete strategy-specific recovery: quarantine REPLAY, FULL_REBUILD execution and remaining native/external progress recovery.
+2. Add additional provider CDC adapters only where a supported product scope requires them; keep canonical CDC unchanged.
 3. Implement APPEND identity/collision/replay semantics.
 4. Implement general schema-evolution classification and compatibility policy.
 5. Add shared late/out-of-order taxonomy beyond the current fail-closed SCD2 retroactive case.
 6. Add file-manifest and API-pagination/window capture guardrails.
 7. Add supported persistent control-plane repository/operator query surface.
-8. Implement actual Fabric transports/backend and prove at least one approved DEV hybrid execution.
+8. Implement actual Fabric/Kafka transports/backend and prove at least one approved DEV hybrid execution.
 9. Re-run production readiness/guarantee/docs audit against the exact candidate head.
 10. Only then decide the next immutable framework release scope/version.
 
