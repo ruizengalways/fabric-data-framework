@@ -1,21 +1,19 @@
-"""Provider-specific physical execution adapters.
+"""Microsoft Fabric physical capture adapters and contracts."""
 
-Reusable data semantics stay outside this package. Adapters translate an already
-compiled execution unit into provider-specific invocation/evidence contracts.
-"""
-
-from .fabric import (
+from .adapter import (
     CopyActivityCaptureAdapter,
     CopyJobCaptureAdapter,
     DataflowGen2CaptureAdapter,
     FabricAdapterExecutionError,
     FabricAdapterRegistry,
     FabricCaptureAdapter,
+    SparkJobCaptureAdapter,
+)
+from .contracts import (
     FabricCaptureRequest,
     FabricCaptureTransport,
     FabricNativeRunEvidence,
     FabricNativeRunStatus,
-    SparkJobCaptureAdapter,
 )
 
 __all__ = [
