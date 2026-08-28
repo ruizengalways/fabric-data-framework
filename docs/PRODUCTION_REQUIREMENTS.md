@@ -7,427 +7,542 @@ Last updated: 2026-08-28
 
 This document is the durable production-requirements backlog for `fabric-data-framework`.
 
-The framework is not considered production-grade merely because a Python algorithm exists or because a Fabric item can be created. A capability must be explicit about four separate evidence levels:
+The framework targets a stable enterprise wheel: routine datasets should be onboarded through metadata, environment bindings and bounded extensions, not framework forks.
 
-1. **portable semantics** — reusable correctness contracts implemented and tested independent of Fabric;
-2. **Fabric adapter** — the semantics can be executed through supported Fabric items/APIs without duplicating business logic;
-3. **Fabric integration evidence** — the adapter has executed against a real approved Fabric estate and retained run/deployment evidence;
-4. **external enterprise control** — identity, networking, secrets, governance, retention, incident management, approvals and capacity policy supplied by the company/platform authority.
+A capability has four distinct evidence levels:
 
-Do not collapse these levels into one `production-ready` label.
+1. **portable semantics** — framework-owned reusable contract/algorithm;
+2. **deterministic certification** — executable reference/unit/contract proof;
+3. **Fabric integration evidence** — executed through real approved Fabric items/APIs with retained native correlation;
+4. **external enterprise controls** — identity, networking, secrets, governance, retention, incident response, approval and capacity policy supplied by the enterprise/platform authority.
+
+Do not collapse these levels into one `production-ready` label. See `PRODUCTION_READINESS_AUDIT.md` and `GUARANTEE_COVERAGE.md`.
 
 ## 2. Status vocabulary
 
-- `IMPLEMENTED` — canonical framework owner and executable proof exist at the stated scope.
-- `PARTIAL` — useful behavior exists but one or more required correctness/operability paths are missing.
-- `PLANNED` — required by the target architecture but not implemented yet.
-- `EXTERNAL` — must integrate with an enterprise/Fabric authority rather than be invented by this repository.
+- `IMPLEMENTED` — portable owner + executable proof exist at the stated scope.
+- `PARTIAL` — useful behavior exists but material required paths are missing.
+- `PLANNED` — required but not implemented.
+- `EXTERNAL` — must be proven by Fabric/enterprise authority rather than invented by this repository.
 
-## 3. Product boundary
+## 3. Product and delegation boundary
 
-The framework owns reusable Data Engineering behavior shared by domains. Domain repositories own business semantics and physical domain item definitions. `fabric-infra` or an existing enterprise platform owns Fabric estate provisioning and security primitives.
+The framework owns reusable DE semantics. Domain repositories own business mappings/rules and bounded domain extensions. `fabric-infra` or an existing company platform owns Fabric estate/security primitives.
 
-The framework must not become:
+Accepted ADR 0009 establishes:
 
-- a company-specific domain application;
-- a home-grown identity/RBAC/secrets system;
-- a fake enterprise incident-management system;
-- a generic infrastructure factory for every cloud/Fabric topology;
-- a visual-pipeline generator that encodes business logic in hundreds of activity definitions.
+```text
+core semantic contract
+    -> framework-owned portable fallback implementation
+    -> optional native stage delegation only when capability-certified
+```
 
-## 4. Source and extraction correctness
+Physical stage ownership is independent:
 
-Required capabilities:
+```text
+capture / movement
+    != normalize / transform
+    != apply
+    != reconcile / state
+```
+
+A native Fabric feature must not become the only implementation of a core mature semantic pattern.
+
+## 4. Source and capture correctness
 
 | Requirement | Status | Production expectation |
 |---|---|---|
-| Stable source boundary | PARTIAL | Every bounded run must know what source state/window it intended to read. |
-| Complete snapshot evidence | PLANNED | FULL/SNAPSHOT must distinguish a complete authoritative snapshot from an extraction failure/partial result. |
-| Composite watermark | IMPLEMENTED | `(watermark, tie_breaker...)` ordering prevents same-timestamp loss. |
-| Watermark overlap | IMPLEMENTED contract; more integration needed | Bounded re-read must rely on idempotent apply and preserve committed progress on failure. |
-| Ordered CDC offsets | PLANNED | Freeze upper offset, preserve event order/identity, support poison-event evidence and safe offset commit. |
-| Bootstrap snapshot -> CDC | PLANNED | Define handoff coordinate so changes during bootstrap are neither lost nor applied twice. |
-| Append-only identity | PLANNED | Exact replay succeeds; same identity with different payload fails closed. |
-| File/object manifest freeze | PLANNED | Object ingestion should use an immutable/versioned manifest or readiness protocol, not an unreproducible mutable wildcard listing. |
-| API pagination/window guardrails | PLANNED | Cursor loop detection, max pages, retry-after/backoff and replay-stable window semantics. |
+| Stable source boundary | PARTIAL | Every bounded run knows the intended source state/window. Framework WATERMARK/FULL/SNAPSHOT slices do; CDC/file/API families remain. |
+| Complete FULL snapshot evidence | IMPLEMENTED reference | Completeness is explicit adapter evidence; successful iteration is insufficient. |
+| Complete SNAPSHOT evidence | IMPLEMENTED reference | Required before absence may mean deletion. |
+| Composite watermark | IMPLEMENTED | `(watermark, tie_breaker...)` prevents same-timestamp loss for framework-owned bounds. |
+| Watermark overlap | IMPLEMENTED reference | Bounded reread supported; final safety depends on idempotent apply/recovery. |
+| CaptureReceipt | IMPLEMENTED contract | Native/external movement hands off run/landing/boundary/checkpoint evidence. |
+| Single capture progress authority | IMPLEMENTED contract | Exactly one of FRAMEWORK/FABRIC_NATIVE/EXTERNAL owns the physical checkpoint. |
+| Ordered CDC offsets/events | PLANNED | Freeze upper offset; preserve event identity/order; safe checkpoint commit. |
+| Bootstrap snapshot -> CDC | PLANNED | Handoff coordinate prevents gaps/double apply. |
+| File/object manifest freeze | PLANNED | Immutable/versioned manifest/readiness protocol. |
+| API pagination/window guardrails | PLANNED | Cursor-loop/max-page/retry-after/replay-stable window behavior. |
 
-Extraction failure must never masquerade as a valid empty business snapshot.
+Extraction failure must never masquerade as a legitimate empty business snapshot.
 
 ## 5. Capture strategy families
 
-Canonical capture strategies remain independent from target apply strategies:
+Canonical capture semantics:
 
-- `FULL` — complete authoritative state read.
-- `WATERMARK` — bounded incremental read using a reliable ordered boundary.
-- `SNAPSHOT` — complete versioned snapshot used for diff/history semantics.
-- `CDC` — ordered bounded change-log consumption.
-- `MIRROR` — Fabric/provider-managed replication when the source capability and governance model justify it.
-- `STREAM` — streaming/event transport; secondary until the batch/control model is mature.
+```text
+FULL
+WATERMARK
+SNAPSHOT
+CDC
+MIRROR
+STREAM
+```
 
-A physical connector does not define a new semantic strategy. SQL Server, PostgreSQL and SaaS systems may all implement the same capture family when they satisfy the same correctness contract.
+A physical connector/product does not define a new semantic strategy when one of these contracts fits.
 
 ## 6. Apply strategy families
 
-Required target strategies:
+| Apply strategy | Status | Required semantics |
+|---|---|---|
+| APPEND | PLANNED | append-once event/row identity; exact replay idempotency; conflicting duplicate fails closed |
+| REPLACE | IMPLEMENTED reference | isolated candidate, destructive guards, reconciliation, safe publication boundary |
+| UPSERT | P0 PLANNED | ordered/freshness-aware current-state merge; retry/idempotency/conflict rules |
+| SCD1 | IMPLEMENTED reference | ordered current-state overwrite; stale/equal-position/duplicate semantics |
+| SCD2 | IMPLEMENTED reference | deterministic temporal history for certified scope; one-current-row invariant |
+| SNAPSHOT_DIFF | IMPLEMENTED reference | deterministic I/U/D from complete snapshots with delete guards |
 
-- `APPEND` — append-once identity with duplicate/collision policy.
-- `REPLACE` — staged, validated and safely published full replacement.
-- `UPSERT` — freshness/ordering-aware merge with retry/idempotency semantics.
-- `SCD1` — current-state dimensional update semantics.
-- `SCD2` — temporal history with deterministic effective intervals.
-- `SNAPSHOT_DIFF` — deterministic I/U/D derivation from complete snapshots with delete guards.
+`CDC != SCD2`. `FULL != REPLACE`. Capture and apply are composed independently.
 
-`CDC != SCD2`. `FULL != REPLACE`. Capture and apply are composed by metadata and validated for compatibility.
+## 7. FULL -> REPLACE correctness
 
-## 7. Full-refresh correctness
+Implemented reference behavior includes:
 
-`FULL -> REPLACE` is a first-class production template, not just `truncate + insert`.
+1. explicit complete source snapshot evidence;
+2. isolated candidate/stage;
+3. DQ/quarantine accounting;
+4. source/candidate empty guards;
+5. candidate row-drop guard;
+6. reconciliation before publication;
+7. live target remains unchanged when required guard/reconciliation fails;
+8. durable run/step/reconciliation evidence in reference repository.
 
-A production full refresh must support:
+Still required before production claim:
 
-1. create run and freeze source intent;
-2. extract into an isolated staging location/table/version;
-3. validate schema and required contracts;
-4. validate completeness and row-accounting guardrails;
-5. run DQ/quarantine policy where applicable;
-6. reconcile staged candidate against source/control expectations;
-7. publish atomically or through an explicit swap/replace boundary;
-8. retain enough previous-state/version evidence for recovery policy;
-9. commit run/state only after successful publication and required reconciliation;
-10. clean staging only when recovery/retention rules allow it.
+- real Lakehouse/Warehouse publication/swap semantics;
+- target-write failure/unknown outcome recovery on a persistent adapter;
+- retention/rollback policy tied to the real estate.
 
-An unexpected zero-row or dramatically incomplete source must not automatically wipe a healthy target. Guardrails must be policy-driven and auditable.
+## 8. SNAPSHOT_DIFF and delete correctness
 
-## 8. Snapshot-diff and delete correctness
+Implemented reference scope:
 
-`FULL/SNAPSHOT -> SNAPSHOT_DIFF` must prove snapshot completeness before interpreting absence as deletion.
+- complete snapshot before absence can mean deletion;
+- null/duplicate merge-key rejection;
+- deterministic insert/update/delete derivation;
+- delete-disabled preservation;
+- quarantine-aware delete blocking;
+- configurable delete-all/delete-fraction guards;
+- reconciliation before publication.
 
-Delete semantics are explicit metadata, not inferred ad hoc:
+Still required:
 
-- no delete propagation;
-- source tombstone -> soft delete;
-- source tombstone -> hard delete where approved;
-- snapshot absence -> delete only after completeness gate;
-- SCD2 close-current semantics;
-- downstream delete/restate policy.
+- generalized tombstone/hard-delete/soft-delete/SCD2-close semantics;
+- downstream restatement/cascade policy;
+- real Fabric target delete certification.
 
-Every delete-capable strategy requires delete counts in audit/reconciliation evidence and configurable delete-volume guardrails.
+## 9. SCD1 current-state correctness
 
-## 9. Stateful progress and concurrency
+Implemented canonical framework fallback must remain independent from ingestion engine.
+
+Certified reference scope:
+
+- composite merge keys;
+- source ordering tuple using event time/version/sequence/LSN-like columns;
+- latest incoming version selected per key;
+- exact rerun idempotency;
+- stale row `IGNORE` or `ERROR` policy;
+- equal source position + conflicting payload fails closed;
+- null/noncomparable ordering fails;
+- changed unordered update fails unless explicitly authorized for an authoritative source contract;
+- duplicate, superseded and stale observations are separately counted.
+
+A Dataflow/Copy/CDC capture may feed this framework SCD1 implementation.
+
+## 10. UPSERT requirement
+
+UPSERT is P0 because current-state non-dimensional tables are common and native `merge` semantics cannot be assumed equivalent across products.
+
+Required:
+
+- composite merge key;
+- optional freshness/order tuple;
+- insert/update/no-op counts;
+- stale policy;
+- equal-position conflict policy;
+- exact rerun idempotency;
+- delete/tombstone composition;
+- retry/unknown-outcome safety;
+- target-adapter transaction/publication contract.
+
+UPSERT may share low-level ordering/dedup utilities with SCD1, but the semantic API remains distinct.
+
+## 11. SCD2 correctness
+
+Current reference implementation proves:
+
+- deterministic business-key history;
+- one current row per business key;
+- tracked-column change detection;
+- effective time intervals;
+- duplicate unchanged row no-op;
+- bounded late/conflict failure semantics.
+
+Required future hardening:
+
+- explicit source version/sequence ordering integration;
+- late historical correction/restate policies;
+- tombstone/delete close-current semantics;
+- real target adapter certification.
+
+## 12. Native Fabric delegation requirements
+
+Native Fabric tools are stage executors, not semantic authorities by default.
+
+### Capability profiles
+
+Capabilities are keyed by `(engine, profile_name)` so connector/product/mode limitations do not leak into global assumptions.
+
+Required resolver behavior:
+
+- conservative default profiles;
+- named profile requires explicit engine;
+- unsupported strategy/progress/order combination fails before mutation;
+- `AUTO` resolves to a concrete plan before execution and cannot silently switch later;
+- capture certification does not imply apply certification;
+- native apply delegation requires an explicit semantic-equivalence profile.
+
+### Current Dataflow Gen2 profile
+
+Implemented reference profile:
+
+```text
+DATAFLOW_GEN2 / dataflow_gen2_incremental_bucket_v1
+```
+
+Certifies only:
+
+```text
+WATERMARK-like incremental capture/staging using native DateTime buckets
+FABRIC_NATIVE capture progress
+no composite-watermark guarantee
+no native SCD1/UPSERT/SCD2 equivalence claim
+```
+
+Required hybrid:
+
+```text
+Dataflow Gen2 incremental landing
+  -> CaptureReceipt
+  -> framework SCD1/UPSERT/SCD2
+```
+
+### Copy Job / Copy Activity / Mirroring / external CDC
+
+Apply the same principle: use native movement when strong, but certify exact connector/mode limitations and keep the downstream framework semantic fallback available.
+
+## 13. Progress and state correctness
 
 Required:
 
 - environment-local committed state;
 - proposed state separated from committed state;
-- dataset lease or optimistic concurrency protection;
+- one physical capture checkpoint authority;
+- dataset lease/optimistic-concurrency protection;
 - target mutation + reconciliation + state-commit ordering;
-- no state advancement after failed/uncertain completion;
-- explicit handling of `target succeeded, state/audit outcome uncertain`;
+- no framework state advancement after failed/uncertain completion;
 - run/attempt lineage and idempotency keys;
-- state reset/rebuild only through an audited recovery request.
+- audited reset/rebuild request;
+- runtime state never promoted DEV -> UAT -> PROD.
 
-State is operational data and must never be promoted from DEV to UAT/PROD.
+Current state: watermark/state gates are implemented for existing reference slices; complete retry/unknown-outcome protocol remains P0.
 
-## 10. Retry, recovery and reprocessing
+## 14. Retry, recovery and reprocessing
 
-Run modes are first-class:
+Run modes:
 
-- `NORMAL`
-- `RETRY`
-- `BACKFILL`
-- `REPLAY`
-- `FULL_REBUILD`
+```text
+NORMAL
+RETRY
+BACKFILL
+REPLAY
+FULL_REBUILD
+```
 
-Required runtime behavior:
+Required runtime behavior (P0 unless noted):
 
-- classify failures as retryable/non-retryable/unknown;
-- dataset-run attempts with stable parent lineage;
+- failure classification retryable/non-retryable/unknown;
+- dataset attempt lineage;
 - bounded retry/backoff;
-- exact source range/window retained for deterministic retry where possible;
-- backfill range validation and overlap policy;
-- quarantine replay preserving original and replay run lineage;
-- operator reprocess requests with requester, reason, scope and approval reference where required;
-- recovery from unknown commit outcome using idempotency/reconciliation rather than blind duplicate writes.
+- exact retained source range/window for deterministic retry where possible;
+- backfill range validation/overlap;
+- quarantine replay lineage;
+- reprocess request requester/reason/scope/approval reference where needed;
+- unknown commit recovery using idempotency/reconciliation rather than blind duplicate write;
+- rebuild state reset only through audited workflow.
 
-Code rollback, deployment rollback and data recovery remain distinct procedures.
+Current state: vocabulary/schema foundations exist; end-to-end runtime is not certified.
 
-## 11. Data quality and quarantine
+## 15. Data quality and quarantine
 
-Required:
+Implemented reference foundations:
 
-- row-level rules with accepted/quarantined accounting;
-- batch/contract rules that can block target/state;
-- no connection/permission/code defect disguised as bad data;
-- deterministic quarantine reason/rule/version;
-- original run/source lineage;
-- replay status and replay lineage;
-- configurable progress policy after row quarantine;
-- no silent loss:
+- row-level rules;
+- accepted/quarantined accounting;
+- row quarantine can allow accepted rows to continue when policy permits;
+- contract/system errors are not mislabeled as bad data;
+- run/reason lineage;
+- reconciliation can block state/publication.
+
+Invariant:
 
 ```text
 rows_read = rows_accepted + rows_quarantined + rows_intentionally_filtered
 ```
 
-Sensitive quarantine access/retention is an external governance concern; the framework owns the lineage/control contract.
+Required future work:
 
-## 12. Reconciliation and completion gates
+- persistent quarantine storage adapter;
+- replay lifecycle/status;
+- sensitive-data access/retention integration (external governance).
 
-Reconciliation is part of success for stateful and critical loads.
+## 16. Reconciliation and completion gates
 
-Policy families should support:
+Policy families must support as relevant:
 
 - source/stage/target row counts;
-- distinct/business key counts;
-- accepted/quarantined balance;
+- key counts/uniqueness;
+- accepted/quarantined/filtered balance;
 - inserted/updated/deleted counts;
-- hash/control totals where justified;
-- snapshot completeness evidence;
-- expected-versus-actual delete counts;
-- SCD current-row uniqueness and temporal overlap checks;
+- hash/control totals;
+- complete-snapshot evidence;
+- delete guards;
+- SCD current-row/temporal invariants;
 - CDC offset/event accounting.
 
-Policy determines `WARN`, `QUARANTINE`, `FAIL`, and whether state progression is allowed.
+Policy determines `WARN`, `QUARANTINE`, `FAIL`, and whether publication/state progression is permitted.
 
-## 13. Schema contracts and evolution
+## 17. Schema contracts and evolution
 
-Required:
+P0 requirement, not yet complete:
 
-- source schema fingerprint/version evidence;
-- additive-compatible change policy;
+- schema fingerprint/version evidence;
+- expected schema contract binding;
+- additive-compatible classification;
 - breaking-change classification;
-- type widening/narrowing rules;
+- type widening/narrowing policy;
 - missing/extra column policy;
-- contract version binding to deployed metadata;
 - schema-change audit;
-- controlled dual-read/dual-write/cutover only when a concrete scenario requires it;
-- rollback/rebuild implications documented before activation.
+- controlled cutover/rebuild implications.
 
-Do not silently auto-evolve every schema in production.
+Do not silently auto-evolve every production schema.
 
-## 14. Late and out-of-order data
+## 18. Late/out-of-order/duplicate behavior
 
-Required policies must distinguish:
+The framework must distinguish:
 
-- late but still inside accepted watermark overlap;
-- stale update to mutable current-state data;
+- exact duplicate replay;
+- conflicting duplicate identity;
+- stale current-state update;
+- late but overlap-eligible watermark record;
 - out-of-order CDC event;
 - late SCD2 historical observation;
-- fact arriving before dimensional truth;
-- exact duplicate replay;
-- conflicting duplicate identity.
+- fact/dimension timing issue.
 
-The framework must fail closed for unsupported temporal correction rather than produce plausible but wrong history.
+Current state: SCD1 and SCD2 have certified bounded policies; a common cross-strategy temporal/error taxonomy remains incomplete.
 
-## 15. Orchestration and dependency execution
+Unsupported correction must fail closed rather than produce plausible wrong history.
 
-The dataset remains the default fault boundary.
+## 19. Orchestration and dependencies
 
-Required orchestration behavior:
+Implemented reference behavior:
 
-- select deployed/effective metadata;
-- enable/disable and execution-group filtering;
+- effective/deployed metadata selection;
+- enabled/execution-group/request filters;
 - dependency validation and cycle detection;
+- priority/criticality;
 - bounded parallelism;
-- source/capacity-aware concurrency policy;
-- priority and criticality;
 - sibling failure isolation;
-- dependent `BLOCKED` outcomes;
-- aggregate `SUCCESS`, `PARTIAL_SUCCESS`, `FAILED`;
-- timeout/cancellation propagation;
-- pipeline/dataset/step correlation IDs;
-- safe rerun of an execution group or bounded dataset set.
+- dependent `BLOCKED`;
+- unrelated sibling continuation;
+- aggregate `SUCCESS/PARTIAL_SUCCESS/FAILED`.
 
-The framework should prefer explicit stages/execution groups and simple dependency rules before inventing a universal DAG scheduler.
+Still required:
 
-## 16. Fabric execution model
+- Fabric Pipeline execution backend;
+- source/capacity-aware concurrency profiles on real workloads;
+- cancellation/timeout propagation proof;
+- reprocess/rerun orchestration integration.
 
-Fabric is an execution/deployment adapter, not the owner of reusable correctness semantics.
+## 20. Fabric execution model
 
-The production reference must support these Fabric item roles:
+Required roles:
 
-- **Data Factory Pipeline** — trigger/schedule, control flow, fan-out, child-pipeline invocation, explicit activity-level visibility and failure routing.
-- **Spark Job Definition (preferred headless batch entrypoint)** — packaged non-interactive Spark application that imports the released framework/domain wheels and executes one bounded job/request.
-- **Notebook (supported thin interactive entrypoint)** — debugging, smoke tests, exploration and operator-assisted execution; may also be used as a pipeline activity when it is the justified runtime surface.
-- **Copy Activity / Copy Job** — high-scale data movement when the scenario is movement-centric and supported connectors can satisfy the semantic boundary without custom Spark extraction.
-- **SQL/Stored Procedure activities** — target-side SQL operations where the database engine is the appropriate execution owner.
-- **Environment** — pinned runtime/compute/library snapshot for Spark workloads; production uses published stable library configuration.
-- **Variable Library / environment binding** — non-secret environment-scoped values where supported; semantic dataset metadata remains source-controlled and versioned separately.
+- Data Factory Pipeline — trigger/schedule/control flow/fan-out/failure routing;
+- Spark Job Definition — preferred generic headless framework Spark entrypoint;
+- Notebook — thin interactive/smoke/diagnostic or justified production activity;
+- Copy Activity / Copy Job — native movement stages where profile matches;
+- Dataflow Gen2 — Power Query/native incremental/transformation stage where profile matches;
+- Mirroring — provider-managed replication where supported;
+- SQL/database-native activity — target-side work when database engine is appropriate;
+- Environment — pinned Spark runtime/library configuration;
+- environment bindings/Variable Library where appropriate for non-secret physical values.
 
-A Fabric pipeline with one Spark/Notebook activity is not automatically unprofessional. It is acceptable for a **thin child execution pipeline** if the reusable semantics live in the package and run/step evidence is durable. A domain-level production pipeline that is merely a single opaque notebook with no parameter, execution, failure, lineage or operational boundary is not the target architecture.
+A pipeline with one thin SJD/Notebook execution activity is acceptable. An opaque notebook owning the whole platform scheduler/control plane is not the target.
 
-See `docs/FABRIC_EXECUTION_MODEL.md`.
+## 21. Control plane
 
-## 17. Physical execution selection
+Control-plane schema v2 reference includes promotable definitions:
 
-The framework should compile effective dataset metadata into an execution plan independent of Fabric UI shape.
+```text
+dataset
+dataset_contract
+load_policy
+ordering_policy
+execution_policy
+orchestration_policy
+data_quality_policy
+reconciliation_policy
+```
 
-Representative execution kinds:
+and environment-local state/evidence:
 
-- `FABRIC_COPY`
-- `SPARK_JOB_DEFINITION`
-- `FABRIC_NOTEBOOK`
-- `SQL_SCRIPT` / database-native execution
-- future provider-managed replication adapter
+```text
+runtime_override
+watermark
+dataset_state
+dataset_lease
+pipeline_run
+dataset_run
+step_run
+capture_receipt
+reconciliation_result
+quarantine_batch
+schema_change
+reprocess_request
+deployment_history
+```
 
-Selection depends on source/target capabilities, transformation complexity, volume, security/network constraints, transaction semantics and cost — not on making the pipeline canvas visually busy.
+Production requirements still include:
 
-## 18. Control plane
+- supported persistent store/repository;
+- real migration lifecycle/checksums/compatibility policy;
+- transaction boundaries;
+- operator queries/status API;
+- retention/pruning dependencies.
 
-Logical entities include semantic/deployed metadata, operational state, run/evidence, recovery and deployment history.
+SQLAlchemy/SQLite is contract proof only.
 
-Production requirements:
+## 22. Extension model
 
-- schema migration lifecycle;
-- immutable migration IDs/checksums;
-- backward/forward compatibility rules for rolling deployment where needed;
-- environment-local state isolation;
-- durable repository adapter;
-- transaction boundaries documented per state mutation;
-- queryable operator/status surface;
-- retention dependencies before destructive pruning;
-- deployment/config provenance on every run.
+Required policy:
 
-The current SQLAlchemy/SQLite implementation is contract proof, not a claim that SQLite is the production Fabric control store.
+- ordinary variation must be metadata, not framework fork;
+- metadata uses stable logical extension names;
+- domain package/entry-point registry resolves implementation;
+- no arbitrary Python module/call expression in production metadata;
+- extension may implement custom capture/parser/transform/DQ/specialized apply;
+- extension cannot bypass accounting, reconciliation, publication/state authority, secrets/bindings or audit.
 
-## 19. Observability and operability
+Current logical-name registry and validation are implemented/reference-tested.
 
-Every failed or delayed dataset must be explainable without reading notebook source code.
+## 23. Observability and operability
 
-Required evidence includes:
+Every failed/delayed dataset should eventually be explainable without reading notebook source:
 
 - pipeline/dataset/step/attempt IDs;
-- Fabric pipeline/activity/notebook/SJD run IDs when available;
-- framework version, domain release/Git SHA and config hash;
+- native Fabric run IDs when available;
+- framework version/domain release/Git SHA/config hash;
+- concrete execution plan/profile;
 - source boundary/window/offset;
 - rows read/staged/accepted/quarantined/inserted/updated/deleted;
-- watermark/state before and after;
-- reconciliation results;
-- schema version/change;
-- duration by meaningful step;
-- error category/code/message and retryability;
-- blocked dependency reason;
-- recovery/reprocess lineage.
+- duplicate/superseded/stale/conflict evidence where relevant;
+- watermark/state before/after;
+- reconciliation/schema evidence;
+- error code/category/retryability;
+- blocked dependency/recovery lineage.
 
-Required operator capabilities eventually include `status`, `retry`, `backfill`, `replay`, `cancel/disable`, and bounded diagnostic views.
+Future operator commands: `status`, `retry`, `backfill`, `replay`, `disable/cancel`, bounded diagnostics.
 
-Logging text is not a substitute for durable operational state.
-
-## 20. SLO and alerting hooks
-
-Framework must expose enough structured state for domain/platform owners to define:
-
-- freshness objective;
-- runtime objective;
-- consecutive-failure threshold;
-- reconciliation objective;
-- quarantine-rate threshold;
-- dependency-block objective.
-
-The actual monitoring/incident receiver and on-call roster are external by design.
-
-## 21. Security and identity
+## 24. Security and enterprise controls
 
 Framework requirements:
 
 - no credentials in semantic metadata;
-- credential/connection references only;
-- least-privilege execution assumptions documented;
-- support Fabric Workspace Identity / service principal / approved organizational identity where the relevant API/activity supports it;
-- never log secrets/tokens;
-- quarantine and operator actions are auditable;
-- physical identifiers resolved from environment bindings rather than baked into reusable semantic config.
+- logical connection/secret references only;
+- physical IDs from environment bindings;
+- no secret/token logging;
+- auditable operator/quarantine/reprocess actions;
+- least-privilege compatible adapters.
 
-Tenant settings, Entra policy, workspace RBAC, network/private-link design and secret authority are external/infrastructure-owned.
+External proof required for:
 
-## 22. CI/CD and supply-chain requirements
+- Entra/service-principal/workspace identity;
+- workspace/domain RBAC;
+- tenant settings;
+- networking/private links/gateways;
+- secret/key authority;
+- quarantine privacy/retention;
+- monitoring receiver/on-call;
+- production backup/restore;
+- capacity/SKU policy.
 
-Required:
+## 25. CI/CD and supply chain
 
-- PR CI on supported Python versions;
-- static checks and deterministic unit/contract tests;
-- build-once immutable wheel;
-- checksum/provenance evidence;
-- exact framework version consumption by domains;
-- release manifest with framework version, domain Git SHA, config hash and control-schema version;
-- same artifact promoted through environments;
-- no promotion of runtime state;
-- Fabric item/environment definitions source controlled where supported;
-- deployment adapter verifies item/environment binding after deployment;
-- smoke/acceptance evidence before promotion.
+Implemented/proven baseline:
 
-A release is a milestone, not a mechanism for every small internal change. `main` may contain an unreleased development version while a larger production capability slice is being completed.
+- GitHub-hosted PR CI on Python 3.11/3.13;
+- static checks/compile/pip check/tests;
+- wheel build;
+- immutable v0.3.0 GitHub release/checksum workflow;
+- release manifest/environment binding separation;
+- semantic definition promotion separate from runtime state;
+- exact released framework wheel consumption model for domains.
 
-## 23. Performance, capacity and cost
+Still required for real Fabric promotion:
 
-Required framework design concerns:
+- Fabric item/environment deployment adapters;
+- same-wheel DEV/UAT/PROD deployment proof;
+- binding verification;
+- smoke/acceptance evidence.
+
+## 26. Performance/capacity/cost
+
+Design requirements:
 
 - bounded dataset concurrency;
-- source-specific throttling;
-- Spark partition sizing and shuffle controls exposed through approved runtime policy rather than hard-coded globally;
+- source/gateway-specific throttling;
+- avoid defaulting every movement workload to Spark;
+- Spark partition/shuffle/batch controls through approved runtime policy;
 - small-file/Delta maintenance strategy;
-- session startup tradeoffs;
-- high-concurrency/session-sharing only when workload isolation and monitoring remain acceptable;
-- prefer Fabric-native Copy for movement-centric workloads when it is more appropriate than Spark;
-- retain metrics needed to tune capacity from evidence.
+- session startup/high-concurrency tradeoffs based on measured evidence;
+- retain runtime/volume metrics for capacity tuning.
 
-Hard-coded production capacity/SKU/throughput targets are not owned by this repository without measured estate evidence.
+Hard-coded production throughput/SKU numbers are not framework guarantees without estate evidence.
 
-## 24. Testing and certification
+## 27. Certification matrix
 
-Test classes:
+Required representative scenarios:
 
-- unit — algorithms and pure contracts;
-- contract — metadata/control-plane/adapter interfaces;
-- strategy certification — each capture/apply guarantee and failure mode;
-- integration — realistic storage/transaction/state behavior;
-- recovery — retry/backfill/replay/unknown-outcome drills;
-- orchestration — dependencies, partial failure, concurrency, cancellation;
-- deployment — manifest/binding/schema migration/item definition;
-- real Fabric smoke — only when approved Fabric estate is available.
+1. `FULL -> REPLACE`: normal, empty/incomplete/drastic drop, reconciliation fail, rerun/unknown outcome.
+2. `WATERMARK -> SCD1`: composite/simple boundary, native Dataflow/Copy landing, stale/equal-position/duplicate rerun.
+3. `WATERMARK -> UPSERT`: same ordering/idempotency plus merge/delete semantics.
+4. `WATERMARK -> SCD2`: tie-breaker/overlap/history conflict/state failure.
+5. `SNAPSHOT -> SNAPSHOT_DIFF`: I/U/D, incomplete delete guard, quarantine/delete guard, rerun.
+6. `CDC -> UPSERT/SCD1/SCD2`: ordered I/U/D, duplicate/conflict/poison event, checkpoint uncertainty.
+7. `BOOTSTRAP -> CDC`: no handoff gap/double apply.
+8. APPEND: exact replay vs conflicting duplicate identity.
+9. DQ/quarantine: row/batch quarantine and replay lineage.
+10. Schema evolution: additive allowed, breaking blocked/cutover-controlled.
+11. Recovery: retry attempts, backfill, replay, rebuild, unknown commit.
+12. Multi-dataset orchestration: partial success, critical failure, dependency blocked, unrelated sibling continues.
+13. Fabric hybrid adapter: native capture -> `CaptureReceipt` -> framework apply -> durable audit/native run correlation.
 
-A production guarantee should have a discoverable canonical owner and executable proof. Small deterministic data is preferred to benchmark-sized fixtures.
+## 28. Current release threshold
 
-## 25. Representative certification matrix
+Do **not** publish `v0.4.0` yet.
 
-The framework should eventually certify at least these bounded scenarios:
+P0 blockers before release decision:
 
-1. `FULL -> REPLACE`: normal refresh, empty-source guard, stage failure, publish failure, reconciliation failure, rerun.
-2. `WATERMARK -> UPSERT/SCD2`: same-timestamp tie-breaker, overlap, stale row, duplicate rerun, failed state gate.
-3. `SNAPSHOT -> SNAPSHOT_DIFF`: insert/update/delete, incomplete-snapshot delete guard, rerun.
-4. `CDC -> UPSERT`: ordered I/U/D, duplicate event, poison event, offset/state uncertainty.
-5. `BOOTSTRAP -> CDC`: snapshot/change-log handoff with no gap/double apply.
-6. DQ/quarantine: row quarantine, batch quarantine, replay lineage.
-7. schema evolution: additive accepted, breaking blocked/cutover-controlled.
-8. recovery: retry attempt lineage, bounded backfill, replay, full rebuild.
-9. multi-dataset orchestration: partial success, critical failure, dependency blocked, independent sibling continues.
-10. Fabric adapter: pipeline -> SJD/notebook -> framework -> durable audit with Fabric run correlation.
+1. framework UPSERT;
+2. explicit apply executor/native-apply delegation contract;
+3. recovery attempt lineage and unknown-outcome behavior;
+4. CDC normalization/checkpoint/bootstrap correctness;
+5. general schema-evolution policy;
+6. APPEND identity semantics or explicit deferral justified by release scope;
+7. concrete Fabric adapter contracts;
+8. persistent control-plane/operator path or explicit bounded release scope;
+9. at least one real hybrid Fabric DEV proof;
+10. clean `PRODUCTION_READINESS_AUDIT` / `GUARANTEE_COVERAGE` / `CURRENT_STATUS` against release head.
 
-## 26. Release threshold before next framework release
-
-`v0.4.0` is intentionally **not** required immediately merely because `main` currently declares `0.4.0`.
-
-Before the next public framework release, the target is to complete a materially broader product slice including at minimum:
-
-- production-grade package/directory ownership structure;
-- FULL -> REPLACE execution with guards/reconciliation;
-- SNAPSHOT -> SNAPSHOT_DIFF representative execution;
-- retry/backfill/replay attempt model;
-- explicit delete and schema-evolution contracts;
-- dispatcher integration with the new execution abstraction;
-- Fabric execution contract with Pipeline + Spark Job Definition/Notebook roles documented and represented in code;
-- updated production-readiness and guarantee coverage documentation.
-
-CDC may land in the same milestone or the next one depending on correctness scope; do not rush a release to satisfy a version number.
-
-## 27. Documentation obligation
-
-New conversations must read this file together with:
-
-- `docs/ECOSYSTEM_BLUEPRINT.md`
-- `docs/PROJECT_BLUEPRINT.md`
-- `docs/FABRIC_EXECUTION_MODEL.md`
-- `docs/REPOSITORY_STRUCTURE.md`
-- `docs/CONTROL_PLANE_DESIGN.md`
-- `docs/CURRENT_STATUS.md`
-
-When implementation contradicts documentation, inspect code/tests and repair canonical docs before continuing.
+The next version number is selected only after the product slice is coherent; current source version `0.4.0` does not itself authorize publication.
