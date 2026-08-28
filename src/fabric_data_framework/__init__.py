@@ -1,6 +1,14 @@
 """Reusable contracts for the enterprise Microsoft Fabric data framework."""
 
 from .apply.replace import ReplaceGuardPolicy
+from .apply.scd1 import (
+    SCD1ApplyPolicy,
+    SCD1ApplyResult,
+    SCD1ConflictError,
+    SCD1OrderingError,
+    StaleRecordAction,
+    apply_scd1,
+)
 from .apply.snapshot_diff import SnapshotDiffPolicy
 from .capture.full import FullSnapshotEvidence
 from .capture.snapshot import SnapshotEvidence
@@ -81,12 +89,18 @@ __all__ = [
     "ReplaceGuardPolicy",
     "RunMode",
     "RuntimeOverride",
+    "SCD1ApplyPolicy",
+    "SCD1ApplyResult",
+    "SCD1ConflictError",
+    "SCD1OrderingError",
     "SnapshotDiffPolicy",
     "SnapshotEvidence",
     "SourceConfig",
+    "StaleRecordAction",
     "TargetConfig",
     "UnsupportedExecutionCombination",
     "WatermarkConfig",
+    "apply_scd1",
     "build_default_execution_plan",
     "compile_execution_plan",
     "dispatch_datasets",
