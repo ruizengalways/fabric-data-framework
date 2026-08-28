@@ -7,14 +7,17 @@ Last updated: 2026-08-28
 - Phase 0 — canonical architecture: **COMPLETE**.
 - Phase 1 — framework foundation: **COMPLETE**.
 - Phase 2 — first executable Customer WATERMARK/SCD2 vertical slice: **COMPLETE**.
-- Phase 3 — enterprise delivery spine core: **COMPLETE WITH EXTERNAL RUNNER/ESTATE VALIDATION BLOCKERS RECORDED**.
+- Phase 3 — enterprise delivery spine core: **COMPLETE**.
+- Self-hosted CI execution: **VALIDATED ON RUNNER `Bear`**.
 
 ## Last completed step
 
-Implemented the provider-neutral delivery spine required before a real Fabric estate is authorized:
+Implemented and validated the provider-neutral enterprise delivery spine and moved GitHub Actions execution from unavailable GitHub-hosted runners to the repository self-hosted runner `Bear`.
 
-- framework package version advanced to `0.3.0`;
-- GitHub Actions PR/main CI with Python 3.11/3.13 test matrix, Ruff/static checks and wheel build;
+Phase 3 includes:
+
+- framework package version `0.3.0`;
+- GitHub Actions PR/main CI with Python 3.11/3.13 test matrix, static checks and wheel build;
 - tag-triggered framework release workflow with version/tag guardrail, wheel SHA-256 and no-overwrite GitHub Release behaviour;
 - deterministic semantic config-bundle hashing;
 - immutable `ReleaseManifest` and release identity;
@@ -59,70 +62,74 @@ Environment bindings are outside that identity. DEV/UAT/PROD can therefore resol
 
 Semantic materialization updates only release-definition tables. It does not copy or reset watermark, dataset state/lease, runtime overrides, run history, reconciliation/quarantine/schema observations, reprocess history or deployment history. `deployment_history` is appended independently in the target environment.
 
-## Tests/checks executed locally
+## Local validation
 
 - `pytest -q`: **37 passed**.
 - `python -m compileall`: PASS.
 - wheel build: PASS (`fabric_data_framework-0.3.0-py3-none-any.whl`).
-- wheel contents include new `delivery.py` and `cli.py`: PASS.
-- Framework/Customer GitHub Actions workflow YAML files parse successfully.
-
-New Phase 3 tests cover config-bundle hashing, same-release DEV/UAT/PROD planning, environment-local bindings, idempotent semantic materialization, preservation of existing watermark state, deployment-history recording, release tag/version guardrails and the CLI migrate -> materialize -> manifest -> plan flow.
+- wheel contents include `delivery.py` and `cli.py`: PASS.
+- Framework/Customer GitHub Actions workflow YAML parse: PASS.
 
 ## Remote GitHub Actions validation
 
-A real pull-request workflow was triggered for Phase 3 (`framework-ci`, run `33127392418`). Two attempts were made.
+The original GitHub-hosted `ubuntu-latest` jobs failed before runner assignment (`runner_id=0`, no steps), so workflow execution was moved to the self-hosted runner supplied for this project.
 
-Both attempts failed **before any workflow step executed**. All three jobs (`test-python-3.11`, `test-python-3.13`, `build-wheel`) reported:
+Framework PR #7 validated the real runner identity from GitHub job metadata:
 
 ```text
-runner_id = 0
-runner_name = ""
-steps = []
+runner_id = 2
+runner_name = "Bear"
+runner_group_name = "Default"
+labels = ["self-hosted"]
 ```
 
-and terminated within roughly two seconds. The failed-job rerun request itself was accepted by GitHub, so the workflow exists and Actions mutation permission is available, but no GitHub-hosted runner was assigned on either attempt.
+Because `Bear` is currently the runner display name rather than a custom label, workflows correctly use:
 
-Therefore this is recorded as an external GitHub Actions runner/account infrastructure blocker, not as a code/test failure. The repository API available to this project does not expose enough billing/hosted-runner account detail to state whether the root cause is quota, billing/payment, account policy or another hosted-runner restriction. That cause must not be guessed.
+```yaml
+runs-on: self-hosted
+```
 
-The workflow remains in the repository so it becomes the real PR gate once runner availability is restored.
+and do not use `[self-hosted, Bear]`. If a custom `Bear` label is added later, scheduling can be tightened without changing application/runtime architecture.
+
+The first Bear execution exposed non-hermetic Ruff rule discovery from the self-hosted environment. CI was corrected to invoke Ruff with `--isolated` and an explicit core correctness policy (`E4,E7,E9,F`) so repository CI does not depend on runner-global Ruff configuration.
+
+Framework CI run `33137284837` then completed successfully on Bear:
+
+- `build-wheel`: **SUCCESS**;
+- `test-python-3.13`: **SUCCESS**;
+- `test-python-3.11`: **SUCCESS**.
+
+This proves checkout, Python provisioning, package installation, isolated static checks, the framework test suite, wheel build and artifact upload on the self-hosted runner.
 
 ## Immutable release state
 
-The tag-triggered `v0.3.0` release workflow is defined, but no immutable `v0.3.0` framework release is claimed yet. Creating the tag before hosted-runner availability is restored would only trigger the same external execution blocker and would not prove the release workflow.
+The tag-triggered `v0.3.0` release workflow is defined and now targets `self-hosted` execution. The immutable `v0.3.0` release has not yet been claimed in this status document; the immediate delivery step after the runner workflow change is merged is to create/prove the `v0.3.0` tag release on Bear.
 
-Customer must not claim successful exact-release integration against `0.3.0` until this immutable framework artifact exists.
+Customer must not claim successful exact-release integration against `0.3.0` until the immutable framework artifact exists.
 
 ## Current Microsoft Fabric external boundary
-
-Current Microsoft documentation confirms Fabric CI/CD is built on Fabric REST APIs, supports Git integration with GitHub/Azure DevOps, supports deployment-pipeline automation, and supports noninteractive identities subject to tenant settings, permissions and per-API/item identity support.
 
 The framework does not embed tenant credentials or claim a real Fabric deployment has succeeded. The external write edge remains an adapter/integration task requiring an approved company Fabric identity and target bindings.
 
 ## Known limitations / external blockers
 
-- GitHub-hosted runner assignment is currently blocked before job execution on this private repository; two real attempts produced `runner_id=0` and no steps.
-- Consequently no tag-triggered `v0.3.0` GitHub Release has yet been proven/published.
-- No real Fabric item deployment has been executed from these workflows.
+- Immutable `v0.3.0` framework GitHub Release still needs to be created and proven on Bear.
+- Customer exact-release integration remains gated on that artifact.
+- Bear currently exposes only the `self-hosted` label; the display name itself is not a scheduler label.
+- A single Bear runner provides one execution slot, so matrix/build jobs execute serially unless additional runners are added.
+- No real Fabric item deployment has yet been executed from these workflows.
 - No service principal/managed identity is configured in this repository.
 - No physical enterprise control-plane database adapter has been exercised; SQLite/SQLAlchemy is the local contract proof.
 - No Fabric Pipeline/Notebook item definition exists yet.
-- No protected GitHub environments/approval rules are configured through code in this repository.
 - Late/out-of-order correction, deletes and remaining capture/apply strategy catalog are pending.
 - No Terraform.
 
 ## Exact next implementation step
 
-The next coherent runtime slice is metadata-driven multi-dataset orchestration and failure isolation, while the delivery infrastructure blocker can be resolved independently:
+1. Merge the self-hosted runner workflow change after the successful Bear CI run.
+2. Create and prove immutable framework release `v0.3.0` on Bear.
+3. Run Customer PR #6 source-contract and exact-release integration on an authorized self-hosted runner, then merge the exact `fabric-data-framework==0.3.0` dependency upgrade.
+4. Continue with the metadata-driven multi-dataset dispatcher/failure-isolation slice.
+5. Wire a real GitHub-driven Fabric deployment adapter when an approved tenant identity/workspace binding is available.
 
-1. generic dataset dispatcher/executor selection from metadata;
-2. execution-group filtering and bounded concurrency contract;
-3. dependency blocking without cancelling unrelated branches;
-4. critical vs non-critical failure aggregation into `SUCCESS`, `PARTIAL_SUCCESS` or `FAILED`;
-5. retry eligibility and dataset-level attempt lineage;
-6. Customer fixtures with multiple datasets proving one failure does not stop unrelated datasets;
-7. preserve the same audit/quarantine/reconciliation/state semantics per dataset.
-
-When GitHub-hosted runners become available, rerun PR/main CI and then create/prove the immutable `v0.3.0` release before Customer exact-release integration is marked complete.
-
-A real GitHub-driven Fabric deployment adapter can be wired as soon as an approved tenant identity/workspace binding is available. Do not fake either external validation path.
+Do not fake release or Fabric-estate validation.
