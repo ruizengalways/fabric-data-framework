@@ -28,7 +28,7 @@ architecture/production-framework-blueprint
 
 ## Latest validated implementation evidence
 
-The latest coherent code/control-plane slice before the documentation updates is fully green:
+The latest coherent code/control-plane slice is fully green:
 
 ```text
 60d4d1362f504a51b3ecedfcb93c7c6ceb3d4578
@@ -39,9 +39,20 @@ test-python-3.13  SUCCESS
 106 tests passed
 ```
 
-That run includes the new ordered UPSERT implementation, independent capture/apply planning, Dataflow-to-framework apply certification and apply-execution control-plane materialization.
+That run includes ordered UPSERT, independent capture/apply planning, Dataflow-to-framework apply certification and apply-execution control-plane materialization.
 
-Documentation commits after this SHA must receive their own green PR CI before the branch is considered audit-clean.
+The synchronized canonical documentation/audit head immediately before this status-evidence commit is also fully green:
+
+```text
+1d3c60af060e828107a9f06d6449e983c38ffb46
+GitHub Actions run 33176317779
+build-wheel       SUCCESS
+test-python-3.11  SUCCESS
+test-python-3.13  SUCCESS
+106 tests passed
+```
+
+The docs head includes updated ADR 0009, Project Blueprint, Production Requirements, Execution Engine Strategy, Control Plane Design, Guarantee Coverage and Production Readiness Audit. This final status-evidence commit must also remain green before further implementation proceeds.
 
 ## Implemented development runtime
 
@@ -156,7 +167,7 @@ composite WM     = NOT CERTIFIED
 native apply     = NOT CERTIFIED
 ```
 
-The planner now explicitly produces this kind of hybrid plan:
+The planner explicitly produces this hybrid plan:
 
 ```text
 Dataflow Gen2 incremental capture/stage
