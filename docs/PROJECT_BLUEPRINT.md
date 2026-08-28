@@ -11,7 +11,7 @@ The framework standardizes mature cross-domain correctness and operational behav
 
 Primary product test:
 
-> After an enterprise installs a released framework wheel, ordinary datasets should be onboarded through metadata, environment bindings and bounded domain extensions rather than edits to `fabric-data-framework`.
+> After an enterprise installs a released framework wheel, ordinary datasets should be onboarded through metadata, environment bindings, capability profiles and bounded domain extensions rather than edits to `fabric-data-framework`.
 
 ## 2. Canonical reading order
 
@@ -20,14 +20,15 @@ Primary product test:
 3. `docs/PRODUCTION_REQUIREMENTS.md`
 4. `docs/EXECUTION_ENGINE_STRATEGY.md`
 5. `docs/FABRIC_EXECUTION_MODEL.md`
-6. `docs/REPOSITORY_STRUCTURE.md`
-7. `docs/CONTROL_PLANE_DESIGN.md`
-8. `docs/CICD_DESIGN.md`
-9. `docs/PRODUCTION_READINESS_AUDIT.md`
-10. `docs/GUARANTEE_COVERAGE.md`
-11. `docs/CURRENT_STATUS.md`
+6. `docs/CDC_DESIGN.md`
+7. `docs/REPOSITORY_STRUCTURE.md`
+8. `docs/CONTROL_PLANE_DESIGN.md`
+9. `docs/CICD_DESIGN.md`
+10. `docs/PRODUCTION_READINESS_AUDIT.md`
+11. `docs/GUARANTEE_COVERAGE.md`
+12. `docs/CURRENT_STATUS.md`
 
-GitHub docs are project memory. If docs disagree with code/tests, inspect implementation and repair docs before further architecture work.
+GitHub docs are durable project memory. If docs disagree with code/tests, inspect implementation and repair docs before further architecture work.
 
 ## 3. Repository ownership
 
@@ -39,7 +40,7 @@ fabric-data-framework
   reusable semantic runtime + provider adapters + control-plane contracts
 
 fabric-customer
-  deployable Customer domain solution exact-pinning a released framework wheel
+  deployable domain solution exact-pinning a released framework wheel
 ```
 
 Dependency direction:
@@ -55,19 +56,21 @@ Framework never depends on Customer. Share code, not runtime state.
 
 1. Capture semantics and apply semantics are independent.
 2. Capture/movement engine and apply engine are independent.
-3. Core mature DE semantics have framework-owned portable implementations.
+3. Mature DE semantics have framework-owned portable implementations.
 4. Native Fabric features are capability-certified stage delegates.
-5. One physical capture has one checkpoint authority.
+5. One physical capture has one authoritative source-progress owner.
 6. Native/external capture crosses into framework semantics through typed evidence.
-7. Semantic definitions, deployed metadata, runtime overrides and runtime state are separate.
-8. Dataset is the default failure/retry boundary.
-9. Quarantine, reconciliation and recovery are first-class runtime semantics.
-10. State never advances on uncertain/failed completion without evidence.
-11. Unknown target commit is reconciled before retry.
-12. DEV/UAT/PROD promote immutable definitions/artifacts, never runtime rows.
-13. Correctness is proven with deterministic small scenarios before scale claims.
-14. Provider-neutral decisions are testable outside Fabric.
-15. Releases represent coherent product milestones, not internal commit cadence.
+7. Provider CDC formats normalize into canonical framework events/positions before semantic apply.
+8. Native/external source progress and downstream framework application progress are distinct.
+9. Semantic definitions, deployed metadata, overrides and runtime state are separate.
+10. Dataset is the default failure/retry boundary.
+11. Quarantine, reconciliation and recovery are first-class semantics.
+12. State never advances on uncertain/failed completion without evidence.
+13. Unknown target commit is reconciled before retry.
+14. DEV/UAT/PROD promote immutable definitions/artifacts, never runtime rows.
+15. Correctness is proven with deterministic small scenarios before scale claims.
+16. Provider-neutral decisions are testable outside Fabric.
+17. Releases represent coherent product milestones, not commit cadence.
 
 ## 5. Package ownership map
 
@@ -79,10 +82,10 @@ metadata/
   capability profiles and semantic metadata resolution
 
 capture/
-  FULL / WATERMARK / SNAPSHOT / CDC / MIRROR / STREAM semantics
+  FULL / WATERMARK / SNAPSHOT / CDC / bootstrap-CDC / MIRROR / STREAM semantics
 
 apply/
-  REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF / future APPEND
+  REPLACE / UPSERT / SCD1 / SCD2 / CDC apply / SNAPSHOT_DIFF / future APPEND
 
 quality/
   DQ / quarantine / schema / reconciliation
@@ -102,8 +105,8 @@ recovery/
 adapters/fabric/
   provider request/evidence translation for Fabric stage execution
 
-control_plane.py + repository.py
-  semantic definitions, environment-local state/evidence, repository contracts
+control_plane.py + control_plane_io.py + repository.py
+  semantic definitions, environment-local state/evidence, persistence contracts
 
 delivery.py / deployment.py / cli.py
   release identity / bindings / metadata materialization / delivery operations
@@ -111,14 +114,14 @@ delivery.py / deployment.py / cli.py
 
 ## 6. Current unreleased baseline
 
-Source version remains `0.4.0` development. `v0.3.0` is the latest immutable public release.
+Source version remains `0.4.0` development. `v0.3.0` is latest immutable public release.
 
-Latest green hardening head before documentation synchronization:
+Latest coherent implementation evidence before the current docs synchronization:
 
 ```text
-commit a5da06294dfba0c5ae756dcc1d8814931feebec7
-GitHub Actions 33179754372
-139 tests passed
+465a2c1e9ddf25b0ace2293f578c2c5bb3a653ae
+GitHub Actions 33216281126
+171 tests passed
 ```
 
 The branch now proves at reference/contract level:
@@ -130,24 +133,28 @@ The branch now proves at reference/contract level:
 - DQ/quarantine/accounting;
 - guarded FULL -> REPLACE;
 - guarded SNAPSHOT -> SNAPSHOT_DIFF;
-- ordered SCD1;
-- ordered UPSERT;
-- bounded deterministic SCD2;
-- metadata dispatcher/failure isolation;
+- ordered SCD1 and UPSERT;
+- deterministic SCD2;
+- dispatcher/failure isolation;
 - capture/apply engine separation;
 - immutable ExecutionPlan;
 - named engine/profile capability resolution;
 - Dataflow incremental capture -> framework SCD1/UPSERT planning;
 - CaptureReceipt;
 - Fabric capture adapter contracts for Copy Job/Copy Activity/Dataflow/Spark;
-- generic retry/backoff/attempt lineage;
-- audited RETRY/BACKFILL/REPLAY/FULL_REBUILD request contracts;
+- retry/backoff/attempt lineage;
+- RETRY/BACKFILL/REPLAY/FULL_REBUILD request contracts;
 - fail-closed unknown-commit recovery;
 - relational environment-local recovery evidence;
+- canonical CDC event/order/dedupe/bounded-window correctness;
+- CDC -> UPSERT/SCD1;
+- CDC -> SCD2;
+- durable optimistic CDC downstream checkpoints;
+- snapshot/bootstrap -> CDC no-gap/no-double-apply handoff;
 - control-plane v2 development schema;
 - immutable delivery/release contracts.
 
-No current hardening test is equivalent to a real approved Fabric production run.
+No current hardening test is equivalent to an approved real Fabric run.
 
 ## 7. Semantic model
 
@@ -177,14 +184,13 @@ Representative compositions:
 ```text
 FULL      + Copy/Spark          -> REPLACE
 WATERMARK + Dataflow/Copy/Spark -> UPSERT/SCD1/SCD2
-CDC       + Copy Job/external   -> normalize CDC -> UPSERT/SCD1/SCD2
+CDC       + Copy Job/external   -> canonical CDC -> UPSERT/SCD1/SCD2
 SNAPSHOT  + Copy/Spark          -> SNAPSHOT_DIFF
+SNAPSHOT fence + CDC buffer     -> bootstrap -> steady-state CDC
 MIRROR    + Mirroring           -> canonical current/history apply
 ```
 
 ## 8. Framework-first native delegation
-
-Canonical invariant:
 
 ```text
 semantic contract
@@ -192,44 +198,21 @@ semantic contract
     -> optional provider stage delegation if capability-certified
 ```
 
-A native provider operation is represented through:
+Provider boundary:
 
 ```text
 ExecutionPlan unit
     -> provider request
-    -> native run evidence
-    -> validated framework evidence/receipt
+    -> native/external evidence
+    -> validated framework receipt
     -> remaining semantic stages
 ```
 
-Native capture status alone does not prove the whole dataset run succeeded.
+A native capture status alone does not prove the whole dataset run succeeded.
 
 ## 9. Fabric capture adapter boundary
 
-Current provider adapter package:
-
-```text
-adapters/fabric/contracts.py
-adapters/fabric/adapter.py
-```
-
-Contracts:
-
-```text
-FabricCaptureRequest
-FabricCaptureTransport
-FabricNativeRunEvidence
-FabricNativeRunStatus
-```
-
-Concrete capture adapters:
-
-```text
-CopyJobCaptureAdapter
-CopyActivityCaptureAdapter
-DataflowGen2CaptureAdapter
-SparkJobCaptureAdapter
-```
+Current provider adapter package contains typed request/evidence contracts and concrete capture adapters for Copy Job, Copy Activity, Dataflow Gen2 and Spark.
 
 Adapter responsibilities:
 
@@ -244,32 +227,65 @@ Transport responsibilities:
 - authentication/client construction;
 - actual REST/SDK/CLI invocation;
 - run polling;
-- provider response conversion to `FabricNativeRunEvidence`.
+- provider response conversion.
 
-This split prevents provider APIs from becoming semantic framework logic.
+Real transports remain unimplemented.
 
 ## 10. Current-state apply
 
-SCD1 and UPSERT share `apply/current_state.py`.
+SCD1/UPSERT share `apply/current_state.py` for ordered batch/current-state logic and `apply/cdc.py` for CDC current-state execution.
 
-Certified shared correctness:
+Certified current-state behavior includes composite keys, deterministic source order, rerun idempotency, stale/equal-position handling, target-only field retention, CDC INSERT/UPDATE/DELETE/reinsert and explicit delete policy.
+
+UPSERT is not merely an alias for SCD1; they expose distinct semantic APIs while sharing hard correctness primitives.
+
+## 11. CDC architecture
+
+Canonical detail: `docs/CDC_DESIGN.md`.
+
+Provider-specific coordinates normalize into:
 
 ```text
-composite key
-ordered source position
-latest incoming candidate
-exact-rerun idempotency
-stale IGNORE/ERROR
-equal-position conflict failure
-unordered changed update fail-closed by default
-separate duplicate/superseded/stale metrics
+CDCSourcePosition(partition, integer tuple)
+CDCEvent
+CDCCheckpoint
 ```
 
-UPSERT is not merely an alias for SCD1; they expose distinct semantic APIs while sharing the hard current-state primitive.
+Normalization proves event identity, duplicate/conflict behavior, frozen upper boundary, completeness and deterministic order. Ambiguous shared positions or same-key cross-partition ordering fail closed.
 
-## 11. Recovery architecture
+Target apply remains independently selected:
 
-Recovery is layered:
+```text
+CDC -> UPSERT
+CDC -> SCD1
+CDC -> SCD2
+```
+
+For SCD2:
+
+```text
+source position -> event order
+event_time      -> valid interval
+```
+
+Retroactive valid-time history correction is currently rejected rather than silently rewritten.
+
+## 12. Snapshot/bootstrap -> CDC
+
+Certified reference protocol:
+
+```text
+retain CDC from S
+S <= snapshot consistency checkpoint B
+complete snapshot consistent through B
+apply/publish snapshot
+CDC <= B -> ignore as snapshot-covered overlap
+CDC >  B -> apply
+```
+
+Current proof rejects partition-set change during handoff.
+
+## 13. Recovery architecture
 
 ```text
 operator/system intent
@@ -306,9 +322,9 @@ reconcile
   UNRESOLVED    -> stop
 ```
 
-This generic core is implemented. Strategy-specific source restaging/replay/rebuild remains a separate layer and is not yet complete.
+Generic core is implemented. Strategy/provider-specific source restaging/replay/rebuild remains partial.
 
-## 12. Reprocess modes
+## 14. Reprocess modes
 
 ```text
 RETRY
@@ -324,9 +340,9 @@ FULL_REBUILD
   explicit authoritative-reset intent before destructive reset/rebuild
 ```
 
-A `ReprocessRequest` is immutable in semantics. Only lifecycle status/timestamps may change.
+Reprocess semantic identity is immutable; lifecycle status/timestamps may change.
 
-## 13. Control plane
+## 15. Control plane
 
 Promotable definitions:
 
@@ -348,6 +364,7 @@ Environment-local state/evidence:
 schema_migration_history
 runtime_override
 watermark
+cdc_checkpoint
 dataset_state
 dataset_lease
 pipeline_run
@@ -362,50 +379,39 @@ reprocess_request
 deployment_history
 ```
 
+`cdc_checkpoint` records downstream framework CDC application positions, committing dataset run and optimistic-concurrency version. It is not a replacement for FABRIC_NATIVE/EXTERNAL source checkpoint authority.
+
 Runtime state is never promoted.
 
-`dataset_attempt_lineage` is append-only evidence. `reprocess_request` records auditable operator/system intent and lifecycle.
+## 16. Stateful execution invariant
 
-## 14. Stateful execution invariant
-
-For framework-owned progress:
+Framework-owned progress:
 
 ```text
-read committed state
-  -> acquire concurrency guard
+read committed state/version
+  -> concurrency guard
   -> freeze source boundary
-  -> execute idempotent candidate/mutation
-  -> reconcile
-  -> prove target outcome
+  -> idempotent candidate/mutation
+  -> reconcile/prove target outcome
   -> commit next state
   -> finalize audit
 ```
 
-For native/external progress:
+Native/external progress:
 
 ```text
 provider owns source checkpoint
-  -> framework records provider receipt/checkpoint correlation
-  -> downstream apply/reconciliation has independent failure/recovery semantics
+  -> framework records receipt/native correlation
+  -> framework downstream apply has independent checkpoint/recovery
 ```
 
-The framework must never invent a competing source watermark simply because it owns downstream apply.
+## 17. Dispatcher/orchestration
 
-## 15. Dispatcher/orchestration
+Reference planner/dispatcher proves selection/group filters, dependency/cycle validation, bounded parallelism, sibling isolation, dependent BLOCKED, unrelated continuation and criticality-aware aggregate status.
 
-Reference planner/dispatcher proves:
+`ThreadPoolExecutor` remains reference execution only. Real Fabric Pipeline backend is future work.
 
-- selection/group/request filters;
-- dependency/cycle validation;
-- bounded parallelism;
-- sibling isolation;
-- dependent BLOCKED;
-- unrelated continuation;
-- criticality-aware aggregate status.
-
-`ThreadPoolExecutor` is reference execution only. Real Fabric Pipeline backend remains future work.
-
-## 16. Many-table topology
+## 18. Many-table topology
 
 Avoid both one handcrafted pipeline per table and one giant opaque source pipeline.
 
@@ -423,30 +429,30 @@ capacity/network boundary
 
 Ordinary new tables should change domain metadata, not framework algorithms.
 
-## 17. Current P0 roadmap
+## 19. Current P0 roadmap
 
-1. CDC canonical I/U/D envelope + event identity/order.
-2. CDC dedupe/conflict/poison-event behavior.
-3. CDC checkpoint commit gate.
-4. `CDC -> UPSERT/SCD1/SCD2` certification.
-5. snapshot/bootstrap -> CDC no-gap/no-double-apply handoff.
-6. complete strategy-specific recovery: retained ranges, quarantine replay, FULL_REBUILD execution, native-progress recovery.
-7. APPEND identity/collision semantics.
-8. schema evolution + broader temporal policies.
-9. supported persistent control-plane repository/operator surface.
-10. real Fabric transport/backend + DEV hybrid execution evidence.
-11. final audit and release-scope decision.
+CDC semantic core/checkpoint/bootstrap are complete at reference level. Current sequence:
 
-## 18. Release model
+1. selected built-in/provider CDC envelope adapters + capability profiles;
+2. provider-specific CDC source-offset resume/commit recovery;
+3. quarantine REPLAY + FULL_REBUILD execution;
+4. APPEND identity/collision semantics;
+5. file manifest + API pagination/window capture guardrails;
+6. schema evolution + broader temporal policies;
+7. supported persistent control-plane/operator surface;
+8. real Fabric transport/backend + DEV hybrid execution evidence;
+9. final audit and release-scope decision.
+
+## 20. Release model
 
 - public baseline: `v0.3.0`;
 - current source: unreleased `0.4.0`;
 - domains formally consume exact released framework versions;
 - same immutable artifact moves through environments;
-- environment bindings differ, runtime state does not move.
+- environment bindings differ; runtime state never moves.
 
-Do not publish v0.4.0 until the release milestone contains real Fabric integration evidence and the remaining P0 correctness scope is explicitly closed or intentionally bounded.
+Do not publish v0.4.0 until the agreed milestone includes real Fabric integration evidence and remaining P0 correctness is explicitly closed or intentionally bounded.
 
-## 19. Documentation obligation
+## 21. Documentation obligation
 
-Every substantive implementation slice updates `CURRENT_STATUS.md`. Architecture changes update this blueprint/ADR. Requirements/evidence changes update `PRODUCTION_REQUIREMENTS.md`, `GUARANTEE_COVERAGE.md` and `PRODUCTION_READINESS_AUDIT.md` in the same coherent branch.
+Every substantive implementation slice updates `CURRENT_STATUS.md`. Architecture changes update this blueprint/ADR. Requirements/evidence changes update `PRODUCTION_REQUIREMENTS.md`, `GUARANTEE_COVERAGE.md`, `PRODUCTION_READINESS_AUDIT.md` and relevant strategy docs in the same coherent branch.

@@ -5,15 +5,20 @@ Last updated: 2026-08-29
 
 ## 1. Purpose
 
-This document maps provider-neutral framework semantics onto Microsoft Fabric runtime items.
+This document defines how provider-neutral framework semantics map onto Microsoft Fabric runtime items.
 
 Core rule:
 
-> Fabric items orchestrate/host physical stages. Reusable correctness semantics remain framework-owned unless a native stage is explicitly capability-certified as equivalent.
+> Fabric items orchestrate/host physical stages; the framework owns reusable correctness semantics unless a native stage is explicitly capability-certified as equivalent.
 
-Avoid both hundreds of table-specific pipelines duplicating logic and one giant opaque notebook hiding orchestration/state/recovery.
+Avoid both extremes:
 
-## 2. Stage-level lifecycle
+- hundreds of table-specific visual pipelines duplicating logic;
+- one opaque giant notebook hiding orchestration/state/recovery.
+
+## 2. Framework-first, stage-level model
+
+A dataset lifecycle is not owned by one physical engine:
 
 ```text
 capture / movement
@@ -23,50 +28,59 @@ capture / movement
     -> state / audit
 ```
 
-Different surfaces may own different stages. Progress ownership is independent from apply ownership.
+Different Fabric/runtime surfaces may own different stages.
 
-Representative hybrid:
+Representative hybrids:
 
 ```text
 Dataflow Gen2 incremental
-  -> validated native run evidence
+  -> landing/staging
   -> CaptureReceipt
-  -> framework UPSERT/SCD1
-  -> reconciliation/state/audit
+  -> framework SCD1/UPSERT
+  -> reconciliation/audit
+
+Copy Job/native CDC
+  -> native checkpoint/run evidence
+  -> CaptureReceipt
+  -> canonical CDC events/checkpoints
+  -> framework UPSERT/SCD1/SCD2
+  -> downstream cdc_checkpoint
 ```
 
-## 3. Runtime topology
+Progress ownership is independent from apply ownership.
+
+## 3. Fabric runtime layers
 
 ```text
 Trigger / schedule / operator request
         |
         v
 Fabric Data Factory Pipeline
-  coarse orchestration + native activity visibility
+  coarse orchestration + activity visibility
         |
         +--> Copy Job / Copy Activity
         +--> Dataflow Gen2
         +--> Spark Job Definition
-        +--> Notebook
-        +--> SQL/database-native stage
+        +--> thin Notebook
+        +--> SQL / provider-native stage
         |
         v
-landing / Bronze / stage
-        |
-        v
-provider native run evidence + CaptureReceipt
+Landing / Bronze / stage + CaptureReceipt
         |
         v
 released framework wheel + released domain wheel
         |
         v
+EffectiveDatasetConfig / immutable ExecutionPlan
+        |
+        v
 non-delegated semantic stages
         |
         v
-Lakehouse / Warehouse / persistent control plane
+Lakehouse / Warehouse + persistent control plane
 ```
 
-The visual pipeline is not the semantic source of truth for merge/SCD/delete/recovery.
+Visual Pipeline is not the source of truth for merge/SCD/delete/recovery/CDC semantics.
 
 ## 4. Data Factory Pipeline role
 
@@ -74,263 +88,245 @@ Pipeline owns coarse operational control:
 
 - schedule/trigger/operator entry;
 - parameter passing;
-- native activity invocation;
-- child execution visibility;
-- coarse fan-out/failure routing;
-- capacity/concurrency boundaries;
-- provider run correlation.
+- Lookup/ForEach/If/Switch/Until/Invoke Pipeline where appropriate;
+- child/dataset execution visibility;
+- native activity execution;
+- failure routing/correlation;
+- coarse capacity/concurrency boundaries.
 
-The framework planner owns dataset eligibility/dependency/criticality semantics. A future Fabric Pipeline backend should translate the provider-neutral plan rather than duplicating those decisions in visual expressions.
+Framework planner owns dataset eligibility/dependencies/criticality semantics. Fabric backend translates provider-neutral plans rather than reimplementing them in dozens of expressions.
 
-## 5. Spark Job Definition and Notebook
+## 5. Spark Job Definition vs Notebook
 
 ### Spark Job Definition
 
-Preferred generic headless Spark application surface for framework-controlled stages.
+Preferred generic headless Spark application entrypoint once the real Fabric backend is implemented.
 
-A production SJD should remain thin:
+A SJD should be thin:
 
 ```text
-receive dataset/run/plan identifiers
-  -> import pinned framework/domain wheels
-  -> execute bounded compiled stage/plan
-  -> persist framework evidence
+read run/dataset identifiers
+ -> import released framework/domain wheels
+ -> execute compiled bounded stage/plan
+ -> persist/correlate outcome
 ```
 
-The **capture adapter contract for Spark Job execution kind is implemented**. The real SJD REST/deployment/run transport is not yet implemented/proven.
+Capture/apply algorithms do not live in SJD main files.
 
 ### Notebook
 
-Supported for interactive development, diagnostics, smoke/integration tests and justified bounded production activity. The anti-pattern is a notebook that embeds platform scheduler/state/recovery, physical secrets/IDs and all reusable algorithms.
+Supported for interactive development, diagnostics, smoke/integration tests, bounded operator-assisted execution and justified notebook-specific workloads.
 
-## 6. Thin child pipeline is acceptable
+A production Notebook activity is not automatically weak. The anti-pattern is a notebook that embeds reusable algorithms, physical IDs/secrets, scheduling/state/recovery and is the only operational evidence source.
+
+## 6. One-Notebook/SJD child pipeline
+
+A thin child pipeline can legitimately be:
 
 ```text
 pl_dataset_execute
   -> SJD/Notebook execute_dataset(dataset_id, run_mode, pipeline_run_id)
 ```
 
-This is professional when parameters/versioning/failure visibility/control-plane evidence/bindings are explicit. Activity count is not an architecture quality metric.
+and still be professional when parameters are explicit, package versions immutable, parent fan-out/failure visible, control-plane state/reconciliation durable, code independently tested and physical bindings externalized.
 
-## 7. Copy Job
+Activity count is not an architecture-quality metric.
 
-Use Copy Job when connector/mode/native checkpoint behavior is a good movement fit.
+## 7. Copy Job role
 
-Framework integration boundary now exists:
+Use Copy Job when connector/mode is a strong fit for movement/replication/native CDC and native checkpoint semantics are acceptable.
+
+Typical safe plan:
 
 ```text
-compiled COPY_JOB capture unit
-  -> FabricCaptureRequest
-  -> CopyJobCaptureAdapter
-  -> injected provider transport
-  -> FabricNativeRunEvidence
+Copy Job capture/replicate
+  -> native run/checkpoint correlation
   -> CaptureReceipt
-  -> framework downstream semantics
+  -> canonical framework semantic stages
 ```
 
-The adapter contract is deterministically tested. A real Copy Job API/run transport remains unimplemented.
+For native CDC, provider output/checkpoints must be normalized into canonical `CDCEvent`/`CDCCheckpoint` before CDC semantic apply.
 
-## 8. Copy Activity
+Native final apply may be delegated only when a specific profile proves semantic equivalence.
 
-Use Copy Activity when framework-owned source bounds/query and Pipeline-visible movement are useful.
+## 8. Copy Activity role
+
+Use Copy Activity when Pipeline-visible movement and framework-controlled source bounds/query are useful:
 
 ```text
-framework freezes lower/upper boundary
-  -> Copy Activity transport
-  -> observed boundary must equal request
-  -> CaptureReceipt
+framework freezes range/predicate
+  -> Copy Activity
+  -> landing + validated CaptureReceipt
   -> framework apply/reconcile/state
 ```
 
-The current adapter explicitly fails if a supposedly successful FRAMEWORK-owned bounded run reports different source bounds.
+This can be preferable to Spark for movement-heavy sources while preserving framework-owned composite watermark/state behavior.
 
-## 9. Dataflow Gen2
+## 9. Dataflow Gen2 role
 
-Dataflow Gen2 is a first-class Power Query movement/transformation stage, not a universal apply semantic.
+Dataflow Gen2 is a first-class low-code/Power Query movement/transformation stage, not the universal apply engine.
 
-Named profile:
+Current profile:
 
 ```text
 dataflow_gen2_incremental_bucket_v1
 ```
 
-certifies only:
+certifies bounded Dataflow Gen2 DateTime-bucket incremental capture/staging with FABRIC_NATIVE progress. It does **not** certify composite watermark ordering or framework-equivalent SCD1/UPSERT/SCD2.
+
+Supported topology:
 
 ```text
-WATERMARK-like DateTime bucket capture/staging
-FABRIC_NATIVE progress ownership
-no composite framework watermark guarantee
-no generic native UPSERT/SCD1/SCD2 equivalence
+Dataflow Gen2 incremental bucket refresh
+   -> staging/Bronze
+   -> CaptureReceipt
+   -> framework SCD1/UPSERT/SCD2
 ```
 
-Current supported reference topology:
+## 10. Mirroring / external CDC
+
+Mirroring can own replicated-source progress where supported. External Debezium/Kafka/database-native CDC can own offsets according to adapter contracts.
+
+For CDC there are two progress concepts:
 
 ```text
-Dataflow Gen2 incremental
-  -> DataflowGen2CaptureAdapter evidence boundary
-  -> CaptureReceipt
-  -> framework UPSERT or SCD1
+provider/native source cursor
+    !=
+framework downstream semantic application checkpoint
 ```
 
-The compiled Dataflow capture unit is directly certified against the adapter contract with deterministic fake transport evidence. Real Dataflow API execution is still required for Fabric evidence.
+The provider source cursor remains authoritative for FABRIC_NATIVE/EXTERNAL progress. `cdc_checkpoint` records only the canonical changes successfully applied/reconciled downstream.
 
-## 10. Mirroring and external CDC
+## 11. CDC runtime shape
 
-Mirroring/provider replication can own source progress where supported. Governed Debezium/Kafka can own CDC offsets. Downstream framework normalization/apply remains independent.
-
-No competing framework checkpoint is created for the same native/external physical capture.
-
-CDC canonical normalization/checkpoint semantics are the next implementation area.
-
-## 11. ExecutionPlan contract
-
-Current `ExecutionPlan` is immutable and records:
+Canonical CDC design: `CDC_DESIGN.md`.
 
 ```text
-dataset/run mode
-capture strategy
-apply strategy
-concrete capture engine/profile
-concrete apply engine/profile
-execution units + roles
-retry/timeout/reconciliation/state boundaries
+provider envelope
+    -> provider adapter
+    -> canonical CDCEvent / CDCCheckpoint
+    -> bounded normalize/dedupe/order
+    -> UPSERT / SCD1 / SCD2
+    -> reconcile
+    -> cdc_checkpoint(expected_version)
+```
+
+Current provider-neutral core rejects ambiguous shared positions, same-key cross-partition ordering and checkpoint regression rather than guessing.
+
+## 12. Snapshot/bootstrap -> CDC
+
+Safe initialization requires a source fence:
+
+```text
+retain CDC from S
+S <= snapshot consistency checkpoint B
+complete snapshot consistent through B
+apply/publish snapshot
+buffered CDC <= B -> ignore
+buffered CDC >  B -> apply
+```
+
+Current reference proof rejects partition-set changes during the bootstrap handoff.
+
+A provider adapter must prove how it obtains/retains the fence; the semantic core does not invent one.
+
+## 13. Semantic template vs physical plan
+
+Semantic metadata:
+
+```text
+capture=CDC
+apply=SCD1
+merge_key=[customer_id]
+```
+
+Possible physical plan A:
+
+```text
+Copy Job native CDC
+ -> canonical CDC adapter
+ -> framework SCD1
+```
+
+Plan B:
+
+```text
+Debezium/Kafka
+ -> canonical CDC adapter
+ -> framework SCD1
+```
+
+Plan C:
+
+```text
+Spark/database reader
+ -> canonical CDC
+ -> framework SCD1
+```
+
+The semantic contract stays stable.
+
+## 14. Current ExecutionPlan contract
+
+Provider-neutral `ExecutionPlan` / `ExecutionUnit` are implemented/reference-tested and record:
+
+```text
+capture_engine
+capture_capability_profile
+apply_engine
+apply_capability_profile
+execution kinds/roles
+retry/timeout
+reconciliation gate
+state commit boundary
 required bindings
 ```
 
-Planner can produce:
+Planner can split native capture/staging from framework processing/apply/state, or native apply from framework preparation/finalization when explicitly certified.
+
+Do not silently switch to a weaker physical plan during a production run.
+
+## 15. Recommended Pipeline hierarchy
 
 ```text
-native capture/stage unit
-  + framework normalize/validate/apply/reconcile/state unit
-```
-
-or other stage splits where apply is independently delegated.
-
-Apply-executor separation is already implemented; it is no longer a future planning gap.
-
-## 12. Fabric capture adapter contract
-
-Current adapter package proves the translation boundary without pretending to implement Microsoft Fabric networking/auth/API calls.
-
-```text
-FabricCaptureRequest
-FabricCaptureTransport protocol
-FabricNativeRunEvidence
-FabricCaptureAdapter
-```
-
-Concrete wrappers:
-
-```text
-CopyJobCaptureAdapter
-CopyActivityCaptureAdapter
-DataflowGen2CaptureAdapter
-SparkJobCaptureAdapter
-```
-
-Fail-closed requirements:
-
-- adapter engine/kind matches compiled unit;
-- capture unit contains EXTRACT/STAGE;
-- pure capture adapter cannot silently own APPLY/PUBLISH/RECONCILE/COMMIT_STATE;
-- FAILED/CANCELLED/UNKNOWN status => no receipt;
-- landing/source/snapshot/kind mismatch => failure;
-- FRAMEWORK-owned bounded source range mismatch => failure;
-- successful native run ID is retained in receipt.
-
-## 13. Recovery interaction
-
-Provider/API errors are inputs to the framework recovery model, not justification for blind retries.
-
-```text
-explicit transient error -> bounded retry
-permanent/unclassified   -> stop
-ambiguous target commit  -> reconcile before retry
-```
-
-Unknown commit resolution:
-
-```text
-COMMITTED     -> converge success/no duplicate write
-NOT_COMMITTED -> retry may proceed
-UNRESOLVED    -> fail/stop
-```
-
-For native-progress capture, replay/resume must respect provider checkpoint authority and retained `CaptureReceipt` evidence.
-
-## 14. Recommended Pipeline hierarchy
-
-```text
-pl_domain_batch
-  -> initialize pipeline run/request
-  -> resolve execution group/datasets
+pl_domain_or_source_batch
+  -> initialize/correlate run
+  -> resolve metadata execution groups
   -> bounded fan-out
-       -> provider-native capture where selected
-       -> framework/Spark execution for non-delegated stages
-  -> aggregate terminal outcomes
+       -> pl_dataset_or_stage_execute
+            -> planned native/Spark/Notebook activity
+            -> framework state/audit correlation
 ```
 
-Do not generate one permanent bespoke pipeline per ordinary table when metadata can select the same execution pattern.
+Separate pipelines/execution groups when there is a real operational reason: source/gateway, capture engine, schedule/SLA, capacity, volume, criticality/blast radius or dependency stage.
 
-## 15. Many-table grouping
+Do not create separate pipelines merely because tables use SCD1 vs SCD2; those are apply semantics.
 
-Group by real operational boundaries:
+## 16. Current proof boundary
 
-- source/gateway/concurrency limit;
-- capture engine/profile;
-- schedule/SLA;
-- volume/runtime class;
-- dependency stage;
-- criticality/blast radius;
-- capacity/network boundary.
+Reference/adapter-contract proof currently includes:
 
-Apply semantics may affect runtime grouping, but they do not define ingestion architecture.
-
-## 16. Release/deployment boundary
-
-Target production path remains:
-
-```text
-GitHub Release framework wheel
-  -> Fabric Environment/custom library
-  -> Full Publish
-  -> domain SJD/Notebook/Pipeline item
-  -> same immutable wheel DEV/UAT/PROD
-```
-
-Physical workspace/item/connection identities are environment bindings. Runtime control-plane state is not promoted.
-
-## 17. Current evidence boundary
-
-Implemented/reference-tested:
-
-- ExecutionPlan stage split;
-- independent apply engine;
-- Dataflow hybrid planner path;
-- Fabric capture request/evidence adapter layer;
-- provider status/evidence fail-closed behavior;
-- generic recovery/unknown-outcome core.
+- immutable execution planning;
+- capture/apply engine separation;
+- Copy Job/Copy Activity/Dataflow/Spark capture adapter validation;
+- CaptureReceipt conversion;
+- canonical CDC semantics + bootstrap;
+- downstream CDC checkpoint persistence.
 
 Not yet real-Fabric proven:
 
+- Fabric REST/SDK/CLI transport;
 - Pipeline backend;
-- REST/SDK/CLI transports;
-- real Copy Job/Copy Activity/Dataflow/SJD run correlation;
-- wheel Environment deployment in the current hardening milestone;
-- Lakehouse/Warehouse mutation/unknown-outcome recovery drills.
+- authentication/workspace binding;
+- actual native run polling/correlation;
+- provider CDC envelope adapters against real services;
+- capacity/throttling/gateway behavior.
 
-## 18. Next Fabric execution milestone
+## 17. Near-term Fabric work
 
-After CDC and strategy-specific recovery are sufficiently complete:
-
-```text
-real company DEV Fabric estate
-  -> deploy exact framework wheel
-  -> execute one native capture stage
-  -> retain actual native run id/evidence
-  -> create CaptureReceipt
-  -> execute framework UPSERT/SCD1
-  -> reconcile/audit
-```
-
-That proof must remain clearly separate from enterprise IAM/network/capacity controls supplied by the company platform.
+1. selected provider CDC envelope mappings/capability profiles;
+2. provider native/external offset resume/commit recovery;
+3. actual Fabric transports and run polling;
+4. Pipeline backend translating ExecutionPlan groups/stages;
+5. approved DEV hybrid execution with retained native run evidence;
+6. only after real evidence, promote the same immutable artifact through later environments.

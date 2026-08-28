@@ -8,283 +8,227 @@ Last updated: 2026-08-29
 - Phase 1 — framework foundation: **COMPLETE**.
 - Phase 2 — first executable Customer WATERMARK/SCD2 vertical slice: **COMPLETE**.
 - Phase 3 — enterprise delivery spine: **COMPLETE AND RELEASED AS `v0.3.0`**.
-- Phase 4 — metadata-driven multi-dataset dispatcher/failure isolation: **MERGED TO `main` AS UNRELEASED 0.4.0 DEVELOPMENT SOURCE**.
-- Current milestone — **PRODUCTION FRAMEWORK HARDENING ON PR #13; RELEASE REMAINS PAUSED**.
+- Phase 4 — metadata-driven dispatcher/failure isolation: **MERGED TO `main` AS UNRELEASED 0.4.0 DEVELOPMENT SOURCE**.
+- Current milestone — **PRODUCTION FRAMEWORK HARDENING; RELEASE PAUSED UNTIL THE PRODUCT SLICE IS MATERIALLY BROADER AND REAL FABRIC EVIDENCE EXISTS**.
 
-## Release rule
+## Release gate
 
-Do **not** publish `v0.4.0` from the current branch.
+Do **not** publish `v0.4.0` now.
 
-`v0.3.0` remains the latest immutable public Framework release. The current `0.4.0` source version is an unreleased development line. A release requires a coherent enterprise product slice plus deterministic evidence and at least one real approved Fabric integration proof; reference contracts alone are insufficient.
+Latest immutable public framework release remains `v0.3.0`. Source version `0.4.0` is an unreleased development line.
 
 Active work:
 
 ```text
 PR #13
-branch: architecture/production-framework-blueprint
-base:   main
+architecture/production-framework-blueprint
 ```
 
-## Latest validated implementation evidence
+The target product is a wheel an enterprise domain installs and normally uses through source-controlled metadata, environment bindings, capability profiles and bounded logical-name extensions. Routine onboarding must not require framework edits.
 
-### Fabric capture adapter contract
+## Latest coherent implementation evidence
+
+Current CDC hardening sequence is green:
 
 ```text
-commit b831d465c2f03117c323a0cbd90e22bbf081417c
-GitHub Actions 33178765403
-build-wheel       SUCCESS
-test-python-3.11  SUCCESS
-test-python-3.13  SUCCESS
+ccf0fc8950efb1f4d338cadcaf83aac5fd49a7b9
+Actions 33215409341
+153 tests passed
+canonical CDC + CDC -> UPSERT/SCD1
+
+ed6c13d4fcabe165ef86be2e547d794e15e5375c
+Actions 33215708004
+159 tests passed
+CDC -> SCD2
+
+c41fbd00bb3d3c6bc71e20f958c4ec14106ac33c
+Actions 33216133811
+165 tests passed
+CDC checkpoint persistence + optimistic concurrency
+
+465a2c1e9ddf25b0ace2293f578c2c5bb3a653ae
+Actions 33216281126
+171 tests passed
+snapshot/bootstrap -> CDC no-gap/no-double-apply handoff
+```
+
+Earlier hardening evidence remains relevant:
+
+```text
+b831d465c2f03117c323a0cbd90e22bbf081417c
+Actions 33178765403
 123 tests passed
-```
+Fabric capture adapter contract
 
-### Recovery runtime
-
-```text
-commit dee5eee5a87da67a81e2ed787336898b71a5c473
-GitHub Actions 33179289663
-build-wheel       SUCCESS
-test-python-3.11  SUCCESS
-test-python-3.13  SUCCESS
-134 tests passed
-```
-
-### Recovery relational evidence + runtime hardening
-
-```text
-commit a5da06294dfba0c5ae756dcc1d8814931feebec7
-GitHub Actions 33179754372
-build-wheel       SUCCESS
-test-python-3.11  SUCCESS
-test-python-3.13  SUCCESS
+a5da06294dfba0c5ae756dcc1d8814931feebec7
+Actions 33179754372
 139 tests passed
+retry/unknown-commit recovery + relational recovery evidence
 ```
 
-The relational evidence commit immediately before the final hardening was also fully green:
-
-```text
-333d62ed5b06787026ec7f25481f37bed6c44ea1
-GitHub Actions 33179523583
-137 tests passed
-```
+All of the above are portable/reference or adapter-contract CI evidence. No new hardening capability is yet `FABRIC PROVEN` through a retained real workspace execution.
 
 ## Implemented development runtime
 
-The hardening branch now provides at reference/portable level:
+The hardening branch now provides:
 
-- strict immutable semantic config and allow-listed runtime overrides;
+- strict typed semantic config and allow-listed runtime overrides;
 - infrastructure/environment binding abstraction;
-- independent capture semantics and apply semantics;
-- independent capture/movement executor and apply executor selection;
-- conservative engine/profile capability resolution;
-- composite WATERMARK selection with tie-breaker/overlap;
-- source-faithful Bronze lineage envelope;
-- DQ/quarantine and no-silent-loss row accounting;
-- deterministic SCD2 reference semantics;
-- shared ordered current-state primitive;
-- ordered/idempotent SCD1;
-- ordered/idempotent UPSERT;
-- guarded `FULL -> REPLACE`;
-- guarded `SNAPSHOT -> SNAPSHOT_DIFF`;
-- metadata-driven multi-dataset dispatcher/failure isolation;
-- immutable `ExecutionPlan` / execution-unit contracts;
-- typed `CaptureReceipt` native/external capture handoff;
-- Fabric capture adapter contract layer for Copy Job, Copy Activity, Dataflow Gen2 and Spark;
-- bounded logical-name extension registry;
-- retry classification, bounded retry/backoff and immutable attempt lineage;
-- audited `ReprocessRequest` contracts for RETRY/BACKFILL/REPLAY/FULL_REBUILD;
-- fail-closed unknown-target-commit recovery;
-- relational environment-local reprocess and attempt-lineage evidence;
-- additive control-plane schema v2 development contract;
+- composite WATERMARK selection with tie-breakers/overlap;
+- normalized Bronze lineage envelope;
+- row DQ/quarantine and no-silent-loss accounting primitives;
+- deterministic SCD2 foundation;
+- shared ordered current-state primitive for SCD1 and UPSERT;
+- ordered/idempotent SCD1 and UPSERT;
+- guarded FULL -> REPLACE;
+- guarded SNAPSHOT -> SNAPSHOT_DIFF;
+- metadata-driven dispatcher with dependency validation/failure isolation;
+- provider-neutral immutable `ExecutionPlan` / execution units;
+- independent capture/movement and apply executor selection;
+- named engine capability profiles;
+- Dataflow Gen2 incremental capture profile feeding framework SCD1/UPSERT;
+- typed `CaptureReceipt` native/external handoff;
+- fail-closed Fabric capture adapter boundary for Copy Job, Copy Activity, Dataflow Gen2 and Spark;
+- controlled logical-name domain extension registry;
+- conservative retry, attempt lineage and unknown-target-commit recovery;
+- RETRY/BACKFILL/REPLAY/FULL_REBUILD request contracts;
+- canonical CDC event/order/dedupe/bounded-window contracts;
+- CDC -> UPSERT/SCD1 current-state apply;
+- CDC -> SCD2 history apply with source-order/valid-time separation;
+- durable environment-local CDC apply checkpoints with optimistic concurrency;
+- snapshot/bootstrap -> CDC no-gap/no-double-apply handoff contract;
+- additive control-plane schema v2 including capture/apply execution policy, ordering policy, capture receipt, recovery lineage and CDC checkpoint;
 - immutable release/delivery contracts and CLI.
 
-## Fabric capture adapter boundary
+## CDC is now implemented as a provider-neutral semantic core
 
-The framework now has a provider adapter boundary under:
+Canonical design: `docs/CDC_DESIGN.md`.
 
-```text
-src/fabric_data_framework/adapters/fabric/
-```
-
-The contract is:
+Provider-specific positions must be normalized before entering the semantic core:
 
 ```text
-compiled ExecutionPlan capture unit
-    -> FabricCaptureRequest
-    -> injected Fabric transport (REST / SDK / CLI / deterministic fake)
-    -> FabricNativeRunEvidence
-    -> adapter validation
-    -> CaptureReceipt
+provider LSN / binlog / Kafka offset / native coordinate
+       -> partition + integer position tuple
+       -> CDCEvent
 ```
 
-Concrete wrappers exist for:
+Current normalization certifies:
 
 ```text
-CopyJobCaptureAdapter
-CopyActivityCaptureAdapter
-DataflowGen2CaptureAdapter
-SparkJobCaptureAdapter
+INSERT / UPDATE / DELETE
+event identity
+canonical key
+source position
+before / after
+event time / transaction metadata
+frozen upper checkpoint
+completeness through upper
+exact duplicate ignore
+conflicting duplicate fail
+shared-position ambiguity fail
+same-key cross-partition ambiguity fail
+committed overlap ignore
+deterministic ordering
 ```
 
-The adapter layer deliberately does **not** construct credentials, call a hard-coded workspace or pretend one Fabric API is universal. Transport mechanics remain injectable.
+The framework intentionally fails closed if an adapter has not supplied enough sequence information to prove a unique event position.
 
-Fail-closed guarantees include:
+## CDC apply semantics
 
-- request engine/kind must match the selected adapter;
-- a capture adapter requires `EXTRACT` + `STAGE` and rejects downstream `APPLY/PUBLISH/RECONCILE/COMMIT_STATE/FINALIZE` ownership;
-- FAILED/CANCELLED/UNKNOWN native runs never produce a success receipt;
-- native execution kind and landing reference must match;
-- requested/observed snapshot identity must match;
-- for FRAMEWORK-owned bounded movement, observed lower/upper source bounds must match the requested bounds;
-- successful native evidence is correlated through immutable `CaptureReceipt.native_run_id`.
+### CDC -> UPSERT / SCD1
 
-This is **adapter-contract/reference evidence only**. No real Fabric API, workspace, connection, capacity or dataset was invoked by these tests.
+Current-state targets retain framework CDC source-position metadata after first CDC mutation.
+
+Certified behavior includes insert/update/delete/reinsert, stale event suppression, equal-position conflict detection, exact rerun, delete policy and bootstrap rows entering CDC only after a committed lower checkpoint proves the event is newer.
+
+### CDC -> SCD2
+
+Two clocks remain separate:
+
+```text
+source position -> event order
+event_time      -> valid interval
+```
+
+Same `event_time` with distinct source positions is legal. A newer source event whose valid-time predates the current history version is currently rejected with `CDCSCD2LateArrivingError`; retroactive history rewrite is not silently invented.
+
+## Durable CDC checkpoint
+
+Environment-local control plane now includes:
+
+```text
+cdc_checkpoint
+  dataset_id
+  positions
+  committed_dataset_run_id
+  version
+```
+
+`positions` are CDC semantic apply progress. `version` is only an optimistic-concurrency token.
+
+Checkpoint advancement requires target commit + required reconciliation and refuses regression, partition drop and stale writer overwrite.
+
+For FABRIC_NATIVE/EXTERNAL capture, native source progress remains provider-owned and is retained in `CaptureReceipt`; the framework checkpoint records downstream semantic application progress rather than pretending to own the native cursor.
+
+## Snapshot/bootstrap -> CDC
+
+Current reference contract proves:
+
+```text
+start/retain CDC at S
+   S <= B
+complete snapshot consistent through B
+publish snapshot
+consume buffered CDC
+   <= B -> ignore
+   >  B -> apply
+```
+
+This prevents both source-position gaps and double apply for the currently certified partition model.
+
+Bootstrap fails closed for incomplete snapshot evidence, stream start after the snapshot fence, partition-set changes, or a first CDC upper checkpoint below the snapshot boundary.
 
 ## Recovery core
 
-Canonical recovery modes remain:
+Implemented reference behavior:
 
 ```text
-NORMAL
-RETRY
-BACKFILL
-REPLAY
-FULL_REBUILD
+RETRYABLE       -> bounded retry
+NON_RETRYABLE   -> stop
+UNKNOWN_OUTCOME -> reconcile first
+  COMMITTED     -> converge SUCCESS without rewrite
+  NOT_COMMITTED -> retry may proceed
+  UNRESOLVED    -> stop
 ```
 
-The framework now implements the reusable recovery core rather than treating these as vocabulary only.
+Attempt root/previous lineage and reprocess requests are environment-local evidence. Strategy-specific REPLAY/FULL_REBUILD/native-progress execution remains incomplete.
 
-### Failure classification
+## Fabric adapter status
+
+Implemented adapter-contract surfaces:
 
 ```text
-RETRYABLE
-NON_RETRYABLE
-UNKNOWN_OUTCOME
+Copy Job
+Copy Activity
+Dataflow Gen2
+Spark Job
 ```
 
-Unknown/unclassified Python exceptions are conservative `NON_RETRYABLE`; only explicitly classified transient failures are automatically retried.
+Adapters validate already-compiled capture units, native evidence and source boundaries and emit `CaptureReceipt` only for proven success.
 
-### Attempt lineage
+Still missing:
 
-Every attempt receives immutable linkage:
+- actual Fabric REST/SDK/CLI transport implementation;
+- real workspace item execution/polling;
+- approved authentication/environment binding proof;
+- retained real native run IDs from DEV;
+- Fabric Pipeline backend.
 
-```text
-dataset_run_id
-root_dataset_run_id
-previous_dataset_run_id
-attempt
-run_mode
-reprocess_request_id
-```
+Do not describe the current adapter contract as real Fabric integration.
 
-The reference proof includes the required operational shape:
+## Control-plane ownership
 
-```text
-attempt 1  FAILED / retryable
-attempt 2  SUCCEEDED
-```
-
-### Unknown target-commit recovery
-
-Blind retry after an ambiguous write is prohibited.
-
-```text
-UnknownCommitOutcomeError
-    -> reconcile target outcome
-         COMMITTED     -> converge SUCCEEDED; do not write again
-         NOT_COMMITTED -> retry may proceed if policy allows
-         UNRESOLVED    -> stop/fail; no blind duplicate write
-```
-
-A missing reconciliation callback is also fail-closed.
-
-### Reprocess requests
-
-`ReprocessRequest` validates source-controlled/operator intent boundaries:
-
-- RETRY requires the original dataset run;
-- BACKFILL requires explicit lower/upper range bounds;
-- REPLAY requires original run or quarantine identifiers;
-- FULL_REBUILD requires explicit `authoritative_reset=true` intent;
-- semantic request identity is immutable while lifecycle status may move `PENDING -> RUNNING -> SUCCEEDED/FAILED/CANCELLED`.
-
-`updated_at` is recorded when lifecycle status changes.
-
-### Relational evidence
-
-Control-plane v2 development schema now includes environment-local:
-
-```text
-reprocess_request
-dataset_attempt_lineage
-```
-
-These rows are never promotable between DEV/UAT/PROD.
-
-## Recovery scope that is still incomplete
-
-Do not overread the core runtime as full strategy-specific recovery.
-
-Still required:
-
-- strategy-specific retained source boundary/restaging behavior for every capture family;
-- quarantine payload replay wiring that marks `replayed_by_dataset_run_id` end to end;
-- actual FULL_REBUILD target/state reset/rebuild orchestration;
-- persistent production repository transaction/concurrency proof;
-- Fabric-native resume/replay semantics for Copy Job/Dataflow/Mirroring where the native service owns progress;
-- operator CLI/API (`status`, `retry`, `backfill`, `replay`, `rebuild`) on a supported persistent store.
-
-## Capture/apply executor separation
-
-Source-controlled execution policy:
-
-```text
-execution.engine
-execution.capability_profile
-execution.progress_owner
-    -> capture / movement
-
-execution.apply_engine
-execution.apply_capability_profile
-    -> apply
-```
-
-The immutable plan resolves both to concrete values before execution. `AUTO` is a policy input, not an execution-time hidden switch.
-
-Generic native profiles do not automatically certify target `UPSERT/SCD1/SCD2`. The default framework apply path remains Spark/framework unless a named apply profile explicitly proves semantic equivalence.
-
-## Dataflow Gen2 incremental hybrid
-
-The named profile:
-
-```text
-dataflow_gen2_incremental_bucket_v1
-```
-
-certifies Dataflow only for its bounded incremental capture/staging role:
-
-```text
-capture_strategy = WATERMARK
-capture engine   = DATAFLOW_GEN2
-progress_owner   = FABRIC_NATIVE
-composite WM     = NOT CERTIFIED
-native apply     = NOT CERTIFIED
-```
-
-Valid plan:
-
-```text
-Dataflow Gen2 incremental capture/stage
-    -> CaptureReceipt
-    -> framework SCD1 or UPSERT
-    -> reconcile / state / audit
-```
-
-Dataflow bucket replacement is not mislabeled as generic SCD1/UPSERT.
-
-## Control-plane promotion boundary
-
-Promotable definitions include:
+Promotable definitions:
 
 ```text
 dataset
@@ -298,12 +242,13 @@ data_quality_policy
 reconciliation_policy
 ```
 
-Environment-local runtime state/evidence includes:
+Environment-local runtime/evidence now includes:
 
 ```text
 schema_migration_history
 runtime_override
 watermark
+cdc_checkpoint
 dataset_state
 dataset_lease
 pipeline_run
@@ -318,30 +263,30 @@ reprocess_request
 deployment_history
 ```
 
-The two sets are disjoint and cover the current schema.
+None of that runtime state is promoted DEV -> UAT -> PROD.
 
 ## Current external boundary
 
-No enterprise Fabric workspace, capacity, tenant setting, RBAC, networking, gateway, connection, credential, production dataset or runtime state has been changed by this hardening work.
+This hardening work has not modified an enterprise Fabric workspace, capacity, tenant setting, RBAC assignment, network route, connection, credential, production dataset or production runtime state.
 
-SQLAlchemy/SQLite, in-memory targets and fake Fabric transports are deterministic contract proof. They are not real Fabric production evidence.
+SQLAlchemy/SQLite control-plane evidence is a schema/transaction reference proof, not an approved production store.
 
 ## Exact next implementation sequence
 
-1. Implement canonical **CDC event normalization**: I/U/D envelope, source event identity, ordering position and poison/invalid-event failure semantics.
-2. Implement CDC dedupe/conflict/out-of-order handling and checkpoint commit gates.
-3. Certify `CDC -> UPSERT`, `CDC -> SCD1` and `CDC -> SCD2` as separate capture/apply combinations.
-4. Implement snapshot/bootstrap -> CDC handoff with no gap/double apply.
-5. Complete strategy-specific recovery wiring for retained ranges, quarantine replay and FULL_REBUILD state reset.
-6. Add APPEND identity/collision semantics.
-7. Add general schema-evolution and cross-strategy late/out-of-order policy contracts.
-8. Add a supported persistent control-plane repository/operator surface.
-9. Implement a real Fabric transport/API adapter and prove at least one DEV hybrid: native capture -> `CaptureReceipt` -> framework SCD1/UPSERT.
-10. Re-run production-readiness and guarantee audits, then decide the next immutable release scope/version.
+1. Add selected built-in/provider CDC envelope adapters and capability profiles, while preserving canonical CDC contracts.
+2. Complete strategy-specific recovery: quarantine REPLAY, FULL_REBUILD execution and native/external progress recovery.
+3. Implement APPEND identity/collision/replay semantics.
+4. Implement general schema-evolution classification and compatibility policy.
+5. Add shared late/out-of-order taxonomy beyond the current fail-closed SCD2 retroactive case.
+6. Add file-manifest and API-pagination/window capture guardrails.
+7. Add supported persistent control-plane repository/operator query surface.
+8. Implement actual Fabric transports/backend and prove at least one approved DEV hybrid execution.
+9. Re-run production readiness/guarantee/docs audit against the exact candidate head.
+10. Only then decide the next immutable framework release scope/version.
 
-## Documentation obligation
+## Durable project memory
 
-New conversations must read the canonical docs before substantive work:
+New conversations must read:
 
 ```text
 docs/ECOSYSTEM_BLUEPRINT.md
@@ -349,6 +294,7 @@ docs/PROJECT_BLUEPRINT.md
 docs/PRODUCTION_REQUIREMENTS.md
 docs/EXECUTION_ENGINE_STRATEGY.md
 docs/FABRIC_EXECUTION_MODEL.md
+docs/CDC_DESIGN.md
 docs/REPOSITORY_STRUCTURE.md
 docs/CONTROL_PLANE_DESIGN.md
 docs/CICD_DESIGN.md
@@ -357,4 +303,4 @@ docs/GUARANTEE_COVERAGE.md
 docs/CURRENT_STATUS.md
 ```
 
-If code/tests and docs differ, implementation evidence wins temporarily and the docs must be repaired in the same coherent slice.
+If another document conflicts with current code/tests, inspect implementation and repair the document before continuing.

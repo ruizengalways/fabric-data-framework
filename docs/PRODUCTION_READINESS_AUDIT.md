@@ -22,43 +22,44 @@ Current unreleased 0.4.0 development line on PR #13:
 Portable semantic implementation     STRONG / materially expanded
 Deterministic certification           STRONG for implemented slices
 Fabric adapter contract coverage      STRONG reference boundary
+CDC portable correctness              STRONG reference core
 Real Fabric execution evidence        NOT YET PROVEN for hardening branch
 External enterprise controls          EXTERNAL / NOT PROVEN BY THIS REPO
 ```
 
-Latest green hardening evidence:
+Latest coherent CDC evidence:
 
 ```text
-commit: a5da06294dfba0c5ae756dcc1d8814931feebec7
-GitHub Actions: 33179754372
-build-wheel:      SUCCESS
-Python 3.11:      SUCCESS
-Python 3.13:      SUCCESS
-pytest:           139 passed
+ccf0fc8950efb1f4d338cadcaf83aac5fd49a7b9 / 33215409341 / 153 passed
+canonical CDC + CDC -> UPSERT/SCD1
+
+ed6c13d4fcabe165ef86be2e547d794e15e5375c / 33215708004 / 159 passed
+CDC -> SCD2
+
+c41fbd00bb3d3c6bc71e20f958c4ec14106ac33c / 33216133811 / 165 passed
+durable CDC checkpoint + optimistic concurrency
+
+465a2c1e9ddf25b0ace2293f578c2c5bb3a653ae / 33216281126 / 171 passed
+snapshot/bootstrap -> CDC no-gap/no-double-apply handoff
 ```
 
-Earlier coherent evidence in the same slice:
+Earlier evidence:
 
 ```text
-b831d465c2f03117c323a0cbd90e22bbf081417c
-run 33178765403
-123 passed
+b831d465c2f03117c323a0cbd90e22bbf081417c / 33178765403 / 123 passed
 Fabric capture adapter contract
 
-333d62ed5b06787026ec7f25481f37bed6c44ea1
-run 33179523583
-137 passed
-Recovery relational evidence
+a5da06294dfba0c5ae756dcc1d8814931feebec7 / 33179754372 / 139 passed
+Recovery core + hardening
 ```
 
-`v0.3.0` remains the latest public release. **Do not publish v0.4.0 yet.**
+`v0.3.0` remains latest public release. **Do not publish v0.4.0 yet.**
 
 ## 3. Capability assessment
 
 | Capability | Portable | Deterministic | Real Fabric | Assessment |
 |---|---:|---:|---:|---|
 | Typed metadata/effective config | Yes | Yes | N/A | IMPLEMENTED |
-| Runtime override allow-list/hash | Yes | Yes | N/A | IMPLEMENTED |
 | Composite WATERMARK + overlap | Yes | Yes | No current adapter run | IMPLEMENTED portable |
 | Bronze lineage | Yes | Yes | No | IMPLEMENTED portable |
 | DQ/quarantine/accounting | Yes | Yes | No persistent Fabric quarantine proof | IMPLEMENTED portable |
@@ -68,74 +69,66 @@ Recovery relational evidence
 | UPSERT current-state correctness | Yes | Yes | No | IMPLEMENTED reference |
 | SCD2 bounded history correctness | Yes | Yes | No | IMPLEMENTED reference |
 | Capture/apply executor separation | Yes | Yes | N/A | IMPLEMENTED contract |
-| Named engine/profile capability resolver | Yes | Yes | Product-specific real certification pending | IMPLEMENTED contract |
-| CaptureReceipt | Yes | Yes | No real native receipt yet | IMPLEMENTED contract |
-| Dataflow incremental -> framework SCD1/UPSERT plan | Yes | Yes | No real Dataflow execution | IMPLEMENTED planner contract |
-| FabricCaptureRequest/native-run evidence | Yes | Yes | No | IMPLEMENTED adapter contract |
-| Copy Job capture adapter | Yes | Yes fake transport | No | ADAPTER CONTRACT ONLY |
-| Copy Activity capture adapter | Yes | Yes fake transport | No | ADAPTER CONTRACT ONLY |
-| Dataflow Gen2 capture adapter | Yes | Yes fake transport | No | ADAPTER CONTRACT ONLY |
-| Spark capture adapter | Yes | Yes fake transport | No | ADAPTER CONTRACT ONLY |
+| Named engine/profile capability resolver | Yes | Yes | product-specific certification pending | IMPLEMENTED contract |
+| CaptureReceipt | Yes | Yes | no real native receipt yet | IMPLEMENTED contract |
+| Dataflow incremental -> framework SCD1/UPSERT plan | Yes | Yes | no real Dataflow execution | IMPLEMENTED planner contract |
+| Copy Job/Copy Activity/Dataflow/Spark capture adapter | Yes | Yes fake transport | No | ADAPTER CONTRACT ONLY |
 | Native FAILED/CANCELLED/UNKNOWN fail-closed | Yes | Yes | No | IMPLEMENTED adapter contract |
 | Bounded source-range evidence match | Yes | Yes | No | IMPLEMENTED adapter contract |
-| Metadata dispatcher/failure isolation | Yes | Yes | No Fabric Pipeline backend | IMPLEMENTED reference |
+| Metadata dispatcher/failure isolation | Yes | Yes | no Fabric Pipeline backend | IMPLEMENTED reference |
 | Recovery failure classification/retry | Yes | Yes | No | IMPLEMENTED reference core |
-| Attempt lineage | Yes | Yes | No persistent production DB | IMPLEMENTED reference/schema proof |
-| Reprocess request validation/lifecycle | Yes | Yes | No operator surface | IMPLEMENTED reference contract |
-| Unknown commit COMMITTED/NOT_COMMITTED/UNRESOLVED behavior | Yes | Yes | No physical target drill | IMPLEMENTED reference core |
-| Relational reprocess/attempt evidence | Yes | Yes SQLAlchemy/SQLite | No approved prod store | IMPLEMENTED schema proof |
-| Quarantine payload replay | Partial contract only | No full replay | No | GAP |
-| FULL_REBUILD execution | Request authorization only | No reset/rebuild execution | No | GAP |
-| Native-progress recovery | Generic concepts only | No provider proof | No | GAP |
-| CDC normalization/event identity/order | No | No | No | P0 GAP |
-| CDC checkpoint commit | No | No | No | P0 GAP |
-| Bootstrap -> CDC handoff | No | No | No | P0 GAP |
+| Attempt/reprocess lineage | Yes | Yes | no production DB | IMPLEMENTED reference/schema proof |
+| Unknown commit tri-state behavior | Yes | Yes | no physical target drill | IMPLEMENTED reference core |
+| Canonical CDC I/U/D event envelope | Yes | Yes | No | IMPLEMENTED reference |
+| CDC identity/dedupe/conflict/order | Yes | Yes | No | IMPLEMENTED reference |
+| CDC frozen upper/completeness boundary | Yes | Yes | No | IMPLEMENTED reference |
+| CDC -> UPSERT/SCD1 | Yes | Yes | No | IMPLEMENTED reference |
+| CDC -> SCD2 | Yes | Yes | No | IMPLEMENTED reference |
+| CDC source-order vs valid-time separation | Yes | Yes | No | IMPLEMENTED reference |
+| Retroactive SCD2 correction | Fail-closed only | Yes | No | PARTIAL by design |
+| Durable CDC downstream apply checkpoint | Yes | Yes SQLite | No approved store | IMPLEMENTED schema/transaction reference |
+| CDC checkpoint optimistic concurrency | Yes | Yes | No | IMPLEMENTED reference |
+| Snapshot/bootstrap -> CDC fenced handoff | Yes | Yes | No | IMPLEMENTED reference |
+| Bootstrap repartition/key movement | Fail-closed | Yes | No | NOT YET SUPPORTED |
+| Provider CDC envelopes/capability profiles | Core only | No selected built-in mappings yet | No | P0 GAP |
+| Provider offset commit/resume after apply failure | Core state model only | No | No | P0 GAP |
+| CDC poison-event quarantine/replay | Partial | No end-to-end proof | No | GAP |
+| Quarantine payload REPLAY | request contract | No full replay | No | GAP |
+| FULL_REBUILD execution | request authorization | No | No | GAP |
 | APPEND identity semantics | No | No | No | GAP |
+| File manifest freeze | No | No | No | GAP |
+| API pagination/window guardrails | No | No | No | GAP |
 | General schema evolution | design/table only | No full policy | No | P0 GAP |
 | Persistent production control plane | reference only | SQLite tests | No | GAP |
-| Operator status/retry/backfill/replay/rebuild surface | runtime contracts only | No supported surface | No | GAP |
+| Operator surface | runtime contracts only | No supported CLI/API | No | GAP |
 | Fabric Pipeline backend | design only | No | No | P0 GAP |
-| Real Fabric REST/SDK/CLI transport | interface only | fake transport only | No | P0 GAP |
-| Same-wheel Fabric DEV/UAT/PROD proof | delivery contract only | GitHub release proof v0.3.0 | No | P0 GAP |
+| Real Fabric transports | interface only | fake transport only | No | P0 GAP |
+| Same-wheel Fabric DEV/UAT/PROD proof | delivery contract only | release proof v0.3.0 | No | P0 GAP |
 
-## 4. Strongest portable guarantees
+## 4. Strong portable guarantees
 
 ### 4.1 Current-state correctness
 
-SCD1 and UPSERT share a canonical current-state primitive proving:
-
-- composite keys;
-- ordering by event/version/sequence positions;
-- batch latest-record selection;
-- exact-rerun idempotency;
-- stale policy;
-- equal-position conflict failure;
-- fail-closed unordered changed update unless explicitly authorized.
+SCD1/UPSERT have deterministic batch ordering/idempotency and a separate CDC current-state path with canonical source-position metadata, stale suppression, delete policy and equal-position conflict detection.
 
 ### 4.2 Destructive-load protection
 
-FULL and SNAPSHOT paths do not infer successful authoritative source state merely from an iterator/activity completing. Completeness, deletion and publication guards are explicit.
+FULL and SNAPSHOT paths require explicit completeness/evidence and destructive-operation guards. A successful activity/iterator is not treated as proof of an authoritative empty source.
 
 ### 4.3 Stage delegation safety
-
-The semantic plan and provider adapter are separate.
 
 ```text
 ExecutionPlan
     -> provider request
-    -> native run evidence
-    -> validate evidence
+    -> native evidence
+    -> validate
     -> CaptureReceipt
     -> remaining framework semantics
 ```
 
-The Fabric adapter contract refuses to create a success receipt for unsuccessful/unknown native status, wrong landing, wrong execution kind, wrong snapshot identity or wrong framework-owned source range.
+Fabric adapter contracts reject unsuccessful/unknown native status and evidence mismatches.
 
 ### 4.4 Recovery safety
-
-Automatic retry is opt-in via explicit transient failure classification. Unknown/unclassified exceptions do not retry automatically.
-
-The most important invariant is now executable:
 
 ```text
 write outcome uncertain
@@ -145,82 +138,91 @@ write outcome uncertain
          UNRESOLVED    => stop
 ```
 
-This is materially safer than generic retry-on-exception behavior.
+Automatic retry requires explicit retryable classification.
 
-## 5. What Recovery does and does not prove
+### 4.5 CDC correctness
 
-Recovery **core** is implemented and deterministic:
+Canonical CDC no longer depends on a provider envelope:
 
-- attempt lineage;
-- retry/backoff/exhaustion;
-- reprocess request intent/lifecycle;
-- unknown commit tri-state resolution;
-- environment-local persistence schema.
+- source partition + integer position tuple;
+- exact event identity;
+- duplicate idempotency/conflict detection;
+- frozen upper checkpoint + completeness proof;
+- committed-overlap suppression;
+- ambiguous ordering fails closed;
+- independent target semantics: UPSERT/SCD1/SCD2;
+- target/reconciliation-gated downstream checkpoint;
+- optimistic checkpoint concurrency;
+- snapshot fence handoff with no-gap/no-double-apply proof.
 
-It does **not** yet prove every physical strategy can reproduce its original source input. Remaining production work includes:
+Canonical detail: `docs/CDC_DESIGN.md`.
 
-- retained source window/checkpoint per capture family;
-- native-progress service replay/resume behavior;
-- quarantine payload retrieval and replay;
-- FULL_REBUILD physical reset/rebuild;
-- persistent transactional repository;
-- physical target idempotency/commit-outcome drills.
+## 5. What CDC does and does not prove
 
-Therefore the correct assessment is `IMPLEMENTED reference core / PARTIAL end-to-end recovery`, not either “not implemented” or “fully production ready”.
+The current CDC core proves semantic behavior after a provider has supplied canonical positions/events.
 
-## 6. Fabric adapter evidence boundary
+It does **not** yet prove:
 
-Current Copy Job/Copy Activity/Dataflow/Spark adapters are real framework code, but their transport is an injected protocol and tests use deterministic fake evidence.
+- a particular Debezium/database/Fabric envelope mapping;
+- source connector retention/offset commit behavior;
+- transaction atomicity semantics for every provider;
+- partition rebalancing/source incarnation transitions;
+- actual Copy Job/native CDC behavior;
+- real throughput/backpressure;
+- poison-event operational replay;
+- real Fabric authentication/networking/runtime behavior.
 
-They prove interface and correctness boundaries. They do **not** prove:
+Therefore the correct assessment is `IMPLEMENTED portable CDC core / PARTIAL provider integration`.
 
-- authentication;
-- tenant/workspace permission;
-- API version behavior;
-- polling/runtime failure modes;
-- gateway/source connection behavior;
-- capacity/throttling;
-- actual run IDs from Microsoft Fabric.
+## 6. What Recovery does and does not prove
 
-At least one real approved DEV hybrid execution is required before release confidence increases materially.
+Recovery core is implemented: attempt lineage, bounded retry, request intent/lifecycle and unknown-commit tri-state.
 
-## 7. Current P0 work
+It does not yet prove every physical strategy can reproduce original input. Remaining work includes native/external source resume, quarantine payload retrieval, FULL_REBUILD execution, persistent transactional repository and target commit drills.
 
-The next hard correctness area is CDC:
+## 7. Fabric adapter evidence boundary
 
-1. canonical I/U/D event envelope;
-2. source event identity/order;
-3. duplicate/conflicting duplicate rules;
-4. poison/invalid event disposition;
-5. bounded checkpoint upper coordinate;
-6. checkpoint commit after downstream apply + reconciliation;
-7. separate certification for `CDC -> UPSERT`, `CDC -> SCD1`, `CDC -> SCD2`;
-8. snapshot/bootstrap -> CDC no-gap/no-double-apply handoff.
+Current Copy Job/Copy Activity/Dataflow/Spark adapters are real framework code around an injected transport protocol, but tests use deterministic fake evidence.
 
-After CDC, close strategy-specific recovery, schema evolution, APPEND/persistent operator gaps, then execute a real Fabric hybrid proof.
+They do **not** prove authentication, API version behavior, gateway behavior, throttling, polling/runtime failures, workspace permissions or actual Fabric run IDs.
 
-## 8. External evidence this repo must not fake
+At least one approved DEV hybrid execution remains a major release gate.
 
-- Fabric capacity/SKU and throttling policy;
+## 8. Current P0 work
+
+CDC semantic core and bootstrap are complete at reference level. Immediate hardening priorities now are:
+
+1. selected provider CDC envelope adapters/capability profiles;
+2. provider-specific source-offset resume/commit recovery semantics;
+3. quarantine REPLAY and FULL_REBUILD execution;
+4. APPEND identity/collision semantics;
+5. file/API capture guardrails;
+6. general schema-evolution policy;
+7. persistent operator/control-plane surface;
+8. real Fabric backend/transport proof.
+
+## 9. External evidence this repo must not fake
+
+- Fabric capacity/SKU/throttling;
 - tenant settings;
 - workspace/domain provisioning;
 - Entra groups/service principals/workspace identity/RBAC;
 - gateway/private networking;
 - secrets/key authority;
-- source database CDC enablement/retention;
+- source CDC enablement/retention;
 - production backup/restore;
-- monitoring receiver/on-call;
+- monitoring/on-call;
 - quarantine/audit retention/privacy;
-- approvals/change controls where required.
+- required approvals/change control.
 
-## 9. Release gate
+## 10. Release gate
 
-Before a next public release, the exact release head must satisfy:
+Before the next public release, the exact release head must satisfy:
 
 ```text
 code == tests == canonical docs == control-plane/release schema contract
 ```
 
-and the milestone must include real Fabric integration evidence rather than only provider-neutral/fake-transport proof.
+and the agreed milestone must include real Fabric integration evidence, not only provider-neutral/fake-transport proof.
 
 Current decision: **release remains blocked**.

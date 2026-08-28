@@ -2,22 +2,13 @@
 
 Reusable, versioned Microsoft Fabric Data Engineering runtime for the Enterprise Fabric Data Engineering Platform reference implementation.
 
-The framework owns mature reusable DE semantics and operational contracts. Domain repositories consume an immutable framework wheel and normally onboard datasets through source-controlled metadata, environment bindings and bounded logical-name extensions rather than framework edits.
+The framework owns mature reusable data-engineering semantics and operational contracts. Domain repositories consume an immutable framework wheel and normally onboard datasets through source-controlled metadata, environment bindings, capability profiles and bounded logical-name extensions rather than framework edits.
 
 ## Release status
 
 - Latest immutable public release: **v0.3.0**.
 - Current source version: **0.4.0 development**.
-- **Do not publish v0.4.0 yet**; the production-hardening milestone is still in progress.
-
-Latest fully green hardening evidence before documentation synchronization:
-
-```text
-commit a5da06294dfba0c5ae756dcc1d8814931feebec7
-GitHub Actions 33179754372
-Python 3.11 / 3.13 + wheel: SUCCESS
-139 tests passed
-```
+- **Do not publish v0.4.0 yet.** Production hardening and real Fabric evidence remain in progress.
 
 ## Architecture in one diagram
 
@@ -27,78 +18,101 @@ semantic metadata
       v
 capability resolver + immutable ExecutionPlan
       |
-      +--> capture/movement executor
-      |      Copy Job / Copy Activity / Dataflow / Spark / ...
-      |            |
-      |     native/provider evidence
-      |            v
-      |       CaptureReceipt
+      +--> native/external capture movement
+      |      Copy Job / Copy Activity / Dataflow / CDC / Mirroring
+      |             |
+      |             v
+      |       validated CaptureReceipt
       |
-      v
-Bronze / normalize / DQ
-      |
-      v
-independently selected apply executor
-REPLACE | UPSERT | SCD1 | SCD2 | SNAPSHOT_DIFF
-      |
-      v
-reconciliation / state / audit
-      |
-      +--> recovery core
-           retry / attempt lineage / reprocess / unknown outcome
+      +--> framework capture where appropriate
+                    |
+                    v
+              Bronze / staging
+                    |
+              DQ / transform
+                    |
+       framework apply semantics
+ REPLACE | UPSERT | SCD1 | SCD2 | SNAPSHOT_DIFF
+                    |
+            reconciliation/state
+                    |
+        watermark / cdc_checkpoint / audit
 ```
 
-Core rule: **framework-first semantics with stage-level native delegation**. Native Fabric features are first-class stage executors, but they are not assumed to provide every semantic guarantee.
+Core rule: **framework-first semantics with stage-level native delegation**. Fabric-native features are first-class accelerators/adapters only when their capability profile proves the requested stage contract.
 
 ## Implemented reference capabilities
 
 Current unreleased hardening branch includes:
 
-- strict immutable dataset metadata and allow-listed runtime overrides;
+- strict immutable dataset metadata + allow-listed overrides;
 - composite WATERMARK + overlap semantics;
 - normalized Bronze lineage;
 - row DQ/quarantine/accounting;
-- deterministic SCD2;
-- ordered/idempotent SCD1;
-- ordered/idempotent UPSERT using a shared current-state primitive;
 - guarded FULL -> REPLACE;
-- guarded SNAPSHOT -> SNAPSHOT_DIFF + delete guards;
-- metadata-driven multi-dataset dispatcher/failure isolation;
-- independent capture/apply engine selection in immutable ExecutionPlan;
+- guarded SNAPSHOT -> SNAPSHOT_DIFF;
+- ordered/idempotent UPSERT and SCD1;
+- deterministic SCD2;
+- metadata-driven dispatcher/failure isolation;
+- independent capture and apply engine planning;
 - named engine capability profiles;
-- Dataflow Gen2 incremental capture profile feeding framework SCD1/UPSERT;
-- typed CaptureReceipt;
-- Fabric capture adapter contract layer for Copy Job, Copy Activity, Dataflow Gen2 and Spark;
-- fail-closed provider run evidence validation;
-- generic recovery failure classification/retry/backoff;
-- immutable dataset attempt lineage;
-- audited RETRY/BACKFILL/REPLAY/FULL_REBUILD request contracts;
-- unknown target-commit reconciliation before retry;
-- relational reprocess/attempt evidence in environment-local control-plane state;
-- additive control-plane v2 development schema;
+- Dataflow Gen2 incremental capture -> framework SCD1/UPSERT topology;
+- typed `CaptureReceipt`;
+- fail-closed Copy Job / Copy Activity / Dataflow Gen2 / Spark capture adapter contracts;
+- conservative retry + unknown-target-commit reconciliation;
+- RETRY/BACKFILL/REPLAY/FULL_REBUILD request and attempt-lineage contracts;
+- canonical provider-neutral CDC event/order/dedupe/checkpoint contracts;
+- CDC -> UPSERT/SCD1;
+- CDC -> SCD2 with independent source-order and valid-time clocks;
+- durable optimistic CDC downstream apply checkpoints;
+- snapshot/bootstrap -> CDC no-gap/no-double-apply handoff;
+- logical-name extension registry;
+- additive control-plane schema v2;
 - immutable release/config/deployment provenance and delivery CLI.
 
-These are portable/reference or adapter-contract guarantees. They do **not** imply that a real Fabric API/workspace/connection/capacity was exercised.
+These are portable/reference guarantees. Real Fabric adapter/runtime evidence and enterprise IAM/network/governance evidence are tracked separately and are not implied by Python tests.
 
-## Current next milestone
+## CDC model
 
-The next P0 correctness slice is CDC:
+Canonical detail: `docs/CDC_DESIGN.md`.
 
 ```text
-canonical I/U/D event envelope
- -> event identity/order/dedup/conflict
- -> checkpoint commit gate
- -> CDC -> UPSERT/SCD1/SCD2
- -> snapshot/bootstrap -> CDC handoff
+provider LSN/binlog/Kafka/native coordinate
+    -> adapter normalization
+    -> partition + integer position tuple
+    -> CDCEvent
+    -> bounded normalize/dedupe/order
+    -> UPSERT / SCD1 / SCD2
+    -> reconcile
+    -> cdc_checkpoint
 ```
 
-After CDC, complete strategy-specific replay/rebuild/native-progress recovery, schema evolution, APPEND/persistent operator surfaces and at least one real Fabric DEV hybrid execution before release decision.
+The framework fails closed when a provider has not supplied enough sequence information to prove deterministic order.
+
+Snapshot bootstrap uses a source fence:
+
+```text
+retain CDC from S
+S <= snapshot checkpoint B
+complete snapshot consistent through B
+CDC <= B -> ignore as snapshot-covered overlap
+CDC >  B -> apply
+```
 
 ## Local development
 
 ```bash
 python -m pip install -e '.[dev]'
 pytest
+```
+
+Latest coherent CDC proof before the docs-audit commit:
+
+```text
+465a2c1e9ddf25b0ace2293f578c2c5bb3a653ae
+GitHub Actions 33216281126
+Python 3.11 / 3.13 + wheel SUCCESS
+171 tests passed
 ```
 
 ## Delivery CLI
@@ -112,24 +126,25 @@ fabric-framework deployment-plan ...
 fabric-framework deployment-record ...
 ```
 
-The delivery model separates immutable release definitions from environment-local bindings/runtime state. Credentials and physical Fabric IDs stay outside reusable semantic config.
+Delivery separates immutable release definitions from environment-local bindings/runtime state. Credentials and physical Fabric IDs stay outside reusable semantic config.
 
 ## Canonical project memory
 
-Read in this order when resuming:
+Read in this order when resuming in a new conversation:
 
 1. `docs/ECOSYSTEM_BLUEPRINT.md`
 2. `docs/PROJECT_BLUEPRINT.md`
 3. `docs/PRODUCTION_REQUIREMENTS.md`
 4. `docs/EXECUTION_ENGINE_STRATEGY.md`
 5. `docs/FABRIC_EXECUTION_MODEL.md`
-6. `docs/REPOSITORY_STRUCTURE.md`
-7. `docs/CONTROL_PLANE_DESIGN.md`
-8. `docs/CICD_DESIGN.md`
-9. `docs/PRODUCTION_READINESS_AUDIT.md`
-10. `docs/GUARANTEE_COVERAGE.md`
-11. `docs/CURRENT_STATUS.md`
-12. `docs/adr/`
-13. `docs/runbooks/`
+6. `docs/CDC_DESIGN.md`
+7. `docs/REPOSITORY_STRUCTURE.md`
+8. `docs/CONTROL_PLANE_DESIGN.md`
+9. `docs/CICD_DESIGN.md`
+10. `docs/PRODUCTION_READINESS_AUDIT.md`
+11. `docs/GUARANTEE_COVERAGE.md`
+12. `docs/CURRENT_STATUS.md`
+13. `docs/adr/`
+14. `docs/runbooks/`
 
-If documentation conflicts with code/tests, inspect implementation and repair the docs before continuing.
+If documentation conflicts with code/tests, inspect implementation and repair documentation before continuing.

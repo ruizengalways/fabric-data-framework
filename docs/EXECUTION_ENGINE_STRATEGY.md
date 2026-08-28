@@ -7,7 +7,7 @@ Last updated: 2026-08-29
 
 `fabric-data-framework` is a reusable semantic/runtime product, not a wrapper around one Microsoft Fabric execution surface.
 
-Core DE semantics must have provider-neutral framework implementations. Fabric-native features are used as stage delegates when a capability profile proves the requested scope.
+Core DE semantics have provider-neutral framework implementations. Fabric-native features are stage delegates when a capability profile proves the requested scope.
 
 ADR 0009 remains governing architecture: **framework-first semantics with stage-level native delegation**.
 
@@ -34,7 +34,7 @@ Capture progress owner
 
 `execution.engine` describes capture/movement. `execution.apply_engine` independently describes final apply.
 
-The immutable `ExecutionPlan` records concrete capture/apply engines and profiles before execution. `AUTO` is a source-controlled resolution request, not a runtime hidden switch.
+The immutable `ExecutionPlan` records concrete engines/profiles before execution. `AUTO` is a source-controlled resolution request, not a hidden runtime switch.
 
 ## 3. Framework-first fallback invariant
 
@@ -44,11 +44,11 @@ semantic contract
     +-> optional certified provider delegate
 ```
 
-Native feature evolution should normally change a capability profile/adapter/plan, not force domain metadata to redefine business data semantics.
+Native product evolution should normally change a capability profile/adapter/plan, not redefine business semantics.
 
 ## 4. Current apply defaults
 
-Framework reference implementations currently cover:
+Framework reference implementations cover:
 
 ```text
 REPLACE
@@ -58,17 +58,17 @@ SCD2
 SNAPSHOT_DIFF
 ```
 
+CDC is a capture/change contract and feeds UPSERT/SCD1/SCD2 independently.
+
 APPEND identity semantics remain future work.
 
-Generic native profiles currently do **not** claim arbitrary final-target UPSERT/SCD1/SCD2 equivalence. Unless a named apply profile explicitly certifies the strategy, the conservative apply path is framework/Spark.
+Generic native profiles do **not** claim arbitrary UPSERT/SCD1/SCD2 equivalence. Unless an apply profile explicitly certifies the strategy, the conservative apply path is framework/Spark.
 
 ## 5. Native capture services
 
 ### Copy Job
 
-Use for supported provider-managed full/incremental/native-CDC movement where its connector/product semantics fit. Progress is commonly FABRIC_NATIVE.
-
-Safe composition:
+Use for provider-managed full/incremental/native-CDC movement where connector/product semantics fit.
 
 ```text
 Copy Job
@@ -77,19 +77,19 @@ Copy Job
   -> framework normalize/apply/reconcile
 ```
 
+Native CDC must still be mapped into canonical `CDCEvent`/`CDCCheckpoint` before CDC semantic logic.
+
 ### Copy Activity
 
-Useful when the framework computes/fixes an exact source predicate/range and Pipeline performs transport.
+Useful when framework freezes an exact source predicate/range and Pipeline performs transport.
 
 ```text
-framework freezes lower/upper range
+framework freezes lower/upper
   -> Copy Activity
-  -> observed range must match request
+  -> observed range == requested range
   -> CaptureReceipt
   -> framework apply/state
 ```
-
-This pattern naturally supports FRAMEWORK progress ownership.
 
 ### Dataflow Gen2
 
@@ -101,14 +101,7 @@ Named profile:
 DATAFLOW_GEN2 / dataflow_gen2_incremental_bucket_v1
 ```
 
-certifies:
-
-```text
-capture strategy: WATERMARK-like incremental staging
-progress owner: FABRIC_NATIVE
-composite framework watermark: not certified
-native generic UPSERT/SCD1/SCD2: not certified
-```
+certifies WATERMARK-like incremental staging with FABRIC_NATIVE progress, but not composite framework watermark or generic native UPSERT/SCD1/SCD2.
 
 Valid hybrid:
 
@@ -118,17 +111,24 @@ Dataflow Gen2 incremental
   -> framework UPSERT/SCD1/SCD2
 ```
 
-Dataflow bucket replacement is not generic SCD1.
-
 ### Spark
 
-Spark/framework is the conservative programmable fallback for source-boundary logic, composite ordering, custom parsing, deterministic current/history correctness and complex recovery.
-
-It is not required for every transport workload.
+Spark/framework is conservative programmable fallback for source-boundary logic, composite ordering, parsing, deterministic current/history correctness and complex recovery. It is not required for every transport workload.
 
 ### Mirroring / external CDC
 
 Provider/external service may own source replication/offset progress while framework remains responsible for canonicalization/apply/audit for non-delegated stages.
+
+For CDC:
+
+```text
+native/external source cursor authority
+  -> CaptureReceipt/native checkpoint correlation
+  -> canonical CDC normalization
+  -> downstream framework semantic apply checkpoint
+```
+
+The downstream checkpoint is not a competing source cursor.
 
 ## 6. Capability profiles
 
@@ -138,21 +138,23 @@ Capabilities are keyed by:
 (engine, profile_name)
 ```
 
-because provider support varies by connector, source configuration, target, runtime mode and product version.
+because support varies by connector, source configuration, target, runtime mode and product version.
 
 Rules:
 
-- defaults are conservative;
+- defaults conservative;
 - named profile requires explicit engine;
-- unsupported strategy/progress/order combination fails before mutation;
+- unsupported strategy/progress/order fails before mutation;
 - capture certification does not imply apply certification;
-- profile lacking composite ordering must reject metadata that requires it;
-- native apply requires an explicit apply-strategy certification;
+- profile lacking composite ordering rejects metadata that requires it;
+- native apply requires explicit apply-strategy certification;
 - provider marketing names do not establish semantic equivalence.
+
+Future CDC provider profiles must additionally state what native position/checkpoint evidence they can normalize and whether source offset commit/resume semantics are certified.
 
 ## 7. Progress ownership
 
-Every physical capture has one authoritative checkpoint owner.
+Every physical capture has one authoritative source checkpoint owner.
 
 ```text
 Copy Activity with framework-defined bounds -> FRAMEWORK
@@ -163,26 +165,15 @@ Debezium/Kafka                              -> EXTERNAL or explicit consumer own
 
 Progress ownership does not imply apply ownership.
 
+Framework downstream CDC semantic application progress is persisted separately only to track what has been safely applied/reconciled; it does not make the framework owner of an external/native source cursor.
+
 ## 8. CaptureReceipt handoff
 
-Native/provider stages participate in the common framework through evidence rather than by importing framework code inside each activity.
+`CaptureReceipt` records framework run correlation, capture strategy, engine/progress owner, native run ID, source/landing reference, rows, boundaries, snapshot evidence and external checkpoint references.
 
-`CaptureReceipt` records:
-
-- framework dataset-run correlation;
-- semantic capture strategy;
-- physical engine/progress owner;
-- native run ID;
-- source/landing reference;
-- rows read/written;
-- source boundaries when meaningful;
-- snapshot identity/completeness when meaningful;
-- external checkpoint when meaningful;
-- schema/timestamps.
+It is immutable handoff evidence, not proof that downstream apply/state succeeded.
 
 ## 9. Fabric adapter architecture
-
-Current provider boundary:
 
 ```text
 ExecutionPlan capture unit
@@ -202,24 +193,41 @@ DataflowGen2CaptureAdapter
 SparkJobCaptureAdapter
 ```
 
-`FabricAdapterRegistry` is explicit. The framework does not silently construct credentials/workspace clients.
+`FabricAdapterRegistry` is explicit. Framework semantic code does not construct credentials/workspace clients.
 
-### Adapter fail-closed rules
+Fail-closed rules include engine/kind/role validation, unsuccessful/unknown native status rejection, evidence matching and exact bounded-range verification for FRAMEWORK-owned movement.
 
-- engine/kind must match the compiled unit;
-- pure capture requires EXTRACT/STAGE;
-- pure capture adapter may not silently own APPLY/PUBLISH/RECONCILE/COMMIT_STATE;
-- FAILED/CANCELLED/UNKNOWN native runs do not produce receipt;
-- wrong landing, source, snapshot or execution kind fails;
-- FRAMEWORK-owned bounded movement must report exactly the requested bounds.
+These are adapter-contract guarantees, not real Fabric integration evidence.
 
-These are deterministic adapter-contract guarantees, not real Fabric integration evidence.
+## 10. CDC execution boundary
 
-## 10. Recovery and physical execution
+Canonical CDC detail: `CDC_DESIGN.md`.
 
-Provider transport errors are not automatically retried merely because an API call failed.
+Provider adapter responsibility:
 
-The generic recovery runtime distinguishes:
+```text
+provider envelope/coordinate
+  -> canonical partition + integer position tuple
+  -> CDCEvent / CDCCheckpoint
+```
+
+Semantic core responsibility:
+
+```text
+bounded completeness
+identity/dedupe/conflict
+ordering proof
+overlap handling
+UPSERT/SCD1/SCD2 apply
+reconciliation
+downstream checkpoint
+```
+
+A provider adapter that cannot prove unique event order must fail rather than pass ambiguous events to apply logic.
+
+## 11. Recovery and physical execution
+
+Generic recovery distinguishes:
 
 ```text
 RETRYABLE
@@ -227,7 +235,7 @@ NON_RETRYABLE
 UNKNOWN_OUTCOME
 ```
 
-An ambiguous target commit must be reconciled before another mutation:
+Ambiguous target commit is reconciled before another mutation:
 
 ```text
 COMMITTED     -> converge success
@@ -235,60 +243,59 @@ NOT_COMMITTED -> retry may proceed
 UNRESOLVED    -> stop
 ```
 
-For native-progress capture, downstream failure recovery must use provider receipt/checkpoint semantics rather than advancing a competing framework watermark.
+For native/external capture, source offset resume/commit behavior is provider-adapter responsibility and remains a current gap.
 
-## 11. Many-table topology
+## 12. Many-table topology
 
 Use metadata plus a small number of execution groups rather than one bespoke pipeline per table or one opaque giant pipeline.
 
-Group by real operational boundaries:
-
-- source/gateway/concurrency;
-- capture engine/profile;
-- schedule/SLA;
-- volume/runtime class;
-- dependency stage;
-- criticality/blast radius;
-- capacity/network boundary.
+Group by real operational boundaries: source/gateway, capture engine/profile, schedule/SLA, volume, dependency, criticality/blast radius and capacity/network boundary.
 
 SCD1/SCD2/UPSERT are apply semantics and do not define ingestion topology.
 
-## 12. Bounded extension points
+## 13. Bounded extension points
 
 Metadata references stable logical extension names for exceptional capture/parser/transform/DQ/specialized apply behavior.
 
 Extensions may not bypass lineage, accounting, quarantine, reconciliation, progress authority, publication, secrets/bindings or audit.
 
-## 13. Current implementation evidence
+A provider-specific CDC parser extension must still emit canonical CDC contracts and inherits all downstream framework guarantees.
 
-Latest hardening evidence before docs synchronization:
+## 14. Current implementation evidence
+
+Latest coherent CDC head before docs synchronization:
 
 ```text
-commit a5da06294dfba0c5ae756dcc1d8814931feebec7
-run 33179754372
-139 tests passed
+465a2c1e9ddf25b0ace2293f578c2c5bb3a653ae
+Actions 33216281126
+171 tests passed
 ```
 
-Implemented reference/contract scope now includes:
+Implemented reference/contract scope includes:
 
 - independent capture/apply planning;
 - capability registry and Dataflow incremental profile;
-- framework UPSERT/SCD1/SCD2/REPLACE/SNAPSHOT_DIFF apply implementations;
+- framework UPSERT/SCD1/SCD2/REPLACE/SNAPSHOT_DIFF;
 - CaptureReceipt;
-- provider-neutral Fabric capture request/evidence/transport boundary;
-- Copy Job/Copy Activity/Dataflow/Spark capture adapter wrappers;
-- recovery core and unknown-outcome safety.
+- Fabric capture request/evidence/transport boundary;
+- Copy Job/Copy Activity/Dataflow/Spark capture wrappers;
+- recovery core/unknown-outcome safety;
+- canonical CDC I/U/D, identity/order/dedupe/bounded checkpoints;
+- CDC -> UPSERT/SCD1/SCD2;
+- durable optimistic CDC downstream checkpoint;
+- snapshot/bootstrap -> CDC handoff.
 
 Still required:
 
+- selected provider CDC envelope/capability adapters;
+- provider source-offset resume/commit recovery;
 - actual Fabric REST/SDK/CLI transports;
 - real Pipeline backend;
 - connector/product-version real certification;
-- CDC normalization/checkpoint/bootstrap;
-- strategy-specific recovery completion;
+- strategy-specific replay/rebuild completion;
 - real target/native apply certification.
 
-## 14. Acceptance rule for routine onboarding
+## 15. Acceptance rule for routine onboarding
 
 Normal source/table onboarding should be:
 
@@ -297,10 +304,11 @@ Normal source/table onboarding should be:
 2. declare semantic metadata
 3. select/resolve certified capture profile
 4. use framework apply by default unless native apply is certified
-5. add domain DQ/mapping
-6. add bounded extension only for genuine exception
-7. deploy definitions/items
-8. observe via common control plane
+5. configure provider CDC mapping/profile if capture=CDC
+6. add domain DQ/mapping
+7. add bounded extension only for genuine exception
+8. deploy definitions/items
+9. observe via common control plane
 ```
 
 Editing framework source is reserved for a new reusable cross-domain capability.
