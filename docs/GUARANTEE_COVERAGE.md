@@ -6,7 +6,7 @@ Last updated: 2026-08-29
 ## 1. Evidence vocabulary
 
 - `REFERENCE` — provider-neutral semantics/contracts implemented and deterministically tested.
-- `ADAPTER CONTRACT` — provider adapter boundary/evidence conversion tested with deterministic transport; no real service call implied.
+- `ADAPTER CONTRACT` — provider adapter boundary/evidence conversion tested deterministically; no real service call implied.
 - `CI PROVEN` — package/static/test/build workflow succeeded in GitHub Actions.
 - `FABRIC PROVEN` — retained real Microsoft Fabric execution/run correlation. No new hardening capability currently has this level.
 - `EXTERNAL` — enterprise/platform control this repository must not invent.
@@ -69,6 +69,17 @@ Last updated: 2026-08-29
 | Snapshot/bootstrap -> CDC no-gap fence | `capture/bootstrap_cdc.py` | bootstrap CDC tests | REFERENCE |
 | Snapshot-covered CDC overlap is not double-applied | bootstrap normalization | bootstrap tests | REFERENCE |
 | Bootstrap stream-after-fence/partition-change evidence fails closed | bootstrap contract | bootstrap tests | REFERENCE |
+| Debezium/Kafka c/u/d envelope maps to canonical CDC | `adapters/cdc/debezium_kafka.py` | Debezium adapter tests | ADAPTER CONTRACT |
+| Kafka tombstone is not treated as a second delete | Debezium adapter | Debezium adapter tests | ADAPTER CONTRACT |
+| Debezium snapshot `op=r` fails closed by default | Debezium adapter | Debezium adapter tests | ADAPTER CONTRACT |
+| Debezium/Kafka canonical order is topic/partition/offset | Debezium adapter | Debezium adapter tests | ADAPTER CONTRACT |
+| Debezium/Kafka requires explicit record key | Debezium adapter | Debezium adapter tests | ADAPTER CONTRACT |
+| Kafka safe resume derives from framework CDC apply checkpoint | `adapters/cdc/resume.py` | Debezium adapter tests | REFERENCE provider recovery |
+| Kafka retention gap fails closed | `adapters/cdc/resume.py` | Debezium adapter tests | REFERENCE provider recovery |
+| External consumer cursor cannot override downstream apply progress | `adapters/cdc/resume.py` | Debezium adapter tests | REFERENCE provider recovery |
+| `EXTERNAL_CDC/debezium_kafka_v1` is source-controlled capability | `metadata/capabilities.py` | provider-registry tests | REFERENCE |
+| Provider adapter resolution is explicit by engine/profile | `adapters/cdc/registry.py` | provider-registry tests | REFERENCE |
+| Debezium profile compiles EXTERNAL_CDC capture -> framework Spark apply | capability registry + ExecutionPlan | provider-registry tests | REFERENCE planner proof |
 | Promotable definitions/runtime-state classification | control plane | control-plane tests | REFERENCE |
 | Metadata materialization preserves runtime state | `delivery.py` | delivery tests | REFERENCE |
 | Release identity independent of environment binding | delivery/deployment | delivery tests | REFERENCE |
@@ -106,9 +117,19 @@ Snapshot/bootstrap -> CDC
 465a2c1e9ddf25b0ace2293f578c2c5bb3a653ae
 Actions 33216281126
 171 passed
+
+Debezium/Kafka envelope + safe resume
+1087ab9231b9cb638a87bc2f78ef0c1b1fe32beb
+Actions 33219601375
+179 passed
+
+Debezium/Kafka capability profile + provider registry
+ecdca38099a4f21c6f40701dc14889b464c20608
+Actions 33219783325
+183 passed
 ```
 
-These CI results prove deterministic/reference behavior only.
+These CI results prove deterministic/reference/adapter-contract behavior only.
 
 ## 4. Required guarantees not yet complete
 
@@ -116,8 +137,10 @@ These CI results prove deterministic/reference behavior only.
 |---|---|---|
 | Real Copy Job/Copy Activity/Dataflow/Spark invocation | adapter contract only | approved DEV Fabric run + native run ID |
 | Native apply semantic equivalence | no generic native profile claims UPSERT/SCD1/SCD2 | profile-specific real tests |
-| Built-in/provider CDC envelope adapters | canonical core exists | selected Debezium/database/Fabric mappings |
-| Provider-specific CDC offset commit/resume after downstream failure | canonical apply checkpoint exists | adapter recovery integration |
+| Debezium/Kafka envelope normalization | IMPLEMENTED adapter contract | real Kafka/Debezium integration |
+| Debezium/Kafka retention-aware resume range | IMPLEMENTED reference | real broker retention/seek evidence |
+| Debezium/Kafka consumer-group/source-cursor commit coordination | NOT IMPLEMENTED | live transport/client commit protocol |
+| Additional provider CDC adapters | only Debezium/Kafka built in | source-specific adapters as product scope requires |
 | CDC transaction-boundary semantics where required | row event core exists | provider transaction tests |
 | CDC partition/rebalance/source-epoch policy | current model fails closed on ambiguity | explicit supported policy + tests |
 | CDC poison-event quarantine/replay | not wired end to end | quarantine/replay executor |
@@ -125,7 +148,7 @@ These CI results prove deterministic/reference behavior only.
 | Strategy-specific retry source-range/restaging preservation | recovery core exists | per-capture-family certification |
 | Quarantine REPLAY payload execution | request/lineage contract exists | replay executor + persistent tests |
 | FULL_REBUILD target/state reset execution | authorization contract exists | rebuild executor |
-| Native-progress recovery after downstream failure | receipt/recovery contracts exist | Copy/Dataflow/Mirroring/CDC tests |
+| Remaining native-progress recovery after downstream failure | partial; Debezium/Kafka safe resume exists | Copy/Dataflow/Mirroring/provider-specific tests |
 | APPEND identity/collision semantics | NOT IMPLEMENTED | `apply/append.py` |
 | File manifest freeze/readiness | NOT IMPLEMENTED | file capture contract |
 | API pagination/window guardrails | NOT IMPLEMENTED | API capture contract |
@@ -145,6 +168,8 @@ framework downstream CDC application checkpoint
 ```
 
 For FABRIC_NATIVE/EXTERNAL progress, `CaptureReceipt` retains native/external checkpoint evidence. `cdc_checkpoint` records framework semantic application progress and must not be used to claim ownership of the provider cursor.
+
+The Debezium/Kafka resume planner intentionally uses the framework application checkpoint as the next-required source coordinate. A consumer-group cursor that advanced before downstream commit is not accepted as proof that those events were safely applied.
 
 ## 6. Framework-first delegation invariant
 
