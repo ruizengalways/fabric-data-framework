@@ -30,7 +30,7 @@ jobs:
         run: |
           rm -rf dist
           python -m pip wheel . --no-deps --no-build-isolation -w dist
-          sha256sum dist/*.whl | tee dist/SHA256SUMS
+          (cd dist && sha256sum *.whl | tee SHA256SUMS)
       - name: Refuse to overwrite an existing release
         env:
           GH_TOKEN: ${{ github.token }}
