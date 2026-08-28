@@ -1,28 +1,11 @@
-"""Stage-specific promotable control-plane definitions.
+"""Compatibility export for stage-specific control-plane definitions.
 
-This module extends the unreleased control-plane v2 metadata with an additive table
-rather than changing the existing capture execution-policy table in place.
+The canonical ``apply_execution_policy`` table now lives in ``control_plane.py`` so
+schema creation, deployment classification and CLI migration all see the same
+metadata.  This module remains temporarily to avoid breaking the in-flight delivery
+import while the unreleased package structure is hardened.
 """
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Table
-
-from .control_plane import dataset, metadata
-
-
-apply_execution_policy = Table(
-    "apply_execution_policy",
-    metadata,
-    Column(
-        "dataset_id",
-        String(255),
-        ForeignKey(dataset.c.dataset_id),
-        primary_key=True,
-    ),
-    Column("execution_engine", String(64), nullable=False),
-    Column("capability_profile", String(255), nullable=True),
-    Column("created_at", DateTime(timezone=True), nullable=False),
-    Column("updated_at", DateTime(timezone=True), nullable=True),
-)
-
+from .control_plane import apply_execution_policy
 
 __all__ = ["apply_execution_policy"]
