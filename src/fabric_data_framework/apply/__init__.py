@@ -9,6 +9,15 @@ from .cdc import (
     CDC_POSITION,
     apply_cdc_current_state,
 )
+from .cdc_scd2 import (
+    CDC_CLOSED_PARTITION,
+    CDC_CLOSED_POSITION,
+    CDCSCD2ApplyResult,
+    CDCSCD2ConflictError,
+    CDCSCD2Error,
+    CDCSCD2LateArrivingError,
+    apply_cdc_scd2,
+)
 from .replace import (
     InMemoryReplaceTarget,
     ReplaceGuardError,
@@ -42,9 +51,15 @@ from .upsert import (
 
 __all__ = [
     "CDCApplyError",
-    "CDCCurrentStateApplyResult",
     "CDCDeleteAction",
     "CDCDeleteRejectedError",
+    "CDCCurrentStateApplyResult",
+    "CDCSCD2ApplyResult",
+    "CDCSCD2ConflictError",
+    "CDCSCD2Error",
+    "CDCSCD2LateArrivingError",
+    "CDC_CLOSED_PARTITION",
+    "CDC_CLOSED_POSITION",
     "CDC_PARTITION",
     "CDC_POSITION",
     "InMemoryReplaceTarget",
@@ -66,6 +81,7 @@ __all__ = [
     "UpsertConflictError",
     "UpsertOrderingError",
     "apply_cdc_current_state",
+    "apply_cdc_scd2",
     "apply_scd1",
     "apply_upsert",
     "plan_replace",
