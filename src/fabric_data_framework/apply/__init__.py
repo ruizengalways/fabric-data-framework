@@ -22,10 +22,19 @@ from .snapshot_diff import (
     SnapshotDiffPolicy,
     plan_snapshot_diff,
 )
+from .upsert import (
+    InMemoryUpsertTarget,
+    UpsertApplyPolicy,
+    UpsertApplyResult,
+    UpsertConflictError,
+    UpsertOrderingError,
+    apply_upsert,
+)
 
 __all__ = [
     "InMemoryReplaceTarget",
     "InMemorySCD1Target",
+    "InMemoryUpsertTarget",
     "ReplaceGuardError",
     "ReplaceGuardPolicy",
     "ReplacePlan",
@@ -37,7 +46,12 @@ __all__ = [
     "SnapshotDiffPlan",
     "SnapshotDiffPolicy",
     "StaleRecordAction",
+    "UpsertApplyPolicy",
+    "UpsertApplyResult",
+    "UpsertConflictError",
+    "UpsertOrderingError",
     "apply_scd1",
+    "apply_upsert",
     "plan_replace",
     "plan_snapshot_diff",
 ]
