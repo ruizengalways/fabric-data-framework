@@ -42,6 +42,7 @@ class SCD1ApplyResult(FrozenModel):
     rows: tuple[dict[str, Any], ...]
     mutations: MutationCounts
     stale_ignored: int = Field(default=0, ge=0)
+    incoming_superseded: int = Field(default=0, ge=0)
     duplicate_ignored: int = Field(default=0, ge=0)
 
 
@@ -88,8 +89,9 @@ def _select_latest_incoming(
     *,
     merge_key: tuple[str, ...],
     ordering_columns: tuple[str, ...],
-) -> tuple[dict[tuple[Any, ...], dict[str, Any]], int]:
+) -> tuple[dict[tuple[Any, ...], dict[str, Any]], int, int]:
     selected: dict[tuple[Any, ...], dict[str, Any]] = {}
+    incoming_superseded = 0
     duplicate_ignored = 0
 
     for raw in incoming_rows:
@@ -120,8 +122,9 @@ def _select_latest_incoming(
 
         if comparison > 0:
             selected[key] = candidate
+            incoming_superseded += 1
         elif comparison < 0:
-            duplicate_ignored += 1
+            incoming_superseded += 1
         elif candidate_payload == current_payload:
             duplicate_ignored += 1
         else:
@@ -130,7 +133,7 @@ def _select_latest_incoming(
                 f"{candidate_position}"
             )
 
-    return selected, duplicate_ignored
+    return selected, incoming_superseded, duplicate_ignored
 
 
 def apply_scd1(
@@ -172,7 +175,7 @@ def apply_scd1(
             _position(row, ordering_columns)
         rows_by_key[key] = row
 
-    selected, duplicate_ignored = _select_latest_incoming(
+    selected, incoming_superseded, duplicate_ignored = _select_latest_incoming(
         incoming_rows,
         merge_key=merge_key,
         ordering_columns=ordering_columns,
@@ -240,6 +243,7 @@ def apply_scd1(
         rows=ordered_rows,
         mutations=MutationCounts(inserted=inserted, updated=updated, deleted=0),
         stale_ignored=stale_ignored,
+        incoming_superseded=incoming_superseded,
         duplicate_ignored=duplicate_ignored,
     )
 
