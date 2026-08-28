@@ -1,353 +1,200 @@
 # Control Plane and Metadata-Driven Runtime Design
 
 Status: Canonical detailed design
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
 ## 1. Purpose
 
-This document defines the durable semantic metadata, runtime state and operational evidence model for `fabric-data-framework`.
+The control plane stores durable semantic definitions, environment-local runtime state and operational evidence for metadata-driven framework execution. It is not a business warehouse and not an unrestricted mutable configuration database.
 
-The framework must support tens/hundreds of datasets through reusable metadata-driven execution without one bespoke pipeline per table.
-
-The control plane is not a second business warehouse and not an uncontrolled mutable configuration store.
+The framework must support tens/hundreds of datasets through reusable execution without one bespoke pipeline per table.
 
 ## 2. Core principles
 
-1. Git/source-controlled domain definitions are the source of semantic truth.
-2. Deployment materializes a runtime-readable semantic snapshot.
+1. Git/source-controlled domain definitions are the semantic source of truth.
+2. Deployment materializes a runtime-readable snapshot.
 3. Runtime overrides are allow-listed operational controls only.
-4. Effective config is immutable for one dataset attempt and deterministically hashed.
-5. Capture/apply semantics and physical stage executors are separate concerns.
-6. Capture/movement and final-target apply execution policies are independent.
-7. One physical capture has one authoritative progress owner.
-8. Native/external capture is correlated through `CaptureReceipt`.
-9. Runtime state/evidence is environment-local and never promoted DEV -> UAT -> PROD.
-10. Dataset is the default failure/isolation boundary.
-11. Quarantine/reconciliation/state progression are explicit.
-12. Recovery operations have explicit requests/lineage, not ad-hoc manual reruns.
-13. Every run must be traceable to framework/domain/config/deployment identity.
+4. Effective config is immutable and deterministically hashed per attempt.
+5. Capture semantics, apply semantics, capture executor and apply executor are separate decisions.
+6. One physical capture has one authoritative progress owner.
+7. Native/external capture is correlated through `CaptureReceipt`.
+8. Runtime state/evidence is environment-local and never promoted.
+9. Dataset is the default failure/retry boundary.
+10. Recovery intent and attempt lineage are explicit and auditable.
+11. Unknown target outcome is reconciled before retry.
+12. Every run is traceable to framework/domain/config/deployment identity.
 
 ## 3. Configuration layers
 
-### 3.1 Source-controlled semantic definition
-
-Representative definition:
-
-```yaml
-dataset_id: erp.customer
-
-source:
-  system: erp
-  object: dbo.Customer
-  connection_ref: erp_sql
-
-target:
-  layer: silver
-  object: customer
-
-load:
-  capture_strategy: WATERMARK
-  apply_strategy: SCD1
-  merge_key: [tenant_id, customer_id]
-  watermark:
-    column: modified_at
-    overlap_window_seconds: 60
-  event_time_column: modified_at
-  version_column: source_version
-  sequence_column: source_sequence
-
-execution:
-  engine: DATAFLOW_GEN2
-  progress_owner: FABRIC_NATIVE
-  capability_profile: dataflow_gen2_incremental_bucket_v1
-  apply_engine: AUTO
-  apply_capability_profile: null
-
-orchestration:
-  execution_group: erp_incremental_current
-  criticality: HIGH
-  dependencies: []
-
-quality:
-  policy_name: customer_standard
-  quarantine_policy: reject_bad_rows
-
-reconciliation:
-  policy_name: current_state_standard
-```
-
-Semantic changes require Git/deployment. This includes strategy, keys, ordering semantics, delete policy, capture/apply engine/profile identity, extension identity, schema/DQ/reconciliation semantics.
-
-### 3.2 Deployed metadata snapshot
-
-Deployment materializes at least:
-
-- dataset definition;
-- config schema version/hash;
-- domain Git SHA/release;
-- expected framework version;
-- capture execution/profile/progress policy;
-- apply execution/profile policy;
-- ordering policy;
-- deployment provenance.
-
-Runtime execution should read deployed metadata rather than arbitrary mutable files on every activity step.
-
-### 3.3 Runtime operational override
-
-Allowed examples:
-
-- enabled/disabled;
-- priority;
-- retry count;
-- timeout;
-- batch size;
-- bounded concurrency;
-- approved watermark overlap.
-
-Required override evidence:
-
-- scope;
-- typed value;
-- reason/reference;
-- requested by;
-- created/valid-from/valid-to;
-- precedence;
-- enabled state.
-
-Forbidden through runtime override:
-
-- merge/business keys;
-- capture/apply strategy;
-- capture/apply engine/profile semantic identity;
-- extension implementation identity;
-- schema contract;
-- delete semantics.
-
-## 4. Effective config
-
-Before execution:
-
 ```text
-DeployedDatasetDefinition
- + active valid RuntimeOverride(s)
- + RunRequest / ReprocessRequest
- = immutable EffectiveDatasetConfig
+Git semantic definition
+    -> deployed semantic snapshot
+        + allow-listed runtime override
+        + RunRequest/ReprocessRequest
+    -> immutable EffectiveDatasetConfig
 ```
 
-The effective config receives a deterministic hash. Invalid/conflicting overrides fail before mutation.
+Semantic changes require Git/deployment. Runtime overrides may change operational knobs such as enabled, priority, retry, timeout, batch size, bounded concurrency and approved overlap; they may not change merge keys, semantic strategies, engine/profile identity, schema/delete semantics or extension implementation identity.
 
-`AUTO` is a policy value, not a final physical executor. Capability resolution must produce concrete capture/apply engines before an immutable `ExecutionPlan` is emitted.
-
-## 5. Schema versioning
-
-Current reference control-plane schema version:
+## 4. Current schema version
 
 ```text
 CONTROL_PLANE_SCHEMA_VERSION = 2
 ```
 
-The v2 evolution is additive and is still unreleased as part of the 0.4.0 development line. It currently includes:
+v2 is still an unreleased development schema and currently includes the broader hardening slice:
 
 ```text
 execution_policy
 apply_execution_policy
 ordering_policy
 capture_receipt
+reprocess_request
+dataset_attempt_lineage
 ```
 
-This prevents physical stage policy and source ordering semantics from being hidden in opaque JSON or only in code/docs.
+The schema evolution is additive. A production migration/checksum/rolling-compatibility mechanism is still required when a persistent production store is selected.
 
-The current SQLAlchemy migration helper proves schema/materialization behavior. A production migration framework with immutable migration checksums/compatibility policy remains required for the selected persistent store.
+## 5. Promotable semantic definitions
 
-## 6. Promotable semantic definition entities
+These travel with the domain release/config bundle:
 
-Promotable definitions travel as part of the domain release/config bundle. They do **not** include runtime progress.
+### `dataset`
 
-### 6.1 `dataset`
+Dataset/domain/source/target identity, enabled default, criticality/group, config hash/schema version, domain Git SHA and framework version.
 
-Registry identity/provenance:
+### `dataset_contract`
 
-- dataset ID;
-- domain;
-- source system/object;
-- target layer/object;
-- enabled default;
-- criticality/execution group;
-- config schema version/hash;
-- domain Git SHA;
-- framework version.
+Expected schema/contract identity and compatibility policy.
 
-### 6.2 `dataset_contract`
+### `load_policy`
 
-Schema/contract identity and compatibility policy.
+Capture/apply semantics, keys, watermark metadata, event time/tracked columns and delete policy.
 
-Current physical baseline exists; broader schema-evolution behavior remains required.
+### `ordering_policy`
 
-### 6.3 `load_policy`
+First-class event-time/version/sequence source-position columns used by current-state/history/CDC semantics.
 
-Semantic data behavior:
+### `execution_policy`
 
-- capture strategy;
-- apply strategy;
-- business/merge keys;
-- watermark column/tie-breaker/overlap;
-- event-time/tracked columns;
-- delete policy.
+Capture/movement engine, progress owner, capability profile and logical extension configuration.
 
-Capture/apply remain independent semantics.
+### `apply_execution_policy`
 
-### 6.4 `ordering_policy` — v2
+Independent final-target apply engine and apply capability profile.
 
-First-class source ordering metadata:
+### `orchestration_policy`
 
-- event-time column;
-- version column;
-- sequence/LSN-like column.
+Execution group, criticality, dependencies, priority, retry/timeout/batch/concurrency defaults.
 
-SCD1/UPSERT/CDC/SCD2 can use these semantics without embedding physical engine assumptions.
+### `data_quality_policy`
 
-### 6.5 `execution_policy` — v2
+Reusable DQ/quarantine policy identity.
 
-Physical **capture/movement** policy:
+### `reconciliation_policy`
 
-- execution engine;
-- progress owner;
-- named capture capability profile;
-- controlled extension config.
+Required completion checks and state/publication gate behavior.
 
-This table does not imply downstream apply ownership.
+## 6. Environment-local state/evidence
 
-### 6.6 `apply_execution_policy` — v2
+These rows never move between DEV/UAT/PROD:
 
-Independent physical **apply** policy:
+### `schema_migration_history`
 
-- execution engine;
-- named apply capability profile.
+Environment-local applied schema history.
 
-Current conservative runtime behavior resolves `AUTO` to SPARK/framework apply. Native/SQL apply remains fail-closed until a named profile certifies the requested `ApplyStrategy`. A CUSTOM apply requires a controlled `extensions.apply` reference in the source config.
+### `runtime_override`
 
-`apply_execution_policy` is included in `PROMOTABLE_DEFINITION_TABLES` and is created by the same baseline schema/CLI path as the other semantic definitions.
+Audited operational override with requester/reason/validity/precedence.
 
-### 6.7 `orchestration_policy`
+### `watermark`
 
-- execution group;
-- criticality;
-- dependencies;
-- priority;
-- retry/timeout/batch/concurrency defaults.
+Framework-owned committed incremental progress only. A FABRIC_NATIVE/EXTERNAL capture must not also advance a competing framework watermark for the same physical source progress.
 
-### 6.8 `data_quality_policy`
+### `dataset_state`
 
-References reusable rules/action thresholds. Business-specific rule definitions remain domain-owned.
+Generic committed runtime state beyond watermark.
 
-### 6.9 `reconciliation_policy`
+### `dataset_lease`
 
-Defines required completion checks and whether failures block publication/state progression.
+Single-writer/concurrency guard for framework-owned mutable state.
 
-## 7. Environment-local state and evidence
+### `pipeline_run`
 
-These rows are never promoted between environments.
+One orchestration request with environment/domain/release/config provenance and aggregate status.
 
-### 7.1 `runtime_override`
+### `dataset_run`
 
-Audited operational controls described above.
+One dataset attempt with attempt number, status, config hash, row/mutation/error/retryability evidence.
 
-### 7.2 `watermark`
+### `dataset_attempt_lineage`
 
-Framework-owned committed incremental progress only.
-
-A dataset using `FABRIC_NATIVE` capture progress must not create/advance a competing framework watermark for the same physical capture.
-
-### 7.3 `dataset_state`
-
-Generic environment-local state beyond watermark: last success/rebuild, schema state/version, idempotency/recovery references as the model expands.
-
-### 7.4 `dataset_lease`
-
-Single-writer/concurrency guard for mutable framework-owned state. Stale lease recovery remains required before production use.
-
-### 7.5 `pipeline_run`
-
-One orchestration request with environment/domain/run mode, release/config provenance, timestamps/status and future Fabric parent run correlation.
-
-### 7.6 `dataset_run`
-
-One dataset attempt with IDs, dataset/attempt, effective-config hash, status/timestamps, row mutations, error/retryability and future source-boundary/state/original-attempt lineage.
-
-Attempt/recovery lineage is not yet complete.
-
-### 7.7 `step_run`
-
-Operationally meaningful checkpoints, for example:
+Append-only attempt linkage:
 
 ```text
-RESOLVE_CONFIG
-ACQUIRE_LEASE
-CAPTURE
-BRONZE_WRITE
-VALIDATE
-QUARANTINE
-TRANSFORM
-STAGE
-APPLY
-RECONCILE
-PUBLISH
-COMMIT_STATE
-FINALIZE
+dataset_run_id
+root_dataset_run_id
+previous_dataset_run_id
+attempt
+run_mode
+reprocess_request_id
+created_at
 ```
 
-Do not create step rows for every trivial Python call.
+Attempt 1 is its own root. Attempts >1 require a previous run.
 
-### 7.8 `capture_receipt` — v2
+### `capture_receipt`
 
-Environment-local evidence for one physical capture/landing operation.
-
-Current contract includes/correlates:
-
-- dataset run ID/dataset ID;
-- capture strategy;
-- physical execution engine;
-- progress owner;
-- native run ID;
-- landing reference;
-- rows read/written;
-- source lower/upper boundary when meaningful;
-- snapshot ID/completeness when meaningful;
-- external checkpoint reference when meaningful;
-- started/completed timestamps.
-
-Example:
+Immutable handoff evidence for one physical capture:
 
 ```text
-Dataflow Gen2 incremental
-  -> capture_receipt(progress_owner=FABRIC_NATIVE)
-  -> framework SCD1/UPSERT
+dataset run/dataset
+capture strategy
+execution engine
+progress owner
+native run id
+source/landing reference
+rows read/written
+source lower/upper bound
+snapshot identity/completeness
+external checkpoint reference
+schema/timestamps
 ```
 
-The framework does not advance a second watermark merely because it owns apply.
+### `step_run`
 
-### 7.9 `reconciliation_result`
+Meaningful operational checkpoints, not every Python function call.
 
-Rule/group expected/actual/status/evidence and whether progression is blocked.
+### `reconciliation_result`
 
-### 7.10 `quarantine_batch`
+Expected/actual metrics, status and whether progression is blocked.
 
-Quarantine lineage/location/reason/count/replay reference. Large rejected payloads belong in governed storage, not necessarily the relational control DB.
+### `quarantine_batch`
 
-### 7.11 `schema_change`
+Quarantine lineage/location/reason/count/replay correlation. Large payloads belong in governed data storage, not necessarily the relational control DB.
 
-Observed/expected fingerprint and disposition. General schema policy is not yet fully implemented.
+### `schema_change`
 
-### 7.12 `reprocess_request`
+Observed/expected fingerprint and classification evidence; general schema policy remains incomplete.
 
-Explicit RETRY/BACKFILL/REPLAY/FULL_REBUILD request with scope/range/snapshot/quarantine reference, reason/requester, original run references, status/results and future approval reference where required.
+### `reprocess_request`
 
-### 7.13 `deployment_history`
+Audited non-normal execution intent:
 
-Environment-local deployment provenance: domain release/Git SHA, framework version, config hash, schema/item versions, mechanism/build, actors, timestamps/status and previous deployment.
+```text
+RETRY
+BACKFILL
+REPLAY
+FULL_REBUILD
+```
 
-## 8. Definition vs runtime promotion boundary
+Required fields depend on mode. Semantic identity is immutable; lifecycle status/timestamps may change.
+
+### `deployment_history`
+
+Environment-local deployment provenance and previous deployment linkage.
+
+## 7. Promotion boundary
 
 Canonical sets in code:
 
@@ -356,182 +203,166 @@ PROMOTABLE_DEFINITION_TABLES
 ENVIRONMENT_LOCAL_STATE_TABLES
 ```
 
-They are disjoint and cover the schema.
+They must remain disjoint and together cover every control-plane table.
 
-Promotable definitions now include both:
+Promotion copies definitions/migrations/item definitions only. It never copies watermarks, run history, leases, receipts, quarantine, reprocess requests or attempt lineage.
 
-```text
-execution_policy
-apply_execution_policy
-```
+## 8. Metadata materialization
 
-Promotion never copies DEV watermark/state/leases/runs/receipts/quarantine/reprocess/deployment history into UAT/PROD.
+`delivery.materialize_semantic_metadata()` idempotently materializes source-controlled semantic definitions and preserves runtime state.
 
-## 9. Metadata materialization
-
-`delivery.materialize_semantic_metadata()` is idempotent for deployed definitions and preserves runtime state.
-
-Current v2 materialization persists:
+Current materialized policy includes:
 
 - dataset identity/provenance;
 - load policy;
 - ordering policy;
-- capture engine/progress owner/capture profile/extensions;
-- apply engine/apply profile;
-- orchestration policy;
-- DQ/reconciliation policy.
+- capture execution engine/progress owner/profile/extensions;
+- independent apply engine/profile;
+- orchestration/DQ/reconciliation policies.
 
 The config bundle hash is deterministic and environment-independent.
 
-## 10. Orchestration and execution-plan flow
-
-Reference logical flow:
+## 9. Native capture evidence path
 
 ```text
-create pipeline_run
-  -> load deployed definitions/overrides
-  -> resolve EffectiveDatasetConfig
-  -> independently validate capture/apply capabilities
-  -> compile concrete ExecutionPlan
-  -> filter/group/dependency ready sets
-  -> bounded execution backend
-       -> dataset attempts / execution units
-  -> aggregate terminal outcomes
-  -> finalize pipeline_run
+ExecutionPlan capture unit
+    -> FabricCaptureRequest
+    -> provider transport
+    -> FabricNativeRunEvidence
+    -> FabricCaptureAdapter validation
+    -> CaptureReceipt
+    -> downstream framework stages
 ```
 
-Fabric Pipeline should eventually execute the same provider-neutral decisions, not duplicate dataset correctness logic in visual activities.
+The adapter rejects native FAILED/CANCELLED/UNKNOWN status and evidence mismatch. For FRAMEWORK-owned bounded movement, the observed source bounds must equal the requested bounds before a receipt is accepted.
 
-## 11. Failure isolation
+## 10. Recovery model
 
-Dataset is the default fault boundary.
+### Failure classification
 
-- dataset failure is recorded/finalized;
-- unrelated siblings continue when safe;
-- direct dependents become `BLOCKED`;
-- aggregate status is determined after eligible work completes;
-- failed dataset must not advance framework-owned progress.
+```text
+RETRYABLE
+NON_RETRYABLE
+UNKNOWN_OUTCOME
+```
 
-This reference behavior is certified by dispatcher tests.
+Only explicit retryable failures may automatically retry. Unknown/unclassified exceptions are non-retryable by default.
 
-## 12. State/progress commit protocol
+### Attempt protocol
 
-For FRAMEWORK-owned progress:
+```text
+create/validate request if non-normal
+  -> create attempt lineage
+  -> execute attempt
+  -> record dataset terminal audit
+  -> retry only if classified and policy allows
+  -> link next attempt to previous/root
+```
+
+### Unknown commit protocol
+
+```text
+target mutation response uncertain
+  -> reconcile actual target state
+       COMMITTED     -> converge success
+       NOT_COMMITTED -> retry may proceed
+       UNRESOLVED    -> fail/stop
+```
+
+Blind duplicate write is prohibited.
+
+### Reprocess request validation
+
+- RETRY requires original dataset run.
+- BACKFILL requires explicit lower/upper range.
+- REPLAY requires original run or quarantine IDs.
+- FULL_REBUILD requires explicit authoritative-reset intent.
+
+The generic core is implemented. Strategy-specific source retention/restaging/replay/rebuild execution remains to be completed.
+
+## 11. State/progress commit protocol
+
+FRAMEWORK-owned progress:
 
 ```text
 read committed state/version
-  -> acquire lease/guard
-  -> freeze source range
-  -> execute idempotent capture/apply candidate
-  -> reconcile
-  -> publish/commit target
-  -> commit next framework state referencing successful run
+  -> acquire guard
+  -> freeze source boundary
+  -> execute idempotent candidate/mutation
+  -> reconcile/prove target outcome
+  -> commit next state
   -> finalize audit
-  -> release lease
 ```
 
-For FABRIC_NATIVE/EXTERNAL capture progress:
+FABRIC_NATIVE/EXTERNAL progress:
 
 ```text
-native/external authority owns its checkpoint
-  -> framework records CaptureReceipt/checkpoint correlation
-  -> downstream apply/reconcile remains independent
+provider owns source checkpoint
+  -> framework records receipt/checkpoint correlation
+  -> downstream apply/reconcile failure is recovered without inventing a second source checkpoint
 ```
 
-Recovery must address native capture success followed by downstream failure without inventing a false second source checkpoint.
+## 12. Row accounting and reconciliation
 
-## 13. Row accounting and reconciliation
-
-For relevant bounded row flows:
+For bounded row flows:
 
 ```text
 rows_read = rows_accepted + rows_quarantined + rows_intentionally_filtered
 ```
 
-Strategy-specific evidence includes:
+Strategy-specific evidence includes current-state duplicate/superseded/stale counts, destructive-load guards and future CDC event/offset accounting.
 
-- insert/update/delete;
-- SCD1/UPSERT duplicate/superseded/stale/conflict;
-- snapshot completeness/delete guards;
-- future CDC event/offset accounting.
+Required reconciliation can block publication/state progression.
 
-Required reconciliation failure can block publication/state progression.
+## 13. Operator questions
 
-## 14. Quarantine lifecycle
+The production control plane must answer:
 
-Row defects may quarantine and continue when policy allows. Batch/contract defects block unsafe publication/progress. Connection/permission/code/runtime defects are failures, not quarantine.
+- which pipeline/dataset/attempt failed and where;
+- framework/domain/config/deployment identity;
+- concrete capture/apply engine/profile;
+- native Fabric run ID and landing;
+- source range/snapshot/checkpoint;
+- row/mutation/quarantine counts;
+- reconciliation result;
+- committed state before/after;
+- root/previous attempt lineage;
+- whether failure is retryable;
+- whether retry/backfill/replay/rebuild is safe and authorized.
 
-Replay remains a required lifecycle and must create new run/attempt lineage while preserving original quarantine/run identity.
-
-## 15. Operator questions the control plane must answer
-
-Eventually without reading notebook source:
-
-- What dataset/run/attempt failed and which step?
-- Which framework/domain/config/deployment version ran?
-- Which concrete capture and apply engines/profiles were selected?
-- Which native Fabric run produced the landing?
-- Who owns the capture checkpoint?
-- What source boundary/snapshot/offset was processed?
-- Where was data landed?
-- What were read/accepted/quarantined/inserted/updated/deleted counts?
-- What duplicate/superseded/stale evidence existed?
-- Did reconciliation pass?
-- Did framework state advance?
-- Is exact retry/backfill/replay safe and what is its lineage?
-
-## 16. Current reference evidence vs production store
+## 14. Current proof vs production store
 
 Implemented/reference-tested:
 
-- schema v2 creation/idempotency;
-- promotable vs environment-local boundary;
-- capture and apply execution-policy materialization;
-- ordering-policy materialization;
-- `CaptureReceipt` persistence contract;
-- metadata materialization preserving runtime watermark/state;
-- release/control-plane schema version provenance.
+- additive schema creation/idempotency;
+- definition/runtime promotion boundary;
+- execution/apply/ordering materialization;
+- CaptureReceipt persistence;
+- ReprocessRequest persistence with immutable semantic identity;
+- dataset attempt-lineage append-only evidence;
+- runtime-state preservation during semantic materialization.
 
-Representative proof:
+Not production-proven:
 
-```text
-tests/test_control_plane_v2.py
-tests/test_apply_execution_policy.py
-tests/test_delivery.py
-```
-
-Not yet production-proven:
-
-- approved persistent control-plane technology for the Fabric estate;
-- real transaction/concurrency behavior under production load;
-- migration checksum/rollback/rolling-compatibility mechanism;
-- operator query/API surface;
+- approved persistent control-plane technology;
+- real transaction/parallel concurrency behavior;
+- migration checksum/rollback/rolling compatibility;
+- operator API/CLI/query layer;
 - retention/backup/restore;
-- IAM/network/secret integration.
+- IAM/network/security integration.
 
-SQLite/in-memory adapters are deterministic contract proof only.
+SQLite/in-memory are deterministic contract proof only.
 
-## 17. Next control-plane work
+## 15. Next control-plane work
 
-1. extend dataset-run/attempt/original-run lineage for recovery;
-2. add source-boundary/checkpoint/state-before/state-after evidence consistently;
-3. implement reprocess request lifecycle;
-4. implement CDC event/checkpoint evidence;
-5. implement schema-contract/change disposition;
-6. add supported persistent repository + transactional tests;
-7. add operator status/retry/backfill/replay queries/CLI;
-8. ingest real Fabric Pipeline/Copy/Dataflow/SJD run IDs through adapters.
+1. CDC checkpoint/event evidence and state transition contracts.
+2. Persist exact source-boundary/state-before/state-after evidence consistently across capture families.
+3. Complete quarantine replay lineage updates.
+4. Complete FULL_REBUILD reset/rebuild evidence.
+5. Add supported persistent repository + transaction/concurrency tests.
+6. Add operator `status/retry/backfill/replay/rebuild` surface.
+7. Ingest real Fabric Pipeline/Copy/Dataflow/SJD run IDs from actual transports.
 
-## 18. Documentation/evidence rule
+## 16. Documentation/evidence rule
 
-Changes to control-plane schema or lifecycle must update:
-
-```text
-CONTROL_PLANE_DESIGN.md
-PRODUCTION_REQUIREMENTS.md
-GUARANTEE_COVERAGE.md
-PRODUCTION_READINESS_AUDIT.md
-CURRENT_STATUS.md
-```
-
-and include executable schema/materialization/repository evidence before being marked implemented.
+Any control-plane lifecycle/schema change must update `CONTROL_PLANE_DESIGN.md`, `PRODUCTION_REQUIREMENTS.md`, `GUARANTEE_COVERAGE.md`, `PRODUCTION_READINESS_AUDIT.md` and `CURRENT_STATUS.md`, with executable evidence before it is marked implemented.

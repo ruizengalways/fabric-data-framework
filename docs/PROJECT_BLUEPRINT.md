@@ -1,326 +1,360 @@
 # fabric-data-framework — Project Blueprint
 
 Status: Canonical
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
 ## 1. Goal
 
 Build a production-grade reusable Microsoft Fabric Data Engineering runtime consumed by domain repositories through explicit immutable framework versions.
 
-The framework standardizes mature cross-domain correctness and operational behavior. Domain repositories declare business semantics, mappings/rules and bounded extensions. The target is a Senior/Principal Data Engineering / Data Platform reference, not a collection of notebooks and not a BI demo.
+The framework standardizes mature cross-domain correctness and operational behavior. Domain repositories declare business semantics, mappings/rules and bounded extensions. The target is a Senior/Principal Data Engineering / Data Platform reference, not a notebook collection and not a BI demo.
 
 Primary product test:
 
-> After an enterprise installs a released framework wheel, ordinary new datasets should be onboarded through metadata, environment bindings and bounded domain extensions rather than edits to `fabric-data-framework`.
+> After an enterprise installs a released framework wheel, ordinary datasets should be onboarded through metadata, environment bindings and bounded domain extensions rather than edits to `fabric-data-framework`.
 
 ## 2. Canonical reading order
 
-New conversations/contributors should read:
+1. `docs/ECOSYSTEM_BLUEPRINT.md`
+2. `docs/PROJECT_BLUEPRINT.md`
+3. `docs/PRODUCTION_REQUIREMENTS.md`
+4. `docs/EXECUTION_ENGINE_STRATEGY.md`
+5. `docs/FABRIC_EXECUTION_MODEL.md`
+6. `docs/REPOSITORY_STRUCTURE.md`
+7. `docs/CONTROL_PLANE_DESIGN.md`
+8. `docs/CICD_DESIGN.md`
+9. `docs/PRODUCTION_READINESS_AUDIT.md`
+10. `docs/GUARANTEE_COVERAGE.md`
+11. `docs/CURRENT_STATUS.md`
 
-1. `docs/ECOSYSTEM_BLUEPRINT.md` — three-repository ownership.
-2. `docs/PROJECT_BLUEPRINT.md` — architecture and roadmap.
-3. `docs/PRODUCTION_REQUIREMENTS.md` — durable product requirement/backlog matrix.
-4. `docs/EXECUTION_ENGINE_STRATEGY.md` — framework-first semantics and stage executors.
-5. `docs/FABRIC_EXECUTION_MODEL.md` — Fabric Pipeline/SJD/Notebook/Copy execution boundaries.
-6. `docs/REPOSITORY_STRUCTURE.md` — package/test ownership map.
-7. `docs/CONTROL_PLANE_DESIGN.md` — metadata/state/evidence model.
-8. `docs/CICD_DESIGN.md` — immutable delivery/promotion model.
-9. `docs/PRODUCTION_READINESS_AUDIT.md` — evidence-level audit and release blockers.
-10. `docs/GUARANTEE_COVERAGE.md` — guarantee -> code -> test map.
-11. `docs/CURRENT_STATUS.md` — exact current branch evidence and next work.
+GitHub docs are project memory. If docs disagree with code/tests, inspect implementation and repair docs before further architecture work.
 
-GitHub documentation is project memory. If docs differ from code/tests, inspect implementation and repair docs before continuing.
-
-## 3. Design principles
-
-1. Share versioned code, not a cross-domain shared runtime.
-2. Metadata drives stable reusable behavior; domain business semantics remain domain-owned.
-3. Capture and apply are independent semantic axes.
-4. Physical capture/movement executor and apply executor are independent decisions.
-5. Core mature DE semantics have framework-owned portable fallback implementations.
-6. Native Fabric features are capability-certified **stage delegates**, not the semantic foundation.
-7. A physical capture has exactly one authoritative progress owner.
-8. Native/external capture hands off through typed `CaptureReceipt` evidence.
-9. Semantic config, deployed snapshots, runtime overrides and environment-local state are separate concerns.
-10. Dataset is the default failure/isolation boundary.
-11. Quarantine, reconciliation, audit and recovery are runtime semantics, not afterthoughts.
-12. State advances only after the required target/reconciliation boundary succeeds.
-13. DEV/UAT/PROD promote the same immutable release identity; runtime state stays environment-local.
-14. Correctness is certified with small deterministic scenarios before scale claims.
-15. Parent orchestration coordinates datasets; it does not duplicate capture/apply algorithms.
-16. Fabric is an execution/deployment adapter; provider-neutral semantics remain testable outside Fabric.
-17. Activity/notebook count is not a professionalism metric; ownership, invariants and evidence are.
-18. A capability is not called production-ready merely because an interface or ADR exists.
-19. Releases represent meaningful product milestones, not every internal commit.
-
-## 4. Architecture ownership
-
-Target ownership areas:
+## 3. Repository ownership
 
 ```text
-contracts       typed contracts / execution plan / capture receipt / errors
-metadata        loading / validation / effective config / hashing / capabilities
-capture         FULL / WATERMARK / SNAPSHOT / CDC / MIRROR / STREAM
-apply           APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF
-quality         DQ / quarantine / schema / reconciliation
-data_plane      Bronze / staging / publication / row accounting
-state           watermark / checkpoints / leases / idempotency / transitions
-orchestration   selection / dependencies / concurrency / aggregation
-execution       dataset/step runner + physical backends
-recovery        retry / backfill / replay / rebuild / unknown outcome
-control_plane   durable schema / repository / migrations / operator queries
-observability   audit / events / metrics / status / errors
-connectors      physical capability contracts
-adapters/fabric Pipeline / Copy / Dataflow / SJD / Environment / run context
-delivery        manifest / bindings / materialization / CLI
-testing         deterministic certification scenarios/utilities
+fabric-infra
+  Fabric estate / capacity / workspace / RBAC / network / bindings
+
+fabric-data-framework
+  reusable semantic runtime + provider adapters + control-plane contracts
+
+fabric-customer
+  deployable Customer domain solution exact-pinning a released framework wheel
 ```
 
-See `REPOSITORY_STRUCTURE.md` for the evolving tree. Do not create empty directories merely to imitate this ownership map.
-
-## 5. Current unreleased baseline
-
-The source version is `0.4.0` development. `v0.3.0` remains the latest immutable public release.
-
-Latest coherent code/control-plane proof before the current documentation sync:
+Dependency direction:
 
 ```text
-commit 60d4d1362f504a51b3ecedfcb93c7c6ceb3d4578
-GitHub Actions 33175724889
-build wheel      SUCCESS
-Python 3.11      SUCCESS
-Python 3.13      SUCCESS
-106 tests passed
+fabric-infra -> environment contract
+fabric-data-framework -> versioned package -> fabric-customer
 ```
 
-The hardening branch now proves at reference/portable level:
+Framework never depends on Customer. Share code, not runtime state.
 
-- typed dataset/effective config and safe runtime overrides;
-- logical infrastructure bindings;
-- composite watermark/overlap selection;
-- Bronze lineage envelope;
-- DQ/quarantine/row accounting;
-- deterministic SCD2;
-- shared ordered current-state primitive;
-- ordered/idempotent SCD1;
-- ordered/idempotent UPSERT;
+## 4. Design principles
+
+1. Capture semantics and apply semantics are independent.
+2. Capture/movement engine and apply engine are independent.
+3. Core mature DE semantics have framework-owned portable implementations.
+4. Native Fabric features are capability-certified stage delegates.
+5. One physical capture has one checkpoint authority.
+6. Native/external capture crosses into framework semantics through typed evidence.
+7. Semantic definitions, deployed metadata, runtime overrides and runtime state are separate.
+8. Dataset is the default failure/retry boundary.
+9. Quarantine, reconciliation and recovery are first-class runtime semantics.
+10. State never advances on uncertain/failed completion without evidence.
+11. Unknown target commit is reconciled before retry.
+12. DEV/UAT/PROD promote immutable definitions/artifacts, never runtime rows.
+13. Correctness is proven with deterministic small scenarios before scale claims.
+14. Provider-neutral decisions are testable outside Fabric.
+15. Releases represent coherent product milestones, not internal commit cadence.
+
+## 5. Package ownership map
+
+```text
+contracts/
+  stable typed handoff/planning/recovery contracts
+
+metadata/
+  capability profiles and semantic metadata resolution
+
+capture/
+  FULL / WATERMARK / SNAPSHOT / CDC / MIRROR / STREAM semantics
+
+apply/
+  REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF / future APPEND
+
+quality/
+  DQ / quarantine / schema / reconciliation
+
+data_plane/
+  Bronze / staging / publication evidence
+
+orchestration/
+  metadata selection / dependency / ready-wave decisions
+
+execution/
+  reference dataset runners and physical backend boundaries
+
+recovery/
+  retry / attempt lineage / reprocess / unknown outcome
+
+adapters/fabric/
+  provider request/evidence translation for Fabric stage execution
+
+control_plane.py + repository.py
+  semantic definitions, environment-local state/evidence, repository contracts
+
+delivery.py / deployment.py / cli.py
+  release identity / bindings / metadata materialization / delivery operations
+```
+
+## 6. Current unreleased baseline
+
+Source version remains `0.4.0` development. `v0.3.0` is the latest immutable public release.
+
+Latest green hardening head before documentation synchronization:
+
+```text
+commit a5da06294dfba0c5ae756dcc1d8814931feebec7
+GitHub Actions 33179754372
+139 tests passed
+```
+
+The branch now proves at reference/contract level:
+
+- typed metadata/effective config/overrides;
+- infrastructure bindings;
+- composite WATERMARK + overlap;
+- Bronze lineage;
+- DQ/quarantine/accounting;
 - guarded FULL -> REPLACE;
 - guarded SNAPSHOT -> SNAPSHOT_DIFF;
-- metadata-driven dispatcher/failure isolation;
-- provider-neutral `ExecutionPlan`;
-- independent capture and apply executor policies;
-- engine + named capability profiles;
-- Dataflow Gen2 incremental bucket capture feeding framework SCD1/UPSERT;
-- progress-owner contract;
-- `CaptureReceipt`;
-- bounded logical-name extension registry;
-- additive relational control-plane schema v2 including `apply_execution_policy`;
-- metadata/release/deployment provenance and delivery CLI.
+- ordered SCD1;
+- ordered UPSERT;
+- bounded deterministic SCD2;
+- metadata dispatcher/failure isolation;
+- capture/apply engine separation;
+- immutable ExecutionPlan;
+- named engine/profile capability resolution;
+- Dataflow incremental capture -> framework SCD1/UPSERT planning;
+- CaptureReceipt;
+- Fabric capture adapter contracts for Copy Job/Copy Activity/Dataflow/Spark;
+- generic retry/backoff/attempt lineage;
+- audited RETRY/BACKFILL/REPLAY/FULL_REBUILD request contracts;
+- fail-closed unknown-commit recovery;
+- relational environment-local recovery evidence;
+- control-plane v2 development schema;
+- immutable delivery/release contracts.
 
-These reference guarantees do not yet equal a real enterprise Fabric production deployment. See `PRODUCTION_READINESS_AUDIT.md`.
+No current hardening test is equivalent to a real approved Fabric production run.
 
-## 6. Semantic metadata model
+## 7. Semantic model
 
-`DatasetConfig` currently declares or resolves:
-
-```text
-dataset/source/target identity
-capture strategy
-apply strategy
-business + merge keys
-watermark + tie-breaker + overlap
-event time / version / sequence metadata
-delete semantics
-execution group / criticality / dependencies
-DQ / reconciliation policy
-capture/movement engine + profile
-capture progress owner
-apply engine + apply profile
-logical extension references
-```
-
-Runtime overrides remain allow-listed operational knobs only. Keys, strategies, engine/profile identity, extension identity and other semantic choices require source-controlled deployment.
-
-Effective semantics:
+Capture:
 
 ```text
-DeployedDatasetDefinition
- + valid RuntimeOverride(s)
- + RunRequest/ReprocessRequest
- = immutable EffectiveDatasetConfig
+FULL | WATERMARK | CDC | SNAPSHOT | MIRROR | STREAM
 ```
 
-The effective config receives a deterministic hash recorded in run evidence.
-
-## 7. Capture, physical execution and apply are separate
-
-Capture semantics:
-
-```text
-FULL | WATERMARK | SNAPSHOT | CDC | MIRROR | STREAM
-```
-
-Apply semantics:
+Apply:
 
 ```text
 APPEND | REPLACE | UPSERT | SCD1 | SCD2 | SNAPSHOT_DIFF
 ```
 
-Physical engines:
+Capture/movement engine:
 
 ```text
 FABRIC_COPY_JOB | FABRIC_COPY_ACTIVITY | DATAFLOW_GEN2 |
 SPARK | FABRIC_MIRRORING | EXTERNAL_CDC | SQL | CUSTOM
 ```
 
+Apply engine is selected independently.
+
 Representative compositions:
 
 ```text
-FULL       + Copy/Spark             -> REPLACE
-WATERMARK  + Dataflow Gen2          -> framework SCD1/UPSERT
-WATERMARK  + Copy Activity/Spark    -> framework UPSERT/SCD2
-CDC        + Copy Job/Debezium      -> framework normalization -> UPSERT/SCD1/SCD2
-SNAPSHOT   + Copy/Spark             -> SNAPSHOT_DIFF
-MIRROR     + Mirroring              -> canonicalization/current/history apply
+FULL      + Copy/Spark          -> REPLACE
+WATERMARK + Dataflow/Copy/Spark -> UPSERT/SCD1/SCD2
+CDC       + Copy Job/external   -> normalize CDC -> UPSERT/SCD1/SCD2
+SNAPSHOT  + Copy/Spark          -> SNAPSHOT_DIFF
+MIRROR    + Mirroring           -> canonical current/history apply
 ```
 
-No connector/product name becomes a semantic strategy when an existing contract fits.
+## 8. Framework-first native delegation
 
-## 8. Framework-first fallback and native delegation
-
-ADR 0009 is canonical:
+Canonical invariant:
 
 ```text
 semantic contract
     -> framework portable implementation
-    -> optional native stage delegation when capability-certified
+    -> optional provider stage delegation if capability-certified
 ```
 
-Source-controlled execution policy explicitly separates:
+A native provider operation is represented through:
 
 ```text
-engine / capability_profile / progress_owner
-    -> capture/movement
-
-apply_engine / apply_capability_profile
-    -> final-target apply
+ExecutionPlan unit
+    -> provider request
+    -> native run evidence
+    -> validated framework evidence/receipt
+    -> remaining semantic stages
 ```
 
-`AUTO` is allowed in policy but must resolve to concrete engines in the immutable `ExecutionPlan`.
+Native capture status alone does not prove the whole dataset run succeeded.
 
-Default apply resolution is SPARK/framework. Generic native/SQL profiles currently claim no final-target apply semantics. A future native apply delegate must explicitly list the requested `ApplyStrategy` in its capability profile.
+## 9. Fabric capture adapter boundary
 
-## 9. Dataflow Gen2 hybrid pattern
-
-Current named profile:
+Current provider adapter package:
 
 ```text
-DATAFLOW_GEN2 / dataflow_gen2_incremental_bucket_v1
+adapters/fabric/contracts.py
+adapters/fabric/adapter.py
 ```
 
-certifies:
+Contracts:
 
 ```text
-WATERMARK capture/staging
-FABRIC_NATIVE progress ownership
-no composite-watermark guarantee
-no native SCD1/UPSERT/SCD2 equivalence
+FabricCaptureRequest
+FabricCaptureTransport
+FabricNativeRunEvidence
+FabricNativeRunStatus
 ```
 
-Canonical hybrid:
+Concrete capture adapters:
 
 ```text
-Dataflow Gen2 incremental
-    -> landing/staging
-    -> CaptureReceipt
-    -> framework SCD1/UPSERT
-    -> reconcile/state/audit
+CopyJobCaptureAdapter
+CopyActivityCaptureAdapter
+DataflowGen2CaptureAdapter
+SparkJobCaptureAdapter
 ```
 
-Dataflow bucket replacement is not mislabeled as generic SCD1. A capture profile cannot masquerade as an apply profile.
+Adapter responsibilities:
 
-## 10. Current apply semantics
+- validate compiled unit engine/kind/roles;
+- invoke injected transport;
+- validate native status/evidence;
+- fail closed on wrong landing/source/snapshot/bounds;
+- produce immutable CaptureReceipt.
 
-### REPLACE
+Transport responsibilities:
 
-`FULL -> REPLACE` uses complete-source evidence, isolated candidate, empty/drastic-drop guards, DQ/reconciliation and safe publication boundaries. Unexpected incomplete/empty source must not wipe a healthy target.
+- authentication/client construction;
+- actual REST/SDK/CLI invocation;
+- run polling;
+- provider response conversion to `FabricNativeRunEvidence`.
 
-### SCD1 and UPSERT
+This split prevents provider APIs from becoming semantic framework logic.
 
-Both use the shared ordered current-state primitive:
+## 10. Current-state apply
+
+SCD1 and UPSERT share `apply/current_state.py`.
+
+Certified shared correctness:
 
 ```text
-composite merge key
-(event_time?, version?, sequence?) ordering tuple
+composite key
+ordered source position
 latest incoming candidate
-exact rerun idempotency
+exact-rerun idempotency
 stale IGNORE/ERROR
-equal-position conflict fail-closed
-unordered changed update fail-closed unless explicitly authorized
-duplicate/superseded/stale evidence
+equal-position conflict failure
+unordered changed update fail-closed by default
+separate duplicate/superseded/stale metrics
 ```
 
-SCD1 remains the dimensional current-state semantic name. UPSERT is the generic insert-or-update current-state semantic. They share hard correctness logic without collapsing their APIs.
+UPSERT is not merely an alias for SCD1; they expose distinct semantic APIs while sharing the hard current-state primitive.
 
-### SCD2
+## 11. Recovery architecture
 
-SCD2 is an apply/history semantic, not an ingestion method. The current deterministic reference proves one-current-row and bounded conflict/late-arrival behavior. General late-history repair/restate remains future work.
-
-### SNAPSHOT_DIFF
-
-Absence becomes deletion only after complete-snapshot evidence. Current reference supports deterministic I/U/D, key validation, quarantine-aware delete blocking and delete-volume guards.
-
-### APPEND
-
-APPEND identity/collision semantics remain a required gap.
-
-## 11. Named capability profiles
-
-Capability registration is keyed by:
+Recovery is layered:
 
 ```text
-(engine, profile_name)
+operator/system intent
+  ReprocessRequest
+       |
+       v
+attempt orchestration
+  execute_with_retry
+       |
+       +-- DatasetAttemptLineage
+       +-- DatasetRunAudit
+       |
+       v
+strategy-specific executor
+       |
+       v
+physical target/capture evidence
 ```
 
-Default profiles are conservative. Capture and apply are validated independently. Unsupported combinations fail before mutation. There is no hidden runtime fallback to a semantically weaker engine.
+Failure classes:
 
-Future connector/product/version profiles must be backed by current documentation and then real adapter evidence before a Fabric-specific guarantee is claimed.
+```text
+RETRYABLE
+NON_RETRYABLE
+UNKNOWN_OUTCOME
+```
 
-## 12. Orchestration and many-table topology
+Unknown target commit:
 
-The reference dispatcher proves metadata selection, dependency/cycle validation, bounded parallelism, sibling failure isolation, dependent `BLOCKED`, unrelated sibling continuation and criticality-aware aggregate status.
+```text
+reconcile
+  COMMITTED     -> converge success, no duplicate write
+  NOT_COMMITTED -> retry may proceed
+  UNRESOLVED    -> stop
+```
 
-`ThreadPoolExecutor` is a deterministic reference backend; Fabric Pipeline will be another execution backend for the same provider-neutral decisions.
+This generic core is implemented. Strategy-specific source restaging/replay/rebuild remains a separate layer and is not yet complete.
 
-For many-table sources use a small number of metadata-selected execution groups based on source/gateway limits, capture engine/profile, SLA, volume, criticality, dependency stage, network boundary and capacity. Do not require one bespoke pipeline per table or one giant opaque pipeline.
+## 12. Reprocess modes
+
+```text
+RETRY
+  exact continuation from an original dataset run
+
+BACKFILL
+  explicit bounded lower/upper source range
+
+REPLAY
+  original run and/or quarantine identity
+
+FULL_REBUILD
+  explicit authoritative-reset intent before destructive reset/rebuild
+```
+
+A `ReprocessRequest` is immutable in semantics. Only lifecycle status/timestamps may change.
 
 ## 13. Control plane
 
-Schema v2 promotable definitions include:
+Promotable definitions:
 
 ```text
 dataset
 dataset_contract
 load_policy
 ordering_policy
-execution_policy            # capture/movement
-apply_execution_policy      # apply
+execution_policy
+apply_execution_policy
 orchestration_policy
 data_quality_policy
 reconciliation_policy
 ```
 
-Environment-local state/evidence includes:
+Environment-local state/evidence:
 
 ```text
+schema_migration_history
 runtime_override
 watermark
 dataset_state
 dataset_lease
 pipeline_run
 dataset_run
-step_run
+dataset_attempt_lineage
 capture_receipt
+step_run
 reconciliation_result
 quarantine_batch
 schema_change
@@ -328,97 +362,91 @@ reprocess_request
 deployment_history
 ```
 
-Runtime state is never promoted across environments. SQLAlchemy/SQLite is contract proof, not the final production store.
+Runtime state is never promoted.
 
-## 14. Stateful execution and recovery
+`dataset_attempt_lineage` is append-only evidence. `reprocess_request` records auditable operator/system intent and lifecycle.
 
-Canonical framework-owned state sequence:
+## 14. Stateful execution invariant
+
+For framework-owned progress:
 
 ```text
 read committed state
-  -> acquire lease
-  -> freeze source range
+  -> acquire concurrency guard
+  -> freeze source boundary
   -> execute idempotent candidate/mutation
   -> reconcile
-  -> publish/commit target
-  -> commit framework state
+  -> prove target outcome
+  -> commit next state
   -> finalize audit
-  -> release lease
 ```
 
-Recovery modes are first-class vocabulary:
+For native/external progress:
 
 ```text
-NORMAL | RETRY | BACKFILL | REPLAY | FULL_REBUILD
+provider owns source checkpoint
+  -> framework records provider receipt/checkpoint correlation
+  -> downstream apply/reconciliation has independent failure/recovery semantics
 ```
 
-Attempt lineage/backfill/replay/unknown-commit recovery is not yet certified end to end and remains P0.
+The framework must never invent a competing source watermark simply because it owns downstream apply.
 
-## 15. Extensions
+## 15. Dispatcher/orchestration
 
-Finite reusable patterns belong in the framework. Genuine exceptions use bounded logical-name domain extensions for custom capture/parser/transform/DQ/specialized apply.
+Reference planner/dispatcher proves:
 
-Extensions may not bypass row accounting, reconciliation, publication/state authority, secrets/bindings or durable audit. Metadata is not an arbitrary Python execution surface.
+- selection/group/request filters;
+- dependency/cycle validation;
+- bounded parallelism;
+- sibling isolation;
+- dependent BLOCKED;
+- unrelated continuation;
+- criticality-aware aggregate status.
 
-## 16. Fabric execution boundary
+`ThreadPoolExecutor` is reference execution only. Real Fabric Pipeline backend remains future work.
 
-Fabric Data Factory Pipeline owns coarse trigger/orchestration/control flow. Spark Job Definition is the preferred generic headless framework Spark entrypoint once the adapter exists. Notebook remains a thin interactive/smoke/diagnostic or justified production surface. Copy Job/Copy Activity/Dataflow Gen2/SQL/Mirroring are valid stage executors only where their profiles fit.
+## 16. Many-table topology
 
-A one-activity child pipeline can be professional if the activity is a thin bounded adapter and durable framework evidence exists. An opaque notebook owning the whole platform scheduler is not the target.
+Avoid both one handcrafted pipeline per table and one giant opaque source pipeline.
 
-## 17. Release and delivery
-
-- `v0.3.0` is the latest immutable public release.
-- `0.4.0` is unreleased development source.
-- domains exact-pin released framework versions;
-- same immutable artifact is promoted DEV -> UAT -> PROD;
-- environment bindings differ, semantic release identity does not;
-- runtime state is never promoted.
-
-Do not publish v0.4.0 merely because its version string exists.
-
-## 18. Evidence and testing
-
-Testing layers:
+Use metadata-selected execution groups based on operational boundaries:
 
 ```text
-unit
-contract
-reference integration
-strategy certification
-recovery certification
-deployment certification
-real Fabric smoke/integration
+source/gateway/concurrency
+capture engine/profile
+schedule/SLA
+volume/runtime class
+criticality/blast radius
+dependency stage
+capacity/network boundary
 ```
 
-`GUARANTEE_COVERAGE.md` maps code/test owners. `PRODUCTION_READINESS_AUDIT.md` separates portable proof from real Fabric/enterprise evidence.
+Ordinary new tables should change domain metadata, not framework algorithms.
 
-Latest coherent code/control-plane slice before docs sync:
+## 17. Current P0 roadmap
 
-```text
-GitHub Actions 33175724889
-106 tests passed
-```
+1. CDC canonical I/U/D envelope + event identity/order.
+2. CDC dedupe/conflict/poison-event behavior.
+3. CDC checkpoint commit gate.
+4. `CDC -> UPSERT/SCD1/SCD2` certification.
+5. snapshot/bootstrap -> CDC no-gap/no-double-apply handoff.
+6. complete strategy-specific recovery: retained ranges, quarantine replay, FULL_REBUILD execution, native-progress recovery.
+7. APPEND identity/collision semantics.
+8. schema evolution + broader temporal policies.
+9. supported persistent control-plane repository/operator surface.
+10. real Fabric transport/backend + DEV hybrid execution evidence.
+11. final audit and release-scope decision.
 
-## 19. P0 roadmap from current head
+## 18. Release model
 
-UPSERT and explicit capture/apply executor separation are now **complete at reference level** and removed from the remaining roadmap.
+- public baseline: `v0.3.0`;
+- current source: unreleased `0.4.0`;
+- domains formally consume exact released framework versions;
+- same immutable artifact moves through environments;
+- environment bindings differ, runtime state does not move.
 
-Next:
+Do not publish v0.4.0 until the release milestone contains real Fabric integration evidence and the remaining P0 correctness scope is explicitly closed or intentionally bounded.
 
-1. Fabric Copy Job/Copy Activity/Dataflow/Spark adapter contracts + `CaptureReceipt`/native-run correlation;
-2. retry/backfill/replay/full-rebuild attempt lineage and unknown-outcome recovery;
-3. CDC normalization/order/event identity/delete/checkpoint + bootstrap handoff;
-4. APPEND identity/collision semantics;
-5. schema evolution and broader temporal correction policies;
-6. supported persistent control-plane repository/operator query surface;
-7. first real Fabric hybrid DEV proof: native capture -> framework SCD1/UPSERT;
-8. re-audit and only then select next release scope/version.
+## 19. Documentation obligation
 
-`fabric-infra` remains secondary while the framework product boundary is being proven; a company-provisioned Fabric estate can support the first adapter integration.
-
-## 20. Documentation obligation
-
-Every coherent implementation slice updates `CURRENT_STATUS.md`. Architecture changes update this blueprint and an ADR. Requirements change `PRODUCTION_REQUIREMENTS.md`. Evidence changes update both audit documents.
-
-Routine work inside accepted architecture proceeds without approval after every file.
+Every substantive implementation slice updates `CURRENT_STATUS.md`. Architecture changes update this blueprint/ADR. Requirements/evidence changes update `PRODUCTION_REQUIREMENTS.md`, `GUARANTEE_COVERAGE.md` and `PRODUCTION_READINESS_AUDIT.md` in the same coherent branch.

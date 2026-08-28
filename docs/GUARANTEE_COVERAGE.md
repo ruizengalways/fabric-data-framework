@@ -1,167 +1,128 @@
 # Guarantee Coverage — fabric-data-framework
 
 Status: Canonical implementation-to-evidence map
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
-## 1. Purpose
+## 1. Evidence vocabulary
 
-This file is the fastest way for a new conversation or engineer to answer:
-
-```text
-What production guarantee do we claim?
-Where is it implemented?
-Which executable test proves the current scope?
-What is still missing?
-```
-
-A row marked `REFERENCE` means portable/reference correctness is implemented and tested; it does **not** mean a real Fabric adapter or enterprise control has been proven.
+- `REFERENCE` — provider-neutral semantics/contracts implemented and deterministically tested.
+- `ADAPTER CONTRACT` — provider adapter boundary/evidence conversion tested with deterministic transport; no real service call implied.
+- `CI PROVEN` — package/static/test/build workflow has succeeded in GitHub Actions.
+- `FABRIC PROVEN` — requires a retained real Microsoft Fabric execution/run correlation. No new hardening capability currently has this level.
+- `EXTERNAL` — enterprise/platform control that this repository must not invent.
 
 ## 2. Current guarantee map
 
-| Guarantee | Canonical implementation owner | Representative executable evidence | Scope/status |
+| Guarantee | Canonical implementation owner | Representative evidence | Scope |
 |---|---|---|---|
-| Strict immutable dataset metadata | `src/fabric_data_framework/config.py` | `tests/test_config.py` | REFERENCE |
-| Runtime override allow-list and deterministic effective-config hash | `config.py` | `tests/test_config.py` | REFERENCE |
-| Capture and apply are independent semantics | `config.py` (`CaptureStrategy`, `ApplyStrategy`) | config/execution-plan tests | REFERENCE |
-| Composite watermark ordering | `src/fabric_data_framework/watermark.py` | `tests/test_watermark.py` | REFERENCE |
-| Watermark overlap selection | `watermark.py` / runtime state contracts | `tests/test_watermark.py`, execution tests | REFERENCE; broader recovery pending |
-| Invalid/null incremental positions fail rather than silently skip | watermark/execution capture boundary | watermark/execution tests | REFERENCE |
-| Bronze source lineage envelope | `src/fabric_data_framework/bronze.py` | execution tests | REFERENCE |
-| Row DQ and explicit quarantine | `src/fabric_data_framework/quality/` | execution/full/snapshot tests | REFERENCE |
-| No-silent-loss row accounting | `src/fabric_data_framework/operations.py`, quality/execution | operations/execution tests | REFERENCE |
-| Deterministic SCD2 apply | `src/fabric_data_framework/scd2.py` | SCD2/execution tests | REFERENCE |
-| One-current-row SCD2 invariant | `scd2.py` | SCD2 tests | REFERENCE |
-| SCD2 late/conflict failure for certified scope | `scd2.py` | SCD2 tests | REFERENCE; general history repair pending |
-| FULL snapshot completeness evidence | `src/fabric_data_framework/capture/full.py` | `tests/test_full_replace.py` | REFERENCE |
-| FULL -> REPLACE isolated candidate/publication guard | `capture/full.py`, `apply/replace.py`, `execution/full_replace.py`, `data_plane/staging.py` | `tests/test_full_replace.py` | REFERENCE |
-| Empty/incomplete/drastic-drop protection for REPLACE | `apply/replace.py` | `tests/test_full_replace.py` | REFERENCE |
-| Snapshot completeness before delete inference | `capture/snapshot.py`, `apply/snapshot_diff.py` | `tests/test_snapshot_diff.py` | REFERENCE |
-| Snapshot null/duplicate merge-key protection | `apply/snapshot_diff.py` | `tests/test_snapshot_diff.py` | REFERENCE |
-| Snapshot delete-all/delete-fraction guard | `apply/snapshot_diff.py` | `tests/test_snapshot_diff.py` | REFERENCE |
-| Quarantine cannot silently become snapshot deletion | `execution/snapshot_diff.py`, `apply/snapshot_diff.py` | `tests/test_snapshot_diff.py` | REFERENCE |
-| Reconciliation before destructive publication | full/snapshot execution modules | full/snapshot tests | REFERENCE |
-| Shared ordered current-state primitive | `src/fabric_data_framework/apply/current_state.py` | `tests/test_scd1.py`, `tests/test_upsert.py` | REFERENCE |
-| Ordered SCD1 current-state apply | `src/fabric_data_framework/apply/scd1.py` | `tests/test_scd1.py` | REFERENCE |
-| SCD1 composite merge key | `apply/scd1.py`, `apply/current_state.py` | `tests/test_scd1.py` | REFERENCE |
-| SCD1 event/version/sequence tuple ordering | `apply/current_state.py`, `config.LoadPolicy.ordering_columns` | `tests/test_scd1.py`, `tests/test_stage_execution_policy.py` | REFERENCE |
-| SCD1 exact rerun idempotency | `apply/current_state.py` | `test_scd1_exact_rerun_is_idempotent` | REFERENCE |
-| SCD1 stale-row ignore/error policy | `apply/current_state.py` | `tests/test_scd1.py` | REFERENCE |
-| SCD1 equal-position conflict fails closed | `apply/current_state.py` | `tests/test_scd1.py` | REFERENCE |
-| SCD1 distinguishes duplicates/superseded/stale evidence | `apply/current_state.py` | `tests/test_scd1.py` | REFERENCE |
-| Unordered changed SCD1 update fails unless explicitly authorized | `apply/current_state.py` | `tests/test_scd1.py` | REFERENCE |
-| Ordered generic UPSERT | `src/fabric_data_framework/apply/upsert.py`, `apply/current_state.py` | `tests/test_upsert.py` | REFERENCE |
-| UPSERT composite merge key and target-field preservation | `apply/current_state.py` | `test_upsert_inserts_and_updates_with_composite_merge_key` | REFERENCE |
-| UPSERT event/version/sequence ordering | `apply/current_state.py`, `config.LoadPolicy.ordering_columns` | `tests/test_upsert.py`, `tests/test_stage_execution_policy.py` | REFERENCE |
-| UPSERT exact rerun idempotency | `apply/current_state.py` | `test_upsert_exact_rerun_is_idempotent` | REFERENCE |
-| UPSERT latest-candidate selection and superseded accounting | `apply/current_state.py` | `test_upsert_selects_latest_candidate_and_counts_superseded_rows` | REFERENCE |
-| UPSERT stale-row ignore/error policy | `apply/current_state.py` | `test_upsert_stale_row_is_ignored_or_can_fail_closed` | REFERENCE |
-| UPSERT equal-position conflict fails closed | `apply/current_state.py` | UPSERT conflict tests | REFERENCE |
-| Unordered changed UPSERT fails unless explicitly authorized | `apply/current_state.py` | `test_upsert_changed_unordered_update_requires_explicit_authority` | REFERENCE |
-| Metadata-driven dataset selection | `orchestration/planner.py`, `dispatcher.py` | `tests/test_dispatcher.py` | REFERENCE |
-| Dependency/cycle validation | `orchestration/planner.py` | dispatcher tests | REFERENCE |
-| Bounded dataset parallelism | planner/dispatcher reference backend | dispatcher tests | REFERENCE |
-| Sibling failure isolation | dispatcher | dispatcher tests | REFERENCE |
-| Failed dependency -> BLOCKED while unrelated sibling continues | planner/dispatcher | dispatcher tests | REFERENCE |
-| Criticality-aware aggregate status | planner/dispatcher | dispatcher tests | REFERENCE |
-| Immutable provider-neutral execution plan | `contracts/execution_plan.py` | `tests/test_execution_plan.py`, `test_dispatch_execution_plan.py` | REFERENCE |
-| Capture and apply executor policies are independent | `config.ExecutionPolicy`, `contracts/execution_plan.py` | `tests/test_stage_execution_policy.py` | REFERENCE |
-| AUTO policy resolves to concrete engines before immutable planning | `metadata/capabilities.py`, `contracts/execution_plan.py` | execution-plan/stage-policy tests | REFERENCE |
-| Native capture stage separated from framework process/apply stage | `contracts/execution_plan.py` | `tests/test_execution_engines.py`, `tests/test_stage_execution_policy.py` | REFERENCE contract |
-| Generic native apply is not assumed | `metadata/capabilities.py` | Dataflow/SQL negative tests in `test_stage_execution_policy.py` | REFERENCE fail-closed contract |
-| CUSTOM apply requires controlled extension reference | `config.py`, capability registry | `test_custom_apply_requires_registered_domain_extension_reference` | REFERENCE |
-| Conservative AUTO selection | `metadata/capabilities.py` | execution-engine tests | REFERENCE |
-| Unsupported engine/semantic combinations fail before mutation | `metadata/capabilities.py` | execution-engine/stage-policy tests | REFERENCE |
-| Named engine capability profiles | `metadata/capabilities.py` | execution-engine tests | REFERENCE |
-| Dataflow Gen2 incremental bucket capture can feed framework SCD1/UPSERT | named Dataflow profile + `compile_execution_plan` + current-state apply | `tests/test_execution_engines.py`, `tests/test_stage_execution_policy.py`, current-state tests | REFERENCE/planner proof; no real Dataflow run |
-| Dataflow incremental profile does not claim composite watermark support | `metadata/capabilities.py` | execution-engine tests | REFERENCE |
-| Dataflow capture profile cannot masquerade as native SCD1 apply profile | `metadata/capabilities.py` | `test_native_capture_profile_cannot_be_reused_as_native_scd1_apply_profile` | REFERENCE |
-| One physical capture checkpoint authority | `ProgressOwner`, capability validation | execution-engine tests | REFERENCE contract |
-| Typed native/external capture handoff | `contracts/capture_receipt.py` | execution-engine/control-plane-v2 tests | REFERENCE |
-| FULL receipt requires snapshot completeness identity/evidence | `contracts/capture_receipt.py` | execution-engine tests | REFERENCE |
-| External stateful receipt requires checkpoint reference | `contracts/capture_receipt.py` | execution-engine tests | REFERENCE |
-| Logical extension names only | `config.ExtensionConfig`, `extensions.py` | execution-engine tests | REFERENCE |
-| Duplicate/missing extension registration fails explicitly | `extensions.py` | execution-engine tests | REFERENCE |
-| Control-plane environment-local state separated from promotable definitions | `control_plane.py`, deployment contracts | control-plane/deployment tests | REFERENCE |
-| Additive control-plane schema v2 | `control_plane.py` | `tests/test_control_plane_v2.py`, `tests/test_apply_execution_policy.py` | REFERENCE schema proof |
-| Capture execution policy is separate from apply execution policy | `control_plane.execution_policy`, `control_plane.apply_execution_policy` | `tests/test_apply_execution_policy.py` | REFERENCE |
-| Apply execution policy is promotable semantic definition | `control_plane.py` | `test_apply_execution_policy_is_promotable_and_created_by_baseline_schema` | REFERENCE |
-| Apply execution metadata materializes idempotently | `delivery.py`, `control_plane.apply_execution_policy` | `tests/test_apply_execution_policy.py` | REFERENCE |
-| Persist execution/profile/extensions metadata | `control_plane.py`, `delivery.py` | `test_control_plane_v2.py`, delivery tests | REFERENCE |
-| Persist CaptureReceipt as environment-local evidence | control-plane/repository delivery helpers | `test_control_plane_v2.py` | REFERENCE |
-| Metadata materialization preserves runtime state | `delivery.py` | `tests/test_delivery.py` | REFERENCE |
-| Release identity independent of environment bindings | delivery/deployment | delivery/deployment tests | REFERENCE |
-| Runtime state is never promoted with release definitions | deployment/control-plane sets | deployment/control-plane tests | REFERENCE |
-| Build wheel + PR validation on supported Python versions | `.github/workflows/ci.yml` | GitHub Actions run evidence | CI PROVEN |
-| Immutable v0.3.0 release/checksum path | `.github/workflows/release.yml`, delivery CLI | historical release run | RELEASE PROVEN for v0.3.0 |
+| Strict immutable dataset metadata | `config.py` | `tests/test_config.py` | REFERENCE |
+| Runtime override allow-list + deterministic effective-config hash | `config.py` | config tests | REFERENCE |
+| Capture/apply semantics are independent | `config.py` | config/execution-plan tests | REFERENCE |
+| Capture executor and apply executor are independent | `config.ExecutionPolicy`, `contracts/execution_plan.py` | `tests/test_stage_execution_policy.py` | REFERENCE |
+| Unsupported engine/profile/semantic combination fails before mutation | `metadata/capabilities.py` | execution-engine tests | REFERENCE |
+| Composite WATERMARK ordering/overlap | `watermark.py` | watermark tests | REFERENCE |
+| Invalid incremental positions fail rather than silently skip | watermark/capture boundary | watermark/execution tests | REFERENCE |
+| Bronze source lineage envelope | `bronze.py` | execution tests | REFERENCE |
+| Row DQ/quarantine + no-silent-loss accounting | `quality/`, `operations.py` | quality/execution tests | REFERENCE |
+| Deterministic SCD2 + one-current-row invariant | `scd2.py` | SCD2 tests | REFERENCE |
+| Guarded FULL -> REPLACE | `capture/full.py`, `apply/replace.py`, `execution/full_replace.py` | `tests/test_full_replace.py` | REFERENCE |
+| Complete SNAPSHOT before delete inference | `capture/snapshot.py`, `apply/snapshot_diff.py` | `tests/test_snapshot_diff.py` | REFERENCE |
+| Snapshot delete/quarantine guardrails | snapshot execution/apply | snapshot-diff tests | REFERENCE |
+| Ordered/idempotent SCD1 | `apply/current_state.py`, `apply/scd1.py` | `tests/test_scd1.py` | REFERENCE |
+| Ordered/idempotent UPSERT | `apply/current_state.py`, `apply/upsert.py` | `tests/test_upsert.py` | REFERENCE |
+| Equal-position conflicting current-state payload fails closed | current-state primitive | SCD1/UPSERT tests | REFERENCE |
+| Stale current-state update IGNORE/ERROR policy | current-state primitive | SCD1/UPSERT tests | REFERENCE |
+| Metadata-driven selection/dependency/cycle validation | orchestration planner/dispatcher | dispatcher tests | REFERENCE |
+| Bounded parallelism + sibling failure isolation | dispatcher/reference backend | dispatcher tests | REFERENCE |
+| Failed dependency -> BLOCKED while unrelated branch continues | dispatcher | dispatcher tests | REFERENCE |
+| Criticality-aware pipeline aggregate status | dispatcher | dispatcher tests | REFERENCE |
+| Immutable concrete ExecutionPlan | `contracts/execution_plan.py` | execution-plan tests | REFERENCE |
+| Dataflow Gen2 incremental capture can feed framework SCD1/UPSERT | named profile + execution plan | stage-execution tests | REFERENCE planner proof |
+| One physical capture checkpoint authority | `ProgressOwner`, capability validation | execution-engine tests | REFERENCE |
+| Typed native/external capture handoff | `contracts/capture_receipt.py` | capture-receipt/control-plane tests | REFERENCE |
+| FULL/SNAPSHOT receipt requires snapshot identity/completeness evidence | CaptureReceipt | execution-engine tests | REFERENCE |
+| Logical extension names only | `ExtensionConfig`, extension registry | extension tests | REFERENCE |
+| Fabric capture request/native-run evidence contracts | `adapters/fabric/contracts.py` | `tests/test_fabric_capture_adapters.py` | ADAPTER CONTRACT |
+| Copy Job capture adapter validates native evidence and emits receipt | `adapters/fabric/adapter.py` | fabric-adapter tests | ADAPTER CONTRACT |
+| Copy Activity capture adapter validates bounded source range | same | fabric-adapter tests | ADAPTER CONTRACT |
+| Dataflow Gen2 capture adapter preserves native progress ownership | same | fabric-adapter tests | ADAPTER CONTRACT |
+| Spark capture adapter is available only for a pure capture unit | same | fabric-adapter tests | ADAPTER CONTRACT |
+| FAILED/CANCELLED/UNKNOWN Fabric run never becomes success receipt | same | fabric-adapter tests | ADAPTER CONTRACT |
+| Fabric landing/kind/snapshot mismatch fails closed | same | fabric-adapter tests | ADAPTER CONTRACT |
+| Explicit Fabric adapter registry; no implicit client construction | same | fabric-adapter tests | ADAPTER CONTRACT |
+| Conservative retry classification | `recovery/runtime.py` | `tests/test_recovery.py` | REFERENCE |
+| Explicit transient failure may retry; unclassified failure does not | recovery runtime | recovery tests | REFERENCE |
+| Attempt 1 FAILED -> attempt 2 SUCCESS lineage | recovery runtime/contracts | recovery tests | REFERENCE |
+| Retry exhaustion is explicit | recovery runtime | recovery tests | REFERENCE |
+| Unknown target commit is reconciled before retry | recovery runtime | recovery tests | REFERENCE |
+| Unknown outcome COMMITTED converges without duplicate write | recovery runtime | recovery tests | REFERENCE |
+| Unknown outcome NOT_COMMITTED may retry | recovery runtime | recovery tests | REFERENCE |
+| Unknown outcome UNRESOLVED refuses blind retry | recovery runtime | recovery tests | REFERENCE |
+| Process-control exceptions are not converted into retry decisions | recovery runtime | `test_recovery_runtime_hardening.py` | REFERENCE |
+| RETRY request requires original dataset run | `contracts/recovery.py` | recovery tests | REFERENCE contract |
+| BACKFILL request requires explicit lower/upper range | recovery contract | recovery tests | REFERENCE contract |
+| REPLAY request requires source/quarantine lineage | recovery contract | recovery tests | REFERENCE contract |
+| FULL_REBUILD requires explicit authoritative-reset intent | recovery contract | recovery tests | REFERENCE contract |
+| Reprocess semantic identity cannot mutate during lifecycle | recovery repository/control-plane IO | recovery tests | REFERENCE |
+| Dataset attempt root/previous lineage is immutable evidence | recovery contract/repository | recovery tests | REFERENCE |
+| Reprocess/attempt lineage is environment-local, never promoted | `control_plane.py` | `tests/test_recovery_control_plane.py` | REFERENCE schema proof |
+| Promotable definitions and runtime-state sets are disjoint/full coverage | `control_plane.py` | control-plane tests | REFERENCE |
+| Metadata materialization preserves runtime state | `delivery.py` | delivery tests | REFERENCE |
+| Release identity independent of environment binding | delivery/deployment | delivery tests | REFERENCE |
+| GitHub PR CI builds/tests Python 3.11 and 3.13 | `.github/workflows/ci.yml` | run `33179754372` | CI PROVEN; 139 tests |
+| Immutable v0.3.0 wheel/checksum release path | release workflow | historical v0.3.0 release | RELEASE PROVEN for v0.3.0 |
 
-## 3. Required guarantees not yet covered
+## 3. Required guarantees not yet complete
 
-These are intentionally explicit so a new chat does not infer them from adjacent code.
-
-| Required guarantee | Current state | Intended owner/next proof |
+| Required guarantee | Current state | Next proof |
 |---|---|---|
-| APPEND identity/collision policy | NOT IMPLEMENTED | `apply/append.py` + replay/collision tests |
-| Native apply semantic equivalence certification | NOT IMPLEMENTED | engine/profile-specific certification against real/native behavior |
-| Retry attempt lineage | NOT IMPLEMENTED end to end | `recovery/retry.py`, dataset-run attempts |
-| BACKFILL bounded range | NOT IMPLEMENTED | recovery + source-boundary tests |
-| REPLAY/quarantine lineage | NOT IMPLEMENTED end to end | recovery/quarantine tests |
-| FULL_REBUILD state reset/rebuild | NOT IMPLEMENTED | recovery tests |
-| Unknown target-commit recovery | NOT IMPLEMENTED | idempotency/reconciliation recovery drill |
-| CDC canonical I/U/D envelope | NOT IMPLEMENTED | `capture/cdc.py` |
-| CDC event identity/order/dedup/conflict | NOT IMPLEMENTED | CDC certification |
-| CDC checkpoint commit gate | NOT IMPLEMENTED | state/recovery + CDC tests |
-| Snapshot -> CDC bootstrap handoff | NOT IMPLEMENTED | `capture/bootstrap_cdc.py` |
-| General schema evolution classification | NOT IMPLEMENTED | `quality/schema_contracts.py` |
-| Additive/breaking schema migration proof | NOT IMPLEMENTED | schema certification |
-| General late/out-of-order correction policy | PARTIAL only in current-state/SCD2 scopes | shared temporal policy tests |
-| Physical persistent production control-plane repository | NOT IMPLEMENTED | approved relational/Fabric store adapter |
-| Operator `status/retry/backfill/replay` surface | NOT IMPLEMENTED | CLI/query/integration tests |
-| Fabric Pipeline backend | NOT IMPLEMENTED | real DEV integration |
-| Fabric Copy Activity adapter | NOT IMPLEMENTED | real DEV capture receipt proof |
-| Fabric Copy Job adapter | NOT IMPLEMENTED | connector/profile native run proof |
-| Dataflow Gen2 adapter | NOT IMPLEMENTED | real incremental landing + receipt proof |
-| Spark Job Definition/Environment adapter | NOT IMPLEMENTED | real SJD/wheel/environment proof |
-| Native run IDs persisted from real Fabric executions | NOT PROVEN | adapter integration tests |
-| Enterprise IAM/network/secrets/RBAC | EXTERNAL | approved company estate evidence |
+| Real Copy Job/Copy Activity/Dataflow/Spark transport/API invocation | Adapter contract exists; no real Fabric call | approved DEV Fabric integration with native run ID |
+| Native apply semantic equivalence certification | no profile currently claims generic native UPSERT/SCD1/SCD2 | engine/profile-specific real tests |
+| Strategy-specific retry source-range/restaging preservation | recovery core exists; not wired for all capture families | per-strategy recovery certification |
+| Quarantine REPLAY payload execution and `replayed_by_dataset_run_id` end-to-end | request/lineage contract exists | replay executor + persistent quarantine tests |
+| FULL_REBUILD target/state reset execution | request authorization contract exists | rebuild executor + state reset certification |
+| Native-progress recovery after downstream apply failure | general receipt/recovery contracts exist | Copy/Dataflow/Mirroring-specific recovery tests |
+| CDC canonical I/U/D envelope | NOT IMPLEMENTED | `capture/cdc.py` + tests |
+| CDC event identity/order/dedupe/conflict | NOT IMPLEMENTED | CDC certification |
+| CDC checkpoint commit gate | NOT IMPLEMENTED | CDC state/recovery tests |
+| Snapshot/bootstrap -> CDC handoff | NOT IMPLEMENTED | bootstrap CDC proof |
+| APPEND identity/collision semantics | NOT IMPLEMENTED | `apply/append.py` |
+| General schema-evolution classification | NOT IMPLEMENTED | schema contract/classification tests |
+| General cross-strategy late/out-of-order policy | PARTIAL in current-state/SCD2 | shared temporal/error taxonomy |
+| Supported persistent production control-plane repository | SQLAlchemy/SQLite reference only | approved store + transaction/concurrency tests |
+| Operator status/retry/backfill/replay/rebuild surface | runtime contracts exist, no supported operator API/CLI | repository queries + CLI/API tests |
+| Fabric Pipeline backend | NOT IMPLEMENTED | real DEV orchestration |
+| Native run IDs from actual Fabric executions | NOT PROVEN | real adapter integration |
+| Enterprise IAM/network/secrets/RBAC/capacity | EXTERNAL | enterprise/platform evidence |
 
 ## 4. Framework-first delegation invariant
 
-ADR 0009 is a cross-cutting guarantee:
-
 ```text
-core semantic contract
-    -> framework-owned portable implementation
-    -> optional native stage delegation only when capability-certified
+semantic contract
+    -> framework portable implementation
+    -> capability resolver
+    -> optional stage delegate only when equivalence/capability is proven
 ```
 
-The capability registry must remain conservative. A product feature name does not imply semantic equivalence.
+A provider run being `SUCCEEDED` is not sufficient evidence that the framework semantic contract succeeded. Native capture must first produce validated evidence/receipt, and non-delegated framework stages remain responsible for apply/reconciliation/state.
 
-For example:
+Representative hybrid:
 
 ```text
-WATERMARK + SCD1/UPSERT
-
-Dataflow Gen2 profile:
-  capture/stage = DATAFLOW_GEN2
-  capture progress owner = FABRIC_NATIVE
-  apply = framework SPARK SCD1/UPSERT
-
-Framework fallback:
-  capture/stage = SPARK/framework
-  progress owner = FRAMEWORK
-  apply = same framework current-state contract
+Dataflow Gen2 incremental capture
+    -> validated FabricNativeRunEvidence
+    -> CaptureReceipt
+    -> framework UPSERT/SCD1
+    -> reconciliation
+    -> state/audit
 ```
 
-Source-controlled metadata can still use `AUTO`; the compiled immutable plan records concrete capture/apply engines. Native final-target apply remains fail-closed until an explicit apply capability profile is certified.
+## 5. Update rule
 
-This invariant is what allows domains to keep stable semantic metadata while physical Fabric capabilities evolve.
+Every new guarantee must have:
 
-## 5. Updating this file
-
-When adding a production capability:
-
-1. add the canonical implementation owner;
-2. add at least one deterministic executable proof;
-3. state the evidence scope (`REFERENCE`, `FABRIC PROVEN`, etc.);
-4. remove/update the matching gap row;
-5. update `PRODUCTION_READINESS_AUDIT.md`, `PRODUCTION_REQUIREMENTS.md` and `CURRENT_STATUS.md` in the same coherent slice.
+1. one canonical implementation owner;
+2. deterministic executable evidence;
+3. an explicit evidence level;
+4. the corresponding gap removed or narrowed here;
+5. synchronized `PRODUCTION_REQUIREMENTS.md`, `PRODUCTION_READINESS_AUDIT.md` and `CURRENT_STATUS.md`.

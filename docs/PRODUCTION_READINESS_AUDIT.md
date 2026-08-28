@@ -1,241 +1,226 @@
 # Production Readiness Audit — fabric-data-framework
 
 Status: Canonical evidence audit
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
-## 1. Purpose
+## 1. Evidence model
 
-This document prevents the project from confusing architecture, deterministic reference implementation and real enterprise production evidence.
+This audit deliberately separates:
 
-Evidence levels:
+1. **Portable semantic implementation** — reusable framework contract/algorithm.
+2. **Deterministic certification** — executable unit/contract/reference proof.
+3. **Real Fabric integration evidence** — approved Fabric item/API execution with retained native run correlation.
+4. **External enterprise controls** — tenant, Entra, RBAC, networking, gateway, secrets, retention, monitoring, capacity and governance.
 
-1. **Portable semantic implementation** — framework-owned contract/algorithm independent of Fabric.
-2. **Deterministic certification** — unit/contract/reference proof for important invariants.
-3. **Real Fabric integration evidence** — executed through approved Fabric Pipeline/Copy/Dataflow/Spark/Lakehouse/Warehouse surfaces with native run correlation.
-4. **External enterprise controls** — identity, RBAC, networking, secrets, retention, monitoring/on-call, capacity and governance supplied by the enterprise/platform authority.
-
-Levels 3 and 4 must never be inferred from levels 1 and 2.
+A green Python suite proves levels 1/2 only. A typed Fabric adapter does not become level 3 until an actual Fabric run is retained as evidence.
 
 ## 2. Current overall assessment
 
-Current unreleased 0.4.0 development branch:
+Current unreleased 0.4.0 development line on PR #13:
 
 ```text
 Portable semantic implementation     STRONG / materially expanded
 Deterministic certification           STRONG for implemented slices
-Real Fabric integration evidence      NOT YET PROVEN for this hardening branch
+Fabric adapter contract coverage      STRONG reference boundary
+Real Fabric execution evidence        NOT YET PROVEN for hardening branch
 External enterprise controls          EXTERNAL / NOT PROVEN BY THIS REPO
 ```
 
-Latest coherent code/control-plane evidence before the current docs synchronization:
+Latest green hardening evidence:
 
 ```text
-branch: architecture/production-framework-blueprint
-commit: 60d4d1362f504a51b3ecedfcb93c7c6ceb3d4578
-GitHub Actions: 33175724889
+commit: a5da06294dfba0c5ae756dcc1d8814931feebec7
+GitHub Actions: 33179754372
 build-wheel:      SUCCESS
 Python 3.11:      SUCCESS
 Python 3.13:      SUCCESS
-pytest:           106 passed
+pytest:           139 passed
 ```
 
-The latest immutable public Framework release remains `v0.3.0`. Do **not** publish `v0.4.0` yet.
-
-## 3. Evidence matrix
-
-| Capability | Portable semantics | Deterministic certification | Real Fabric evidence | Enterprise controls | Assessment |
-|---|---|---|---|---|---|
-| Typed dataset metadata/effective config | Yes | Yes | N/A | N/A | IMPLEMENTED |
-| Runtime override allow-list/hash | Yes | Yes | N/A | Operator authorization external | IMPLEMENTED contract |
-| Composite WATERMARK + overlap | Yes | Yes | No current native adapter proof | Source permissions external | IMPLEMENTED portable |
-| Bronze lineage envelope | Yes | Yes | No current Fabric landing proof | Storage governance external | IMPLEMENTED portable |
-| Row DQ/quarantine accounting | Yes | Yes | No real quarantine-store proof | Access/retention external | IMPLEMENTED portable |
-| SCD2 reference semantics | Yes | Yes | No current Fabric target adapter proof | Target access external | IMPLEMENTED portable |
-| FULL -> REPLACE guards | Yes | Yes | No Fabric publication/swap proof | Target permissions/recovery external | IMPLEMENTED reference |
-| SNAPSHOT -> SNAPSHOT_DIFF/delete guards | Yes | Yes | No Fabric publication proof | Delete governance external | IMPLEMENTED reference |
-| Shared ordered current-state primitive | Yes | Yes | No target adapter proof | Target access external | IMPLEMENTED reference |
-| SCD1 ordered current-state apply | Yes | Yes | No Fabric target adapter proof | Target permissions external | IMPLEMENTED reference |
-| UPSERT ordered current-state apply | Yes | Yes | No Fabric target adapter proof | Target permissions external | IMPLEMENTED reference |
-| APPEND identity/collision semantics | No | No | No | External controls later | GAP |
-| Independent capture/apply executor policy | Yes | Yes | No real delegated apply run | N/A | IMPLEMENTED contract |
-| ExecutionPlan concrete stage splitting | Yes | Yes | No real Fabric backend | N/A | IMPLEMENTED contract |
-| Named engine capability profiles | Yes | Yes | Product docs checked; no native run proof | N/A | IMPLEMENTED contract |
-| Generic native apply fails closed | Yes | Yes negative tests | No native equivalence run | N/A | IMPLEMENTED safety contract |
-| Dataflow Gen2 incremental capture -> framework SCD1/UPSERT plan | Yes | Yes | No real Dataflow run yet | Connection/identity external | IMPLEMENTED contract; Fabric proof pending |
-| Copy Job native capture delegation | Contract/profile only | Validation tests | No hardening-branch native run | Source support/identity external | PARTIAL |
-| CaptureReceipt | Yes | Yes | No real native receipt ingestion yet | N/A | IMPLEMENTED contract |
-| Extension registry/logical names | Yes | Yes | No Fabric runtime extension proof | Package supply chain external/shared | IMPLEMENTED contract |
-| Metadata-driven dispatcher/failure isolation | Yes | Yes | No real Fabric Pipeline backend | Capacity policy external | IMPLEMENTED reference |
-| Control-plane schema v2 | Yes | Yes on SQLAlchemy/SQLite | No approved persistent store | DB identity/backup external | IMPLEMENTED schema contract only |
-| Capture/apply execution policy persisted separately | Yes | Yes | No production store proof | N/A | IMPLEMENTED schema contract |
-| Retry attempt lineage | Partial vocabulary/schema only | No end-to-end retry certification | No | Operator policy external | P0 GAP |
-| BACKFILL | Contract vocabulary only | No | No | Operator approval external | P0 GAP |
-| REPLAY/quarantine replay | Schema concepts only | No end-to-end replay | No | Retention/access external | P0 GAP |
-| FULL_REBUILD | Contract vocabulary only | No | No | Approval/recovery external | GAP |
-| Unknown target-commit recovery | Design only | No | No | Incident process external | P0 GAP |
-| CDC normalization/order/event identity | No complete implementation | No | No | Source CDC enablement external | P0 GAP |
-| Snapshot -> CDC bootstrap handoff | No | No | No | Source capability external | P0 GAP |
-| Schema evolution compatibility | Schema-change table/design only | No complete certification | No | Governance external | P0 GAP |
-| General late/out-of-order policy | Current-state/SCD2 slices only | Partial | No | N/A | PARTIAL |
-| Fabric Pipeline adapter | Design only | No | No | Workspace permission external | P0 GAP |
-| Fabric Copy Activity adapter | Design/profile only | No native run | No | Connection/gateway external | P0 GAP |
-| Fabric Copy Job adapter | Design/profile only | No native run | No | Connector/CDC configuration external | P0 GAP |
-| Dataflow Gen2 adapter | Named profile/planner path only | Planner tests | No native run | Connection/gateway external | P0 GAP |
-| Spark Job Definition/Environment adapter | Design only | No real SJD run | No | Environment/workspace identity external | P0 GAP |
-| Persistent operator query/status surface | No production adapter | Reference lists only | No | Monitoring integration external | GAP |
-| Immutable wheel/release path | Yes | GitHub CI/release proven for v0.3.0 | GitHub evidence, not Fabric runtime | Repository governance external | IMPLEMENTED delivery baseline |
-
-## 4. Framework-first semantic guarantee
-
-ADR 0009 establishes:
-
-> Native Fabric features are capability-certified stage delegates. They do not replace framework-owned portable semantics for core mature Data Engineering patterns.
-
-Current implementation now makes the physical stages explicit:
+Earlier coherent evidence in the same slice:
 
 ```text
-ExecutionPolicy
-  capture engine/profile/progress owner
-  apply engine/profile
+b831d465c2f03117c323a0cbd90e22bbf081417c
+run 33178765403
+123 passed
+Fabric capture adapter contract
 
-        -> capability validation
-        -> immutable concrete ExecutionPlan
+333d62ed5b06787026ec7f25481f37bed6c44ea1
+run 33179523583
+137 passed
+Recovery relational evidence
 ```
 
-Canonical lifecycle:
+`v0.3.0` remains the latest public release. **Do not publish v0.4.0 yet.**
+
+## 3. Capability assessment
+
+| Capability | Portable | Deterministic | Real Fabric | Assessment |
+|---|---:|---:|---:|---|
+| Typed metadata/effective config | Yes | Yes | N/A | IMPLEMENTED |
+| Runtime override allow-list/hash | Yes | Yes | N/A | IMPLEMENTED |
+| Composite WATERMARK + overlap | Yes | Yes | No current adapter run | IMPLEMENTED portable |
+| Bronze lineage | Yes | Yes | No | IMPLEMENTED portable |
+| DQ/quarantine/accounting | Yes | Yes | No persistent Fabric quarantine proof | IMPLEMENTED portable |
+| FULL -> REPLACE guards | Yes | Yes | No target publication proof | IMPLEMENTED reference |
+| SNAPSHOT -> SNAPSHOT_DIFF/delete guards | Yes | Yes | No | IMPLEMENTED reference |
+| SCD1 current-state correctness | Yes | Yes | No | IMPLEMENTED reference |
+| UPSERT current-state correctness | Yes | Yes | No | IMPLEMENTED reference |
+| SCD2 bounded history correctness | Yes | Yes | No | IMPLEMENTED reference |
+| Capture/apply executor separation | Yes | Yes | N/A | IMPLEMENTED contract |
+| Named engine/profile capability resolver | Yes | Yes | Product-specific real certification pending | IMPLEMENTED contract |
+| CaptureReceipt | Yes | Yes | No real native receipt yet | IMPLEMENTED contract |
+| Dataflow incremental -> framework SCD1/UPSERT plan | Yes | Yes | No real Dataflow execution | IMPLEMENTED planner contract |
+| FabricCaptureRequest/native-run evidence | Yes | Yes | No | IMPLEMENTED adapter contract |
+| Copy Job capture adapter | Yes | Yes fake transport | No | ADAPTER CONTRACT ONLY |
+| Copy Activity capture adapter | Yes | Yes fake transport | No | ADAPTER CONTRACT ONLY |
+| Dataflow Gen2 capture adapter | Yes | Yes fake transport | No | ADAPTER CONTRACT ONLY |
+| Spark capture adapter | Yes | Yes fake transport | No | ADAPTER CONTRACT ONLY |
+| Native FAILED/CANCELLED/UNKNOWN fail-closed | Yes | Yes | No | IMPLEMENTED adapter contract |
+| Bounded source-range evidence match | Yes | Yes | No | IMPLEMENTED adapter contract |
+| Metadata dispatcher/failure isolation | Yes | Yes | No Fabric Pipeline backend | IMPLEMENTED reference |
+| Recovery failure classification/retry | Yes | Yes | No | IMPLEMENTED reference core |
+| Attempt lineage | Yes | Yes | No persistent production DB | IMPLEMENTED reference/schema proof |
+| Reprocess request validation/lifecycle | Yes | Yes | No operator surface | IMPLEMENTED reference contract |
+| Unknown commit COMMITTED/NOT_COMMITTED/UNRESOLVED behavior | Yes | Yes | No physical target drill | IMPLEMENTED reference core |
+| Relational reprocess/attempt evidence | Yes | Yes SQLAlchemy/SQLite | No approved prod store | IMPLEMENTED schema proof |
+| Quarantine payload replay | Partial contract only | No full replay | No | GAP |
+| FULL_REBUILD execution | Request authorization only | No reset/rebuild execution | No | GAP |
+| Native-progress recovery | Generic concepts only | No provider proof | No | GAP |
+| CDC normalization/event identity/order | No | No | No | P0 GAP |
+| CDC checkpoint commit | No | No | No | P0 GAP |
+| Bootstrap -> CDC handoff | No | No | No | P0 GAP |
+| APPEND identity semantics | No | No | No | GAP |
+| General schema evolution | design/table only | No full policy | No | P0 GAP |
+| Persistent production control plane | reference only | SQLite tests | No | GAP |
+| Operator status/retry/backfill/replay/rebuild surface | runtime contracts only | No supported surface | No | GAP |
+| Fabric Pipeline backend | design only | No | No | P0 GAP |
+| Real Fabric REST/SDK/CLI transport | interface only | fake transport only | No | P0 GAP |
+| Same-wheel Fabric DEV/UAT/PROD proof | delivery contract only | GitHub release proof v0.3.0 | No | P0 GAP |
+
+## 4. Strongest portable guarantees
+
+### 4.1 Current-state correctness
+
+SCD1 and UPSERT share a canonical current-state primitive proving:
+
+- composite keys;
+- ordering by event/version/sequence positions;
+- batch latest-record selection;
+- exact-rerun idempotency;
+- stale policy;
+- equal-position conflict failure;
+- fail-closed unordered changed update unless explicitly authorized.
+
+### 4.2 Destructive-load protection
+
+FULL and SNAPSHOT paths do not infer successful authoritative source state merely from an iterator/activity completing. Completeness, deletion and publication guards are explicit.
+
+### 4.3 Stage delegation safety
+
+The semantic plan and provider adapter are separate.
 
 ```text
-capture / movement
-    -> normalize / transform
-    -> apply
-    -> reconcile
-    -> state / audit
-```
-
-Example:
-
-```text
-Dataflow Gen2 incremental bucket refresh
-    -> Bronze/staging
+ExecutionPlan
+    -> provider request
+    -> native run evidence
+    -> validate evidence
     -> CaptureReceipt
-    -> framework SCD1/UPSERT
-    -> reconciliation
-    -> framework audit/state contract
+    -> remaining framework semantics
 ```
 
-Dataflow's native incremental destination bucket replacement is deliberately not labeled generic SCD1/UPSERT.
+The Fabric adapter contract refuses to create a success receipt for unsuccessful/unknown native status, wrong landing, wrong execution kind, wrong snapshot identity or wrong framework-owned source range.
 
-Native final-target apply remains unsupported by default. It can only be claimed after a named apply profile explicitly certifies semantic equivalence.
+### 4.4 Recovery safety
 
-## 5. Current strongest portable guarantees
+Automatic retry is opt-in via explicit transient failure classification. Unknown/unclassified exceptions do not retry automatically.
 
-### Metadata and physical-plan safety
-
-- strict immutable typed metadata;
-- capture/apply strategies are independent;
-- capture and apply execution engines/profiles are independent;
-- effective config has deterministic hash;
-- semantic fields are not mutable through arbitrary runtime overrides;
-- capability profiles fail closed for unsupported combinations;
-- `AUTO` resolves to concrete engines before immutable execution planning;
-- capture certification never implies apply certification;
-- custom metadata references logical registered extensions rather than arbitrary executable imports.
-
-### Source-boundary correctness
-
-- composite watermark `(watermark, tie_breaker...)` prevents same-timestamp loss for framework-owned incremental selection;
-- FULL/SNAPSHOT completeness is explicit evidence rather than inferred from successful iteration;
-- native/external capture has a typed `CaptureReceipt` boundary;
-- exactly one authority owns physical capture progress.
-
-### Destructive-load protection
-
-FULL replacement includes incomplete/empty/drastic-drop guards before publication.
-
-Snapshot diff includes complete-snapshot requirement, null/duplicate-key protection, quarantine-aware delete blocking, delete-all/delete-fraction guards and reconciliation before publication.
-
-### Current-state/history semantics
-
-Shared current-state primitive now backs both SCD1 and UPSERT and proves:
-
-- composite merge keys;
-- ordered event/version/sequence tuple support;
-- latest-row selection within a batch;
-- exact rerun idempotency;
-- stale-row ignore/error policy;
-- equal-position conflicting payload failure;
-- changed unordered update fail-closed unless authorized;
-- duplicate/stale/superseded metrics;
-- target-only field preservation for generic UPSERT updates.
-
-SCD2 proves deterministic current/history behavior, one-current-row invariant and bounded conflict/late-arrival handling.
-
-### Failure isolation
-
-Dispatcher reference proves selection, dependency/cycle validation, bounded concurrency, per-dataset exception isolation, dependent `BLOCKED`, unrelated sibling continuation and criticality-aware aggregate status.
-
-### Control-plane semantic/runtime boundary
-
-Schema v2 now separately persists:
+The most important invariant is now executable:
 
 ```text
-execution_policy        capture/movement policy
-apply_execution_policy  apply policy
-ordering_policy         source ordering semantics
+write outcome uncertain
+    -> reconcile first
+         COMMITTED     => success/no duplicate write
+         NOT_COMMITTED => retry may proceed
+         UNRESOLVED    => stop
 ```
 
-while `CaptureReceipt` and run/progress evidence remain environment-local.
+This is materially safer than generic retry-on-exception behavior.
 
-## 6. P0 gaps before next public release
+## 5. What Recovery does and does not prove
 
-The previous two blockers are now closed at reference level:
+Recovery **core** is implemented and deterministic:
 
-```text
-ordered/idempotent framework UPSERT                 COMPLETE
-explicit capture/apply executor separation          COMPLETE
-```
+- attempt lineage;
+- retry/backoff/exhaustion;
+- reprocess request intent/lifecycle;
+- unknown commit tri-state resolution;
+- environment-local persistence schema.
 
-Priority remaining gaps:
+It does **not** yet prove every physical strategy can reproduce its original source input. Remaining production work includes:
 
-1. **Recovery** — attempt lineage, retryability, RETRY/BACKFILL/REPLAY/FULL_REBUILD and unknown-commit recovery.
-2. **CDC** — normalized I/U/D envelope, event identity/order, duplicate/conflict rules, poison-event handling, checkpoint commit and bootstrap handoff.
-3. **Schema evolution** — additive/breaking classification, type compatibility and run/audit disposition.
-4. **APPEND** — append-once identity and conflicting duplicate policy, or explicit release-scope deferral.
-5. **Real control plane** — supported persistent store/repository, migration behavior and operator queries, or explicitly bounded first-release scope.
-6. **Fabric adapters** — Pipeline, Copy Activity, Copy Job, Dataflow Gen2, Spark Job Definition/Environment and native run correlation.
-7. **Real hybrid Fabric proof** — at least one `native capture -> CaptureReceipt -> framework apply` DEV execution, preferably Dataflow/Copy + SCD1/UPSERT.
+- retained source window/checkpoint per capture family;
+- native-progress service replay/resume behavior;
+- quarantine payload retrieval and replay;
+- FULL_REBUILD physical reset/rebuild;
+- persistent transactional repository;
+- physical target idempotency/commit-outcome drills.
 
-Native final-target apply certification is not a blocker if the release documents framework apply as the default and makes no native-apply guarantee.
+Therefore the correct assessment is `IMPLEMENTED reference core / PARTIAL end-to-end recovery`, not either “not implemented” or “fully production ready”.
 
-## 7. External evidence this repository must not fake
+## 6. Fabric adapter evidence boundary
 
-Enterprise/platform responsibilities or joint integration evidence include:
+Current Copy Job/Copy Activity/Dataflow/Spark adapters are real framework code, but their transport is an injected protocol and tests use deterministic fake evidence.
+
+They prove interface and correctness boundaries. They do **not** prove:
+
+- authentication;
+- tenant/workspace permission;
+- API version behavior;
+- polling/runtime failure modes;
+- gateway/source connection behavior;
+- capacity/throttling;
+- actual run IDs from Microsoft Fabric.
+
+At least one real approved DEV hybrid execution is required before release confidence increases materially.
+
+## 7. Current P0 work
+
+The next hard correctness area is CDC:
+
+1. canonical I/U/D event envelope;
+2. source event identity/order;
+3. duplicate/conflicting duplicate rules;
+4. poison/invalid event disposition;
+5. bounded checkpoint upper coordinate;
+6. checkpoint commit after downstream apply + reconciliation;
+7. separate certification for `CDC -> UPSERT`, `CDC -> SCD1`, `CDC -> SCD2`;
+8. snapshot/bootstrap -> CDC no-gap/no-double-apply handoff.
+
+After CDC, close strategy-specific recovery, schema evolution, APPEND/persistent operator gaps, then execute a real Fabric hybrid proof.
+
+## 8. External evidence this repo must not fake
 
 - Fabric capacity/SKU and throttling policy;
 - tenant settings;
-- workspace/domain creation;
-- Entra groups, service principals, workspace identity and RBAC;
-- gateway/private endpoint/network configuration;
+- workspace/domain provisioning;
+- Entra groups/service principals/workspace identity/RBAC;
+- gateway/private networking;
 - secrets/key authority;
 - source database CDC enablement/retention;
-- production target backup/restore/retention;
-- monitoring receiver, alert routing and on-call ownership;
-- audit/quarantine retention/privacy classification;
-- approvals/change-management where required.
+- production backup/restore;
+- monitoring receiver/on-call;
+- quarantine/audit retention/privacy;
+- approvals/change controls where required.
 
-The framework may define required integration evidence but must not claim these controls exist until an approved estate proves them.
+## 9. Release gate
 
-## 8. Release gate
-
-The current development line is **not approved for `v0.4.0` publication**.
-
-Before release, re-run this audit against the actual head and ensure:
+Before a next public release, the exact release head must satisfy:
 
 ```text
-code implementation
-    == deterministic tests
-    == canonical docs
-    == release manifest/schema version
+code == tests == canonical docs == control-plane/release schema contract
 ```
 
-Any unresolved mismatch is a release blocker.
+and the milestone must include real Fabric integration evidence rather than only provider-neutral/fake-transport proof.
+
+Current decision: **release remains blocked**.

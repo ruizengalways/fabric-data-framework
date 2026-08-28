@@ -10,13 +10,13 @@ The framework owns mature reusable DE semantics and operational contracts. Domai
 - Current source version: **0.4.0 development**.
 - **Do not publish v0.4.0 yet**; the production-hardening milestone is still in progress.
 
-Latest fully green implementation evidence before final documentation-audit commits:
+Latest fully green hardening evidence before documentation synchronization:
 
 ```text
-commit 82bf3d97e6e08e9620bacdd1de25a14a2f7d489c
-GitHub Actions 33172961692
+commit a5da06294dfba0c5ae756dcc1d8814931feebec7
+GitHub Actions 33179754372
 Python 3.11 / 3.13 + wheel: SUCCESS
-91 tests passed
+139 tests passed
 ```
 
 ## Architecture in one diagram
@@ -27,58 +27,72 @@ semantic metadata
       v
 capability resolver + immutable ExecutionPlan
       |
-      +--> native capture/movement (Copy Job / Copy Activity / Dataflow / Mirroring)
-      |        -> CaptureReceipt
+      +--> capture/movement executor
+      |      Copy Job / Copy Activity / Dataflow / Spark / ...
+      |            |
+      |     native/provider evidence
+      |            v
+      |       CaptureReceipt
       |
-      +--> framework-controlled capture (Spark / SQL / custom adapter)
-               |
-               v
-         Bronze / staging
-               |
-         DQ / transform
-               |
-     framework apply semantics
-     REPLACE | SCD1 | SCD2 | SNAPSHOT_DIFF
-     UPSERT/APPEND in progress
-               |
-       reconciliation/state/audit
+      v
+Bronze / normalize / DQ
+      |
+      v
+independently selected apply executor
+REPLACE | UPSERT | SCD1 | SCD2 | SNAPSHOT_DIFF
+      |
+      v
+reconciliation / state / audit
+      |
+      +--> recovery core
+           retry / attempt lineage / reprocess / unknown outcome
 ```
 
-Core rule: **framework-first semantics with stage-level native delegation**. Fabric-native features are first-class execution accelerators/adapters, but they are not assumed to provide every semantic guarantee.
-
-For example, Dataflow Gen2 incremental bucket refresh may own capture progress while the framework owns final SCD1:
-
-```text
-Dataflow Gen2 incremental
-  -> landing/staging
-  -> CaptureReceipt
-  -> framework SCD1
-  -> reconciliation/audit
-```
+Core rule: **framework-first semantics with stage-level native delegation**. Native Fabric features are first-class stage executors, but they are not assumed to provide every semantic guarantee.
 
 ## Implemented reference capabilities
 
 Current unreleased hardening branch includes:
 
 - strict immutable dataset metadata and allow-listed runtime overrides;
-- composite WATERMARK `(column, tie_breaker...)` + overlap semantics;
-- normalized Bronze lineage envelope;
+- composite WATERMARK + overlap semantics;
+- normalized Bronze lineage;
 - row DQ/quarantine/accounting;
 - deterministic SCD2;
-- ordered/idempotent SCD1 with stale/equal-position/conflict handling;
+- ordered/idempotent SCD1;
+- ordered/idempotent UPSERT using a shared current-state primitive;
 - guarded FULL -> REPLACE;
 - guarded SNAPSHOT -> SNAPSHOT_DIFF + delete guards;
 - metadata-driven multi-dataset dispatcher/failure isolation;
-- provider-neutral execution plans;
-- capture/movement engine + progress-owner metadata;
+- independent capture/apply engine selection in immutable ExecutionPlan;
 - named engine capability profiles;
-- Dataflow Gen2 incremental bucket capture profile feeding framework SCD1;
-- typed `CaptureReceipt` for native/external handoff;
-- logical-name extension registry;
-- additive control-plane schema v2 (`execution_policy`, `ordering_policy`, `capture_receipt`);
+- Dataflow Gen2 incremental capture profile feeding framework SCD1/UPSERT;
+- typed CaptureReceipt;
+- Fabric capture adapter contract layer for Copy Job, Copy Activity, Dataflow Gen2 and Spark;
+- fail-closed provider run evidence validation;
+- generic recovery failure classification/retry/backoff;
+- immutable dataset attempt lineage;
+- audited RETRY/BACKFILL/REPLAY/FULL_REBUILD request contracts;
+- unknown target-commit reconciliation before retry;
+- relational reprocess/attempt evidence in environment-local control-plane state;
+- additive control-plane v2 development schema;
 - immutable release/config/deployment provenance and delivery CLI.
 
-These are portable/reference guarantees. Real Fabric adapter/runtime evidence and enterprise IAM/network/governance evidence are tracked separately and are not implied by the test suite.
+These are portable/reference or adapter-contract guarantees. They do **not** imply that a real Fabric API/workspace/connection/capacity was exercised.
+
+## Current next milestone
+
+The next P0 correctness slice is CDC:
+
+```text
+canonical I/U/D event envelope
+ -> event identity/order/dedup/conflict
+ -> checkpoint commit gate
+ -> CDC -> UPSERT/SCD1/SCD2
+ -> snapshot/bootstrap -> CDC handoff
+```
+
+After CDC, complete strategy-specific replay/rebuild/native-progress recovery, schema evolution, APPEND/persistent operator surfaces and at least one real Fabric DEV hybrid execution before release decision.
 
 ## Local development
 
@@ -102,7 +116,7 @@ The delivery model separates immutable release definitions from environment-loca
 
 ## Canonical project memory
 
-Read in this order when resuming in a new conversation:
+Read in this order when resuming:
 
 1. `docs/ECOSYSTEM_BLUEPRINT.md`
 2. `docs/PROJECT_BLUEPRINT.md`
@@ -118,4 +132,4 @@ Read in this order when resuming in a new conversation:
 12. `docs/adr/`
 13. `docs/runbooks/`
 
-If documentation conflicts with code/tests, inspect the implementation and repair the docs before continuing.
+If documentation conflicts with code/tests, inspect implementation and repair the docs before continuing.

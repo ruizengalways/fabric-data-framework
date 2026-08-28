@@ -1,6 +1,6 @@
 # Current Status — fabric-data-framework
 
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
 ## Current phase
 
@@ -9,108 +9,232 @@ Last updated: 2026-08-28
 - Phase 2 — first executable Customer WATERMARK/SCD2 vertical slice: **COMPLETE**.
 - Phase 3 — enterprise delivery spine: **COMPLETE AND RELEASED AS `v0.3.0`**.
 - Phase 4 — metadata-driven multi-dataset dispatcher/failure isolation: **MERGED TO `main` AS UNRELEASED 0.4.0 DEVELOPMENT SOURCE**.
-- Current milestone — **PRODUCTION FRAMEWORK HARDENING; RELEASE PAUSED UNTIL THE PRODUCT SLICE IS MATERIALLY BROADER**.
+- Current milestone — **PRODUCTION FRAMEWORK HARDENING ON PR #13; RELEASE REMAINS PAUSED**.
 
-## Product requirement
+## Release rule
 
-Do **not** publish `v0.4.0` now.
+Do **not** publish `v0.4.0` from the current branch.
 
-The target is a released wheel that an enterprise domain installs and then uses mainly through source-controlled metadata, environment bindings and bounded domain extensions. Routine dataset onboarding must not require editing `fabric-data-framework` itself.
+`v0.3.0` remains the latest immutable public Framework release. The current `0.4.0` source version is an unreleased development line. A release requires a coherent enterprise product slice plus deterministic evidence and at least one real approved Fabric integration proof; reference contracts alone are insufficient.
 
-Framework `v0.3.0` remains the latest immutable GitHub Release. The 0.4.0 source version is an unreleased development line.
-
-Active PR/branch:
+Active work:
 
 ```text
 PR #13
-architecture/production-framework-blueprint
+branch: architecture/production-framework-blueprint
+base:   main
 ```
 
 ## Latest validated implementation evidence
 
-The latest coherent code/control-plane slice is fully green:
+### Fabric capture adapter contract
 
 ```text
-60d4d1362f504a51b3ecedfcb93c7c6ceb3d4578
-GitHub Actions run 33175724889
+commit b831d465c2f03117c323a0cbd90e22bbf081417c
+GitHub Actions 33178765403
 build-wheel       SUCCESS
 test-python-3.11  SUCCESS
 test-python-3.13  SUCCESS
-106 tests passed
+123 tests passed
 ```
 
-That run includes ordered UPSERT, independent capture/apply planning, Dataflow-to-framework apply certification and apply-execution control-plane materialization.
-
-The synchronized canonical documentation/audit head immediately before this status-evidence commit is also fully green:
+### Recovery runtime
 
 ```text
-1d3c60af060e828107a9f06d6449e983c38ffb46
-GitHub Actions run 33176317779
+commit dee5eee5a87da67a81e2ed787336898b71a5c473
+GitHub Actions 33179289663
 build-wheel       SUCCESS
 test-python-3.11  SUCCESS
 test-python-3.13  SUCCESS
-106 tests passed
+134 tests passed
 ```
 
-The docs head includes updated ADR 0009, Project Blueprint, Production Requirements, Execution Engine Strategy, Control Plane Design, Guarantee Coverage and Production Readiness Audit. This final status-evidence commit must also remain green before further implementation proceeds.
+### Recovery relational evidence + runtime hardening
+
+```text
+commit a5da06294dfba0c5ae756dcc1d8814931feebec7
+GitHub Actions 33179754372
+build-wheel       SUCCESS
+test-python-3.11  SUCCESS
+test-python-3.13  SUCCESS
+139 tests passed
+```
+
+The relational evidence commit immediately before the final hardening was also fully green:
+
+```text
+333d62ed5b06787026ec7f25481f37bed6c44ea1
+GitHub Actions 33179523583
+137 tests passed
+```
 
 ## Implemented development runtime
 
-The hardening branch now provides:
+The hardening branch now provides at reference/portable level:
 
-- strict typed semantic config and allow-listed runtime overrides;
+- strict immutable semantic config and allow-listed runtime overrides;
 - infrastructure/environment binding abstraction;
-- composite WATERMARK selection with tie-breakers/overlap;
-- normalized Bronze lineage envelope;
-- row DQ/quarantine and row-accounting primitives;
-- deterministic reference SCD2 behavior;
-- shared ordered current-state primitive for SCD1 and UPSERT;
-- deterministic ordered SCD1 current-state behavior;
-- deterministic ordered UPSERT behavior;
-- reconciliation/state commit gates for implemented execution slices;
-- metadata-driven dispatcher with dependency validation/failure isolation;
-- provider-neutral orchestration planning separated from the in-process backend;
-- immutable `ExecutionPlan` / execution-unit contracts;
+- independent capture semantics and apply semantics;
 - independent capture/movement executor and apply executor selection;
-- guarded `FULL -> REPLACE` with isolated staging, completeness/source-count/empty-source/row-drop guards, reconciliation and publication evidence;
-- guarded `SNAPSHOT -> SNAPSHOT_DIFF` with complete-snapshot requirement, null/duplicate-key protection, delete-volume/delete-all guards, quarantine-aware delete blocking and reconciliation-before-publication;
-- named engine capability profiles keyed by engine + profile;
-- typed `CaptureReceipt` for native/external capture handoff and native-run correlation;
-- controlled logical-name domain extension registry;
-- additive control-plane schema v2 including capture `execution_policy`, `apply_execution_policy`, `ordering_policy` and environment-local `capture_receipt` persistence;
+- conservative engine/profile capability resolution;
+- composite WATERMARK selection with tie-breaker/overlap;
+- source-faithful Bronze lineage envelope;
+- DQ/quarantine and no-silent-loss row accounting;
+- deterministic SCD2 reference semantics;
+- shared ordered current-state primitive;
+- ordered/idempotent SCD1;
+- ordered/idempotent UPSERT;
+- guarded `FULL -> REPLACE`;
+- guarded `SNAPSHOT -> SNAPSHOT_DIFF`;
+- metadata-driven multi-dataset dispatcher/failure isolation;
+- immutable `ExecutionPlan` / execution-unit contracts;
+- typed `CaptureReceipt` native/external capture handoff;
+- Fabric capture adapter contract layer for Copy Job, Copy Activity, Dataflow Gen2 and Spark;
+- bounded logical-name extension registry;
+- retry classification, bounded retry/backoff and immutable attempt lineage;
+- audited `ReprocessRequest` contracts for RETRY/BACKFILL/REPLAY/FULL_REBUILD;
+- fail-closed unknown-target-commit recovery;
+- relational environment-local reprocess and attempt-lineage evidence;
+- additive control-plane schema v2 development contract;
 - immutable release/delivery contracts and CLI.
 
-## Shared current-state apply foundation
+## Fabric capture adapter boundary
 
-`src/fabric_data_framework/apply/current_state.py` is the shared provider-neutral correctness primitive used by SCD1 and UPSERT.
-
-Certified behavior:
+The framework now has a provider adapter boundary under:
 
 ```text
-composite merge key
-source ordering tuple: event time / version / sequence / LSN-like value
-latest-row selection within one incoming batch
-exact-rerun idempotency
-stale-row IGNORE or ERROR policy
-equal-position conflicting payload -> fail closed
-unordered changed update -> fail closed unless explicitly authorized
-duplicate / incoming-superseded / stale metrics
+src/fabric_data_framework/adapters/fabric/
 ```
 
-For existing keys, incoming fields merge over the current target row while target-only fields are retained.
-
-SCD1 remains the dimensional current-state semantic name. UPSERT is the generic insert-or-update current-state semantic. They intentionally share hard ordering/idempotency logic rather than maintaining two drifting implementations.
-
-Representative proof:
+The contract is:
 
 ```text
-tests/test_scd1.py
-tests/test_upsert.py
+compiled ExecutionPlan capture unit
+    -> FabricCaptureRequest
+    -> injected Fabric transport (REST / SDK / CLI / deterministic fake)
+    -> FabricNativeRunEvidence
+    -> adapter validation
+    -> CaptureReceipt
 ```
 
-## Capture executor and apply executor are now independent
+Concrete wrappers exist for:
 
-ADR 0009 is now implemented at metadata/planning/control-plane contract level.
+```text
+CopyJobCaptureAdapter
+CopyActivityCaptureAdapter
+DataflowGen2CaptureAdapter
+SparkJobCaptureAdapter
+```
+
+The adapter layer deliberately does **not** construct credentials, call a hard-coded workspace or pretend one Fabric API is universal. Transport mechanics remain injectable.
+
+Fail-closed guarantees include:
+
+- request engine/kind must match the selected adapter;
+- a capture adapter requires `EXTRACT` + `STAGE` and rejects downstream `APPLY/PUBLISH/RECONCILE/COMMIT_STATE/FINALIZE` ownership;
+- FAILED/CANCELLED/UNKNOWN native runs never produce a success receipt;
+- native execution kind and landing reference must match;
+- requested/observed snapshot identity must match;
+- for FRAMEWORK-owned bounded movement, observed lower/upper source bounds must match the requested bounds;
+- successful native evidence is correlated through immutable `CaptureReceipt.native_run_id`.
+
+This is **adapter-contract/reference evidence only**. No real Fabric API, workspace, connection, capacity or dataset was invoked by these tests.
+
+## Recovery core
+
+Canonical recovery modes remain:
+
+```text
+NORMAL
+RETRY
+BACKFILL
+REPLAY
+FULL_REBUILD
+```
+
+The framework now implements the reusable recovery core rather than treating these as vocabulary only.
+
+### Failure classification
+
+```text
+RETRYABLE
+NON_RETRYABLE
+UNKNOWN_OUTCOME
+```
+
+Unknown/unclassified Python exceptions are conservative `NON_RETRYABLE`; only explicitly classified transient failures are automatically retried.
+
+### Attempt lineage
+
+Every attempt receives immutable linkage:
+
+```text
+dataset_run_id
+root_dataset_run_id
+previous_dataset_run_id
+attempt
+run_mode
+reprocess_request_id
+```
+
+The reference proof includes the required operational shape:
+
+```text
+attempt 1  FAILED / retryable
+attempt 2  SUCCEEDED
+```
+
+### Unknown target-commit recovery
+
+Blind retry after an ambiguous write is prohibited.
+
+```text
+UnknownCommitOutcomeError
+    -> reconcile target outcome
+         COMMITTED     -> converge SUCCEEDED; do not write again
+         NOT_COMMITTED -> retry may proceed if policy allows
+         UNRESOLVED    -> stop/fail; no blind duplicate write
+```
+
+A missing reconciliation callback is also fail-closed.
+
+### Reprocess requests
+
+`ReprocessRequest` validates source-controlled/operator intent boundaries:
+
+- RETRY requires the original dataset run;
+- BACKFILL requires explicit lower/upper range bounds;
+- REPLAY requires original run or quarantine identifiers;
+- FULL_REBUILD requires explicit `authoritative_reset=true` intent;
+- semantic request identity is immutable while lifecycle status may move `PENDING -> RUNNING -> SUCCEEDED/FAILED/CANCELLED`.
+
+`updated_at` is recorded when lifecycle status changes.
+
+### Relational evidence
+
+Control-plane v2 development schema now includes environment-local:
+
+```text
+reprocess_request
+dataset_attempt_lineage
+```
+
+These rows are never promotable between DEV/UAT/PROD.
+
+## Recovery scope that is still incomplete
+
+Do not overread the core runtime as full strategy-specific recovery.
+
+Still required:
+
+- strategy-specific retained source boundary/restaging behavior for every capture family;
+- quarantine payload replay wiring that marks `replayed_by_dataset_run_id` end to end;
+- actual FULL_REBUILD target/state reset/rebuild orchestration;
+- persistent production repository transaction/concurrency proof;
+- Fabric-native resume/replay semantics for Copy Job/Dataflow/Mirroring where the native service owns progress;
+- operator CLI/API (`status`, `retry`, `backfill`, `replay`, `rebuild`) on a supported persistent store.
+
+## Capture/apply executor separation
 
 Source-controlled execution policy:
 
@@ -118,46 +242,26 @@ Source-controlled execution policy:
 execution.engine
 execution.capability_profile
 execution.progress_owner
-    -> capture / movement policy
+    -> capture / movement
 
 execution.apply_engine
 execution.apply_capability_profile
-    -> independent final-target apply policy
+    -> apply
 ```
 
-`AUTO` may appear in source-controlled policy, but the immutable `ExecutionPlan` must contain concrete engines:
+The immutable plan resolves both to concrete values before execution. `AUTO` is a policy input, not an execution-time hidden switch.
 
-```text
-ExecutionPlan.capture_engine
-ExecutionPlan.capture_capability_profile
-ExecutionPlan.apply_engine
-ExecutionPlan.apply_capability_profile
-```
+Generic native profiles do not automatically certify target `UPSERT/SCD1/SCD2`. The default framework apply path remains Spark/framework unless a named apply profile explicitly proves semantic equivalence.
 
-Default apply resolution is conservative:
+## Dataflow Gen2 incremental hybrid
 
-```text
-apply_engine = AUTO
-    -> SPARK / framework apply
-```
-
-Generic native profiles currently certify **no** final-target apply semantic. SQL/native apply therefore fails closed unless a future named apply profile explicitly certifies the requested `ApplyStrategy`. `CUSTOM` apply is allowed only with a controlled `extensions.apply` logical reference.
-
-Representative proof:
-
-```text
-tests/test_stage_execution_policy.py
-```
-
-## Dataflow Gen2 incremental -> framework SCD1/UPSERT
-
-The named capture profile:
+The named profile:
 
 ```text
 dataflow_gen2_incremental_bucket_v1
 ```
 
-certifies only the bounded Dataflow Gen2 incremental capture/staging role:
+certifies Dataflow only for its bounded incremental capture/staging role:
 
 ```text
 capture_strategy = WATERMARK
@@ -167,119 +271,90 @@ composite WM     = NOT CERTIFIED
 native apply     = NOT CERTIFIED
 ```
 
-The planner explicitly produces this hybrid plan:
+Valid plan:
 
 ```text
 Dataflow Gen2 incremental capture/stage
-    -> framework normalize/validate
+    -> CaptureReceipt
     -> framework SCD1 or UPSERT
-    -> reconcile
-    -> state/audit
+    -> reconcile / state / audit
 ```
 
-The Dataflow capture profile cannot be reused as a fake native SCD1 apply profile. The negative case is executable-tested.
+Dataflow bucket replacement is not mislabeled as generic SCD1/UPSERT.
 
-This is the key product invariant: use Fabric-native movement where strong without allowing native destination limitations to redefine the requested semantic contract.
+## Control-plane promotion boundary
 
-## Control-plane representation
-
-The deployed semantic/control plane mirrors the stage separation:
+Promotable definitions include:
 
 ```text
-execution_policy
-  dataset_id
-  execution_engine          # capture/movement policy
-  progress_owner
-  capability_profile
-  extensions
-
-apply_execution_policy
-  dataset_id
-  execution_engine          # apply policy
-  capability_profile
-
+dataset
+dataset_contract
+load_policy
 ordering_policy
-  event_time_column
-  version_column
-  sequence_column
+execution_policy
+apply_execution_policy
+orchestration_policy
+data_quality_policy
+reconciliation_policy
 ```
 
-`apply_execution_policy` is a promotable semantic definition and is created by the normal baseline schema/CLI path. It is idempotently materialized from source-controlled metadata.
-
-Representative proof:
+Environment-local runtime state/evidence includes:
 
 ```text
-tests/test_apply_execution_policy.py
+schema_migration_history
+runtime_override
+watermark
+dataset_state
+dataset_lease
+pipeline_run
+dataset_run
+dataset_attempt_lineage
+capture_receipt
+step_run
+reconciliation_result
+quarantine_batch
+schema_change
+reprocess_request
+deployment_history
 ```
 
-The control-plane schema remains version 2 because this broader v2 definition has not been publicly released; no published v2 production migration contract is being rewritten.
+The two sets are disjoint and cover the current schema.
 
-## Framework-first semantics and stage-level native delegation
+## Current external boundary
 
-Canonical invariant:
+No enterprise Fabric workspace, capacity, tenant setting, RBAC, networking, gateway, connection, credential, production dataset or runtime state has been changed by this hardening work.
 
-```text
-semantic requirement
-    -> framework-owned contract + portable fallback implementation
-    -> capability resolver
-         -> delegate an individual stage to native Fabric only when certified
-         -> otherwise use the framework implementation
-```
+SQLAlchemy/SQLite, in-memory targets and fake Fabric transports are deterministic contract proof. They are not real Fabric production evidence.
 
-Physical ownership:
+## Exact next implementation sequence
 
-```text
-capture / movement
-    != normalize / transform
-    != apply
-    != reconcile / state
-```
+1. Implement canonical **CDC event normalization**: I/U/D envelope, source event identity, ordering position and poison/invalid-event failure semantics.
+2. Implement CDC dedupe/conflict/out-of-order handling and checkpoint commit gates.
+3. Certify `CDC -> UPSERT`, `CDC -> SCD1` and `CDC -> SCD2` as separate capture/apply combinations.
+4. Implement snapshot/bootstrap -> CDC handoff with no gap/double apply.
+5. Complete strategy-specific recovery wiring for retained ranges, quarantine replay and FULL_REBUILD state reset.
+6. Add APPEND identity/collision semantics.
+7. Add general schema-evolution and cross-strategy late/out-of-order policy contracts.
+8. Add a supported persistent control-plane repository/operator surface.
+9. Implement a real Fabric transport/API adapter and prove at least one DEV hybrid: native capture -> `CaptureReceipt` -> framework SCD1/UPSERT.
+10. Re-run production-readiness and guarantee audits, then decide the next immutable release scope/version.
 
-Progress ownership applies only to physical capture/checkpoint authority and never implies apply ownership.
+## Documentation obligation
 
-## Durable audit documents
-
-New conversations must read:
+New conversations must read the canonical docs before substantive work:
 
 ```text
 docs/ECOSYSTEM_BLUEPRINT.md
 docs/PROJECT_BLUEPRINT.md
 docs/PRODUCTION_REQUIREMENTS.md
-docs/PRODUCTION_READINESS_AUDIT.md
-docs/GUARANTEE_COVERAGE.md
 docs/EXECUTION_ENGINE_STRATEGY.md
+docs/FABRIC_EXECUTION_MODEL.md
+docs/REPOSITORY_STRUCTURE.md
 docs/CONTROL_PLANE_DESIGN.md
 docs/CICD_DESIGN.md
+docs/PRODUCTION_READINESS_AUDIT.md
+docs/GUARANTEE_COVERAGE.md
 docs/CURRENT_STATUS.md
 ```
 
-`PRODUCTION_READINESS_AUDIT.md` separates portable semantics, deterministic certification, real Fabric evidence and external enterprise controls.
-
-`GUARANTEE_COVERAGE.md` maps claimed guarantees to code/test owners and explicitly lists remaining gaps.
-
-## Current external boundary
-
-No enterprise Fabric workspace, capacity, tenant setting, RBAC, networking, connection, credential, production dataset or runtime state has been modified by this hardening work.
-
-Portable/reference semantics and SQLAlchemy schema proof are not the same as real Fabric production evidence.
-
-## Exact next implementation sequence
-
-1. Implement Fabric-stage adapter contracts for Copy Job, Copy Activity, Dataflow Gen2 and Spark that emit/correlate immutable `CaptureReceipt` evidence without weakening the semantic plan.
-2. Implement RETRY/BACKFILL/REPLAY/FULL_REBUILD attempt lineage, retryability classification and unknown-target-commit recovery.
-3. Implement CDC normalization -> UPSERT/SCD1/SCD2, including event identity/order/dedup/delete semantics and checkpoint commit gates.
-4. Implement snapshot/bootstrap -> CDC handoff so bootstrap changes have no gap/double apply.
-5. Add APPEND identity/collision semantics.
-6. Add general schema-evolution and late/out-of-order policy contracts beyond the currently certified SCD1/UPSERT/SCD2 scopes.
-7. Add a supported persistent control-plane repository/operator query surface.
-8. Prove at least one real hybrid Fabric DEV scenario: native capture -> `CaptureReceipt` -> framework SCD1/UPSERT.
-9. Re-run production readiness/guarantee audits against real adapter evidence.
-10. Only then decide the next immutable public framework release scope/version.
-
-## Release gate
-
-Do not create `v0.4.0` from the current state.
-
-The next release may still use version `0.4.0` if no public 0.4.0 artifact exists, but publication requires a coherent broadly usable enterprise product slice and certification evidence.
-
-Do not fake Fabric-estate, security, capacity or production evidence.
+If code/tests and docs differ, implementation evidence wins temporarily and the docs must be repaired in the same coherent slice.
