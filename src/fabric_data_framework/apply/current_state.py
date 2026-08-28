@@ -2,7 +2,7 @@
 
 SCD1 and generic UPSERT both need the same hard correctness decisions around
 merge keys, source ordering, duplicate reruns, stale updates and equal-position
-conflicts.  Keeping those decisions here prevents the strategies from drifting.
+conflicts. Keeping those decisions here prevents the strategies from drifting.
 """
 
 from __future__ import annotations
@@ -45,7 +45,12 @@ class CurrentStateApplyResult(FrozenModel):
     incoming_superseded: int = Field(default=0, ge=0)
 
 
-def _key(row: Mapping[str, Any], columns: tuple[str, ...], *, strategy_name: str) -> tuple[Any, ...]:
+def _key(
+    row: Mapping[str, Any],
+    columns: tuple[str, ...],
+    *,
+    strategy_name: str,
+) -> tuple[Any, ...]:
     values = tuple(row.get(column) for column in columns)
     if any(value is None for value in values):
         raise ValueError(f"{strategy_name} merge key columns cannot be null: {columns}")
@@ -116,7 +121,7 @@ def _select_latest_incoming(
         if not ordering_columns:
             if candidate_payload != current_payload:
                 raise CurrentStateOrderingError(
-                    f"multiple unordered {strategy_name} incoming rows for key {key} "
+                    f"multiple unordered incoming rows for {strategy_name} key {key} "
                     "have different payloads"
                 )
             duplicate_ignored += 1
@@ -145,7 +150,7 @@ def _select_latest_incoming(
             duplicate_ignored += 1
         else:
             raise CurrentStateConflictError(
-                f"conflicting {strategy_name} incoming rows for key {key} at equal "
+                f"{strategy_name} conflicting incoming rows for key {key} at equal "
                 f"position {candidate_position}"
             )
 
@@ -164,7 +169,7 @@ def apply_ordered_current_state(
     """Apply generic insert-or-update current-state semantics safely.
 
     Incoming fields are merged over the current target row for an existing key.
-    Target-only fields are retained.  The source ordering tuple normally contains
+    Target-only fields are retained. The source ordering tuple normally contains
     event time, source version and/or sequence/LSN values.
     """
 
