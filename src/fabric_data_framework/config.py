@@ -71,7 +71,7 @@ class Criticality(str, Enum):
 
 
 class ExecutionEngine(str, Enum):
-    """Physical engine selected to perform the dataset capture/execution boundary."""
+    """Physical engine selected for a capture or apply execution stage."""
 
     AUTO = "AUTO"
     FABRIC_COPY_JOB = "FABRIC_COPY_JOB"
@@ -147,6 +147,18 @@ class LoadPolicy(FrozenModel):
             if len(set(columns)) != len(columns):
                 raise ValueError(f"{label} columns must be unique")
 
+        ordering_columns = tuple(
+            column
+            for column in (
+                self.event_time_column,
+                self.version_column,
+                self.sequence_column,
+            )
+            if column is not None
+        )
+        if len(set(ordering_columns)) != len(ordering_columns):
+            raise ValueError("event/version/sequence ordering columns must be unique")
+
         if self.capture_strategy is CaptureStrategy.WATERMARK:
             if self.watermark is None:
                 raise ValueError("WATERMARK capture requires watermark configuration")
@@ -162,6 +174,20 @@ class LoadPolicy(FrozenModel):
         if self.apply_strategy is ApplyStrategy.SCD2 and not self.business_key:
             raise ValueError("SCD2 apply requires business_key")
         return self
+
+    @property
+    def ordering_columns(self) -> tuple[str, ...]:
+        """Ordered source-position columns used by current-state/history apply."""
+
+        return tuple(
+            column
+            for column in (
+                self.event_time_column,
+                self.version_column,
+                self.sequence_column,
+            )
+            if column is not None
+        )
 
 
 class OrchestrationPolicy(FrozenModel):
@@ -192,11 +218,18 @@ class ReconciliationPolicy(FrozenModel):
 
 
 class ExecutionPolicy(FrozenModel):
-    """Source-controlled physical execution selection for one dataset."""
+    """Source-controlled physical execution selection for dataset stages.
+
+    ``engine`` and ``capability_profile`` describe capture/movement.  Apply is an
+    independent stage with its own engine/profile so native ingestion never implies
+    native final-target semantics.
+    """
 
     engine: ExecutionEngine = ExecutionEngine.AUTO
     progress_owner: ProgressOwner = ProgressOwner.FRAMEWORK
     capability_profile: str | None = None
+    apply_engine: ExecutionEngine = ExecutionEngine.AUTO
+    apply_capability_profile: str | None = None
 
 
 _EXTENSION_NAME_PATTERN = r"^[a-z][a-z0-9_.-]*$"
@@ -230,7 +263,12 @@ class DatasetConfig(FrozenModel):
         if self.dataset_id in self.orchestration.dependencies:
             raise ValueError("dataset must not depend on itself")
         if self.execution.engine is ExecutionEngine.CUSTOM and not self.extensions.capture:
-            raise ValueError("CUSTOM execution requires extensions.capture")
+            raise ValueError("CUSTOM capture execution requires extensions.capture")
+        if (
+            self.execution.apply_engine is ExecutionEngine.CUSTOM
+            and not self.extensions.apply
+        ):
+            raise ValueError("CUSTOM apply execution requires extensions.apply")
         return self
 
     @property
