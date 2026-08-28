@@ -5,110 +5,195 @@ Last updated: 2026-08-28
 
 ## 1. Product requirement
 
-`fabric-data-framework` is intended to be installed as a released wheel into an enterprise Fabric estate and then consumed mainly through source-controlled metadata, environment bindings and bounded extension points. Domain teams should not need to edit the framework package for routine datasets.
+`fabric-data-framework` is a reusable semantic/runtime product, not a wrapper around one Fabric execution surface.
 
-The framework must therefore model the finite, well-known production data-engineering problem space explicitly and choose or validate an execution mechanism for each dataset without confusing data semantics with the physical tool that executes them.
+An enterprise should be able to install a released wheel and onboard ordinary datasets mainly through metadata, bindings and bounded domain extensions.
 
-The framework does **not** require every dataset to be ingested by Python, Notebook or Spark.
+The framework therefore must provide portable fallback implementations for mature Data Engineering semantics while using Fabric-native movement/apply features where they are explicitly capability-certified.
 
-## 2. Three independent axes
+ADR 0009 is the governing decision: **framework-first semantics with stage-level native delegation**.
 
-A dataset execution is described by at least three independent concerns:
+## 2. Independent concerns
+
+Do not collapse these concerns into one `engine` concept:
 
 ```text
 Capture semantics
   FULL | WATERMARK | CDC | SNAPSHOT | MIRROR | STREAM
 
-Physical movement/execution engine
+Capture / movement executor
   FABRIC_COPY_JOB | FABRIC_COPY_ACTIVITY | DATAFLOW_GEN2 |
-  SPARK | MIRROR | EXTERNAL_CDC | SQL | CUSTOM
+  SPARK | FABRIC_MIRRORING | EXTERNAL_CDC | SQL | CUSTOM
+
+Normalize / transform executor
+  framework/Spark | SQL | Dataflow | bounded extension | future certified delegate
 
 Apply semantics
   APPEND | REPLACE | UPSERT | SCD1 | SCD2 | SNAPSHOT_DIFF
+
+Apply executor
+  framework implementation by default
+  native delegate only when semantic equivalence is certified
+
+Capture progress owner
+  FRAMEWORK | FABRIC_NATIVE | EXTERNAL
 ```
 
-Examples:
+The current 0.4.0-development metadata field `execution.engine` represents the **capture/movement boundary**. It must not be interpreted as lifecycle-wide ownership.
+
+Future execution metadata will make apply-executor/native-delegation choice explicit.
+
+## 3. Framework-first fallback invariant
+
+For core reusable patterns:
 
 ```text
-FULL      + COPY_JOB          + REPLACE
-FULL      + COPY_ACTIVITY     + REPLACE
-WATERMARK + COPY_JOB          + UPSERT
-WATERMARK + COPY_ACTIVITY     + SCD2
-WATERMARK + SPARK             + SCD2
-CDC       + COPY_JOB          + SCD1/SCD2 where native capability is sufficient
-CDC       + EXTERNAL_CDC      + UPSERT/SCD2
-SNAPSHOT  + SPARK/COPY        + SNAPSHOT_DIFF
-MIRROR    + FABRIC_MIRRORING  + downstream canonicalization
+semantic contract
+     |
+     +--> framework-owned portable implementation (required)
+     |
+     +--> optional native stage delegate (capability-certified)
 ```
 
-The metadata compiler/planner validates that the selected physical engine can satisfy the requested semantic guarantees.
+A native service becoming unavailable/insufficient should not require rewriting the domain semantic model where an equivalent framework-controlled path is technically possible.
 
-## 3. Native Fabric movement is first-class
+Example:
 
-A production framework should use Fabric-native data movement where it is the best fit rather than reimplementing all transport in Python.
+```text
+WATERMARK + SCD1
 
-### Copy Job
+native capture path
+  Dataflow Gen2 / Copy -> landing -> framework SCD1
 
-Prefer Copy Job for straightforward high-throughput movement/replication when the connector and required semantics are supported, especially:
+framework fallback path
+  Spark/framework bounded capture -> framework SCD1
+```
 
-- multi-table ingestion;
-- full copy;
-- watermark-based incremental copy;
-- supported native CDC;
-- simple append/merge/override behavior;
-- operational cases where Fabric-native progress ownership is acceptable.
+The semantic request remains `WATERMARK + SCD1`; only the physical capture plan changes.
 
-A Copy Job may own its own incremental checkpoint. The framework must not invent a second independent watermark for the same physical movement operation.
+## 4. Native Fabric services are first-class stage executors
 
-### Copy Activity
+### 4.1 Copy Job
 
-Prefer Copy Activity when pipeline-level orchestration and framework-controlled bounds are important, for example:
+Use Copy Job where the connector/mode and required source semantics are supported and Fabric-native progress ownership is desirable, especially for straightforward multi-table/full/incremental/native-CDC movement.
 
-- metadata lookup + ForEach/Invoke Pipeline patterns;
-- framework-owned source lower/upper bounds;
-- custom bounded source query;
-- composite watermark behavior not directly represented by the chosen native copy mechanism;
-- explicit framework state/reconciliation gates around the movement step.
+Do not assume Copy Job provides a universal semantic layer. Connector support and CDC/SCD behavior are product/version constrained. A named capability profile must represent the actual certified scope.
 
-### Dataflow Gen2
+A common safe composition is:
 
-Treat Dataflow Gen2 as a supported low-code ingestion/transformation engine, not the universal default for a hundred-table technical ingestion framework.
+```text
+Copy Job
+  -> Bronze/staging
+  -> CaptureReceipt/native run correlation
+  -> framework normalization/apply/reconcile
+```
 
-Good fits include:
+### 4.2 Copy Activity
 
-- Power Query is the natural connector/transformation surface;
-- substantial low-code cleansing/reshape logic is valuable;
-- business/data-integration teams need visual maintainability;
-- reusable parameterized transformation logic fits current Dataflow capabilities.
+Use Copy Activity where framework-controlled bounds/source queries and Pipeline control flow are useful:
 
-Do not force Dataflow Gen2 where parameterization, incremental behavior, state ownership or source/target dynamism is weaker than Copy/Spark for the workload.
+```text
+framework computes/fixes source range
+  -> Copy Activity moves bounded range
+  -> CaptureReceipt
+  -> framework apply/reconcile/state
+```
 
-### Spark / framework executor
+This is a natural option for composite watermark/source-query scenarios if the activity can execute the framework-defined predicate while the framework owns progress.
 
-Prefer Spark/framework-owned execution when correctness or transformation requirements exceed native movement capabilities, including:
+### 4.3 Dataflow Gen2
 
-- composite watermark ordering such as `(modified_at, business_key)`;
-- custom source consistency/freeze logic;
-- complex parsing or irregular files;
-- micro-batch logic;
-- heavy transformations;
-- custom deduplication/version ordering;
-- late/out-of-order correction;
-- advanced SCD2 behavior;
-- cross-batch idempotency/recovery semantics;
-- source/target logic requiring code-level tests.
+Dataflow Gen2 is a first-class low-code movement/transformation surface, especially where Power Query connector/folding/reshape support is advantageous.
 
-Spark should be a deliberate execution engine, not a mandatory transport layer.
+It is **not** assumed to own final current-state/history semantics.
 
-### External CDC / Debezium
+Current named profile:
 
-If a reliable enterprise CDC feed already exists, such as Debezium/Kafka or another governed change-log service, consume that feed rather than polling the operational database again.
+```text
+DATAFLOW_GEN2 / dataflow_gen2_incremental_bucket_v1
+```
 
-The framework normalizes the external CDC envelope into the Bronze contract, validates ordering/event identity/delete semantics and then applies the configured target strategy.
+certifies the current Fabric DateTime-bucket incremental behavior only as a capture/staging mechanism:
 
-## 4. Progress ownership is explicit
+```text
+capture_strategy = WATERMARK
+progress_owner = FABRIC_NATIVE
+composite watermark = not certified
+native final SCD1/UPSERT/SCD2 = not implied
+```
 
-Every dataset must declare or resolve one authoritative progress owner:
+Required supported hybrid:
+
+```text
+Dataflow Gen2 incremental buckets
+    -> landing/staging
+    -> CaptureReceipt
+    -> framework SCD1 / future UPSERT / SCD2
+    -> reconciliation/audit
+```
+
+The bucket `replace` destination behavior must not be mislabeled as generic SCD1.
+
+### 4.4 Spark/framework
+
+Spark/framework execution is the conservative programmable fallback and is preferred when native movement cannot prove required semantics, including:
+
+- composite watermark ordering;
+- custom source-boundary logic;
+- irregular files/protocols;
+- micro-batch parsing;
+- custom dedupe/order/version behavior;
+- advanced current/history correction;
+- deterministic recovery/idempotency requirements;
+- code-level tests are required for correctness.
+
+Spark is not mandatory for every transport workload.
+
+### 4.5 Mirroring
+
+Mirroring can own replication progress when a supported source/governance model fits. Downstream canonicalization/apply semantics remain separate decisions.
+
+### 4.6 External CDC
+
+When a governed Debezium/Kafka or other reliable CDC service already exists, consume it rather than re-polling the source.
+
+External CDC owns/participates in offset authority according to the adapter contract. The framework still owns canonical CDC normalization, target apply and audit for the non-delegated stages.
+
+## 5. Named capability profiles
+
+Physical engine capabilities vary by:
+
+```text
+product feature
+connector/source type
+source configuration
+runtime mode
+target type
+Fabric product version/status
+```
+
+Therefore capabilities are keyed by:
+
+```text
+(engine, profile_name)
+```
+
+rather than a single optimistic global capability per engine.
+
+Current behavior:
+
+- default profiles are conservative;
+- `AUTO` resolves conservatively (normally framework/Spark when source-specific native certification is unknown);
+- named profiles require an explicit engine;
+- unsupported combinations fail before data mutation;
+- a profile may certify capture without certifying apply;
+- a profile that cannot prove composite watermark ordering must reject composite watermark metadata.
+
+Future profiles should be connector/product-version specific where materially necessary.
+
+## 6. Progress ownership
+
+Every physical capture has one authoritative checkpoint owner:
 
 ```text
 FRAMEWORK
@@ -119,286 +204,244 @@ EXTERNAL
 Examples:
 
 ```text
-Copy Activity with framework-generated bounded query
-  -> FRAMEWORK owns watermark/checkpoint
+Copy Activity with framework-bounded predicate
+  -> FRAMEWORK
 
-Copy Job incremental/CDC
-  -> FABRIC_NATIVE owns movement checkpoint
-  -> framework records native run/checkpoint evidence but does not advance a competing watermark
+Copy Job incremental/native CDC
+  -> FABRIC_NATIVE
 
-Debezium/Kafka consumer group
-  -> EXTERNAL or framework consumer owns offset according to the selected adapter contract
+Dataflow Gen2 incremental bucket refresh
+  -> FABRIC_NATIVE
+
+Debezium consumer group
+  -> EXTERNAL or explicitly selected framework consumer
 ```
 
-One physical capture operation must not have two independent authorities for progress.
+The framework must never advance a competing independent watermark for the same native capture checkpoint.
 
-## 5. Capture receipt / handoff contract
+**Progress ownership does not imply apply ownership.**
 
-Native Fabric tools do not import the Python wheel themselves. They integrate with the framework through a typed handoff contract.
-
-Conceptually every capture engine produces a `CaptureReceipt`:
+Valid example:
 
 ```text
-CaptureReceipt
-  dataset_run_id
-  execution_engine
-  native_run_id
-  source_reference
-  landing_reference
-  rows_read / rows_written
-  source_lower_bound
-  source_upper_bound
-  snapshot_id
-  complete_snapshot
-  progress_owner
-  external_checkpoint_reference
-  schema/version evidence
-  started_at / completed_at
+capture progress = FABRIC_NATIVE (Dataflow)
+apply semantics  = framework SCD1
 ```
 
-The downstream framework execution can then perform:
+## 7. CaptureReceipt handoff
+
+Native Fabric activities do not import the Python wheel. They participate through an evidence contract.
+
+`CaptureReceipt` records/correlates at least:
 
 ```text
-capture receipt / Bronze landing
-  -> normalization
-  -> DQ/quarantine
-  -> domain transform
-  -> apply
-  -> reconciliation
-  -> framework state commit where framework is authoritative
-  -> audit/lineage
+dataset_run_id
+dataset_id
+capture_strategy
+execution_engine
+progress_owner
+native_run_id
+landing_reference
+rows_read / rows_written
+source lower/upper boundary when meaningful
+snapshot_id / complete_snapshot when meaningful
+external checkpoint reference when meaningful
+started/completed timestamps
 ```
 
-This is how Copy Activity, Copy Job or Dataflow Gen2 can participate in the same product without pretending that those activities execute the Python wheel.
+The downstream framework consumes landing data plus receipt evidence and performs the non-delegated stages.
 
-## 6. Metadata-driven 100-table source pattern
+Control-plane schema v2 persists `capture_receipt` as environment-local runtime evidence.
 
-For a source with many tables, do not create one bespoke pipeline per table and do not force all tables through one giant execution path.
+## 8. Apply semantics and delegation
 
-Use dataset metadata plus a small number of reusable operational execution groups.
+The framework canonical apply families are:
 
-Example:
+```text
+APPEND
+REPLACE
+UPSERT
+SCD1
+SCD2
+SNAPSHOT_DIFF
+```
+
+Implemented reference fallbacks currently include:
+
+```text
+REPLACE
+SCD1
+SCD2
+SNAPSHOT_DIFF
+```
+
+UPSERT and APPEND remain P0/P1 gaps.
+
+Native apply delegation is allowed only when a profile explicitly certifies equivalence for the requested contract and failure/retry boundary.
+
+Do not infer equivalence from native names such as:
+
+```text
+merge
+incremental refresh
+overwrite
+SCD2
+```
+
+The planner must record the concrete executor in the immutable plan; there is no hidden runtime engine switch.
+
+## 9. Ordered SCD1 example
+
+A common enterprise pattern:
 
 ```yaml
-dataset: erp.customer
-capture_strategy: WATERMARK
-apply_strategy: SCD2
-execution_group: erp_incremental_history
-execution_engine: COPY_ACTIVITY
-progress_owner: FRAMEWORK
-watermark:
-  column: modified_at
-  tie_breaker: [customer_id]
-ordering:
+dataset_id: erp.customer
+
+load:
+  capture_strategy: WATERMARK
+  apply_strategy: SCD1
+  merge_key: [tenant_id, customer_id]
+  watermark:
+    column: modified_at
+    overlap_window_seconds: 60
   event_time_column: modified_at
-  version_column: null
-merge_key: [customer_id]
-business_key: [customer_id]
+  version_column: source_version
+
+execution:
+  engine: DATAFLOW_GEN2
+  progress_owner: FABRIC_NATIVE
+  capability_profile: dataflow_gen2_incremental_bucket_v1
 ```
 
-```yaml
-dataset: erp.country
-capture_strategy: FULL
-apply_strategy: REPLACE
-execution_group: erp_full_reference
-execution_engine: COPY_JOB
-progress_owner: FABRIC_NATIVE
-merge_key: [country_code]
-```
-
-```yaml
-dataset: erp.order
-capture_strategy: CDC
-apply_strategy: UPSERT
-execution_group: erp_cdc_transactional
-execution_engine: EXTERNAL_CDC
-progress_owner: EXTERNAL
-merge_key: [order_id]
-ordering:
-  version_column: source_lsn
-```
-
-A realistic orchestration layout is therefore closer to:
+Physical/reference plan:
 
 ```text
-pl_erp_daily                       parent/source orchestration
-   |
-   +-- execution_group=erp_full_reference
-   |       -> reusable native-copy path
-   |
-   +-- execution_group=erp_incremental_current
-   |       -> reusable watermark path
-   |
-   +-- execution_group=erp_incremental_history
-   |       -> capture + framework SCD2 path
-   |
-   +-- execution_group=erp_cdc_transactional
-   |       -> CDC normalization/apply path
-   |
-   +-- execution_group=erp_custom_complex
-           -> Spark/custom extension path
+Dataflow Gen2 capture/stage
+  -> CaptureReceipt
+  -> framework SCD1 using ordered current-state semantics
 ```
 
-The exact number of pipelines is an operational design decision. `execution_group` is metadata, so groups can reflect source load limits, SLA, schedule, capacity, engine, criticality and failure blast radius.
+If the source requires `(modified_at, customer_id)` composite capture ordering that the Dataflow profile cannot prove, that profile is rejected and a framework-bounded capture engine must be selected instead.
 
-## 7. Do not make SCD2 the ingestion architecture
+## 10. Many-table source topology
 
-SCD2 is an apply/history semantic, not a source extraction method.
-
-The same SCD2 engine may consume:
+For a source with tens/hundreds of tables, avoid:
 
 ```text
-WATERMARK -> SCD2
-CDC       -> SCD2
-SNAPSHOT  -> SNAPSHOT_DIFF -> SCD2
+one bespoke pipeline per table
+one giant opaque pipeline for every pattern
 ```
 
-Therefore a separate `*_scd2` Fabric pipeline is acceptable when it creates a useful operational boundary, but the framework must not require that topology. The metadata compiler chooses SCD2 from `apply_strategy`, independent of how rows arrived.
+Prefer metadata + a small number of reusable execution groups:
 
-## 8. Native versus framework SCD2
+```text
+pl_erp_daily
+  +-- erp_full_reference
+  +-- erp_incremental_current
+  +-- erp_incremental_history
+  +-- erp_cdc_transactional
+  +-- erp_custom_complex
+```
 
-If a native Fabric capability offers SCD2 and its documented behavior satisfies the dataset contract, the framework may delegate execution to it.
+Group by meaningful operational boundaries such as:
 
-If the dataset requires guarantees beyond that native capability — for example custom effective dating, composite event ordering, late-history repair, conflict handling or stronger audit/recovery semantics — use the framework SCD2 executor.
+- source/gateway/concurrency limit;
+- capture engine/profile;
+- schedule/SLA;
+- volume/runtime class;
+- dependency stage;
+- criticality/blast radius;
+- capacity/network constraints.
 
-The planner must make this delegation explicit in the immutable `ExecutionPlan`. There is no hidden runtime fallback from one engine to another.
+SCD1/SCD2 may influence operational grouping but do not define ingestion architecture.
 
-## 9. Bounded custom extension points
+## 11. Bounded extension points
 
-Production metadata-driven frameworks still need an escape hatch for irregular sources and genuinely custom transformations.
-
-Custom logic is allowed through typed, source-controlled extension references, conceptually:
+Metadata stores logical extension names, for example:
 
 ```yaml
 extensions:
-  capture_handler: null
-  transform_handler: "customer_domain.handlers.weird_feed:transform"
-  apply_handler: null
+  capture: vendor_api_v2
+  parser: weird_csv_v1
+  transform: normalize_position_v3
+  quality: null
+  apply: null
 ```
 
-Allowed extension classes include:
+The domain package registers implementations in a controlled registry/entry-point layer.
+
+Metadata must **not** contain arbitrary Python module paths/call expressions.
+
+Extensions may implement:
 
 - custom capture adapter;
-- batch/micro-batch parser;
-- pre-apply transformation;
-- custom DQ rule provider;
-- specialized apply adapter where no standard strategy is sufficient.
+- special batch/micro-batch parser;
+- pre-apply transform;
+- DQ provider;
+- specialized apply adapter when no standard semantic contract fits.
 
-Extensions receive typed execution context and batch/landing references and return typed results/evidence.
+Extensions may not bypass:
 
-Extensions may **not** silently:
+- source/run lineage;
+- row accounting;
+- quarantine policy;
+- reconciliation gates;
+- state/progress authority;
+- publication boundary;
+- secret/binding policy;
+- durable audit.
 
-- mutate framework watermark/state directly;
-- mark reconciliation successful;
-- bypass row accounting;
-- publish outside the declared target transaction/publication boundary;
-- read secrets from source-controlled metadata;
-- change semantic strategy at runtime.
+## 12. Capability resolver acceptance rules
 
-The framework remains the lifecycle and correctness owner around the extension.
-
-## 10. Engine capability registry
-
-The framework will maintain an explicit capability registry instead of scattering engine-specific `if` statements.
-
-Conceptually:
+Before execution the resolver/compiler must know enough to answer:
 
 ```text
-EngineCapability
-  connectors / source types
-  capture strategies
-  supported apply modes
-  native checkpoint ownership
-  delete support
-  schema-evolution support
-  multi-table support
-  parameterization constraints
-  execution mode
-  known service limitations
+Can this engine/profile produce the requested capture semantics?
+Who owns capture progress?
+Can it prove required ordering/completeness?
+What landing/receipt evidence is required?
+Which downstream semantics remain framework-owned?
+Is any native apply delegate explicitly certified?
 ```
 
-Planning becomes:
+If the answer is uncertain, fail closed or use a framework fallback. Do not silently weaken correctness.
+
+## 13. Current implementation status
+
+Reference implementation currently includes:
+
+- `ExecutionEngine`, `ProgressOwner`, `ExecutionPolicy.capability_profile`;
+- capability registry keyed by engine + profile;
+- conservative `AUTO`;
+- Dataflow Gen2 incremental bucket profile;
+- native-capture/framework-process `ExecutionPlan` splitting;
+- `CaptureReceipt` contracts/persistence;
+- SCD1 framework fallback;
+- logical extension registry.
+
+Latest green reference suite before final docs audit: 91 tests (`33172961692`).
+
+Still required:
+
+- explicit apply executor/native-apply metadata;
+- UPSERT and APPEND framework implementations;
+- concrete Fabric adapter calls for Copy Job/Copy Activity/Dataflow/SJD;
+- product/connector-specific capability certification from real runs;
+- recovery/CDC/schema-evolution hardening.
+
+## 14. Product acceptance rule
+
+Routine source onboarding should normally be:
 
 ```text
-Dataset semantic metadata
-       +
-Environment/source capabilities
-       +
-Explicit execution policy
-       |
-       v
-Capability validation/resolution
-       |
-       v
-Immutable ExecutionPlan
-       |
-       +--> Fabric Copy backend
-       +--> Copy Job backend
-       +--> Dataflow backend
-       +--> Spark backend
-       +--> external CDC backend
+1. register/resolve connection binding
+2. declare semantic metadata
+3. select or resolve a certified capture profile
+4. use framework apply semantic by default
+5. add domain DQ/mapping
+6. add bounded extension only for genuine exceptions
+7. deploy metadata/items
+8. observe through common control plane
 ```
 
-`AUTO` selection, if supported, must resolve to a concrete engine before execution and be captured in the immutable plan/provenance. A production run must never silently switch engines because service capability changed.
-
-## 11. Pipeline grouping guidance
-
-Do not group tables only because they share a database connection. Do not group them only because they share SCD2 either.
-
-Useful grouping dimensions are:
-
-- source system and source-side concurrency limit;
-- movement engine;
-- capture semantics;
-- SLA/schedule;
-- data volume/runtime class;
-- criticality/blast radius;
-- dependency stage;
-- capacity pool;
-- special network/gateway requirements.
-
-For a 100-table ERP source, 3–8 reusable execution groups is often more maintainable than 100 pipelines or one giant pipeline, but the framework does not encode a magic number.
-
-## 12. Control-plane metadata target
-
-The deployed semantic/control metadata should eventually express at least:
-
-```text
-dataset identity
-source/target reference
-capture_strategy
-apply_strategy
-execution_engine / execution_profile
-progress_owner
-business_key
-merge_key
-watermark column + composite tie-breaker
-source event time
-source version/sequence columns
-delete policy
-schema contract/evolution policy
-DQ policy
-reconciliation policy
-execution_group
-criticality/dependencies
-retry/timeout/concurrency
-custom extension references
-```
-
-Operational overrides remain limited to safe operational values. Engine, merge keys, SCD mode, schema contract or custom handler identity are semantic/deployment changes, not ad-hoc production overrides.
-
-## 13. Product acceptance rule
-
-The framework is successful when a new ordinary enterprise source can be onboarded mainly by:
-
-```text
-1. register connection/binding
-2. declare dataset metadata
-3. choose/resolve supported execution profile
-4. provide optional domain DQ/mapping
-5. provide custom handler only for true exceptions
-6. deploy metadata + Fabric items
-7. run and observe through common control plane
-```
-
-Routine onboarding must not require editing `fabric-data-framework` itself.
+Editing the framework package should be reserved for a new reusable cross-domain capability, not an ordinary table/source variation.
