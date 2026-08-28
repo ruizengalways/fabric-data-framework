@@ -1,9 +1,20 @@
 """Provider-specific physical execution adapters.
 
-Reusable data semantics stay outside this package. Adapters translate an already
-compiled execution unit into provider-specific invocation/evidence contracts.
+Reusable data semantics stay outside this package. Adapters translate provider
+invocation/envelope evidence into stable framework contracts.
 """
 
+from .cdc import (
+    DebeziumKafkaAdapterError,
+    DebeziumKafkaBatchResult,
+    DebeziumKafkaPartitionResume,
+    DebeziumKafkaRecord,
+    DebeziumKafkaResumeGapError,
+    DebeziumKafkaResumePlan,
+    DebeziumSnapshotReadPolicy,
+    normalize_debezium_kafka_batch,
+    plan_debezium_kafka_resume,
+)
 from .fabric import (
     CopyActivityCaptureAdapter,
     CopyJobCaptureAdapter,
@@ -22,6 +33,13 @@ __all__ = [
     "CopyActivityCaptureAdapter",
     "CopyJobCaptureAdapter",
     "DataflowGen2CaptureAdapter",
+    "DebeziumKafkaAdapterError",
+    "DebeziumKafkaBatchResult",
+    "DebeziumKafkaPartitionResume",
+    "DebeziumKafkaRecord",
+    "DebeziumKafkaResumeGapError",
+    "DebeziumKafkaResumePlan",
+    "DebeziumSnapshotReadPolicy",
     "FabricAdapterExecutionError",
     "FabricAdapterRegistry",
     "FabricCaptureAdapter",
@@ -30,4 +48,6 @@ __all__ = [
     "FabricNativeRunEvidence",
     "FabricNativeRunStatus",
     "SparkJobCaptureAdapter",
+    "normalize_debezium_kafka_batch",
+    "plan_debezium_kafka_resume",
 ]
