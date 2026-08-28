@@ -80,30 +80,30 @@ Framework PR #7 validated the real runner identity from GitHub job metadata:
 runner_id = 2
 runner_name = "Bear"
 runner_group_name = "Default"
-labels = ["self-hosted"]
+job requested labels = ["self-hosted"]
 ```
 
-Because `Bear` is currently the runner display name rather than a custom label, workflows correctly use:
+The jobs API proves the runner display name is `Bear` and that the workflow successfully schedules with:
 
 ```yaml
 runs-on: self-hosted
 ```
 
-and do not use `[self-hosted, Bear]`. If a custom `Bear` label is added later, scheduling can be tightened without changing application/runtime architecture.
+The jobs API field above represents the labels requested by the job; it does **not** prove the complete configured-label set on Bear. Therefore the framework does not assume that `Bear` is a custom scheduler label. If an explicit custom label is configured and independently verified later, scheduling can be tightened without changing application/runtime architecture.
 
 The first Bear execution exposed non-hermetic Ruff rule discovery from the self-hosted environment. CI was corrected to invoke Ruff with `--isolated` and an explicit core correctness policy (`E4,E7,E9,F`) so repository CI does not depend on runner-global Ruff configuration.
 
-Framework CI run `33137284837` then completed successfully on Bear:
+Framework CI run `33137284837` completed successfully on Bear:
 
 - `build-wheel`: **SUCCESS**;
 - `test-python-3.13`: **SUCCESS**;
 - `test-python-3.11`: **SUCCESS**.
 
-This proves checkout, Python provisioning, package installation, isolated static checks, the framework test suite, wheel build and artifact upload on the self-hosted runner.
+After PR #7 was squash-merged as commit `5cbc8af005c550f8478fae936936722e95c33e0b`, the resulting `main` push CI run `33137410883` also completed with all three jobs successful. This proves checkout, Python provisioning, package installation, isolated static checks, the framework test suite, wheel build and artifact upload on the canonical default branch.
 
 ## Immutable release state
 
-The tag-triggered `v0.3.0` release workflow is defined and now targets `self-hosted` execution. The immutable `v0.3.0` release has not yet been claimed in this status document; the immediate delivery step after the runner workflow change is merged is to create/prove the `v0.3.0` tag release on Bear.
+The tag-triggered `v0.3.0` release workflow is defined and targets `self-hosted` execution. The immutable `v0.3.0` release has not yet been claimed; the immediate delivery step is to create/push the `v0.3.0` tag from the validated Framework `main` commit and prove the immutable release workflow on Bear.
 
 Customer must not claim successful exact-release integration against `0.3.0` until the immutable framework artifact exists.
 
@@ -115,8 +115,8 @@ The framework does not embed tenant credentials or claim a real Fabric deploymen
 
 - Immutable `v0.3.0` framework GitHub Release still needs to be created and proven on Bear.
 - Customer exact-release integration remains gated on that artifact.
-- Bear currently exposes only the `self-hosted` label; the display name itself is not a scheduler label.
-- A single Bear runner provides one execution slot, so matrix/build jobs execute serially unless additional runners are added.
+- Bear is currently one execution slot for the Framework repository, so matrix/build jobs execute serially unless additional runner instances are added.
+- The complete configured label set on Bear has not been retrieved through the available connector; only successful `self-hosted` scheduling and the runner display name are proven.
 - No real Fabric item deployment has yet been executed from these workflows.
 - No service principal/managed identity is configured in this repository.
 - No physical enterprise control-plane database adapter has been exercised; SQLite/SQLAlchemy is the local contract proof.
@@ -126,9 +126,9 @@ The framework does not embed tenant credentials or claim a real Fabric deploymen
 
 ## Exact next implementation step
 
-1. Merge the self-hosted runner workflow change after the successful Bear CI run.
-2. Create and prove immutable framework release `v0.3.0` on Bear.
-3. Run Customer PR #6 source-contract and exact-release integration on an authorized self-hosted runner, then merge the exact `fabric-data-framework==0.3.0` dependency upgrade.
+1. Create and prove immutable framework release `v0.3.0` on Bear from the validated Framework `main` commit.
+2. Ensure `fabric-customer` has its own eligible repository-level self-hosted runner instance on the Bear machine (or later use an organization-level shared runner model).
+3. Run Customer PR #6 source-contract and exact-release integration, then merge the exact `fabric-data-framework==0.3.0` dependency upgrade when green.
 4. Continue with the metadata-driven multi-dataset dispatcher/failure-isolation slice.
 5. Wire a real GitHub-driven Fabric deployment adapter when an approved tenant identity/workspace binding is available.
 
