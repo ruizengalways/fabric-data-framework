@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import Field
 
 from ..config import (
+    ApplyStrategy,
     CaptureStrategy,
     DatasetConfig,
     ExecutionEngine,
@@ -25,11 +26,23 @@ class EngineCapability(FrozenModel):
     profile_name: str = Field(default=DEFAULT_CAPABILITY_PROFILE, min_length=1)
     engine: ExecutionEngine
     capture_strategies: frozenset[CaptureStrategy]
+    apply_strategies: frozenset[ApplyStrategy] = frozenset()
     progress_owners: frozenset[ProgressOwner]
     supports_composite_watermark: bool = False
     supports_native_cdc: bool = False
     supports_complete_snapshot_evidence: bool = True
     notes: str = Field(default="", max_length=1000)
+
+
+_FRAMEWORK_APPLY_STRATEGIES = frozenset(
+    {
+        ApplyStrategy.REPLACE,
+        ApplyStrategy.UPSERT,
+        ApplyStrategy.SCD1,
+        ApplyStrategy.SCD2,
+        ApplyStrategy.SNAPSHOT_DIFF,
+    }
+)
 
 
 _DEFAULT_CAPABILITIES = (
@@ -41,7 +54,10 @@ _DEFAULT_CAPABILITIES = (
         progress_owners=frozenset({ProgressOwner.FABRIC_NATIVE}),
         supports_native_cdc=True,
         supports_composite_watermark=False,
-        notes="Conservative built-in profile: native progress is authoritative.",
+        notes=(
+            "Conservative capture profile: native progress is authoritative. "
+            "No final-target apply strategy is certified by the generic profile."
+        ),
     ),
     EngineCapability(
         engine=ExecutionEngine.FABRIC_COPY_ACTIVITY,
@@ -50,7 +66,10 @@ _DEFAULT_CAPABILITIES = (
         ),
         progress_owners=frozenset({ProgressOwner.FRAMEWORK}),
         supports_composite_watermark=True,
-        notes="Framework supplies bounded source query/state where required.",
+        notes=(
+            "Framework supplies bounded source query/state where required. "
+            "No generic native apply strategy is certified."
+        ),
     ),
     EngineCapability(
         engine=ExecutionEngine.DATAFLOW_GEN2,
@@ -88,9 +107,13 @@ _DEFAULT_CAPABILITIES = (
                 CaptureStrategy.STREAM,
             }
         ),
+        apply_strategies=_FRAMEWORK_APPLY_STRATEGIES,
         progress_owners=frozenset({ProgressOwner.FRAMEWORK, ProgressOwner.EXTERNAL}),
         supports_composite_watermark=True,
-        notes="Framework-controlled programmable execution.",
+        notes=(
+            "Framework-controlled programmable execution and the default portable "
+            "apply authority for implemented framework apply strategies."
+        ),
     ),
     EngineCapability(
         engine=ExecutionEngine.FABRIC_MIRRORING,
@@ -111,16 +134,21 @@ _DEFAULT_CAPABILITIES = (
         ),
         progress_owners=frozenset({ProgressOwner.FRAMEWORK}),
         supports_composite_watermark=True,
+        notes=(
+            "SQL is available as a physical execution kind, but generic target apply "
+            "semantics remain uncertified until target-specific profiles are added."
+        ),
     ),
     EngineCapability(
         engine=ExecutionEngine.CUSTOM,
         capture_strategies=frozenset(CaptureStrategy),
+        apply_strategies=frozenset(ApplyStrategy),
         progress_owners=frozenset(
             {ProgressOwner.FRAMEWORK, ProgressOwner.FABRIC_NATIVE, ProgressOwner.EXTERNAL}
         ),
         supports_composite_watermark=True,
         supports_native_cdc=True,
-        notes="Requires declared domain capture extension.",
+        notes="Requires declared controlled domain extension for the selected stage.",
     ),
 )
 
@@ -130,12 +158,11 @@ class CapabilityRegistry:
 
     Capabilities are keyed by physical engine plus a named profile so product- or
     connector-specific behavior does not leak into global semantic assumptions.
+    Capture and apply are validated independently.
     """
 
     def __init__(self, capabilities: tuple[EngineCapability, ...] = _DEFAULT_CAPABILITIES):
-        self._by_key = {
-            (item.engine, item.profile_name): item for item in capabilities
-        }
+        self._by_key = {(item.engine, item.profile_name): item for item in capabilities}
         if len(self._by_key) != len(capabilities):
             raise ValueError("duplicate execution engine capability profile")
 
@@ -152,28 +179,40 @@ class CapabilityRegistry:
                 f"no capability profile registered for {engine.value}/{profile}"
             ) from exc
 
-    def resolve_engine(self, config: DatasetConfig) -> ExecutionEngine:
-        """Resolve AUTO conservatively when source-specific capabilities are unknown."""
+    def resolve_capture_engine(self, config: DatasetConfig) -> ExecutionEngine:
+        """Resolve capture AUTO conservatively when source capabilities are unknown."""
 
         if config.execution.engine is not ExecutionEngine.AUTO:
             return config.execution.engine
 
         if config.execution.capability_profile is not None:
             raise UnsupportedExecutionCombination(
-                "capability_profile requires an explicit execution engine"
+                "capture capability_profile requires an explicit execution engine"
             )
 
-        capture = config.load.capture_strategy
-        if capture is CaptureStrategy.MIRROR:
+        if config.load.capture_strategy is CaptureStrategy.MIRROR:
             return ExecutionEngine.FABRIC_MIRRORING
         return ExecutionEngine.SPARK
 
-    def validate(self, config: DatasetConfig) -> ExecutionEngine:
-        engine = self.resolve_engine(config)
-        capability = self.capability_for(
-            engine,
-            config.execution.capability_profile,
-        )
+    def resolve_apply_engine(self, config: DatasetConfig) -> ExecutionEngine:
+        """Resolve apply AUTO to the portable framework implementation authority."""
+
+        if config.execution.apply_engine is not ExecutionEngine.AUTO:
+            return config.execution.apply_engine
+        if config.execution.apply_capability_profile is not None:
+            raise UnsupportedExecutionCombination(
+                "apply_capability_profile requires an explicit apply_engine"
+            )
+        return ExecutionEngine.SPARK
+
+    def resolve_engine(self, config: DatasetConfig) -> ExecutionEngine:
+        """Backward-compatible alias for capture-engine resolution."""
+
+        return self.resolve_capture_engine(config)
+
+    def validate_capture(self, config: DatasetConfig) -> ExecutionEngine:
+        engine = self.resolve_capture_engine(config)
+        capability = self.capability_for(engine, config.execution.capability_profile)
         capture = config.load.capture_strategy
         owner = config.execution.progress_owner
 
@@ -209,9 +248,31 @@ class CapabilityRegistry:
             }
         ):
             raise UnsupportedExecutionCombination(
-                "FABRIC_NATIVE progress owner requires a native Fabric execution authority"
+                "FABRIC_NATIVE progress owner requires a native Fabric capture authority"
             )
         return engine
+
+    def validate_apply(self, config: DatasetConfig) -> ExecutionEngine:
+        engine = self.resolve_apply_engine(config)
+        capability = self.capability_for(
+            engine,
+            config.execution.apply_capability_profile,
+        )
+        apply_strategy = config.load.apply_strategy
+        if apply_strategy not in capability.apply_strategies:
+            raise UnsupportedExecutionCombination(
+                f"{engine.value}/{capability.profile_name} does not certify apply "
+                f"strategy {apply_strategy.value}; use the framework apply engine or "
+                "an explicitly certified apply capability profile"
+            )
+        return engine
+
+    def validate(self, config: DatasetConfig) -> ExecutionEngine:
+        """Validate both stages and return capture engine for compatibility."""
+
+        capture_engine = self.validate_capture(config)
+        self.validate_apply(config)
+        return capture_engine
 
 
 DEFAULT_CAPABILITY_REGISTRY = CapabilityRegistry()
