@@ -10,6 +10,13 @@ from .apply.scd1 import (
     apply_scd1,
 )
 from .apply.snapshot_diff import SnapshotDiffPolicy
+from .apply.upsert import (
+    UpsertApplyPolicy,
+    UpsertApplyResult,
+    UpsertConflictError,
+    UpsertOrderingError,
+    apply_upsert,
+)
 from .capture.full import FullSnapshotEvidence
 from .capture.snapshot import SnapshotEvidence
 from .config import (
@@ -99,8 +106,13 @@ __all__ = [
     "StaleRecordAction",
     "TargetConfig",
     "UnsupportedExecutionCombination",
+    "UpsertApplyPolicy",
+    "UpsertApplyResult",
+    "UpsertConflictError",
+    "UpsertOrderingError",
     "WatermarkConfig",
     "apply_scd1",
+    "apply_upsert",
     "build_default_execution_plan",
     "compile_execution_plan",
     "dispatch_datasets",
