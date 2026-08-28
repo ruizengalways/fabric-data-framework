@@ -17,7 +17,12 @@ class UnsupportedExecutionCombination(ValueError):
     """Raised when metadata asks an engine to guarantee semantics it cannot prove."""
 
 
+DEFAULT_CAPABILITY_PROFILE = "default"
+DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE = "dataflow_gen2_incremental_bucket_v1"
+
+
 class EngineCapability(FrozenModel):
+    profile_name: str = Field(default=DEFAULT_CAPABILITY_PROFILE, min_length=1)
     engine: ExecutionEngine
     capture_strategies: frozenset[CaptureStrategy]
     progress_owners: frozenset[ProgressOwner]
@@ -54,7 +59,23 @@ _DEFAULT_CAPABILITIES = (
             {ProgressOwner.FRAMEWORK, ProgressOwner.FABRIC_NATIVE}
         ),
         supports_composite_watermark=False,
-        notes="Conservative baseline; connector/profile-specific incremental support may extend this.",
+        notes=(
+            "Conservative baseline. Dataflow Gen2 incremental refresh is not assumed "
+            "to satisfy the generic WATERMARK contract without an explicit profile."
+        ),
+    ),
+    EngineCapability(
+        profile_name=DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE,
+        engine=ExecutionEngine.DATAFLOW_GEN2,
+        capture_strategies=frozenset({CaptureStrategy.WATERMARK}),
+        progress_owners=frozenset({ProgressOwner.FABRIC_NATIVE}),
+        supports_composite_watermark=False,
+        supports_complete_snapshot_evidence=False,
+        notes=(
+            "Fabric Dataflow Gen2 DateTime-bucket incremental refresh profile. "
+            "This profile certifies capture/staging only; downstream SCD1/UPSERT/SCD2 "
+            "remains framework-owned unless a separate native apply capability is certified."
+        ),
     ),
     EngineCapability(
         engine=ExecutionEngine.SPARK,
@@ -105,19 +126,30 @@ _DEFAULT_CAPABILITIES = (
 
 
 class CapabilityRegistry:
-    """Immutable-by-convention registry used by metadata compilation."""
+    """Immutable-by-convention registry used by metadata compilation.
+
+    Capabilities are keyed by physical engine plus a named profile so product- or
+    connector-specific behavior does not leak into global semantic assumptions.
+    """
 
     def __init__(self, capabilities: tuple[EngineCapability, ...] = _DEFAULT_CAPABILITIES):
-        self._by_engine = {item.engine: item for item in capabilities}
-        if len(self._by_engine) != len(capabilities):
-            raise ValueError("duplicate execution engine capability")
+        self._by_key = {
+            (item.engine, item.profile_name): item for item in capabilities
+        }
+        if len(self._by_key) != len(capabilities):
+            raise ValueError("duplicate execution engine capability profile")
 
-    def capability_for(self, engine: ExecutionEngine) -> EngineCapability:
+    def capability_for(
+        self,
+        engine: ExecutionEngine,
+        profile_name: str | None = None,
+    ) -> EngineCapability:
+        profile = profile_name or DEFAULT_CAPABILITY_PROFILE
         try:
-            return self._by_engine[engine]
+            return self._by_key[(engine, profile)]
         except KeyError as exc:
             raise UnsupportedExecutionCombination(
-                f"no capability profile registered for {engine.value}"
+                f"no capability profile registered for {engine.value}/{profile}"
             ) from exc
 
     def resolve_engine(self, config: DatasetConfig) -> ExecutionEngine:
@@ -126,6 +158,11 @@ class CapabilityRegistry:
         if config.execution.engine is not ExecutionEngine.AUTO:
             return config.execution.engine
 
+        if config.execution.capability_profile is not None:
+            raise UnsupportedExecutionCombination(
+                "capability_profile requires an explicit execution engine"
+            )
+
         capture = config.load.capture_strategy
         if capture is CaptureStrategy.MIRROR:
             return ExecutionEngine.FABRIC_MIRRORING
@@ -133,18 +170,22 @@ class CapabilityRegistry:
 
     def validate(self, config: DatasetConfig) -> ExecutionEngine:
         engine = self.resolve_engine(config)
-        capability = self.capability_for(engine)
+        capability = self.capability_for(
+            engine,
+            config.execution.capability_profile,
+        )
         capture = config.load.capture_strategy
         owner = config.execution.progress_owner
 
         if capture not in capability.capture_strategies:
             raise UnsupportedExecutionCombination(
-                f"{engine.value} does not support capture strategy {capture.value} "
-                "under the registered capability profile"
+                f"{engine.value}/{capability.profile_name} does not support capture "
+                f"strategy {capture.value} under the registered capability profile"
             )
         if owner not in capability.progress_owners:
             raise UnsupportedExecutionCombination(
-                f"{engine.value} does not allow progress owner {owner.value}"
+                f"{engine.value}/{capability.profile_name} does not allow progress "
+                f"owner {owner.value}"
             )
         if (
             capture is CaptureStrategy.WATERMARK
@@ -153,8 +194,9 @@ class CapabilityRegistry:
             and not capability.supports_composite_watermark
         ):
             raise UnsupportedExecutionCombination(
-                f"{engine.value} cannot prove composite WATERMARK ordering; "
-                "use a framework-bounded engine or a stronger registered capability profile"
+                f"{engine.value}/{capability.profile_name} cannot prove composite "
+                "WATERMARK ordering; use a framework-bounded engine or a stronger "
+                "registered capability profile"
             )
         if (
             owner is ProgressOwner.FABRIC_NATIVE
