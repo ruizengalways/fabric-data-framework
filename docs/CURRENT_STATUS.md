@@ -28,7 +28,7 @@ architecture/production-framework-blueprint
 
 ## Latest validated implementation evidence
 
-Latest fully green implementation commit before the final docs-audit commits:
+Latest fully green implementation commit before the documentation audit:
 
 ```text
 82bf3d97e6e08e9620bacdd1de25a14a2f7d489c
@@ -39,7 +39,18 @@ test-python-3.13  SUCCESS
 91 tests passed
 ```
 
-Documentation-only commits after this SHA must receive their own green PR CI before the branch is considered audit-clean.
+The coherent audit/docs head immediately before this status-evidence commit was also fully green:
+
+```text
+21b0f83dc33bc16c472a3a69821a31324785e065
+GitHub Actions run 33173705351
+build-wheel       SUCCESS
+test-python-3.11  SUCCESS
+test-python-3.13  SUCCESS
+91 tests passed
+```
+
+That audit head includes the new readiness/guarantee maps and synchronized README/blueprint/requirements/execution/control-plane/repository-structure docs. This `CURRENT_STATUS` evidence commit must also remain green before further implementation proceeds.
 
 ## Implemented development runtime
 
@@ -128,7 +139,7 @@ progress_owner   = FABRIC_NATIVE
 composite WM     = NOT CERTIFIED
 ```
 
-The planner/reference test now proves this valid composition:
+The planner/reference test proves this valid composition:
 
 ```text
 Dataflow Gen2 incremental capture/stage
@@ -228,7 +239,7 @@ Progress ownership does not imply apply ownership.
 
 ## Durable audit documents
 
-New conversations must also read:
+New conversations must read:
 
 ```text
 docs/PRODUCTION_READINESS_AUDIT.md
@@ -239,6 +250,8 @@ docs/GUARANTEE_COVERAGE.md
 
 `GUARANTEE_COVERAGE.md` maps each claimed guarantee to its code owner and representative executable test, and explicitly lists uncovered guarantees.
 
+The synchronized canonical reading order is also recorded in `README.md` and `PROJECT_BLUEPRINT.md`.
+
 ## Current external boundary
 
 No enterprise Fabric workspace, capacity, tenant setting, RBAC, networking, connection, credential, production dataset or runtime state has been modified by this hardening work.
@@ -247,7 +260,7 @@ Portable/reference semantics and SQLAlchemy schema proof are not the same as rea
 
 ## Exact next implementation sequence
 
-1. Implement/certify framework-owned **UPSERT** using the same ordered/idempotent current-state foundations established by SCD1.
+1. Implement/certify framework-owned **UPSERT** using the ordered/idempotent current-state foundations established by SCD1.
 2. Make capture/movement executor and apply executor/native-apply delegation separate explicit execution-plan decisions.
 3. Add Fabric Copy Job / Copy Activity / Dataflow Gen2 / Spark adapter contracts that emit immutable `CaptureReceipt` and native run correlation.
 4. Implement RETRY/BACKFILL/REPLAY/FULL_REBUILD attempt lineage, retryability and unknown-commit recovery.
