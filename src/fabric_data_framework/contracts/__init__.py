@@ -16,6 +16,12 @@ from .recovery import (
     ReprocessRequestStatus,
     UnknownOutcomeResolution,
 )
+from .replay import (
+    QuarantineBatchEvidence,
+    QuarantineReplayPayload,
+    QuarantineReplayPayloadProvider,
+    QuarantineReplayPlan,
+)
 
 __all__ = [
     "CaptureReceipt",
@@ -26,6 +32,10 @@ __all__ = [
     "ExecutionPlan",
     "ExecutionRole",
     "ExecutionUnit",
+    "QuarantineBatchEvidence",
+    "QuarantineReplayPayload",
+    "QuarantineReplayPayloadProvider",
+    "QuarantineReplayPlan",
     "ReprocessRequest",
     "ReprocessRequestStatus",
     "UnknownOutcomeResolution",

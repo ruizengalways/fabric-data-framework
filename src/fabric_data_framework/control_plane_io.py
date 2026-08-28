@@ -15,15 +15,21 @@ from .control_plane import (
     capture_receipt,
     cdc_checkpoint,
     dataset_attempt_lineage,
+    quarantine_batch,
     reprocess_request,
 )
 from .contracts.capture_receipt import CaptureReceipt
 from .contracts.recovery import DatasetAttemptLineage, ReprocessRequest
+from .contracts.replay import QuarantineBatchEvidence
 from .runtime import StateCommitGate
 
 
 class CDCCheckpointVersionConflict(RuntimeError):
     """Raised when a stale writer attempts to replace newer CDC state."""
+
+
+class QuarantineReplayMarkerConflict(RuntimeError):
+    """Raised when replay correlation is already owned by a different dataset run."""
 
 
 class CDCCheckpointState(FrozenModel):
@@ -162,6 +168,184 @@ def record_reprocess_request(engine: Engine, request: ReprocessRequest) -> None:
         )
 
 
+def _quarantine_from_row(row: dict[str, object]) -> QuarantineBatchEvidence:
+    replayed_by = row["replayed_by_dataset_run_id"]
+    return QuarantineBatchEvidence(
+        quarantine_id=UUID(str(row["quarantine_id"])),
+        dataset_run_id=UUID(str(row["dataset_run_id"])),
+        dataset_id=str(row["dataset_id"]),
+        scope=str(row["scope"]),
+        row_count=int(row["row_count"]),
+        reason_code=str(row["reason_code"]),
+        reason_detail=(
+            str(row["reason_detail"]) if row["reason_detail"] is not None else None
+        ),
+        source_reference=(
+            str(row["source_reference"]) if row["source_reference"] is not None else None
+        ),
+        replayed_by_dataset_run_id=(
+            UUID(str(replayed_by)) if replayed_by is not None else None
+        ),
+        created_at=row["created_at"],
+    )
+
+
+def record_quarantine_batch(engine: Engine, batch: QuarantineBatchEvidence) -> None:
+    """Append immutable quarantine lineage/reference evidence.
+
+    Payload rows are deliberately not persisted here. ``source_reference`` points to
+    the governed quarantine data store used by replay.
+    """
+
+    if batch.replayed_by_dataset_run_id is not None:
+        raise ValueError("new quarantine evidence cannot start as already replayed")
+    apply_baseline_schema(engine)
+    with engine.begin() as connection:
+        existing = connection.execute(
+            select(quarantine_batch.c.quarantine_id).where(
+                quarantine_batch.c.quarantine_id == str(batch.quarantine_id)
+            )
+        ).first()
+        if existing is not None:
+            raise ValueError(f"quarantine batch {batch.quarantine_id} is already recorded")
+        connection.execute(
+            quarantine_batch.insert().values(
+                quarantine_id=str(batch.quarantine_id),
+                dataset_run_id=str(batch.dataset_run_id),
+                dataset_id=batch.dataset_id,
+                scope=batch.scope,
+                row_count=batch.row_count,
+                reason_code=batch.reason_code,
+                reason_detail=batch.reason_detail,
+                source_reference=batch.source_reference,
+                replayed_by_dataset_run_id=None,
+                created_at=batch.created_at,
+            )
+        )
+
+
+def read_quarantine_batches(
+    engine: Engine,
+    quarantine_ids: tuple[UUID, ...],
+) -> tuple[QuarantineBatchEvidence, ...]:
+    """Read an explicit replay scope preserving caller order."""
+
+    if not quarantine_ids:
+        raise ValueError("quarantine_ids cannot be empty")
+    if len(set(quarantine_ids)) != len(quarantine_ids):
+        raise ValueError("quarantine_ids cannot contain duplicates")
+
+    apply_baseline_schema(engine)
+    values = tuple(str(value) for value in quarantine_ids)
+    with engine.connect() as connection:
+        rows = connection.execute(
+            select(quarantine_batch).where(quarantine_batch.c.quarantine_id.in_(values))
+        ).mappings().all()
+    by_id = {str(row["quarantine_id"]): _quarantine_from_row(dict(row)) for row in rows}
+    missing = [value for value in values if value not in by_id]
+    if missing:
+        raise KeyError(f"quarantine batches not found: {', '.join(missing)}")
+    return tuple(by_id[value] for value in values)
+
+
+def read_quarantine_batches_for_run(
+    engine: Engine,
+    *,
+    dataset_id: str,
+    dataset_run_id: UUID,
+) -> tuple[QuarantineBatchEvidence, ...]:
+    """Read all quarantine evidence produced by one original dataset run."""
+
+    apply_baseline_schema(engine)
+    with engine.connect() as connection:
+        rows = connection.execute(
+            select(quarantine_batch)
+            .where(
+                quarantine_batch.c.dataset_id == dataset_id,
+                quarantine_batch.c.dataset_run_id == str(dataset_run_id),
+            )
+            .order_by(quarantine_batch.c.created_at, quarantine_batch.c.quarantine_id)
+        ).mappings().all()
+    return tuple(_quarantine_from_row(dict(row)) for row in rows)
+
+
+def mark_quarantine_replayed(
+    engine: Engine,
+    *,
+    dataset_id: str,
+    quarantine_ids: tuple[UUID, ...],
+    replayed_by_dataset_run_id: UUID,
+    gate: StateCommitGate,
+) -> tuple[QuarantineBatchEvidence, ...]:
+    """Correlate originals only after replay mutation/reconciliation is proven.
+
+    Exact repeat with the same replay dataset-run ID is idempotent. Any different
+    non-null marker is a conflict. The original quarantine row remains otherwise
+    immutable and is never deleted by this operation.
+    """
+
+    if not gate.can_advance_state:
+        raise ValueError(
+            "quarantine replay marker cannot advance before target commit and required "
+            "reconciliation"
+        )
+    if not quarantine_ids:
+        raise ValueError("quarantine_ids cannot be empty")
+    if len(set(quarantine_ids)) != len(quarantine_ids):
+        raise ValueError("quarantine_ids cannot contain duplicates")
+
+    apply_baseline_schema(engine)
+    values = tuple(str(value) for value in quarantine_ids)
+    replay_id = str(replayed_by_dataset_run_id)
+    with engine.begin() as connection:
+        rows = connection.execute(
+            select(quarantine_batch).where(quarantine_batch.c.quarantine_id.in_(values))
+        ).mappings().all()
+        by_id = {str(row["quarantine_id"]): row for row in rows}
+        missing = [value for value in values if value not in by_id]
+        if missing:
+            raise KeyError(f"quarantine batches not found: {', '.join(missing)}")
+
+        for value in values:
+            row = by_id[value]
+            if row["dataset_id"] != dataset_id:
+                raise ValueError(
+                    f"quarantine {value} belongs to dataset {row['dataset_id']}, not {dataset_id}"
+                )
+            existing = row["replayed_by_dataset_run_id"]
+            if existing is not None and str(existing) != replay_id:
+                raise QuarantineReplayMarkerConflict(
+                    f"quarantine {value} was already replayed by {existing}"
+                )
+
+        for value in values:
+            row = by_id[value]
+            if row["replayed_by_dataset_run_id"] is not None:
+                continue
+            result = connection.execute(
+                quarantine_batch.update()
+                .where(
+                    quarantine_batch.c.quarantine_id == value,
+                    quarantine_batch.c.replayed_by_dataset_run_id.is_(None),
+                )
+                .values(replayed_by_dataset_run_id=replay_id)
+            )
+            if result.rowcount != 1:
+                raise QuarantineReplayMarkerConflict(
+                    f"quarantine {value} changed concurrently during replay correlation"
+                )
+
+        updated_rows = connection.execute(
+            select(quarantine_batch).where(quarantine_batch.c.quarantine_id.in_(values))
+        ).mappings().all()
+
+    updated = {
+        str(row["quarantine_id"]): _quarantine_from_row(dict(row))
+        for row in updated_rows
+    }
+    return tuple(updated[value] for value in values)
+
+
 def _checkpoint_from_row(row: dict[str, object]) -> CDCCheckpointState:
     return CDCCheckpointState(
         dataset_id=str(row["dataset_id"]),
@@ -273,9 +457,14 @@ def commit_cdc_checkpoint(
 __all__ = [
     "CDCCheckpointState",
     "CDCCheckpointVersionConflict",
+    "QuarantineReplayMarkerConflict",
     "commit_cdc_checkpoint",
+    "mark_quarantine_replayed",
     "read_cdc_checkpoint",
+    "read_quarantine_batches",
+    "read_quarantine_batches_for_run",
     "record_attempt_lineage",
     "record_capture_receipt",
+    "record_quarantine_batch",
     "record_reprocess_request",
 ]
