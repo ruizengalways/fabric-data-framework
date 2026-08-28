@@ -1,9 +1,8 @@
 """Provider-neutral dataset execution-plan contracts.
 
-An ExecutionPlan describes *how a bounded dataset request is hosted/executed* without
-moving capture/apply correctness into a Fabric Pipeline or other provider adapter.
-A single physical unit may own multiple semantic roles; activity count is therefore
-not equivalent to framework step count.
+An ExecutionPlan separates semantic requirements from physical Fabric/native/custom
+execution. One physical unit may own multiple semantic roles; activity count is not
+equivalent to framework step count.
 """
 
 from __future__ import annotations
@@ -16,25 +15,28 @@ from ..config import (
     ApplyStrategy,
     CaptureStrategy,
     EffectiveDatasetConfig,
+    ExecutionEngine,
     FrozenModel,
     RunMode,
     canonical_hash,
 )
+from ..metadata.capabilities import CapabilityRegistry, DEFAULT_CAPABILITY_REGISTRY
 
 
 class ExecutionKind(str, Enum):
-    """Physical execution mechanisms understood by framework adapters."""
-
     IN_PROCESS = "IN_PROCESS"
-    FABRIC_COPY = "FABRIC_COPY"
+    FABRIC_COPY_JOB = "FABRIC_COPY_JOB"
+    FABRIC_COPY_ACTIVITY = "FABRIC_COPY_ACTIVITY"
+    DATAFLOW_GEN2 = "DATAFLOW_GEN2"
     SPARK_JOB_DEFINITION = "SPARK_JOB_DEFINITION"
     FABRIC_NOTEBOOK = "FABRIC_NOTEBOOK"
+    FABRIC_MIRRORING = "FABRIC_MIRRORING"
+    EXTERNAL_CDC = "EXTERNAL_CDC"
     SQL_SCRIPT = "SQL_SCRIPT"
+    CUSTOM = "CUSTOM"
 
 
 class ExecutionRole(str, Enum):
-    """Semantic responsibilities that may be grouped into one physical unit."""
-
     EXECUTE = "EXECUTE"
     PREPARE = "PREPARE"
     EXTRACT = "EXTRACT"
@@ -49,8 +51,6 @@ class ExecutionRole(str, Enum):
 
 
 class ExecutionUnit(FrozenModel):
-    """One physical execution boundary inside a dataset plan."""
-
     unit_id: str = Field(min_length=1)
     roles: tuple[ExecutionRole, ...] = (ExecutionRole.EXECUTE,)
     execution_kind: ExecutionKind
@@ -69,8 +69,6 @@ class ExecutionUnit(FrozenModel):
 
 
 class ExecutionPlan(FrozenModel):
-    """Immutable provider-neutral execution snapshot for one dataset attempt."""
-
     dataset_id: str = Field(min_length=1)
     run_mode: RunMode
     capture_strategy: CaptureStrategy
@@ -88,11 +86,109 @@ class ExecutionPlan(FrozenModel):
             raise ValueError("execution plan unit_id values must be unique")
         if len(set(self.required_bindings)) != len(self.required_bindings):
             raise ValueError("execution plan required_bindings must be unique")
+        state_boundaries = sum(unit.state_commit_boundary for unit in self.units)
+        if state_boundaries > 1:
+            raise ValueError("execution plan may contain at most one state commit boundary")
         return self
 
     @property
     def plan_hash(self) -> str:
         return canonical_hash(self.model_dump(mode="json"))
+
+
+_ENGINE_TO_KIND = {
+    ExecutionEngine.FABRIC_COPY_JOB: ExecutionKind.FABRIC_COPY_JOB,
+    ExecutionEngine.FABRIC_COPY_ACTIVITY: ExecutionKind.FABRIC_COPY_ACTIVITY,
+    ExecutionEngine.DATAFLOW_GEN2: ExecutionKind.DATAFLOW_GEN2,
+    ExecutionEngine.SPARK: ExecutionKind.SPARK_JOB_DEFINITION,
+    ExecutionEngine.FABRIC_MIRRORING: ExecutionKind.FABRIC_MIRRORING,
+    ExecutionEngine.EXTERNAL_CDC: ExecutionKind.EXTERNAL_CDC,
+    ExecutionEngine.SQL: ExecutionKind.SQL_SCRIPT,
+    ExecutionEngine.CUSTOM: ExecutionKind.CUSTOM,
+}
+
+_NATIVE_CAPTURE_ENGINES = {
+    ExecutionEngine.FABRIC_COPY_JOB,
+    ExecutionEngine.FABRIC_COPY_ACTIVITY,
+    ExecutionEngine.DATAFLOW_GEN2,
+    ExecutionEngine.FABRIC_MIRRORING,
+    ExecutionEngine.EXTERNAL_CDC,
+}
+
+
+def compile_execution_plan(
+    effective: EffectiveDatasetConfig,
+    *,
+    run_mode: RunMode,
+    capability_registry: CapabilityRegistry = DEFAULT_CAPABILITY_REGISTRY,
+) -> ExecutionPlan:
+    """Compile effective metadata into a conservative provider-neutral plan."""
+
+    config = effective.config
+    engine = capability_registry.validate(config)
+    required_bindings = tuple(
+        binding for binding in (config.source.connection_ref,) if binding is not None
+    )
+    retry_count = config.orchestration.retry_count
+    timeout_seconds = config.orchestration.timeout_seconds
+    reconciliation_gate = config.reconciliation.required_for_state_commit
+    kind = _ENGINE_TO_KIND[engine]
+
+    if engine in _NATIVE_CAPTURE_ENGINES:
+        units = (
+            ExecutionUnit(
+                unit_id="capture",
+                roles=(ExecutionRole.EXTRACT, ExecutionRole.STAGE),
+                execution_kind=kind,
+                retry_count=retry_count,
+                timeout_seconds=timeout_seconds,
+            ),
+            ExecutionUnit(
+                unit_id="framework_process",
+                roles=(
+                    ExecutionRole.NORMALIZE,
+                    ExecutionRole.VALIDATE,
+                    ExecutionRole.APPLY,
+                    ExecutionRole.RECONCILE,
+                    ExecutionRole.COMMIT_STATE,
+                ),
+                execution_kind=ExecutionKind.SPARK_JOB_DEFINITION,
+                retry_count=retry_count,
+                timeout_seconds=timeout_seconds,
+                reconciliation_gate=reconciliation_gate,
+                state_commit_boundary=True,
+            ),
+        )
+    else:
+        units = (
+            ExecutionUnit(
+                unit_id="dataset_execute",
+                roles=(
+                    ExecutionRole.EXTRACT,
+                    ExecutionRole.STAGE,
+                    ExecutionRole.NORMALIZE,
+                    ExecutionRole.VALIDATE,
+                    ExecutionRole.APPLY,
+                    ExecutionRole.RECONCILE,
+                    ExecutionRole.COMMIT_STATE,
+                ),
+                execution_kind=kind,
+                retry_count=retry_count,
+                timeout_seconds=timeout_seconds,
+                reconciliation_gate=reconciliation_gate,
+                state_commit_boundary=True,
+            ),
+        )
+
+    return ExecutionPlan(
+        dataset_id=config.dataset_id,
+        run_mode=run_mode,
+        capture_strategy=config.load.capture_strategy,
+        apply_strategy=config.load.apply_strategy,
+        effective_config_hash=effective.effective_config_hash,
+        units=units,
+        required_bindings=required_bindings,
+    )
 
 
 def build_default_execution_plan(
@@ -101,19 +197,11 @@ def build_default_execution_plan(
     run_mode: RunMode,
     execution_kind: ExecutionKind = ExecutionKind.IN_PROCESS,
 ) -> ExecutionPlan:
-    """Compile the current generic one-unit dataset execution contract.
-
-    The default plan intentionally has one physical unit with semantic role EXECUTE.
-    Future FULL/REPLACE, Copy+Spark/SQL and Fabric Pipeline adapters may compile the
-    same effective metadata into multiple explicit units without changing capture or
-    apply strategy semantics.
-    """
+    """Backward-compatible in-process plan used by deterministic reference tests."""
 
     config = effective.config
     required_bindings = tuple(
-        binding
-        for binding in (config.source.connection_ref,)
-        if binding is not None
+        binding for binding in (config.source.connection_ref,) if binding is not None
     )
     return ExecutionPlan(
         dataset_id=config.dataset_id,

@@ -70,6 +70,28 @@ class Criticality(str, Enum):
     CRITICAL = "CRITICAL"
 
 
+class ExecutionEngine(str, Enum):
+    """Physical engine selected to perform the dataset capture/execution boundary."""
+
+    AUTO = "AUTO"
+    FABRIC_COPY_JOB = "FABRIC_COPY_JOB"
+    FABRIC_COPY_ACTIVITY = "FABRIC_COPY_ACTIVITY"
+    DATAFLOW_GEN2 = "DATAFLOW_GEN2"
+    SPARK = "SPARK"
+    FABRIC_MIRRORING = "FABRIC_MIRRORING"
+    EXTERNAL_CDC = "EXTERNAL_CDC"
+    SQL = "SQL"
+    CUSTOM = "CUSTOM"
+
+
+class ProgressOwner(str, Enum):
+    """Single authoritative checkpoint owner for one physical capture operation."""
+
+    FRAMEWORK = "FRAMEWORK"
+    FABRIC_NATIVE = "FABRIC_NATIVE"
+    EXTERNAL = "EXTERNAL"
+
+
 class SourceConfig(FrozenModel):
     system: str = Field(min_length=1)
     object: str = Field(min_length=1)
@@ -110,6 +132,8 @@ class LoadPolicy(FrozenModel):
     merge_key: tuple[str, ...] = ()
     watermark: WatermarkConfig | None = None
     event_time_column: str | None = None
+    version_column: str | None = None
+    sequence_column: str | None = None
     tracked_columns: tuple[str, ...] = ()
     delete_policy: str = "IGNORE"
 
@@ -167,6 +191,27 @@ class ReconciliationPolicy(FrozenModel):
     required_for_state_commit: bool = True
 
 
+class ExecutionPolicy(FrozenModel):
+    """Source-controlled physical execution selection for one dataset."""
+
+    engine: ExecutionEngine = ExecutionEngine.AUTO
+    progress_owner: ProgressOwner = ProgressOwner.FRAMEWORK
+    capability_profile: str | None = None
+
+
+_EXTENSION_NAME_PATTERN = r"^[a-z][a-z0-9_.-]*$"
+
+
+class ExtensionConfig(FrozenModel):
+    """Logical names resolved from a controlled domain extension registry."""
+
+    capture: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
+    parser: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
+    transform: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
+    quality: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
+    apply: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
+
+
 class DatasetConfig(FrozenModel):
     dataset_id: str = Field(min_length=1)
     source: SourceConfig
@@ -175,6 +220,8 @@ class DatasetConfig(FrozenModel):
     orchestration: OrchestrationPolicy
     quality: DataQualityPolicy
     reconciliation: ReconciliationPolicy
+    execution: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
+    extensions: ExtensionConfig = Field(default_factory=ExtensionConfig)
     enabled: bool = True
     config_schema_version: int = Field(default=1, ge=1)
 
@@ -182,6 +229,8 @@ class DatasetConfig(FrozenModel):
     def validate_dataset(self) -> "DatasetConfig":
         if self.dataset_id in self.orchestration.dependencies:
             raise ValueError("dataset must not depend on itself")
+        if self.execution.engine is ExecutionEngine.CUSTOM and not self.extensions.capture:
+            raise ValueError("CUSTOM execution requires extensions.capture")
         return self
 
     @property

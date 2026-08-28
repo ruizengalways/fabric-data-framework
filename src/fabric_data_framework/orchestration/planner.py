@@ -16,6 +16,7 @@ from ..config import (
     resolve_effective_config,
 )
 from ..contracts.dispatch import DatasetDispatchOutcome
+from ..metadata.capabilities import CapabilityRegistry, DEFAULT_CAPABILITY_REGISTRY
 from ..repository import ControlPlaneRepository
 
 
@@ -100,8 +101,9 @@ def build_dispatch_plan(
     overrides: Iterable[RuntimeOverride] = (),
     max_concurrency: int = 4,
     as_of: datetime | None = None,
+    capability_registry: CapabilityRegistry = DEFAULT_CAPABILITY_REGISTRY,
 ) -> DispatchPlan:
-    """Resolve effective metadata and produce an execution-backend-neutral plan."""
+    """Resolve effective metadata and validate engine compatibility before execution."""
 
     if max_concurrency <= 0:
         raise ValueError("max_concurrency must be positive")
@@ -139,6 +141,7 @@ def build_dispatch_plan(
             continue
         if requested is not None and dataset_id not in requested:
             continue
+        capability_registry.validate(config)
         effective_by_id[dataset_id] = effective
 
     _validate_dependency_graph(effective_by_id, deployed_ids)
@@ -164,7 +167,9 @@ def build_dispatch_plan(
     return DispatchPlan(
         evaluation_time=evaluation_time,
         selected_dataset_ids=selected_ids,
-        effective_configs=tuple((dataset_id, effective_by_id[dataset_id]) for dataset_id in selected_ids),
+        effective_configs=tuple(
+            (dataset_id, effective_by_id[dataset_id]) for dataset_id in selected_ids
+        ),
         deployed_dataset_ids=deployed_ids,
         max_concurrency=effective_concurrency,
     )
@@ -175,8 +180,6 @@ def blocking_dependencies(
     dataset_id: str,
     outcomes: Mapping[str, DatasetDispatchOutcome],
 ) -> tuple[str, ...]:
-    """Return dependencies that make a selected dataset permanently ineligible."""
-
     dependencies = plan.effective_for(dataset_id).config.orchestration.dependencies
     selected = plan.selected_dataset_id_set
     unavailable = tuple(dependency for dependency in dependencies if dependency not in selected)
@@ -194,8 +197,6 @@ def ready_dataset_ids(
     remaining: set[str],
     outcomes: Mapping[str, DatasetDispatchOutcome],
 ) -> tuple[str, ...]:
-    """Return the next stable ready wave in priority order."""
-
     return tuple(
         dataset_id
         for dataset_id in plan.selected_dataset_ids
@@ -214,8 +215,6 @@ def aggregate_pipeline_status(
     *,
     required_criticalities: frozenset[Criticality] = _DEFAULT_REQUIRED_CRITICALITIES,
 ) -> PipelineStatus:
-    """Apply criticality policy after every selected dataset has a terminal outcome."""
-
     if not plan.selected_dataset_ids:
         return PipelineStatus.SUCCESS
     if all(outcome.status is DatasetStatus.SUCCEEDED for outcome in outcomes.values()):
