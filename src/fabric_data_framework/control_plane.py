@@ -24,7 +24,7 @@ from sqlalchemy.engine import Engine
 CONTROL_PLANE_SCHEMA_VERSION = 2
 CONTROL_PLANE_MIGRATIONS = (
     (1, "phase1_initial_control_plane_schema"),
-    (2, "execution_policy_ordering_and_capture_receipt"),
+    (2, "execution_policy_ordering_capture_receipt_and_recovery"),
 )
 
 NAMING_CONVENTION = {
@@ -344,6 +344,24 @@ reprocess_request = Table(
     *_audit_columns(),
 )
 
+dataset_attempt_lineage = Table(
+    "dataset_attempt_lineage",
+    metadata,
+    Column("dataset_run_id", String(36), primary_key=True),
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), nullable=False),
+    Column("root_dataset_run_id", String(36), nullable=False),
+    Column("previous_dataset_run_id", String(36), nullable=True),
+    Column("attempt", Integer, nullable=False),
+    Column("run_mode", String(32), nullable=False),
+    Column(
+        "reprocess_request_id",
+        String(36),
+        ForeignKey("reprocess_request.reprocess_request_id"),
+        nullable=True,
+    ),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
 deployment_history = Table(
     "deployment_history",
     metadata,
@@ -389,6 +407,7 @@ ENVIRONMENT_LOCAL_STATE_TABLES = frozenset(
         "dataset_lease",
         "pipeline_run",
         "dataset_run",
+        "dataset_attempt_lineage",
         "capture_receipt",
         "step_run",
         "reconciliation_result",
@@ -444,8 +463,10 @@ __all__ = [
     "apply_execution_policy",
     "capture_receipt",
     "current_schema_version",
+    "dataset_attempt_lineage",
     "execution_policy",
     "metadata",
     "ordering_policy",
+    "reprocess_request",
     "table_names",
 ]
