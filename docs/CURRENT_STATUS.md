@@ -11,54 +11,24 @@ Last updated: 2026-08-28
 - Phase 4 — metadata-driven multi-dataset dispatcher/failure isolation: **MERGED TO `main` AS UNRELEASED 0.4.0 DEVELOPMENT SOURCE**.
 - Current milestone — **PRODUCTION FRAMEWORK HARDENING; RELEASE PAUSED UNTIL THE PRODUCT SLICE IS MATERIALLY BROADER**.
 
-## Latest architecture decision
+## Product requirement
 
 Do **not** publish `v0.4.0` now.
 
-The dispatcher is useful, but the framework is still too narrow to make the next public release represent the intended production platform. Current work is intentionally focused on `fabric-data-framework` before further Customer-domain expansion.
+The intended end state is a released wheel that an enterprise domain can install and then use primarily through source-controlled metadata, environment bindings and bounded extension points. Routine onboarding must not require modifying `fabric-data-framework` itself.
 
-Architecture branch:
+Framework `v0.3.0` remains the latest immutable GitHub Release. The 0.4.0 source version is currently a development line only.
+
+Active PR/branch:
 
 ```text
+PR #13
 architecture/production-framework-blueprint
 ```
 
-adds the durable production requirements, target package structure and Fabric execution model.
+## Current implemented development runtime
 
-## Released baseline
-
-Framework `v0.3.0` remains the latest immutable GitHub Release.
-
-Release run `33156000907` published:
-
-```text
-fabric_data_framework-0.3.0-py3-none-any.whl
-SHA256SUMS
-```
-
-Customer exact released-wheel integration passed against those assets and Customer Phase 3 was merged. That release boundary remains frozen and should not be moved.
-
-## Current development baseline
-
-Framework PR #9 was rebuilt on the released 0.3.0 baseline and squash-merged as:
-
-```text
-aaf346ba048f20d113208de566c648b0da58e373
-```
-
-Merge-triggered `main` CI run `33158188037` passed:
-
-```text
-build-wheel       SUCCESS
-test-python-3.11  SUCCESS
-test-python-3.13  SUCCESS
-```
-
-The source version on `main` is `0.4.0`, but that number is currently a development version only. No immutable `v0.4.0` Release should be created yet.
-
-## Current implemented runtime
-
-The framework currently provides:
+The hardening branch now provides:
 
 - typed semantic config/runtime override contracts;
 - infrastructure binding abstraction;
@@ -67,173 +37,158 @@ The framework currently provides:
 - normalized Bronze envelope;
 - row DQ/quarantine primitives;
 - deterministic reference SCD2 behavior;
-- reconciliation/state commit gate;
-- one WATERMARK -> Bronze -> DQ -> SCD2 execution slice;
-- metadata-driven dispatcher with dependency validation, bounded parallelism, dataset fault isolation, dependent blocking and criticality-aware aggregate outcome;
-- immutable release/delivery contracts and CLI;
-- 44 framework tests.
+- reconciliation/state commit gates;
+- metadata-driven dispatcher with dependency validation/failure isolation;
+- provider-neutral orchestration planning separated from the in-process execution backend;
+- immutable `ExecutionPlan` / execution-unit contracts;
+- compatibility-preserving `execution/` package restructuring;
+- guarded `FULL -> REPLACE` implementation with staging, completeness/source-count/empty-source/row-drop guards, reconciliation and publication evidence;
+- immutable release/delivery contracts and CLI.
 
-These are a strong foundation, not yet the full production product.
-
-## Why the package is being restructured
-
-The current source tree is still flat:
+Latest validated CI after `FULL -> REPLACE`:
 
 ```text
-config.py
-runtime.py
-operations.py
-control_plane.py
-repository.py
-dispatcher.py
-execution.py
-watermark.py
-bronze.py
-quality.py
-reconciliation.py
-scd2.py
-delivery.py
-deployment.py
-cli.py
+GitHub Actions run 33168301404
+build-wheel       SUCCESS
+test-python-3.11  SUCCESS
+test-python-3.13  SUCCESS
+59 tests passed
 ```
 
-As FULL/SNAPSHOT/CDC/recovery/schema/delete/Fabric adapters are added, this shape would become difficult to navigate and encourage mixed ownership.
+`SNAPSHOT -> SNAPSHOT_DIFF` is the next implementation slice and must not be marked complete until committed and CI-validated.
 
-Target ownership is documented in `docs/REPOSITORY_STRUCTURE.md` and centers on:
+## Canonical architecture documents
+
+The current production design is recoverable from:
 
 ```text
-contracts
-metadata
-capture
-apply
-data_plane
-quality
-orchestration
-execution
-recovery
-state
-control_plane
-observability
-connectors
-adapters/fabric
-delivery
-testing
+docs/PRODUCTION_REQUIREMENTS.md
+docs/REPOSITORY_STRUCTURE.md
+docs/FABRIC_EXECUTION_MODEL.md
+docs/EXECUTION_ENGINE_STRATEGY.md
+docs/PROJECT_BLUEPRINT.md
+docs/CONTROL_PLANE_DESIGN.md
+docs/CICD_DESIGN.md
 ```
 
-The restructure will be compatibility-conscious because `v0.3.0` already exists.
-
-## New durable production requirements
-
-`docs/PRODUCTION_REQUIREMENTS.md` is the canonical capability/backlog matrix.
-
-It now explicitly requires production handling for:
-
-- FULL/complete-snapshot correctness;
-- safe REPLACE publication and empty/incomplete-source guards;
-- SNAPSHOT_DIFF delete safety;
-- APPEND/UPSERT/SCD1/SCD2 semantics;
-- ordered CDC and bootstrap-to-CDC handoff;
-- retry/backfill/replay/full rebuild;
-- unknown target-commit outcome;
-- row/batch quarantine and no-silent-loss accounting;
-- reconciliation completion gates;
-- schema evolution and breaking-change policy;
-- late/out-of-order/conflicting duplicate policy;
-- state/lease/idempotency correctness;
-- source/capacity-aware concurrency;
-- durable observability/operator status;
-- SLO/alerting hooks;
-- identity/secrets/binding boundaries;
-- Fabric Pipeline/SJD/Notebook/Copy/Environment integration;
-- performance/cost evidence requirements;
-- certification classes and real Fabric smoke evidence.
-
-## Fabric execution decision
-
-ADR 0007 and `docs/FABRIC_EXECUTION_MODEL.md` define the accepted runtime boundary.
-
-Key decision:
+Accepted architecture decisions include:
 
 ```text
-Fabric Pipeline
-  = orchestration / trigger / control flow / fan-out / activity visibility
-
-Spark Job Definition
-  = preferred generic headless production Spark application entrypoint
-
-Notebook
-  = supported thin interactive/smoke/diagnostic execution surface;
-    production use is allowed where justified
-
-Python framework/domain wheels
-  = reusable correctness/business implementation
+ADR 0007 — Fabric Pipeline and Spark execution boundary
+ADR 0008 — separate data semantics from physical execution engine
 ```
 
-A child dataset pipeline containing one SJD/Notebook activity is not considered unprofessional when it is a deliberate thin execution boundary with durable framework state/audit.
+## Execution-engine decision
 
-The anti-pattern is one opaque notebook owning the whole domain scheduler plus extraction, DQ, publication, state and recovery logic.
+The framework does **not** require every dataset to be ingested by Notebook/Spark/Python.
 
-Fabric Copy/SQL/database-native execution should be used when those engines are better suited than Spark.
-
-## FULL refresh target
-
-The first new strategy implementation after structural hardening is `FULL -> REPLACE`.
-
-Required flow:
+The following are independent axes:
 
 ```text
-freeze source intent
-  -> extract complete candidate
-  -> isolated stage
-  -> schema/DQ/completeness guards
-  -> reconciliation
-  -> safe/atomic publication
-  -> state/audit commit
+Capture semantics
+  FULL | WATERMARK | CDC | SNAPSHOT | MIRROR | STREAM
+
+Physical execution/movement engine
+  FABRIC_COPY_JOB | FABRIC_COPY_ACTIVITY | DATAFLOW_GEN2 |
+  SPARK | MIRROR | EXTERNAL_CDC | SQL | CUSTOM
+
+Apply semantics
+  APPEND | REPLACE | UPSERT | SCD1 | SCD2 | SNAPSHOT_DIFF
+
+Authoritative progress owner
+  FRAMEWORK | FABRIC_NATIVE | EXTERNAL
 ```
 
-An unexpected zero-row or incomplete source must not automatically wipe the target.
+A capability resolver/compiler will validate the selected combination and emit one immutable `ExecutionPlan`.
 
-`SNAPSHOT -> SNAPSHOT_DIFF` follows as a separate strategy family with explicit complete-snapshot and delete-volume guards.
+Native Fabric movement is first-class:
 
-## Dispatcher evolution
+- Copy Job for supported multi-table/full/incremental/native-CDC replication where its semantics are sufficient;
+- Copy Activity when framework-controlled bounds/pipeline orchestration/custom source queries are required;
+- Dataflow Gen2 for suitable low-code Power Query ingestion/transformation, not as a mandatory hundred-table ingestion engine;
+- Spark/framework execution for composite ordering, irregular formats, custom micro-batches, advanced SCD/recovery or other code-level correctness requirements;
+- external Debezium/Kafka CDC where a governed CDC feed already exists.
 
-The current dispatcher embeds `ThreadPoolExecutor`. This remains valid deterministic reference evidence, but enterprise orchestration will be split into:
+A native Copy/Dataflow activity does not import the Python wheel. It participates through a typed capture/landing receipt and common control-plane lineage.
+
+## Many-table metadata-driven topology
+
+For a source with tens or hundreds of tables, avoid both one bespoke pipeline per table and one giant opaque pipeline.
+
+Use a small number of reusable metadata-selected execution groups, for example:
 
 ```text
-provider-neutral orchestration planner
-  -> in-process reference backend
-  -> Fabric Pipeline execution backend
+pl_erp_daily
+   +-- erp_full_reference
+   +-- erp_incremental_current
+   +-- erp_incremental_history
+   +-- erp_cdc_transactional
+   +-- erp_custom_complex
 ```
 
-This allows Fabric-visible dataset child execution without moving correctness algorithms into pipeline expressions.
+Useful grouping dimensions include source limits, movement engine, capture semantics, schedule/SLA, volume, criticality/blast radius, dependencies and Fabric capacity.
+
+SCD2 remains an apply/history semantic rather than an ingestion method. A separate SCD2 pipeline is allowed when operationally useful but is not required by the framework architecture.
+
+## Custom logic policy
+
+Irregular datasets are supported through typed source-controlled extension references rather than framework forks.
+
+Planned bounded extension points include:
+
+```text
+custom capture adapter
+batch/micro-batch parser
+pre-apply transform
+DQ rule provider
+specialized apply adapter
+```
+
+Extensions may not bypass framework row accounting, reconciliation, publication/state boundaries or secret/binding policy.
+
+## Progress ownership
+
+One physical capture operation has one checkpoint authority.
+
+Examples:
+
+```text
+framework-bounded Copy Activity
+  -> FRAMEWORK progress owner
+
+Copy Job incremental/native CDC
+  -> FABRIC_NATIVE progress owner
+
+Debezium/Kafka
+  -> EXTERNAL or explicitly selected framework consumer owner
+```
+
+The framework must never maintain a competing independent watermark for a native Copy Job checkpoint.
 
 ## Current external boundary
 
 No enterprise Fabric workspace, capacity, tenant setting, RBAC, networking, connection, credential, production dataset or runtime state has been modified.
 
-Fabric service details used in the new architecture were checked against current Microsoft Learn documentation on 2026-08-28, but real adapter support must be proven against an approved Fabric estate before production claims are made.
+Current Fabric product capabilities were re-checked against Microsoft Learn on 2026-08-28. Real adapter support still requires execution evidence from an approved enterprise Fabric estate.
 
 ## Exact next implementation sequence
 
-1. Merge the production-framework architecture/docs slice after CI.
-2. Restructure the Python package/tests by ownership while preserving current behavior and public compatibility.
-3. Add provider-neutral `ExecutionPlan` / `ExecutionStep` contracts.
-4. Split dispatcher planning from execution backend.
-5. Implement `FULL -> REPLACE` with staging, completeness/empty-source guards, reconciliation and publication recovery.
-6. Implement `SNAPSHOT -> SNAPSHOT_DIFF` with explicit delete safety.
-7. Implement retry/backfill/replay/attempt/unknown-outcome recovery.
-8. Add explicit delete/schema-evolution/late-out-of-order contracts.
-9. Add connector capability registry.
-10. Add Fabric adapter contracts for Pipeline, Spark Job Definition, Notebook, Copy, Environment, Variable Library and run correlation.
-11. Add CDC -> UPSERT and bootstrap-to-CDC correctness.
-12. Add a real persistent control-plane adapter/operator queries.
-13. Only then decide the scope/version of the next immutable public framework release.
-14. Keep Customer and `fabric-infra` secondary until the framework product boundary is substantially stronger.
+1. Finish and CI-validate `SNAPSHOT -> SNAPSHOT_DIFF` with complete-snapshot/delete guards.
+2. Add execution-engine/progress-owner/capture-receipt contracts and capability registry to deployed metadata/planning.
+3. Add Fabric Copy Job / Copy Activity / Dataflow / Spark adapter contracts and immutable native-run correlation.
+4. Implement retry/backfill/replay/attempt lineage and unknown-commit recovery.
+5. Add explicit delete/schema-evolution/late/out-of-order/duplicate-conflict policies.
+6. Implement CDC normalization -> UPSERT and bootstrap-to-CDC handoff, including external CDC adapters.
+7. Add APPEND/SCD1 completeness and native-delegation capability validation.
+8. Add real persistent control-plane repository/operator query surface.
+9. Prove the first real Fabric Environment + Pipeline + native-copy/Spark execution in DEV.
+10. Only then decide the scope/version of the next immutable public framework release.
+11. Keep Customer expansion and `fabric-infra` secondary until the framework product boundary is substantially stronger.
 
 ## Release gate
 
 Do not create `v0.4.0` from the current state.
 
-The next release version may remain `0.4.0` if no public 0.4.0 artifact is created, but the release occurs only after the larger milestone passes CI/certification and represents a coherent product capability.
+The next release may still use version `0.4.0` if no public 0.4.0 artifact exists, but release only when the framework represents a coherent, broadly usable enterprise product slice and passes certification.
 
 Do not fake Fabric-estate, security, capacity or production evidence.
