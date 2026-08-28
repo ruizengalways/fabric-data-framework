@@ -15,9 +15,9 @@ Last updated: 2026-08-28
 
 Do **not** publish `v0.4.0` now.
 
-The intended end state is a released wheel that an enterprise domain can install and then use primarily through source-controlled metadata, environment bindings and bounded extension points. Routine onboarding must not require modifying `fabric-data-framework` itself.
+The intended end state is a released wheel that an enterprise domain installs once and then uses primarily through source-controlled metadata, environment bindings and bounded extension points. Routine onboarding must not require modifying `fabric-data-framework` itself.
 
-Framework `v0.3.0` remains the latest immutable GitHub Release. The 0.4.0 source version is currently a development line only.
+Framework `v0.3.0` remains the latest immutable GitHub Release. The 0.4.0 source version is a development line only.
 
 Active PR/branch:
 
@@ -26,90 +26,122 @@ PR #13
 architecture/production-framework-blueprint
 ```
 
-## Current implemented development runtime
+## Latest validated implementation evidence
 
-The hardening branch now provides:
+Latest validated hardening commit before this documentation sync:
+
+```text
+f390d4befcbf93ce9e053942b2a6c83861239d84
+GitHub Actions run 33171633197
+build-wheel       SUCCESS
+test-python-3.11  SUCCESS
+test-python-3.13  SUCCESS
+79 tests passed
+```
+
+Implemented development runtime now includes:
 
 - typed semantic config/runtime override contracts;
 - infrastructure binding abstraction;
-- logical control-plane schema and repository contracts;
 - composite WATERMARK selection with tie-breakers/overlap;
 - normalized Bronze envelope;
 - row DQ/quarantine primitives;
 - deterministic reference SCD2 behavior;
 - reconciliation/state commit gates;
 - metadata-driven dispatcher with dependency validation/failure isolation;
-- provider-neutral orchestration planning separated from the in-process execution backend;
+- provider-neutral orchestration planning separated from the in-process backend;
 - immutable `ExecutionPlan` / execution-unit contracts;
-- compatibility-preserving `execution/` package restructuring;
-- guarded `FULL -> REPLACE` implementation with staging, completeness/source-count/empty-source/row-drop guards, reconciliation and publication evidence;
+- guarded `FULL -> REPLACE` with isolated staging, completeness/source-count/empty-source/row-drop guards, reconciliation and publication evidence;
+- guarded `SNAPSHOT -> SNAPSHOT_DIFF` with complete-snapshot requirement, null/duplicate-key protection, delete-volume/delete-all guards, quarantine-aware delete blocking and reconciliation-before-publication;
+- execution-engine and progress-owner metadata;
+- typed `CaptureReceipt` for native/external capture handoff and run correlation;
+- controlled logical-name domain extension registry;
+- additive control-plane schema v2 with `execution_policy`, `ordering_policy` and environment-local `capture_receipt` persistence;
 - immutable release/delivery contracts and CLI.
 
-Latest validated CI after `FULL -> REPLACE`:
+## Framework-first semantics and stage-level native delegation
+
+The framework must contain complete reusable implementations for mature Data Engineering semantics. Native Fabric features are optional stage executors/accelerators, not the only implementation of a semantic guarantee.
+
+Canonical rule:
 
 ```text
-GitHub Actions run 33168301404
-build-wheel       SUCCESS
-test-python-3.11  SUCCESS
-test-python-3.13  SUCCESS
-59 tests passed
+semantic requirement
+    -> framework-owned contract + portable fallback implementation
+    -> capability resolver
+         -> delegate a stage to native Fabric only when certified equivalent
+         -> otherwise execute the framework implementation
 ```
 
-`SNAPSHOT -> SNAPSHOT_DIFF` is the next implementation slice and must not be marked complete until committed and CI-validated.
-
-## Canonical architecture documents
-
-The current production design is recoverable from:
+This means one dataset may intentionally use different engines for different stages:
 
 ```text
-docs/PRODUCTION_REQUIREMENTS.md
-docs/REPOSITORY_STRUCTURE.md
-docs/FABRIC_EXECUTION_MODEL.md
-docs/EXECUTION_ENGINE_STRATEGY.md
-docs/PROJECT_BLUEPRINT.md
-docs/CONTROL_PLANE_DESIGN.md
-docs/CICD_DESIGN.md
+capture / movement
+    != transform / normalize
+    != apply
+    != reconciliation / state
 ```
 
-Accepted architecture decisions include:
+The current `execution.engine` metadata should be interpreted as the **capture/movement execution boundary**, not as ownership of the entire dataset lifecycle. The compiled execution plan can already split native capture from framework processing.
+
+Example required production pattern:
+
+```text
+Dataflow Gen2 incremental/bucket refresh
+    -> landing / Bronze / staging
+    -> CaptureReceipt
+    -> framework SCD1 / UPSERT / SCD2
+    -> reconciliation
+    -> framework state/audit
+```
+
+This is necessary because Fabric-native ingestion/refresh semantics can be useful while the final apply semantics are insufficient for a domain requirement.
+
+Native final-target apply delegation is allowed only when a capability profile explicitly certifies that the native behavior is equivalent to the requested framework semantic contract. Generic profiles must fail closed or use the framework fallback rather than assuming equivalence.
+
+Accepted architecture decisions now include:
 
 ```text
 ADR 0007 — Fabric Pipeline and Spark execution boundary
 ADR 0008 — separate data semantics from physical execution engine
+ADR 0009 — framework-first semantics with stage-level native delegation
 ```
 
-## Execution-engine decision
+## Why native Fabric features are not the framework foundation
 
-The framework does **not** require every dataset to be ingested by Notebook/Spark/Python.
+Current Microsoft Fabric capabilities are useful but have product-specific limitations that make them unsuitable as the sole implementation of the framework semantics.
 
-The following are independent axes:
+Examples verified against Microsoft Learn on 2026-08-28:
+
+- Copy Job CDC supports only a bounded connector set and currently has limitations including mixed CDC/non-CDC table behavior, net-change capture only and no custom capture instances;
+- Copy Job SCD2 remains Preview and has source/schema restrictions;
+- Dataflow Gen2 incremental refresh uses DateTime buckets and replaces changed destination buckets;
+- Dataflow Gen2 incremental refresh currently supports `replace` as the destination update method rather than arbitrary SCD1/UPSERT semantics.
+
+Therefore native features are capability-profiled adapters. They may own capture, apply, both, or neither for a specific certified scenario.
+
+## Execution-engine model
+
+Independent concerns remain:
 
 ```text
 Capture semantics
   FULL | WATERMARK | CDC | SNAPSHOT | MIRROR | STREAM
 
-Physical execution/movement engine
+Capture / movement engine
   FABRIC_COPY_JOB | FABRIC_COPY_ACTIVITY | DATAFLOW_GEN2 |
   SPARK | MIRROR | EXTERNAL_CDC | SQL | CUSTOM
 
 Apply semantics
   APPEND | REPLACE | UPSERT | SCD1 | SCD2 | SNAPSHOT_DIFF
 
-Authoritative progress owner
+Authoritative capture progress owner
   FRAMEWORK | FABRIC_NATIVE | EXTERNAL
 ```
 
-A capability resolver/compiler will validate the selected combination and emit one immutable `ExecutionPlan`.
-
-Native Fabric movement is first-class:
-
-- Copy Job for supported multi-table/full/incremental/native-CDC replication where its semantics are sufficient;
-- Copy Activity when framework-controlled bounds/pipeline orchestration/custom source queries are required;
-- Dataflow Gen2 for suitable low-code Power Query ingestion/transformation, not as a mandatory hundred-table ingestion engine;
-- Spark/framework execution for composite ordering, irregular formats, custom micro-batches, advanced SCD/recovery or other code-level correctness requirements;
-- external Debezium/Kafka CDC where a governed CDC feed already exists.
-
 A native Copy/Dataflow activity does not import the Python wheel. It participates through a typed capture/landing receipt and common control-plane lineage.
+
+Future metadata/compiler work must make apply-executor delegation explicit rather than overloading one engine field for the whole lifecycle.
 
 ## Many-table metadata-driven topology
 
@@ -128,13 +160,13 @@ pl_erp_daily
 
 Useful grouping dimensions include source limits, movement engine, capture semantics, schedule/SLA, volume, criticality/blast radius, dependencies and Fabric capacity.
 
-SCD2 remains an apply/history semantic rather than an ingestion method. A separate SCD2 pipeline is allowed when operationally useful but is not required by the framework architecture.
+SCD1/SCD2 are apply semantics, not ingestion methods. They may consume data landed by Copy Job, Copy Activity, Dataflow Gen2, Spark, Mirroring or external CDC as long as the capture contract and receipt are valid.
 
 ## Custom logic policy
 
 Irregular datasets are supported through typed source-controlled extension references rather than framework forks.
 
-Planned bounded extension points include:
+Bounded extension points include or will include:
 
 ```text
 custom capture adapter
@@ -144,44 +176,44 @@ DQ rule provider
 specialized apply adapter
 ```
 
-Extensions may not bypass framework row accounting, reconciliation, publication/state boundaries or secret/binding policy.
+Metadata references stable logical names. Domain wheels register implementations. Extensions may not bypass row accounting, reconciliation, publication/state boundaries, secrets/bindings or audit.
 
 ## Progress ownership
 
-One physical capture operation has one checkpoint authority.
+One physical capture operation has one authoritative checkpoint owner.
 
 Examples:
 
 ```text
 framework-bounded Copy Activity
-  -> FRAMEWORK progress owner
+  -> FRAMEWORK
 
-Copy Job incremental/native CDC
-  -> FABRIC_NATIVE progress owner
+Copy Job native incremental/CDC
+  -> FABRIC_NATIVE
 
 Debezium/Kafka
-  -> EXTERNAL or explicitly selected framework consumer owner
+  -> EXTERNAL or an explicitly selected framework consumer
 ```
 
-The framework must never maintain a competing independent watermark for a native Copy Job checkpoint.
+The framework must never maintain a competing independent watermark for a native checkpoint.
 
 ## Current external boundary
 
 No enterprise Fabric workspace, capacity, tenant setting, RBAC, networking, connection, credential, production dataset or runtime state has been modified.
 
-Current Fabric product capabilities were re-checked against Microsoft Learn on 2026-08-28. Real adapter support still requires execution evidence from an approved enterprise Fabric estate.
+Portable/reference semantics and relational schema contracts are not the same as real Fabric production evidence. Real adapters must still be exercised against an approved Fabric estate.
 
 ## Exact next implementation sequence
 
-1. Finish and CI-validate `SNAPSHOT -> SNAPSHOT_DIFF` with complete-snapshot/delete guards.
-2. Add execution-engine/progress-owner/capture-receipt contracts and capability registry to deployed metadata/planning.
-3. Add Fabric Copy Job / Copy Activity / Dataflow / Spark adapter contracts and immutable native-run correlation.
+1. Implement/certify framework-owned `SCD1` and `UPSERT` current-state semantics, including ordering/version/event-time conflict handling and idempotent rerun behavior.
+2. Refine execution metadata/compiler so capture/movement executor and apply executor/native delegation are explicit independent decisions.
+3. Add Fabric Copy Job / Copy Activity / Dataflow Gen2 / Spark adapter contracts that emit immutable `CaptureReceipt` and native run correlation.
 4. Implement retry/backfill/replay/attempt lineage and unknown-commit recovery.
-5. Add explicit delete/schema-evolution/late/out-of-order/duplicate-conflict policies.
-6. Implement CDC normalization -> UPSERT and bootstrap-to-CDC handoff, including external CDC adapters.
-7. Add APPEND/SCD1 completeness and native-delegation capability validation.
+5. Implement CDC normalization -> UPSERT/SCD1/SCD2 plus bootstrap-to-CDC handoff, including external CDC adapters.
+6. Add explicit schema-evolution/late/out-of-order/duplicate-conflict policies across current-state and history strategies.
+7. Add APPEND identity/collision semantics and broader strategy certification.
 8. Add real persistent control-plane repository/operator query surface.
-9. Prove the first real Fabric Environment + Pipeline + native-copy/Spark execution in DEV.
+9. Prove hybrid Fabric scenarios in DEV, including at least one native-capture + framework-apply path.
 10. Only then decide the scope/version of the next immutable public framework release.
 11. Keep Customer expansion and `fabric-infra` secondary until the framework product boundary is substantially stronger.
 
@@ -189,6 +221,6 @@ Current Fabric product capabilities were re-checked against Microsoft Learn on 2
 
 Do not create `v0.4.0` from the current state.
 
-The next release may still use version `0.4.0` if no public 0.4.0 artifact exists, but release only when the framework represents a coherent, broadly usable enterprise product slice and passes certification.
+The next release may still use version `0.4.0` if no public 0.4.0 artifact exists, but release only when the framework represents a coherent broadly usable enterprise product slice and passes certification.
 
 Do not fake Fabric-estate, security, capacity or production evidence.
