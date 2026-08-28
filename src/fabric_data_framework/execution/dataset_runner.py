@@ -1,4 +1,4 @@
-"""Reference end-to-end WATERMARK -> Bronze -> DQ -> SCD2 dataset executor."""
+"""Reference WATERMARK -> Bronze -> DQ -> SCD2 dataset runner."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 from uuid import UUID, uuid4
 
-from .bronze import BronzeRecord, normalize_bronze
-from .config import ApplyStrategy, CaptureStrategy, DatasetStatus, RunMode
-from .operations import (
+from ..bronze import BronzeRecord, normalize_bronze
+from ..config import ApplyStrategy, CaptureStrategy, DatasetStatus, RunMode
+from ..operations import (
     DatasetRunAudit,
     QuarantineBatch,
     QuarantineScope,
@@ -19,12 +19,12 @@ from .operations import (
     StepRunAudit,
     StepStatus,
 )
-from .quality import QuarantinedRecord, RowRule, validate_records
-from .reconciliation import reconcile_scd2_batch
-from .repository import ControlPlaneRepository
-from .runtime import StateCommitGate, WatermarkPosition, WatermarkTransition
-from .scd2 import InMemorySCD2Target, SCD2ApplyResult, apply_scd2
-from .watermark import WatermarkBatch, plan_watermark_batch
+from ..quality import QuarantinedRecord, RowRule, validate_records
+from ..reconciliation import reconcile_scd2_batch
+from ..repository import ControlPlaneRepository
+from ..runtime import StateCommitGate, WatermarkPosition, WatermarkTransition
+from ..scd2 import InMemorySCD2Target, SCD2ApplyResult, apply_scd2
+from ..watermark import WatermarkBatch, plan_watermark_batch
 
 
 @dataclass(frozen=True)
@@ -101,7 +101,12 @@ def execute_watermark_scd2(
     before = repository.get_watermark(dataset_id)
 
     capture: WatermarkBatch = plan_watermark_batch(source_rows, config.load.watermark, before)
-    _record_step(repository, dataset_run_id=dataset_run_id, step_name="CAPTURE", status=StepStatus.SUCCEEDED)
+    _record_step(
+        repository,
+        dataset_run_id=dataset_run_id,
+        step_name="CAPTURE",
+        status=StepStatus.SUCCEEDED,
+    )
 
     bronze = normalize_bronze(
         capture.rows,
@@ -112,10 +117,20 @@ def execute_watermark_scd2(
         event_time_column=config.load.event_time_column,
         source_sequence_columns=config.load.watermark.tie_breaker,
     )
-    _record_step(repository, dataset_run_id=dataset_run_id, step_name="BRONZE_NORMALIZE", status=StepStatus.SUCCEEDED)
+    _record_step(
+        repository,
+        dataset_run_id=dataset_run_id,
+        step_name="BRONZE_NORMALIZE",
+        status=StepStatus.SUCCEEDED,
+    )
 
     validation = validate_records(bronze, rules)
-    _record_step(repository, dataset_run_id=dataset_run_id, step_name="VALIDATE", status=StepStatus.SUCCEEDED)
+    _record_step(
+        repository,
+        dataset_run_id=dataset_run_id,
+        step_name="VALIDATE",
+        status=StepStatus.SUCCEEDED,
+    )
 
     for item in validation.quarantined:
         repository.record_quarantine(
@@ -129,10 +144,20 @@ def execute_watermark_scd2(
                 source_reference=str(item.record.source_sequence),
             )
         )
-    _record_step(repository, dataset_run_id=dataset_run_id, step_name="QUARANTINE", status=StepStatus.SUCCEEDED)
+    _record_step(
+        repository,
+        dataset_run_id=dataset_run_id,
+        step_name="QUARANTINE",
+        status=StepStatus.SUCCEEDED,
+    )
 
     mapped = tuple(mapper(record.data) for record in validation.accepted)
-    _record_step(repository, dataset_run_id=dataset_run_id, step_name="TRANSFORM", status=StepStatus.SUCCEEDED)
+    _record_step(
+        repository,
+        dataset_run_id=dataset_run_id,
+        step_name="TRANSFORM",
+        status=StepStatus.SUCCEEDED,
+    )
 
     proposed: SCD2ApplyResult = apply_scd2(
         target.read(),
@@ -142,7 +167,12 @@ def execute_watermark_scd2(
         effective_time_column=config.load.event_time_column,
         dataset_run_id=dataset_run_id,
     )
-    _record_step(repository, dataset_run_id=dataset_run_id, step_name="APPLY_PLAN", status=StepStatus.SUCCEEDED)
+    _record_step(
+        repository,
+        dataset_run_id=dataset_run_id,
+        step_name="APPLY_PLAN",
+        status=StepStatus.SUCCEEDED,
+    )
 
     accounting = RowAccounting(
         rows_read=len(bronze),
@@ -164,7 +194,11 @@ def execute_watermark_scd2(
         repository,
         dataset_run_id=dataset_run_id,
         step_name="RECONCILE",
-        status=StepStatus.SUCCEEDED if reconciliation.status is ReconciliationStatus.PASS else StepStatus.FAILED,
+        status=(
+            StepStatus.SUCCEEDED
+            if reconciliation.status is ReconciliationStatus.PASS
+            else StepStatus.FAILED
+        ),
     )
 
     passed = reconciliation.status is ReconciliationStatus.PASS
@@ -182,10 +216,20 @@ def execute_watermark_scd2(
             WatermarkTransition(before=before, after=capture.after, gate=gate)
             repository.commit_watermark(dataset_id, capture.after)
         status = DatasetStatus.SUCCEEDED
-        _record_step(repository, dataset_run_id=dataset_run_id, step_name="COMMIT_STATE", status=StepStatus.SUCCEEDED)
+        _record_step(
+            repository,
+            dataset_run_id=dataset_run_id,
+            step_name="COMMIT_STATE",
+            status=StepStatus.SUCCEEDED,
+        )
     else:
         status = DatasetStatus.FAILED
-        _record_step(repository, dataset_run_id=dataset_run_id, step_name="COMMIT_STATE", status=StepStatus.SKIPPED)
+        _record_step(
+            repository,
+            dataset_run_id=dataset_run_id,
+            step_name="COMMIT_STATE",
+            status=StepStatus.SKIPPED,
+        )
 
     repository.record_dataset_run(
         DatasetRunAudit(
@@ -197,7 +241,13 @@ def execute_watermark_scd2(
             status=status,
             effective_config_hash=config_hash,
             row_accounting=accounting,
-            mutations=proposed.mutations if passed else proposed.mutations.model_copy(update={"inserted": 0, "updated": 0, "deleted": 0}),
+            mutations=(
+                proposed.mutations
+                if passed
+                else proposed.mutations.model_copy(
+                    update={"inserted": 0, "updated": 0, "deleted": 0}
+                )
+            ),
             error_code=None if passed else "RECONCILIATION_FAILED",
             error_message=None if passed else "required reconciliation gate failed",
             retryable=False if not passed else None,

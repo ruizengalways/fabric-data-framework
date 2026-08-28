@@ -20,6 +20,13 @@ from .config import (
     WatermarkConfig,
     resolve_effective_config,
 )
+from .contracts.execution_plan import (
+    ExecutionKind,
+    ExecutionPlan,
+    ExecutionRole,
+    ExecutionUnit,
+    build_default_execution_plan,
+)
 from .dispatcher import (
     DatasetDispatchOutcome,
     DatasetDispatchRequest,
@@ -38,6 +45,10 @@ __all__ = [
     "DatasetDispatchRequest",
     "DatasetStatus",
     "EffectiveDatasetConfig",
+    "ExecutionKind",
+    "ExecutionPlan",
+    "ExecutionRole",
+    "ExecutionUnit",
     "LoadPolicy",
     "OrchestrationIntegrityError",
     "OrchestrationPolicy",
@@ -50,6 +61,7 @@ __all__ = [
     "SourceConfig",
     "TargetConfig",
     "WatermarkConfig",
+    "build_default_execution_plan",
     "dispatch_datasets",
     "resolve_effective_config",
 ]
