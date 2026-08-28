@@ -53,6 +53,7 @@ def test_scd1_exact_rerun_is_idempotent():
     assert result.mutations.inserted == 0
     assert result.mutations.updated == 0
     assert result.duplicate_ignored == 1
+    assert result.incoming_superseded == 0
     assert result.rows == (row,)
 
 
@@ -73,7 +74,8 @@ def test_scd1_selects_latest_incoming_row_per_key():
     assert len(result.rows) == 1
     assert result.rows[0]["name"] == "v3"
     assert result.mutations.inserted == 1
-    assert result.duplicate_ignored == 2
+    assert result.incoming_superseded == 2
+    assert result.duplicate_ignored == 0
 
 
 def test_scd1_ignores_stale_incremental_row_by_default():
