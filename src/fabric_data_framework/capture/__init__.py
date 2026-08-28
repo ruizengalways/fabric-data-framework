@@ -1,5 +1,12 @@
 """Capture-strategy implementations and contracts."""
 
+from .bootstrap_cdc import (
+    CDCBootstrapEvidence,
+    CDCBootstrapEvidenceError,
+    CDCBootstrapPlan,
+    normalize_bootstrap_cdc_batch,
+    plan_cdc_bootstrap,
+)
 from .cdc import (
     CDCCheckpoint,
     CDCCheckpointTransition,
@@ -28,6 +35,9 @@ from .snapshot import (
 )
 
 __all__ = [
+    "CDCBootstrapEvidence",
+    "CDCBootstrapEvidenceError",
+    "CDCBootstrapPlan",
     "CDCCheckpoint",
     "CDCCheckpointTransition",
     "CDCConflictError",
@@ -47,5 +57,7 @@ __all__ = [
     "build_cdc_checkpoint",
     "capture_full_snapshot",
     "capture_snapshot",
+    "normalize_bootstrap_cdc_batch",
     "normalize_cdc_batch",
+    "plan_cdc_bootstrap",
 ]
