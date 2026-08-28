@@ -37,6 +37,9 @@ from fabric_data_framework.metadata import (
     DEFAULT_CAPABILITY_REGISTRY,
     UnsupportedExecutionCombination,
 )
+from fabric_data_framework.metadata.capabilities import (
+    DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE,
+)
 
 
 def _config(
@@ -45,6 +48,7 @@ def _config(
     apply: ApplyStrategy = ApplyStrategy.REPLACE,
     engine: ExecutionEngine = ExecutionEngine.AUTO,
     progress_owner: ProgressOwner = ProgressOwner.FRAMEWORK,
+    capability_profile: str | None = None,
     watermark: WatermarkConfig | None = None,
     extensions: ExtensionConfig | None = None,
 ) -> DatasetConfig:
@@ -65,7 +69,7 @@ def _config(
             else (),
             business_key=("customer_id",) if apply is ApplyStrategy.SCD2 else (),
             watermark=watermark,
-            event_time_column="modified_at" if apply is ApplyStrategy.SCD2 else None,
+            event_time_column="modified_at" if apply in {ApplyStrategy.SCD1, ApplyStrategy.SCD2} else None,
         ),
         orchestration=OrchestrationPolicy(
             execution_group="erp_daily",
@@ -73,7 +77,11 @@ def _config(
         ),
         quality=DataQualityPolicy(policy_name="standard", quarantine_policy="row"),
         reconciliation=ReconciliationPolicy(policy_name="standard"),
-        execution=ExecutionPolicy(engine=engine, progress_owner=progress_owner),
+        execution=ExecutionPolicy(
+            engine=engine,
+            progress_owner=progress_owner,
+            capability_profile=capability_profile,
+        ),
         extensions=extensions or ExtensionConfig(),
     )
 
@@ -87,6 +95,13 @@ def test_auto_execution_is_conservative_framework_spark_default():
     assert len(plan.units) == 1
     assert plan.units[0].execution_kind is ExecutionKind.SPARK_JOB_DEFINITION
     assert plan.units[0].state_commit_boundary is True
+
+
+def test_capability_profile_requires_explicit_engine():
+    config = _config(capability_profile=DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE)
+
+    with pytest.raises(UnsupportedExecutionCombination, match="explicit execution engine"):
+        DEFAULT_CAPABILITY_REGISTRY.validate(config)
 
 
 def test_copy_job_full_is_native_capture_plus_framework_processing():
@@ -126,6 +141,45 @@ def test_copy_job_accepts_native_watermark_with_overlap_and_native_progress():
         watermark=WatermarkConfig(column="modified_at", overlap_window_seconds=60),
     )
     assert DEFAULT_CAPABILITY_REGISTRY.validate(config) is ExecutionEngine.FABRIC_COPY_JOB
+
+
+def test_dataflow_incremental_profile_can_land_for_framework_scd1():
+    config = _config(
+        capture=CaptureStrategy.WATERMARK,
+        apply=ApplyStrategy.SCD1,
+        engine=ExecutionEngine.DATAFLOW_GEN2,
+        progress_owner=ProgressOwner.FABRIC_NATIVE,
+        capability_profile=DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE,
+        watermark=WatermarkConfig(column="modified_at", overlap_window_seconds=60),
+    )
+
+    assert DEFAULT_CAPABILITY_REGISTRY.validate(config) is ExecutionEngine.DATAFLOW_GEN2
+    plan = compile_execution_plan(resolve_effective_config(config), run_mode=RunMode.NORMAL)
+
+    assert [unit.execution_kind for unit in plan.units] == [
+        ExecutionKind.DATAFLOW_GEN2,
+        ExecutionKind.SPARK_JOB_DEFINITION,
+    ]
+    assert plan.units[0].roles == (
+        plan.units[0].roles[0],
+        plan.units[0].roles[1],
+    )
+    assert ExecutionKind.SPARK_JOB_DEFINITION is plan.units[1].execution_kind
+    assert plan.units[1].state_commit_boundary is True
+
+
+def test_dataflow_incremental_profile_rejects_composite_watermark():
+    config = _config(
+        capture=CaptureStrategy.WATERMARK,
+        apply=ApplyStrategy.SCD1,
+        engine=ExecutionEngine.DATAFLOW_GEN2,
+        progress_owner=ProgressOwner.FABRIC_NATIVE,
+        capability_profile=DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE,
+        watermark=WatermarkConfig(column="modified_at", tie_breaker=("customer_id",)),
+    )
+
+    with pytest.raises(UnsupportedExecutionCombination, match="composite WATERMARK"):
+        DEFAULT_CAPABILITY_REGISTRY.validate(config)
 
 
 def test_external_cdc_requires_external_progress_owner():
