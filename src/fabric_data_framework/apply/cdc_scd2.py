@@ -11,7 +11,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from ..capture.cdc import CDCNormalizedBatch, CDCOperation, CDCOrderingError
+from ..capture.cdc import CDCNormalizedBatch, CDCOperation
 from ..config import FrozenModel
 from ..operations import MutationCounts
 from ..scd2 import (
