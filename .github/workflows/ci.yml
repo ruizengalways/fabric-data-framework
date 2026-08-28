@@ -47,7 +47,7 @@ jobs:
         run: |
           python -m pip install "setuptools>=77"
           python -m pip wheel . --no-deps --no-build-isolation -w dist
-          sha256sum dist/*.whl | tee dist/SHA256SUMS
+          (cd dist && sha256sum *.whl | tee SHA256SUMS)
       - name: Upload wheel
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
