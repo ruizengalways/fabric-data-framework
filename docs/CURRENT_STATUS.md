@@ -28,29 +28,20 @@ architecture/production-framework-blueprint
 
 ## Latest validated implementation evidence
 
-Latest fully green implementation commit before the documentation audit:
+The latest coherent code/control-plane slice before the documentation updates is fully green:
 
 ```text
-82bf3d97e6e08e9620bacdd1de25a14a2f7d489c
-GitHub Actions run 33172961692
+60d4d1362f504a51b3ecedfcb93c7c6ceb3d4578
+GitHub Actions run 33175724889
 build-wheel       SUCCESS
 test-python-3.11  SUCCESS
 test-python-3.13  SUCCESS
-91 tests passed
+106 tests passed
 ```
 
-The coherent audit/docs head immediately before this status-evidence commit was also fully green:
+That run includes the new ordered UPSERT implementation, independent capture/apply planning, Dataflow-to-framework apply certification and apply-execution control-plane materialization.
 
-```text
-21b0f83dc33bc16c472a3a69821a31324785e065
-GitHub Actions run 33173705351
-build-wheel       SUCCESS
-test-python-3.11  SUCCESS
-test-python-3.13  SUCCESS
-91 tests passed
-```
-
-That audit head includes the new readiness/guarantee maps and synchronized README/blueprint/requirements/execution/control-plane/repository-structure docs. This `CURRENT_STATUS` evidence commit must also remain green before further implementation proceeds.
+Documentation commits after this SHA must receive their own green PR CI before the branch is considered audit-clean.
 
 ## Implemented development runtime
 
@@ -62,42 +53,159 @@ The hardening branch now provides:
 - normalized Bronze lineage envelope;
 - row DQ/quarantine and row-accounting primitives;
 - deterministic reference SCD2 behavior;
+- shared ordered current-state primitive for SCD1 and UPSERT;
 - deterministic ordered SCD1 current-state behavior;
-- reconciliation/state commit gates for the implemented execution slices;
+- deterministic ordered UPSERT behavior;
+- reconciliation/state commit gates for implemented execution slices;
 - metadata-driven dispatcher with dependency validation/failure isolation;
 - provider-neutral orchestration planning separated from the in-process backend;
 - immutable `ExecutionPlan` / execution-unit contracts;
+- independent capture/movement executor and apply executor selection;
 - guarded `FULL -> REPLACE` with isolated staging, completeness/source-count/empty-source/row-drop guards, reconciliation and publication evidence;
 - guarded `SNAPSHOT -> SNAPSHOT_DIFF` with complete-snapshot requirement, null/duplicate-key protection, delete-volume/delete-all guards, quarantine-aware delete blocking and reconciliation-before-publication;
-- execution-engine and progress-owner metadata;
-- named engine capability profiles, keyed by engine + profile rather than one optimistic global engine capability;
+- named engine capability profiles keyed by engine + profile;
 - typed `CaptureReceipt` for native/external capture handoff and native-run correlation;
 - controlled logical-name domain extension registry;
-- additive control-plane schema v2 with `execution_policy`, `ordering_policy` and environment-local `capture_receipt` persistence;
+- additive control-plane schema v2 including capture `execution_policy`, `apply_execution_policy`, `ordering_policy` and environment-local `capture_receipt` persistence;
 - immutable release/delivery contracts and CLI.
 
-## SCD1 implementation scope
+## Shared current-state apply foundation
 
-`src/fabric_data_framework/apply/scd1.py` is now the canonical provider-neutral SCD1 fallback for the certified scope.
+`src/fabric_data_framework/apply/current_state.py` is the shared provider-neutral correctness primitive used by SCD1 and UPSERT.
 
-It implements:
+Certified behavior:
 
 ```text
 composite merge key
-source ordering tuple (event time / version / sequence / LSN-like values)
+source ordering tuple: event time / version / sequence / LSN-like value
 latest-row selection within one incoming batch
 exact-rerun idempotency
 stale-row IGNORE or ERROR policy
 equal-position conflicting payload -> fail closed
 unordered changed update -> fail closed unless explicitly authorized
-separate duplicate / incoming-superseded / stale metrics
+duplicate / incoming-superseded / stale metrics
 ```
 
-This is intentionally independent from the physical ingestion mechanism.
+For existing keys, incoming fields merge over the current target row while target-only fields are retained.
+
+SCD1 remains the dimensional current-state semantic name. UPSERT is the generic insert-or-update current-state semantic. They intentionally share hard ordering/idempotency logic rather than maintaining two drifting implementations.
+
+Representative proof:
+
+```text
+tests/test_scd1.py
+tests/test_upsert.py
+```
+
+## Capture executor and apply executor are now independent
+
+ADR 0009 is now implemented at metadata/planning/control-plane contract level.
+
+Source-controlled execution policy:
+
+```text
+execution.engine
+execution.capability_profile
+execution.progress_owner
+    -> capture / movement policy
+
+execution.apply_engine
+execution.apply_capability_profile
+    -> independent final-target apply policy
+```
+
+`AUTO` may appear in source-controlled policy, but the immutable `ExecutionPlan` must contain concrete engines:
+
+```text
+ExecutionPlan.capture_engine
+ExecutionPlan.capture_capability_profile
+ExecutionPlan.apply_engine
+ExecutionPlan.apply_capability_profile
+```
+
+Default apply resolution is conservative:
+
+```text
+apply_engine = AUTO
+    -> SPARK / framework apply
+```
+
+Generic native profiles currently certify **no** final-target apply semantic. SQL/native apply therefore fails closed unless a future named apply profile explicitly certifies the requested `ApplyStrategy`. `CUSTOM` apply is allowed only with a controlled `extensions.apply` logical reference.
+
+Representative proof:
+
+```text
+tests/test_stage_execution_policy.py
+```
+
+## Dataflow Gen2 incremental -> framework SCD1/UPSERT
+
+The named capture profile:
+
+```text
+dataflow_gen2_incremental_bucket_v1
+```
+
+certifies only the bounded Dataflow Gen2 incremental capture/staging role:
+
+```text
+capture_strategy = WATERMARK
+capture engine   = DATAFLOW_GEN2
+progress_owner   = FABRIC_NATIVE
+composite WM     = NOT CERTIFIED
+native apply     = NOT CERTIFIED
+```
+
+The planner now explicitly produces this kind of hybrid plan:
+
+```text
+Dataflow Gen2 incremental capture/stage
+    -> framework normalize/validate
+    -> framework SCD1 or UPSERT
+    -> reconcile
+    -> state/audit
+```
+
+The Dataflow capture profile cannot be reused as a fake native SCD1 apply profile. The negative case is executable-tested.
+
+This is the key product invariant: use Fabric-native movement where strong without allowing native destination limitations to redefine the requested semantic contract.
+
+## Control-plane representation
+
+The deployed semantic/control plane mirrors the stage separation:
+
+```text
+execution_policy
+  dataset_id
+  execution_engine          # capture/movement policy
+  progress_owner
+  capability_profile
+  extensions
+
+apply_execution_policy
+  dataset_id
+  execution_engine          # apply policy
+  capability_profile
+
+ordering_policy
+  event_time_column
+  version_column
+  sequence_column
+```
+
+`apply_execution_policy` is a promotable semantic definition and is created by the normal baseline schema/CLI path. It is idempotently materialized from source-controlled metadata.
+
+Representative proof:
+
+```text
+tests/test_apply_execution_policy.py
+```
+
+The control-plane schema remains version 2 because this broader v2 definition has not been publicly released; no published v2 production migration contract is being rewritten.
 
 ## Framework-first semantics and stage-level native delegation
 
-Accepted ADR 0009 establishes the current product boundary:
+Canonical invariant:
 
 ```text
 semantic requirement
@@ -107,7 +215,7 @@ semantic requirement
          -> otherwise use the framework implementation
 ```
 
-Physical ownership is stage-level:
+Physical ownership:
 
 ```text
 capture / movement
@@ -116,141 +224,27 @@ capture / movement
     != reconcile / state
 ```
 
-The current `execution.engine` field is interpreted as the **capture/movement execution boundary**, not ownership of the full dataset lifecycle.
-
-Native final-target apply delegation is future work. It may be enabled only through an explicit capability profile that certifies semantic equivalence to the requested framework apply contract.
-
-## Dataflow Gen2 incremental -> framework SCD1
-
-The named profile:
-
-```text
-dataflow_gen2_incremental_bucket_v1
-```
-
-is implemented in `metadata/capabilities.py`.
-
-It explicitly certifies only the bounded capture/staging role for Fabric Dataflow Gen2 DateTime-bucket incremental refresh:
-
-```text
-capture_strategy = WATERMARK
-capture engine   = DATAFLOW_GEN2
-progress_owner   = FABRIC_NATIVE
-composite WM     = NOT CERTIFIED
-```
-
-The planner/reference test proves this valid composition:
-
-```text
-Dataflow Gen2 incremental capture/stage
-    -> framework processing unit
-    -> framework SCD1 apply
-```
-
-It does **not** claim Dataflow Gen2's bucket `replace` behavior is itself SCD1.
-
-Equivalent hybrid patterns are intended for Copy Job, Copy Activity, Mirroring and external CDC feeds.
-
-## Why native Fabric features are adapters, not the semantic foundation
-
-Current Microsoft Fabric features are useful but product/connector/version constrained.
-
-Verified against Microsoft Learn on 2026-08-28:
-
-- Copy Job CDC supports a bounded connector set and has current limitations such as mixed CDC/non-CDC table behavior, net-changes-only capture and no custom capture instances;
-- Copy Job SCD2 remains Preview and has source/schema restrictions;
-- Dataflow Gen2 incremental refresh uses DateTime buckets and reprocesses/replaces changed destination buckets;
-- Dataflow Gen2 incremental refresh does not provide arbitrary framework SCD1/UPSERT semantics as its destination update model.
-
-Therefore the framework maintains portable semantics and uses native services through conservative capability profiles.
-
-## Execution model
-
-Independent concerns:
-
-```text
-Capture semantics
-  FULL | WATERMARK | CDC | SNAPSHOT | MIRROR | STREAM
-
-Capture / movement engine
-  FABRIC_COPY_JOB | FABRIC_COPY_ACTIVITY | DATAFLOW_GEN2 |
-  SPARK | FABRIC_MIRRORING | EXTERNAL_CDC | SQL | CUSTOM
-
-Apply semantics
-  APPEND | REPLACE | UPSERT | SCD1 | SCD2 | SNAPSHOT_DIFF
-
-Authoritative physical-capture progress owner
-  FRAMEWORK | FABRIC_NATIVE | EXTERNAL
-```
-
-A native Copy/Dataflow activity does not import the framework wheel. It hands off landing/run/checkpoint evidence through `CaptureReceipt` and the common control plane.
-
-The next execution-planning evolution must make **apply executor/native apply delegation** a separate explicit decision rather than overloading the capture engine.
-
-## Many-table metadata-driven topology
-
-For tens/hundreds of tables, avoid both one bespoke pipeline per table and one opaque giant pipeline.
-
-Use reusable metadata-selected execution groups, for example:
-
-```text
-pl_erp_daily
-   +-- erp_full_reference
-   +-- erp_incremental_current
-   +-- erp_incremental_history
-   +-- erp_cdc_transactional
-   +-- erp_custom_complex
-```
-
-Grouping can reflect source limits, capture engine, schedule/SLA, volume, criticality/blast radius, dependencies, gateway/network boundary and Fabric capacity.
-
-SCD1/SCD2 are apply semantics. They may consume data landed by Dataflow, Copy, Spark, Mirroring or external CDC when the capture contract is valid.
-
-## Extension policy
-
-Irregular datasets use typed source-controlled logical extension references rather than framework forks or arbitrary Python expressions in metadata.
-
-Bounded extension categories include:
-
-```text
-custom capture adapter
-batch/micro-batch parser
-pre-apply transform
-DQ rule provider
-specialized apply adapter
-```
-
-Domain packages register implementations. Extensions may not bypass row accounting, reconciliation, publication/state boundaries, secrets/bindings or audit.
-
-## Progress ownership
-
-One physical capture operation has one authoritative checkpoint owner.
-
-Examples:
-
-```text
-framework-bounded Copy Activity -> FRAMEWORK
-Copy Job native incremental/CDC -> FABRIC_NATIVE
-Dataflow Gen2 native incremental -> FABRIC_NATIVE
-Debezium/Kafka -> EXTERNAL or explicit framework consumer
-```
-
-Progress ownership does not imply apply ownership.
+Progress ownership applies only to physical capture/checkpoint authority and never implies apply ownership.
 
 ## Durable audit documents
 
 New conversations must read:
 
 ```text
+docs/ECOSYSTEM_BLUEPRINT.md
+docs/PROJECT_BLUEPRINT.md
+docs/PRODUCTION_REQUIREMENTS.md
 docs/PRODUCTION_READINESS_AUDIT.md
 docs/GUARANTEE_COVERAGE.md
+docs/EXECUTION_ENGINE_STRATEGY.md
+docs/CONTROL_PLANE_DESIGN.md
+docs/CICD_DESIGN.md
+docs/CURRENT_STATUS.md
 ```
 
 `PRODUCTION_READINESS_AUDIT.md` separates portable semantics, deterministic certification, real Fabric evidence and external enterprise controls.
 
-`GUARANTEE_COVERAGE.md` maps each claimed guarantee to its code owner and representative executable test, and explicitly lists uncovered guarantees.
-
-The synchronized canonical reading order is also recorded in `README.md` and `PROJECT_BLUEPRINT.md`.
+`GUARANTEE_COVERAGE.md` maps claimed guarantees to code/test owners and explicitly lists remaining gaps.
 
 ## Current external boundary
 
@@ -260,17 +254,16 @@ Portable/reference semantics and SQLAlchemy schema proof are not the same as rea
 
 ## Exact next implementation sequence
 
-1. Implement/certify framework-owned **UPSERT** using the ordered/idempotent current-state foundations established by SCD1.
-2. Make capture/movement executor and apply executor/native-apply delegation separate explicit execution-plan decisions.
-3. Add Fabric Copy Job / Copy Activity / Dataflow Gen2 / Spark adapter contracts that emit immutable `CaptureReceipt` and native run correlation.
-4. Implement RETRY/BACKFILL/REPLAY/FULL_REBUILD attempt lineage, retryability and unknown-commit recovery.
-5. Implement CDC normalization -> UPSERT/SCD1/SCD2 plus snapshot-to-CDC bootstrap handoff, including external CDC adapters.
-6. Add general schema-evolution/late/out-of-order/duplicate-conflict policies.
-7. Add APPEND identity/collision semantics and broader strategy certification.
-8. Add a supported persistent control-plane repository/operator query surface.
-9. Prove at least one real hybrid Fabric DEV scenario: native capture -> `CaptureReceipt` -> framework SCD1/UPSERT.
-10. Re-run production readiness/guarantee audits.
-11. Only then decide the next immutable public framework release scope/version.
+1. Implement Fabric-stage adapter contracts for Copy Job, Copy Activity, Dataflow Gen2 and Spark that emit/correlate immutable `CaptureReceipt` evidence without weakening the semantic plan.
+2. Implement RETRY/BACKFILL/REPLAY/FULL_REBUILD attempt lineage, retryability classification and unknown-target-commit recovery.
+3. Implement CDC normalization -> UPSERT/SCD1/SCD2, including event identity/order/dedup/delete semantics and checkpoint commit gates.
+4. Implement snapshot/bootstrap -> CDC handoff so bootstrap changes have no gap/double apply.
+5. Add APPEND identity/collision semantics.
+6. Add general schema-evolution and late/out-of-order policy contracts beyond the currently certified SCD1/UPSERT/SCD2 scopes.
+7. Add a supported persistent control-plane repository/operator query surface.
+8. Prove at least one real hybrid Fabric DEV scenario: native capture -> `CaptureReceipt` -> framework SCD1/UPSERT.
+9. Re-run production readiness/guarantee audits against real adapter evidence.
+10. Only then decide the next immutable public framework release scope/version.
 
 ## Release gate
 
