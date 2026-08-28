@@ -1,5 +1,7 @@
 """Reusable contracts for the enterprise Microsoft Fabric data framework."""
 
+from .apply.replace import ReplaceGuardPolicy
+from .capture.full import FullSnapshotEvidence
 from .config import (
     ApplyStrategy,
     CaptureStrategy,
@@ -34,6 +36,7 @@ from .dispatcher import (
     PipelineDispatchResult,
     dispatch_datasets,
 )
+from .execution import execute_full_replace
 
 __all__ = [
     "ApplyStrategy",
@@ -49,6 +52,7 @@ __all__ = [
     "ExecutionPlan",
     "ExecutionRole",
     "ExecutionUnit",
+    "FullSnapshotEvidence",
     "LoadPolicy",
     "OrchestrationIntegrityError",
     "OrchestrationPolicy",
@@ -56,6 +60,7 @@ __all__ = [
     "PipelineDispatchResult",
     "PipelineStatus",
     "ReconciliationPolicy",
+    "ReplaceGuardPolicy",
     "RunMode",
     "RuntimeOverride",
     "SourceConfig",
@@ -63,6 +68,7 @@ __all__ = [
     "WatermarkConfig",
     "build_default_execution_plan",
     "dispatch_datasets",
+    "execute_full_replace",
     "resolve_effective_config",
 ]
 
