@@ -1,5 +1,16 @@
 """Recovery, retry and reprocessing runtime."""
 
+from .rebuild import (
+    FullRebuildContext,
+    FullRebuildError,
+    FullRebuildGateError,
+    FullRebuildMutationOutcome,
+    FullRebuildResult,
+    FullRebuildStateVersionConflict,
+    InMemoryFullRebuildStateAdapter,
+    execute_full_rebuild,
+    prepare_full_rebuild,
+)
 from .replay import (
     PreparedQuarantineReplay,
     QuarantineReplayError,
@@ -29,6 +40,13 @@ __all__ = [
     "AttemptContext",
     "FailureClassification",
     "FailureDisposition",
+    "FullRebuildContext",
+    "FullRebuildError",
+    "FullRebuildGateError",
+    "FullRebuildMutationOutcome",
+    "FullRebuildResult",
+    "FullRebuildStateVersionConflict",
+    "InMemoryFullRebuildStateAdapter",
     "PermanentExecutionError",
     "PreparedQuarantineReplay",
     "QuarantineReplayError",
@@ -43,7 +61,9 @@ __all__ = [
     "UnknownCommitOutcomeError",
     "UnknownOutcomeUnresolvedError",
     "classify_failure",
+    "execute_full_rebuild",
     "execute_quarantine_replay",
     "execute_with_retry",
+    "prepare_full_rebuild",
     "prepare_quarantine_replay",
 ]

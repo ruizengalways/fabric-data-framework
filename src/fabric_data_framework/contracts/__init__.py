@@ -10,6 +10,12 @@ from .execution_plan import (
     build_default_execution_plan,
     compile_execution_plan,
 )
+from .rebuild import (
+    FullRebuildStateAdapter,
+    FullRebuildStateReplacement,
+    FullRebuildStateSnapshot,
+    RebuildProgressKind,
+)
 from .recovery import (
     DatasetAttemptLineage,
     ReprocessRequest,
@@ -32,10 +38,14 @@ __all__ = [
     "ExecutionPlan",
     "ExecutionRole",
     "ExecutionUnit",
+    "FullRebuildStateAdapter",
+    "FullRebuildStateReplacement",
+    "FullRebuildStateSnapshot",
     "QuarantineBatchEvidence",
     "QuarantineReplayPayload",
     "QuarantineReplayPayloadProvider",
     "QuarantineReplayPlan",
+    "RebuildProgressKind",
     "ReprocessRequest",
     "ReprocessRequestStatus",
     "UnknownOutcomeResolution",
