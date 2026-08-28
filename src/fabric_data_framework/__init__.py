@@ -20,6 +20,13 @@ from .config import (
     WatermarkConfig,
     resolve_effective_config,
 )
+from .dispatcher import (
+    DatasetDispatchOutcome,
+    DatasetDispatchRequest,
+    OrchestrationIntegrityError,
+    PipelineDispatchResult,
+    dispatch_datasets,
+)
 
 __all__ = [
     "ApplyStrategy",
@@ -27,11 +34,15 @@ __all__ = [
     "Criticality",
     "DataQualityPolicy",
     "DatasetConfig",
+    "DatasetDispatchOutcome",
+    "DatasetDispatchRequest",
     "DatasetStatus",
     "EffectiveDatasetConfig",
     "LoadPolicy",
+    "OrchestrationIntegrityError",
     "OrchestrationPolicy",
     "OverrideField",
+    "PipelineDispatchResult",
     "PipelineStatus",
     "ReconciliationPolicy",
     "RunMode",
@@ -39,7 +50,8 @@ __all__ = [
     "SourceConfig",
     "TargetConfig",
     "WatermarkConfig",
+    "dispatch_datasets",
     "resolve_effective_config",
 ]
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
