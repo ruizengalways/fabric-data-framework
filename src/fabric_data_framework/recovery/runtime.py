@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Generic, Protocol, TypeVar
 from uuid import UUID, uuid4
@@ -71,7 +72,7 @@ class UnknownCommitOutcomeError(RuntimeError):
 
 
 class RecoveryExhaustedError(RuntimeError):
-    def __init__(self, message: str, *, last_error: BaseException) -> None:
+    def __init__(self, message: str, *, last_error: Exception) -> None:
         super().__init__(message)
         self.last_error = last_error
 
@@ -107,7 +108,7 @@ class RecoveryRunResult(Generic[T]):
     resolved_unknown_outcome: UnknownOutcomeResolution | None = None
 
 
-def classify_failure(exc: BaseException) -> FailureClassification:
+def classify_failure(exc: Exception) -> FailureClassification:
     """Conservatively classify failures; unknown exceptions are not auto-retried."""
 
     if isinstance(exc, RetryableExecutionError):
@@ -168,7 +169,9 @@ def _update_reprocess_status(
 ) -> ReprocessRequest | None:
     if request is None:
         return None
-    updated = request.model_copy(update={"status": status})
+    updated = request.model_copy(
+        update={"status": status, "updated_at": datetime.now(timezone.utc)}
+    )
     repository.record_reprocess_request(updated)
     return updated
 
@@ -193,9 +196,11 @@ def execute_with_retry(
 ) -> RecoveryRunResult[T]:
     """Execute bounded attempts while preserving immutable attempt lineage.
 
-    Automatic retries are permitted only for explicitly retryable failures.  An
-    uncertain target commit is reconciled before any retry.  COMMITTED converges to
+    Automatic retries are permitted only for explicitly retryable failures. An
+    uncertain target commit is reconciled before any retry. COMMITTED converges to
     success, NOT_COMMITTED may retry, and UNRESOLVED stops to avoid duplicate writes.
+    Process-control exceptions such as KeyboardInterrupt/SystemExit are deliberately
+    not converted into dataset retry decisions.
     """
 
     if initial_attempt < 1:
@@ -223,16 +228,13 @@ def execute_with_retry(
         repository, reprocess_request, ReprocessRequestStatus.RUNNING
     )
 
-    first_new_run_id: UUID | None = None
     root_id = root_dataset_run_id
     previous_id = previous_dataset_run_id
-    last_error: BaseException | None = None
+    last_error: Exception | None = None
 
     for offset in range(policy.max_attempts):
         attempt = initial_attempt + offset
         dataset_run_id = uuid4()
-        if first_new_run_id is None:
-            first_new_run_id = dataset_run_id
         if root_id is None:
             root_id = dataset_run_id
         context = AttemptContext(
@@ -261,7 +263,7 @@ def execute_with_retry(
 
         try:
             value = execute_attempt(context)
-        except BaseException as exc:  # executor boundary must finalize every attempt
+        except Exception as exc:  # executor boundary finalizes ordinary attempt failures
             last_error = exc
             classification = classify_failure(exc)
 
