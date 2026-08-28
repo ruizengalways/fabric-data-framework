@@ -220,7 +220,7 @@ class ReconciliationPolicy(FrozenModel):
 class ExecutionPolicy(FrozenModel):
     """Source-controlled physical execution selection for dataset stages.
 
-    ``engine`` and ``capability_profile`` describe capture/movement.  Apply is an
+    ``engine`` and ``capability_profile`` describe capture/movement. Apply is an
     independent stage with its own engine/profile so native ingestion never implies
     native final-target semantics.
     """
@@ -263,7 +263,7 @@ class DatasetConfig(FrozenModel):
         if self.dataset_id in self.orchestration.dependencies:
             raise ValueError("dataset must not depend on itself")
         if self.execution.engine is ExecutionEngine.CUSTOM and not self.extensions.capture:
-            raise ValueError("CUSTOM capture execution requires extensions.capture")
+            raise ValueError("CUSTOM execution requires extensions.capture")
         if (
             self.execution.apply_engine is ExecutionEngine.CUSTOM
             and not self.extensions.apply
