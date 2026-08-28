@@ -6,10 +6,20 @@ from .full import (
     FullSnapshotEvidenceError,
     capture_full_snapshot,
 )
+from .snapshot import (
+    SnapshotCaptureBatch,
+    SnapshotEvidence,
+    SnapshotEvidenceError,
+    capture_snapshot,
+)
 
 __all__ = [
     "FullCaptureBatch",
     "FullSnapshotEvidence",
     "FullSnapshotEvidenceError",
+    "SnapshotCaptureBatch",
+    "SnapshotEvidence",
+    "SnapshotEvidenceError",
     "capture_full_snapshot",
+    "capture_snapshot",
 ]
