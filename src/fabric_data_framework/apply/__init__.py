@@ -1,5 +1,14 @@
 """Apply-strategy implementations and publication guards."""
 
+from .cdc import (
+    CDCApplyError,
+    CDCCurrentStateApplyResult,
+    CDCDeleteAction,
+    CDCDeleteRejectedError,
+    CDC_PARTITION,
+    CDC_POSITION,
+    apply_cdc_current_state,
+)
 from .replace import (
     InMemoryReplaceTarget,
     ReplaceGuardError,
@@ -32,6 +41,12 @@ from .upsert import (
 )
 
 __all__ = [
+    "CDCApplyError",
+    "CDCCurrentStateApplyResult",
+    "CDCDeleteAction",
+    "CDCDeleteRejectedError",
+    "CDC_PARTITION",
+    "CDC_POSITION",
     "InMemoryReplaceTarget",
     "InMemorySCD1Target",
     "InMemoryUpsertTarget",
@@ -50,6 +65,7 @@ __all__ = [
     "UpsertApplyResult",
     "UpsertConflictError",
     "UpsertOrderingError",
+    "apply_cdc_current_state",
     "apply_scd1",
     "apply_upsert",
     "plan_replace",
