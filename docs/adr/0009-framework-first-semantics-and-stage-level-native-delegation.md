@@ -1,6 +1,6 @@
 # ADR 0009 — Framework-first semantics with stage-level native delegation
 
-Status: Accepted
+Status: Accepted and partially implemented
 Date: 2026-08-28
 
 ## Context
@@ -23,7 +23,7 @@ Representative example:
 ```text
 Dataflow Gen2 incremental refresh
     -> staging / Bronze
-    -> framework SCD1
+    -> framework SCD1 or UPSERT
     -> reconciliation
     -> state/audit
 ```
@@ -48,7 +48,7 @@ capture / movement
 
 Different stages may use different engines.
 
-The current 0.4.0-development `execution.engine` field is interpreted as the capture/movement execution boundary. It must not be interpreted as granting that engine ownership of all downstream semantics.
+`ExecutionPolicy.engine` and `capability_profile` describe the capture/movement boundary. `ExecutionPolicy.apply_engine` and `apply_capability_profile` independently describe the final-target apply boundary. Neither field grants an engine ownership of the complete lifecycle.
 
 A native stage may be selected only when a capability profile can prove that it satisfies the requested contract. If equivalence cannot be established, the compiler must fail closed or select the framework fallback.
 
@@ -72,11 +72,13 @@ Native capture returns or is correlated to a typed `CaptureReceipt` so the commo
 
 ### Apply delegation
 
-Framework-owned `APPEND`, `REPLACE`, `UPSERT`, `SCD1`, `SCD2` and `SNAPSHOT_DIFF` remain canonical semantic implementations.
+Framework-owned `REPLACE`, `UPSERT`, `SCD1`, `SCD2` and `SNAPSHOT_DIFF` are currently certified portable apply semantics. `APPEND` remains required but is not yet certified.
 
 A native target-side implementation may replace the framework apply stage only when a registered capability profile explicitly certifies semantic equivalence for the relevant connector/source/target/product version and limitations.
 
 Generic native capability profiles must not assume that marketing names such as `merge`, `incremental refresh` or `SCD2` are automatically equivalent to the framework contract.
+
+The current generic registry therefore certifies SPARK/framework apply for the implemented strategies and deliberately certifies no generic native final-target apply. `CUSTOM` is allowed only through the controlled domain extension contract.
 
 ### Progress ownership
 
@@ -96,7 +98,7 @@ For example:
 
 ```text
 Dataflow Gen2 owns incremental bucket progress
-framework owns SCD1 target semantics
+framework owns SCD1/UPSERT target semantics
 ```
 
 is valid.
@@ -114,9 +116,46 @@ WATERMARK + SCD1
   native path: Copy/Dataflow capture -> framework SCD1
   fallback:    Spark/framework bounded capture -> framework SCD1
 
-CDC + UPSERT
-  native path: Copy Job/External CDC -> framework CDC normalization -> UPSERT
-  fallback:    framework CDC adapter -> framework normalization -> UPSERT
+WATERMARK/CDC + UPSERT
+  native path: native/external capture -> framework normalization -> UPSERT
+  fallback:    framework capture -> framework normalization -> UPSERT
+```
+
+## Current implementation
+
+The 0.4.0 development branch now implements the stage separation described by this ADR:
+
+```text
+ExecutionPolicy
+  engine / capability_profile                 capture/movement policy
+  progress_owner                              capture checkpoint authority
+  apply_engine / apply_capability_profile     independent apply policy
+
+ExecutionPlan
+  capture_engine / capture_capability_profile
+  apply_engine / apply_capability_profile
+  concrete execution units
+```
+
+`AUTO` is allowed in source-controlled policy but must resolve to concrete engines before an immutable execution plan is emitted.
+
+The default apply resolver chooses SPARK/framework semantics. A native or SQL apply request fails closed unless its named profile explicitly lists the requested `ApplyStrategy`.
+
+The deployed control plane mirrors the separation:
+
+```text
+execution_policy        capture/movement engine + progress owner + capture profile
+apply_execution_policy  apply engine + apply profile
+ordering_policy         event/version/sequence ordering fields
+```
+
+Representative executable proof includes:
+
+```text
+tests/test_upsert.py
+tests/test_stage_execution_policy.py
+tests/test_apply_execution_policy.py
+tests/test_execution_engines.py
 ```
 
 ## Extension model
@@ -137,16 +176,15 @@ Positive consequences:
 
 Costs:
 
-- execution planning becomes explicitly multi-stage;
+- execution planning is explicitly multi-stage;
 - native adapters require receipt/correlation contracts;
 - capability certification must be maintained as Microsoft Fabric features evolve;
 - some scenarios perform an additional landing/staging step before final apply.
 
-## Follow-up implementation
+## Remaining follow-up
 
-1. Treat framework SCD1 and UPSERT as P0 core implementations.
-2. Make capture/movement executor and apply executor/native-delegation choice explicit in execution planning/metadata.
-3. Add connector/product-version capability profiles rather than one optimistic global native profile.
-4. Add native capture adapter contracts for Copy Job, Copy Activity and Dataflow Gen2 using `CaptureReceipt`.
-5. Add at least one certification scenario proving `native capture -> framework SCD1`.
-6. Add native apply delegation only after explicit equivalence tests exist.
+1. Add native capture adapter contracts for Copy Job, Copy Activity, Dataflow Gen2 and Spark using `CaptureReceipt`.
+2. Add real DEV proof for at least one `native capture -> CaptureReceipt -> framework SCD1/UPSERT` execution.
+3. Add native apply delegation only after explicit equivalence tests exist.
+4. Implement recovery/attempt semantics so stage retries and unknown outcomes preserve the same contract.
+5. Implement CDC normalization/bootstrap and reuse the current-state UPSERT/SCD1 primitives downstream.
