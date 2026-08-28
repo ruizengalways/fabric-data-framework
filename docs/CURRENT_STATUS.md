@@ -7,55 +7,35 @@ Last updated: 2026-08-28
 - Phase 0 — canonical architecture: **COMPLETE**.
 - Phase 1 — framework foundation: **COMPLETE**.
 - Phase 2 — first executable Customer WATERMARK/SCD2 vertical slice: **COMPLETE**.
-- Phase 3 — enterprise delivery spine core: **COMPLETE; `v0.3.0` RELEASE PENDING ONLY**.
+- Phase 3 — enterprise delivery spine: **COMPLETE AND RELEASED AS `v0.3.0`**.
 - Public-repository GitHub-hosted CI: **VALIDATED ON `ubuntu-latest`**.
-- UI-driven framework release initiation: **AVAILABLE ON `main`**.
-- Release build-backend fix: **MERGED AND CI-VALIDATED**.
-- Phase 4 dispatcher: **CI-VALIDATED ON PR #9 AS 0.4.0 CANDIDATE; HELD OPEN UNTIL 0.3.0 RELEASE**.
+- UI-driven immutable release path: **VALIDATED IN PRODUCTION USE**.
+- Phase 4 — metadata-driven multi-dataset dispatcher/failure isolation: **0.4.0 CANDIDATE BEING REBASED/REVALIDATED ON PR #9**.
 
 ## Last completed step
 
-The first UI-triggered `framework-release` run (`33147093082`) was executed from `main` with version `0.3.0`.
+Framework `v0.3.0` was successfully published by GitHub Actions run `33156000907` from `main`.
 
-It successfully completed release-candidate validation:
-
-```text
-Checkout release source                 SUCCESS
-Resolve immutable release tag           SUCCESS -> v0.3.0
-Prepare manual release source            SUCCESS -> tag did not exist
-Install and validate release candidate  SUCCESS
-  package/tag validation                 SUCCESS
-  Ruff                                   SUCCESS
-  compile                                SUCCESS
-  pip check                              SUCCESS
-  pytest                                 37 passed
-Build immutable wheel and checksum       FAILURE
-```
-
-The failure was isolated to the packaging environment, not framework correctness:
+Published release assets:
 
 ```text
-BackendUnavailable: Cannot import 'setuptools.build_meta'
+fabric_data_framework-0.3.0-py3-none-any.whl
+SHA256SUMS
 ```
 
-`pyproject.toml` declares `setuptools>=77` as the build backend, while the release job used `pip wheel --no-build-isolation` without first installing that backend into the runner environment.
-
-Framework PR #12 aligned the release job with the already-proven CI packaging contract by explicitly installing `setuptools>=77` before the no-build-isolation wheel build. PR #12 was squash-merged to `main` as commit `8474471e6079c54d2d1cecd3605faed0b6782345`.
-
-PR CI run `33147330354` passed, and merge-triggered `main` run `33147361942` also passed:
+GitHub records the wheel digest as:
 
 ```text
-build-wheel       SUCCESS
-test-python-3.11  SUCCESS
-test-python-3.13  SUCCESS
-runner            GitHub-hosted ubuntu-latest
+sha256:37a4734e48e5a43240035c19174924231f565ca2fedb30484e691bc19c2cafc0
 ```
 
-The failed release run stopped before tag creation and before GitHub Release creation. No immutable artifact needs cleanup or movement; `v0.3.0` remains safe to create from the corrected workflow.
+Customer PR #6 then reran exact released-artifact integration. It downloaded the `v0.3.0` wheel and checksum, verified SHA-256, installed the released framework, ran cross-package tests, and validated release-manifest plus DEV/UAT/PROD deployment plans. Final Customer CI run `33157883463` passed both jobs, and Customer PR #6 was squash-merged as commit `32f6cabc093541270b271ae37754ba8fe1e9544b`.
+
+The 0.3.0 immutable release boundary is therefore frozen and proven end to end.
 
 ## Existing delivery spine
 
-Framework source version `0.3.0` remains on `main` and provides:
+Framework `v0.3.0` provides:
 
 ```text
 fabric-framework validate-tag
@@ -66,7 +46,7 @@ fabric-framework deployment-plan
 fabric-framework deployment-record
 ```
 
-Release workflow capabilities now include:
+Release workflow capabilities include:
 
 - GitHub Actions UI initiation via `workflow_dispatch`;
 - manual release restricted to `main`;
@@ -76,50 +56,66 @@ Release workflow capabilities now include:
 - immutable wheel build;
 - portable `SHA256SUMS` generation and verification;
 - annotated tag creation only after validation/build succeeds;
-- immutable GitHub Release creation;
+- GitHub Release creation;
 - recovery when a tag exists without a Release;
 - refusal to overwrite an existing Release or move an existing tag.
 
-## Phase 4 state
+## Phase 4 dispatcher candidate
 
-Framework PR #9 implements metadata-driven multi-dataset dispatcher/failure isolation as version `0.4.0`.
-
-Its GitHub-hosted validation runs passed wheel build, Python 3.11, Python 3.13, static checks and **44 tests**. PR #9 remains intentionally open and must not merge until the immutable `v0.3.0` boundary has been frozen.
-
-## Immutable release state
-
-Immutable GitHub Release `v0.3.0` still does not exist.
-
-The corrected workflow is now on `main`. The next operator action is:
+Framework PR #9 contains version `0.4.0` and implements the generic metadata-driven dispatcher above dataset executors:
 
 ```text
-GitHub -> fabric-data-framework -> Actions -> framework-release -> Run workflow
-Use workflow from: main
-version: 0.3.0
+pipeline request
+  -> list deployed datasets
+  -> resolve effective configs
+  -> filter enabled / execution group / explicit request
+  -> validate dependencies and cycles
+  -> bounded parallel ready-set execution
+  -> isolate dataset executor failures
+  -> block only failed-dependent branches
+  -> continue unrelated siblings
+  -> aggregate SUCCESS / PARTIAL_SUCCESS / FAILED
 ```
 
-Customer Phase 3 PR #6 performs true released-artifact integration: it downloads `fabric_data_framework-0.3.0-py3-none-any.whl` plus `SHA256SUMS`, verifies SHA-256, installs the released wheel, then runs cross-package tests and release/deployment-plan checks. It remains correctly blocked until the Framework Release exists.
+Implemented contracts include:
 
-## Current Microsoft Fabric external boundary
+- metadata-driven dataset selection;
+- execution-group filtering;
+- explicit requested-dataset validation;
+- dependency validation and cycle detection;
+- bounded concurrency honoring dataset orchestration limits;
+- dataset-level exception isolation;
+- dependent `BLOCKED` outcomes without cancelling unrelated datasets;
+- criticality-aware pipeline aggregation;
+- pipeline/dataset lineage IDs;
+- thread-safe in-memory control-plane support and pipeline-run upsert.
+
+The original Phase 4 branch was opened before later 0.3.0 release-workflow hardening, so it is being reconstructed on current `main` rather than merging stale release/docs state. Its earlier GitHub-hosted validation passed wheel build, Python 3.11, Python 3.13 and **44 tests**.
+
+## Current external boundary
 
 No enterprise Fabric workspace, tenant setting, capacity, connection, credential or runtime state has been modified. Real Fabric deployment remains a later adapter/integration step using approved tenant identity and environment bindings.
 
 ## Known limitations / blockers
 
-- Immutable framework `v0.3.0` GitHub Release is still pending the corrected UI-triggered run.
-- Customer exact released-wheel integration is blocked only on that release.
-- Phase 4 PR #9 is held open behind the 0.3.0 release boundary.
+- Phase 4 must complete rebased CI before merge.
+- No tiny Customer multi-dataset dispatcher scenario yet.
+- Retry/backfill/replay attempt orchestration is not implemented yet.
+- FULL/SNAPSHOT -> SNAPSHOT_DIFF and CDC -> UPSERT representative executors are not implemented yet.
+- Delete, schema-evolution and general late/out-of-order correction policies remain future slices.
 - No real Fabric item deployment has executed.
 - No physical enterprise control-plane store has been exercised.
-- Late/out-of-order correction, delete handling, FULL/SNAPSHOT, CDC and recovery orchestration remain future runtime slices.
 - No Terraform implementation yet; `fabric-infra` remains intentionally deferred.
 
 ## Exact next implementation sequence
 
-1. Rerun `framework-release` from GitHub Actions on `main` with version `0.3.0`; verify tag, Release, wheel and `SHA256SUMS` assets.
-2. Re-run Customer PR #6 exact integration and require released-wheel checksum verification, cross-package tests and DEV/UAT/PROD release-plan checks to pass; then merge Customer Phase 3.
-3. Rebase/revalidate and merge Framework PR #9 as the `0.4.0` dispatcher slice.
-4. Add the tiny Customer multi-dataset dispatcher scenario.
-5. Continue with retry/backfill/replay, SNAPSHOT_DIFF, CDC/UPSERT, delete/schema/late-arrival handling and then the first real Fabric adapter.
+1. Rebase/revalidate and merge Framework PR #9 as the `0.4.0` dispatcher slice.
+2. Add a tiny Customer multi-dataset graph proving `SUCCESS`, `PARTIAL_SUCCESS`, dependency blocking and unrelated sibling continuation.
+3. Implement retry/backfill/replay and attempt lineage.
+4. Add representative SNAPSHOT_DIFF and CDC/UPSERT executors.
+5. Implement delete/late-arrival/schema-evolution correctness policies.
+6. Add the first real Fabric Environment + Notebook + Pipeline adapter and DEV smoke run.
+7. Add a real persistent control-plane adapter and operational query surface.
+8. Defer `fabric-infra` Terraform until the data-platform runtime is proven in the company Fabric estate.
 
 Do not fake release or Fabric-estate validation.

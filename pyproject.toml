@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fabric-data-framework"
-version = "0.3.0"
+version = "0.4.0"
 description = "Metadata-driven Microsoft Fabric data engineering runtime contracts and reusable framework primitives."
 readme = "README.md"
 requires-python = ">=3.11"
