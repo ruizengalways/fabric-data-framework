@@ -7,7 +7,7 @@ Last updated: 2026-08-29
 
 `fabric-data-framework` is a reusable semantic/runtime product, not a wrapper around one Microsoft Fabric execution surface.
 
-Core DE semantics have provider-neutral framework implementations. Fabric-native features are stage delegates when a capability profile proves the requested scope.
+Core DE semantics have provider-neutral framework implementations. Native/provider features are stage delegates when a capability profile proves the requested scope.
 
 ADR 0009 remains governing architecture: **framework-first semantics with stage-level native delegation**.
 
@@ -64,7 +64,7 @@ APPEND identity semantics remain future work.
 
 Generic native profiles do **not** claim arbitrary UPSERT/SCD1/SCD2 equivalence. Unless an apply profile explicitly certifies the strategy, the conservative apply path is framework/Spark.
 
-## 5. Native capture services
+## 5. Native and external capture services
 
 ### Copy Job
 
@@ -93,8 +93,6 @@ framework freezes lower/upper
 
 ### Dataflow Gen2
 
-Useful for Power Query connector/folding/reshape and Fabric-native DateTime-bucket incremental behavior.
-
 Named profile:
 
 ```text
@@ -115,20 +113,29 @@ Dataflow Gen2 incremental
 
 Spark/framework is conservative programmable fallback for source-boundary logic, composite ordering, parsing, deterministic current/history correctness and complex recovery. It is not required for every transport workload.
 
-### Mirroring / external CDC
+### Mirroring
 
-Provider/external service may own source replication/offset progress while framework remains responsible for canonicalization/apply/audit for non-delegated stages.
+Provider-native replication may own source progress while framework remains responsible for non-delegated canonicalization/apply/audit.
 
-For CDC:
+### External CDC — Debezium on Kafka
+
+Built-in profile:
 
 ```text
-native/external source cursor authority
-  -> CaptureReceipt/native checkpoint correlation
-  -> canonical CDC normalization
-  -> downstream framework semantic apply checkpoint
+EXTERNAL_CDC / debezium_kafka_v1
+capture = CDC
+progress owner = EXTERNAL
+apply = independently resolved; framework/Spark by default
 ```
 
-The downstream checkpoint is not a competing source cursor.
+The framework adapter consumes already-received Debezium Kafka records and normalizes them using Kafka physical order:
+
+```text
+topic + partition + offset
+   -> CDCSourcePosition
+```
+
+Database LSN/binlog values stay provider metadata. The profile does not claim that the framework owns or commits the external Kafka consumer cursor.
 
 ## 6. Capability profiles
 
@@ -150,7 +157,14 @@ Rules:
 - native apply requires explicit apply-strategy certification;
 - provider marketing names do not establish semantic equivalence.
 
-Future CDC provider profiles must additionally state what native position/checkpoint evidence they can normalize and whether source offset commit/resume semantics are certified.
+Current named profiles include:
+
+```text
+DATAFLOW_GEN2 / dataflow_gen2_incremental_bucket_v1
+EXTERNAL_CDC  / debezium_kafka_v1
+```
+
+The Debezium/Kafka profile certifies provider envelope normalization and external progress ownership at reference/adapter-contract level. It does not certify a real Kafka client, consumer group or broker interaction.
 
 ## 7. Progress ownership
 
@@ -160,12 +174,20 @@ Every physical capture has one authoritative source checkpoint owner.
 Copy Activity with framework-defined bounds -> FRAMEWORK
 Copy Job native incremental/CDC             -> FABRIC_NATIVE
 Dataflow Gen2 incremental                   -> FABRIC_NATIVE
-Debezium/Kafka                              -> EXTERNAL or explicit consumer owner
+Debezium/Kafka                              -> EXTERNAL
 ```
 
 Progress ownership does not imply apply ownership.
 
-Framework downstream CDC semantic application progress is persisted separately only to track what has been safely applied/reconciled; it does not make the framework owner of an external/native source cursor.
+For Debezium/Kafka there are intentionally two coordinates:
+
+```text
+external consumer/source cursor
+        !=
+framework downstream CDC apply checkpoint
+```
+
+If a consumer cursor advances to 500 but downstream apply commits only through 420, safe replay starts from 421 if retention still covers it. The external cursor is not accepted as downstream-success evidence.
 
 ## 8. CaptureReceipt handoff
 
@@ -195,35 +217,39 @@ SparkJobCaptureAdapter
 
 `FabricAdapterRegistry` is explicit. Framework semantic code does not construct credentials/workspace clients.
 
-Fail-closed rules include engine/kind/role validation, unsuccessful/unknown native status rejection, evidence matching and exact bounded-range verification for FRAMEWORK-owned movement.
-
 These are adapter-contract guarantees, not real Fabric integration evidence.
 
-## 10. CDC execution boundary
+## 10. CDC provider adapter architecture
 
 Canonical CDC detail: `CDC_DESIGN.md`.
 
-Provider adapter responsibility:
-
 ```text
-provider envelope/coordinate
-  -> canonical partition + integer position tuple
-  -> CDCEvent / CDCCheckpoint
+ExecutionPolicy(engine/profile)
+        |
+        v
+CapabilityRegistry
+        |
+        v
+ExecutionPlan
+        |
+        v
+CDCProviderAdapterRegistry
+        |
+        v
+provider envelope -> CDCEvent/CDCCheckpoint
+        |
+        v
+framework CDC semantic apply
 ```
 
-Semantic core responsibility:
+Current default provider registry maps:
 
 ```text
-bounded completeness
-identity/dedupe/conflict
-ordering proof
-overlap handling
-UPSERT/SCD1/SCD2 apply
-reconciliation
-downstream checkpoint
+(EXTERNAL_CDC, debezium_kafka_v1)
+    -> DebeziumKafkaCDCAdapter
 ```
 
-A provider adapter that cannot prove unique event order must fail rather than pass ambiguous events to apply logic.
+The adapter layer owns provider translation and recovery-range evidence. It does not own UPSERT/SCD1/SCD2 algorithms.
 
 ## 11. Recovery and physical execution
 
@@ -243,7 +269,18 @@ NOT_COMMITTED -> retry may proceed
 UNRESOLVED    -> stop
 ```
 
-For native/external capture, source offset resume/commit behavior is provider-adapter responsibility and remains a current gap.
+Debezium/Kafka now has retention-aware resume planning:
+
+```text
+framework committed CDC apply offset
+  -> next_required = committed + 1
+  -> compare with earliest retained / latest available
+  -> safe seek window OR explicit retention-gap failure
+```
+
+This is reference planning only. Real Kafka seek/consume/commit behavior remains transport integration work.
+
+Other native/external capture engines still require their own strategy-specific downstream-failure resume proofs.
 
 ## 12. Many-table topology
 
@@ -263,36 +300,44 @@ A provider-specific CDC parser extension must still emit canonical CDC contracts
 
 ## 14. Current implementation evidence
 
-Latest coherent CDC head before docs synchronization:
+Latest provider CDC evidence:
 
 ```text
-465a2c1e9ddf25b0ace2293f578c2c5bb3a653ae
-Actions 33216281126
-171 tests passed
+1087ab9231b9cb638a87bc2f78ef0c1b1fe32beb
+Actions 33219601375
+179 tests passed
+Debezium/Kafka envelope + safe resume
+
+ecdca38099a4f21c6f40701dc14889b464c20608
+Actions 33219783325
+183 tests passed
+Debezium/Kafka capability profile + provider registry
 ```
 
 Implemented reference/contract scope includes:
 
 - independent capture/apply planning;
-- capability registry and Dataflow incremental profile;
+- Dataflow incremental profile;
 - framework UPSERT/SCD1/SCD2/REPLACE/SNAPSHOT_DIFF;
 - CaptureReceipt;
-- Fabric capture request/evidence/transport boundary;
-- Copy Job/Copy Activity/Dataflow/Spark capture wrappers;
+- Fabric capture request/evidence boundary;
 - recovery core/unknown-outcome safety;
 - canonical CDC I/U/D, identity/order/dedupe/bounded checkpoints;
 - CDC -> UPSERT/SCD1/SCD2;
 - durable optimistic CDC downstream checkpoint;
-- snapshot/bootstrap -> CDC handoff.
+- snapshot/bootstrap -> CDC handoff;
+- Debezium/Kafka provider normalization;
+- Debezium tombstone/snapshot-read policy;
+- Kafka retention-aware safe resume planning;
+- explicit provider adapter registry and capability profile.
 
 Still required:
 
-- selected provider CDC envelope/capability adapters;
-- provider source-offset resume/commit recovery;
+- real Kafka/Debezium transport + consumer-group commit/correlation;
+- additional CDC provider profiles only where product scope requires;
 - actual Fabric REST/SDK/CLI transports;
 - real Pipeline backend;
-- connector/product-version real certification;
-- strategy-specific replay/rebuild completion;
+- strategy-specific quarantine replay/FULL_REBUILD/native-progress recovery completion;
 - real target/native apply certification.
 
 ## 15. Acceptance rule for routine onboarding
@@ -304,7 +349,7 @@ Normal source/table onboarding should be:
 2. declare semantic metadata
 3. select/resolve certified capture profile
 4. use framework apply by default unless native apply is certified
-5. configure provider CDC mapping/profile if capture=CDC
+5. configure provider CDC profile if capture=CDC
 6. add domain DQ/mapping
 7. add bounded extension only for genuine exception
 8. deploy definitions/items
