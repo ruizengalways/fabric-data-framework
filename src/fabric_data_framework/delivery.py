@@ -23,6 +23,7 @@ from .control_plane import (
     ordering_policy,
     reconciliation_policy,
 )
+from .control_plane_stage_policy import apply_execution_policy
 from .deployment import (
     DeploymentPlan,
     DeploymentProvenance,
@@ -237,6 +238,21 @@ def materialize_semantic_metadata(
                 {"dataset_id": config.dataset_id},
                 execution_values,
                 {**execution_values, **common_audit},
+            )
+
+            apply_execution_values = {
+                "dataset_id": config.dataset_id,
+                "execution_engine": config.execution.apply_engine.value,
+                "capability_profile": config.execution.apply_capability_profile,
+                "created_at": now,
+                "updated_at": None,
+            }
+            _upsert_definition(
+                connection,
+                apply_execution_policy,
+                {"dataset_id": config.dataset_id},
+                apply_execution_values,
+                {**apply_execution_values, **common_audit},
             )
 
             orchestration_values = {
