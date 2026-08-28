@@ -20,6 +20,7 @@ class UnsupportedExecutionCombination(ValueError):
 
 DEFAULT_CAPABILITY_PROFILE = "default"
 DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE = "dataflow_gen2_incremental_bucket_v1"
+DEBEZIUM_KAFKA_PROFILE = "debezium_kafka_v1"
 
 
 class EngineCapability(FrozenModel):
@@ -126,6 +127,23 @@ _DEFAULT_CAPABILITIES = (
         capture_strategies=frozenset({CaptureStrategy.CDC, CaptureStrategy.STREAM}),
         progress_owners=frozenset({ProgressOwner.EXTERNAL}),
         supports_native_cdc=True,
+        notes=(
+            "Generic external CDC boundary. A named provider profile is preferred when "
+            "the framework ships a provider-specific adapter/certification."
+        ),
+    ),
+    EngineCapability(
+        profile_name=DEBEZIUM_KAFKA_PROFILE,
+        engine=ExecutionEngine.EXTERNAL_CDC,
+        capture_strategies=frozenset({CaptureStrategy.CDC}),
+        progress_owners=frozenset({ProgressOwner.EXTERNAL}),
+        supports_native_cdc=True,
+        supports_complete_snapshot_evidence=False,
+        notes=(
+            "Debezium records consumed from Kafka. Canonical source ordering is Kafka "
+            "topic/partition/offset; database LSN/binlog coordinates remain metadata. "
+            "Downstream apply stays independently selected and framework-owned by default."
+        ),
     ),
     EngineCapability(
         engine=ExecutionEngine.SQL,
@@ -276,3 +294,14 @@ class CapabilityRegistry:
 
 
 DEFAULT_CAPABILITY_REGISTRY = CapabilityRegistry()
+
+
+__all__ = [
+    "CapabilityRegistry",
+    "DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE",
+    "DEBEZIUM_KAFKA_PROFILE",
+    "DEFAULT_CAPABILITY_PROFILE",
+    "DEFAULT_CAPABILITY_REGISTRY",
+    "EngineCapability",
+    "UnsupportedExecutionCombination",
+]

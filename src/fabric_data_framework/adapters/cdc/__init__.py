@@ -10,6 +10,11 @@ from .debezium_kafka import (
     DebeziumSnapshotReadPolicy,
     normalize_debezium_kafka_batch,
 )
+from .registry import (
+    CDCProviderAdapterRegistry,
+    DEFAULT_CDC_PROVIDER_ADAPTER_REGISTRY,
+    DebeziumKafkaCDCAdapter,
+)
 from .resume import (
     DebeziumKafkaPartitionResume,
     DebeziumKafkaResumeGapError,
@@ -18,8 +23,11 @@ from .resume import (
 )
 
 __all__ = [
+    "CDCProviderAdapterRegistry",
+    "DEFAULT_CDC_PROVIDER_ADAPTER_REGISTRY",
     "DebeziumKafkaAdapterError",
     "DebeziumKafkaBatchResult",
+    "DebeziumKafkaCDCAdapter",
     "DebeziumKafkaPartitionResume",
     "DebeziumKafkaRecord",
     "DebeziumKafkaResumeGapError",

@@ -5,8 +5,11 @@ invocation/envelope evidence into stable framework contracts.
 """
 
 from .cdc import (
+    CDCProviderAdapterRegistry,
+    DEFAULT_CDC_PROVIDER_ADAPTER_REGISTRY,
     DebeziumKafkaAdapterError,
     DebeziumKafkaBatchResult,
+    DebeziumKafkaCDCAdapter,
     DebeziumKafkaPartitionResume,
     DebeziumKafkaRecord,
     DebeziumKafkaResumeGapError,
@@ -30,11 +33,14 @@ from .fabric import (
 )
 
 __all__ = [
+    "CDCProviderAdapterRegistry",
     "CopyActivityCaptureAdapter",
     "CopyJobCaptureAdapter",
+    "DEFAULT_CDC_PROVIDER_ADAPTER_REGISTRY",
     "DataflowGen2CaptureAdapter",
     "DebeziumKafkaAdapterError",
     "DebeziumKafkaBatchResult",
+    "DebeziumKafkaCDCAdapter",
     "DebeziumKafkaPartitionResume",
     "DebeziumKafkaRecord",
     "DebeziumKafkaResumeGapError",
