@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
 
@@ -23,6 +23,7 @@ def _require_aware(value: datetime, field_name: str) -> None:
 class CaptureReceipt(FrozenModel):
     """Immutable evidence produced by a physical capture/movement operation."""
 
+    capture_receipt_id: UUID = Field(default_factory=uuid4)
     dataset_run_id: UUID
     dataset_id: str = Field(min_length=1)
     capture_strategy: CaptureStrategy

@@ -17,8 +17,10 @@ from .control_plane import (
     data_quality_policy,
     dataset,
     deployment_history,
+    execution_policy,
     load_policy,
     orchestration_policy,
+    ordering_policy,
     reconciliation_policy,
 )
 from .deployment import (
@@ -202,6 +204,39 @@ def materialize_semantic_metadata(
                 {"dataset_id": config.dataset_id},
                 load_values,
                 {**load_values, **common_audit},
+            )
+
+            ordering_values = {
+                "dataset_id": config.dataset_id,
+                "event_time_column": config.load.event_time_column,
+                "version_column": config.load.version_column,
+                "sequence_column": config.load.sequence_column,
+                "created_at": now,
+                "updated_at": None,
+            }
+            _upsert_definition(
+                connection,
+                ordering_policy,
+                {"dataset_id": config.dataset_id},
+                ordering_values,
+                {**ordering_values, **common_audit},
+            )
+
+            execution_values = {
+                "dataset_id": config.dataset_id,
+                "execution_engine": config.execution.engine.value,
+                "progress_owner": config.execution.progress_owner.value,
+                "capability_profile": config.execution.capability_profile,
+                "extensions": config.extensions.model_dump(mode="json"),
+                "created_at": now,
+                "updated_at": None,
+            }
+            _upsert_definition(
+                connection,
+                execution_policy,
+                {"dataset_id": config.dataset_id},
+                execution_values,
+                {**execution_values, **common_audit},
             )
 
             orchestration_values = {

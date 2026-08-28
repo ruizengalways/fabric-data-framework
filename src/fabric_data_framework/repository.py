@@ -8,6 +8,7 @@ from typing import Protocol, runtime_checkable
 from uuid import UUID
 
 from .config import DatasetConfig
+from .contracts.capture_receipt import CaptureReceipt
 from .operations import (
     DatasetRunAudit,
     PipelineRunAudit,
@@ -27,6 +28,7 @@ class ControlPlaneRepository(Protocol):
     def commit_watermark(self, dataset_id: str, position: WatermarkPosition) -> None: ...
     def record_pipeline_run(self, audit: PipelineRunAudit) -> None: ...
     def record_dataset_run(self, audit: DatasetRunAudit) -> None: ...
+    def record_capture_receipt(self, receipt: CaptureReceipt) -> None: ...
     def record_step_run(self, audit: StepRunAudit) -> None: ...
     def record_reconciliation(self, result: ReconciliationResult) -> None: ...
     def record_quarantine(self, batch: QuarantineBatch) -> None: ...
@@ -46,6 +48,7 @@ class InMemoryControlPlane:
         self._watermarks: dict[str, WatermarkPosition] = {}
         self.pipeline_runs: list[PipelineRunAudit] = []
         self.dataset_runs: list[DatasetRunAudit] = []
+        self.capture_receipts: list[CaptureReceipt] = []
         self.step_runs: list[StepRunAudit] = []
         self.reconciliation_results: list[ReconciliationResult] = []
         self.quarantine_batches: list[QuarantineBatch] = []
@@ -88,6 +91,10 @@ class InMemoryControlPlane:
         with self._lock:
             self.dataset_runs.append(audit)
 
+    def record_capture_receipt(self, receipt: CaptureReceipt) -> None:
+        with self._lock:
+            self.capture_receipts.append(deepcopy(receipt))
+
     def record_step_run(self, audit: StepRunAudit) -> None:
         with self._lock:
             self.step_runs.append(audit)
@@ -104,4 +111,12 @@ class InMemoryControlPlane:
         with self._lock:
             return tuple(
                 item for item in self.quarantine_batches if item.dataset_run_id == dataset_run_id
+            )
+
+    def capture_receipts_for_run(self, dataset_run_id: UUID) -> tuple[CaptureReceipt, ...]:
+        with self._lock:
+            return tuple(
+                deepcopy(item)
+                for item in self.capture_receipts
+                if item.dataset_run_id == dataset_run_id
             )
