@@ -120,6 +120,15 @@ execution_policy = Table(
     *_audit_columns(),
 )
 
+apply_execution_policy = Table(
+    "apply_execution_policy",
+    metadata,
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), primary_key=True),
+    Column("execution_engine", String(64), nullable=False),
+    Column("capability_profile", String(255), nullable=True),
+    *_audit_columns(),
+)
+
 orchestration_policy = Table(
     "orchestration_policy",
     metadata,
@@ -365,6 +374,7 @@ PROMOTABLE_DEFINITION_TABLES = frozenset(
         "load_policy",
         "ordering_policy",
         "execution_policy",
+        "apply_execution_policy",
         "orchestration_policy",
         "data_quality_policy",
         "reconciliation_policy",
@@ -431,6 +441,7 @@ __all__ = [
     "ENVIRONMENT_LOCAL_STATE_TABLES",
     "PROMOTABLE_DEFINITION_TABLES",
     "apply_baseline_schema",
+    "apply_execution_policy",
     "capture_receipt",
     "current_schema_version",
     "execution_policy",
