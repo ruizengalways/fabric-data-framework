@@ -73,8 +73,8 @@ class ExecutionPlan(FrozenModel):
     run_mode: RunMode
     capture_strategy: CaptureStrategy
     apply_strategy: ApplyStrategy
-    capture_engine: ExecutionEngine
-    apply_engine: ExecutionEngine
+    capture_engine: ExecutionEngine = ExecutionEngine.SPARK
+    apply_engine: ExecutionEngine = ExecutionEngine.SPARK
     capture_capability_profile: str | None = None
     apply_capability_profile: str | None = None
     effective_config_hash: str = Field(min_length=1)
@@ -146,7 +146,7 @@ def compile_execution_plan(
     """Compile effective metadata into a conservative provider-neutral plan.
 
     Capture/movement and final-target apply are independent physical decisions.
-    Native capture therefore never implies native apply.  Framework normalization,
+    Native capture therefore never implies native apply. Framework normalization,
     validation, reconciliation and state ownership remain explicit around any
     delegated apply stage.
     """
