@@ -318,6 +318,31 @@ Framework CI additionally validates reusable package behaviour and publishes imm
 
 Customer/domain CI pins and tests an exact framework version.
 
+### 11.1 Framework immutable release initiation
+
+The GitHub reference implementation supports two equivalent release-entry paths without changing artifact semantics:
+
+1. preferred operator path: GitHub `Actions` -> `framework-release` -> `Run workflow`, selecting `main` and entering the package version such as `0.3.0`;
+2. compatibility path: push an already-created immutable tag such as `v0.3.0`.
+
+For the UI-driven path, the workflow must:
+
+```text
+select main + enter version
+    -> resolve immutable tag v<version>
+    -> refuse an existing GitHub Release
+    -> if the tag already exists without a Release, checkout that immutable tag for recovery
+    -> otherwise keep the selected main SHA as the release candidate
+    -> validate package version == tag version
+    -> run static checks + tests + dependency checks
+    -> build wheel once
+    -> generate and verify portable SHA256SUMS
+    -> create the annotated tag only after validation if it did not already exist
+    -> create the GitHub Release from that exact tag
+```
+
+The workflow never moves an existing tag and never overwrites an existing Release. A rerun after a failure that occurred after tag creation but before Release creation is recoverable by validating the existing tag and completing the missing Release. This separates operator convenience from immutability: the UI may initiate the release, but the immutable tag and released wheel/checksum remain the actual version boundary.
+
 ## 12. CD gates
 
 A production-grade release path should support:
