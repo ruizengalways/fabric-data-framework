@@ -3,17 +3,34 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from uuid import UUID
 
+from pydantic import Field
 from sqlalchemy import Engine, select
 
+from .capture.cdc import CDCCheckpoint, CDCCheckpointTransition
+from .config import FrozenModel
 from .control_plane import (
     apply_baseline_schema,
     capture_receipt,
+    cdc_checkpoint,
     dataset_attempt_lineage,
     reprocess_request,
 )
 from .contracts.capture_receipt import CaptureReceipt
 from .contracts.recovery import DatasetAttemptLineage, ReprocessRequest
+from .runtime import StateCommitGate
+
+
+class CDCCheckpointVersionConflict(RuntimeError):
+    """Raised when a stale writer attempts to replace newer CDC state."""
+
+
+class CDCCheckpointState(FrozenModel):
+    dataset_id: str = Field(min_length=1)
+    checkpoint: CDCCheckpoint
+    committed_dataset_run_id: UUID
+    version: int = Field(ge=1)
 
 
 def record_capture_receipt(engine: Engine, receipt: CaptureReceipt) -> None:
@@ -145,7 +162,119 @@ def record_reprocess_request(engine: Engine, request: ReprocessRequest) -> None:
         )
 
 
+def _checkpoint_from_row(row: dict[str, object]) -> CDCCheckpointState:
+    return CDCCheckpointState(
+        dataset_id=str(row["dataset_id"]),
+        checkpoint=CDCCheckpoint(positions=tuple(row["positions"])),
+        committed_dataset_run_id=UUID(str(row["committed_dataset_run_id"])),
+        version=int(row["version"]),
+    )
+
+
+def read_cdc_checkpoint(engine: Engine, dataset_id: str) -> CDCCheckpointState | None:
+    """Read the environment-local framework CDC apply checkpoint."""
+
+    apply_baseline_schema(engine)
+    with engine.connect() as connection:
+        row = connection.execute(
+            select(cdc_checkpoint).where(cdc_checkpoint.c.dataset_id == dataset_id)
+        ).mappings().first()
+    if row is None:
+        return None
+    return _checkpoint_from_row(dict(row))
+
+
+def commit_cdc_checkpoint(
+    engine: Engine,
+    *,
+    dataset_id: str,
+    checkpoint: CDCCheckpoint,
+    dataset_run_id: UUID,
+    expected_version: int,
+    gate: StateCommitGate,
+) -> CDCCheckpointState:
+    """Commit CDC apply progress with semantic gates and optimistic concurrency.
+
+    This is framework downstream/apply progress. For Fabric-native or external CDC,
+    the provider remains the physical capture progress owner; its native checkpoint
+    reference stays in ``CaptureReceipt`` and is not overwritten here.
+    """
+
+    if expected_version < 0:
+        raise ValueError("expected_version must be >= 0")
+
+    apply_baseline_schema(engine)
+    now = datetime.now(timezone.utc)
+    serialized = checkpoint.model_dump(mode="json")["positions"]
+
+    with engine.begin() as connection:
+        current_row = connection.execute(
+            select(cdc_checkpoint).where(cdc_checkpoint.c.dataset_id == dataset_id)
+        ).mappings().first()
+
+        if current_row is None:
+            if expected_version != 0:
+                raise CDCCheckpointVersionConflict(
+                    f"CDC checkpoint {dataset_id} does not exist at expected version "
+                    f"{expected_version}"
+                )
+            CDCCheckpointTransition(before=None, after=checkpoint, gate=gate)
+            connection.execute(
+                cdc_checkpoint.insert().values(
+                    dataset_id=dataset_id,
+                    positions=serialized,
+                    committed_dataset_run_id=str(dataset_run_id),
+                    version=1,
+                    created_at=now,
+                    updated_at=None,
+                )
+            )
+            return CDCCheckpointState(
+                dataset_id=dataset_id,
+                checkpoint=checkpoint,
+                committed_dataset_run_id=dataset_run_id,
+                version=1,
+            )
+
+        current = _checkpoint_from_row(dict(current_row))
+        if current.version != expected_version:
+            raise CDCCheckpointVersionConflict(
+                f"CDC checkpoint {dataset_id} expected version {expected_version}, "
+                f"current version is {current.version}"
+            )
+        CDCCheckpointTransition(before=current.checkpoint, after=checkpoint, gate=gate)
+        next_version = current.version + 1
+        result = connection.execute(
+            cdc_checkpoint.update()
+            .where(
+                cdc_checkpoint.c.dataset_id == dataset_id,
+                cdc_checkpoint.c.version == expected_version,
+            )
+            .values(
+                positions=serialized,
+                committed_dataset_run_id=str(dataset_run_id),
+                version=next_version,
+                updated_at=now,
+            )
+        )
+        if result.rowcount != 1:
+            raise CDCCheckpointVersionConflict(
+                f"CDC checkpoint {dataset_id} changed concurrently"
+            )
+
+    return CDCCheckpointState(
+        dataset_id=dataset_id,
+        checkpoint=checkpoint,
+        committed_dataset_run_id=dataset_run_id,
+        version=next_version,
+    )
+
+
 __all__ = [
+    "CDCCheckpointState",
+    "CDCCheckpointVersionConflict",
+    "commit_cdc_checkpoint",
+    "read_cdc_checkpoint",
     "record_attempt_lineage",
     "record_capture_receipt",
     "record_reprocess_request",

@@ -24,7 +24,7 @@ from sqlalchemy.engine import Engine
 CONTROL_PLANE_SCHEMA_VERSION = 2
 CONTROL_PLANE_MIGRATIONS = (
     (1, "phase1_initial_control_plane_schema"),
-    (2, "execution_policy_ordering_capture_receipt_and_recovery"),
+    (2, "execution_policy_ordering_capture_receipt_recovery_and_cdc"),
 )
 
 NAMING_CONVENTION = {
@@ -187,6 +187,16 @@ watermark = Table(
     Column("committed_value", JSON, nullable=True),
     Column("committed_tie_breaker", JSON, nullable=True),
     Column("committed_dataset_run_id", String(36), nullable=True),
+    Column("version", Integer, nullable=False),
+    *_audit_columns(),
+)
+
+cdc_checkpoint = Table(
+    "cdc_checkpoint",
+    metadata,
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), primary_key=True),
+    Column("positions", JSON, nullable=False),
+    Column("committed_dataset_run_id", String(36), nullable=False),
     Column("version", Integer, nullable=False),
     *_audit_columns(),
 )
@@ -403,6 +413,7 @@ ENVIRONMENT_LOCAL_STATE_TABLES = frozenset(
         "schema_migration_history",
         "runtime_override",
         "watermark",
+        "cdc_checkpoint",
         "dataset_state",
         "dataset_lease",
         "pipeline_run",
@@ -462,6 +473,7 @@ __all__ = [
     "apply_baseline_schema",
     "apply_execution_policy",
     "capture_receipt",
+    "cdc_checkpoint",
     "current_schema_version",
     "dataset_attempt_lineage",
     "execution_policy",
