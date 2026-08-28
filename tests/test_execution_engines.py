@@ -220,7 +220,10 @@ def test_capture_receipt_external_stateful_progress_requires_checkpoint_referenc
 
 def test_extension_registry_uses_logical_names_and_rejects_duplicate_registration():
     registry = ExtensionRegistry()
-    handler = lambda value: value
+
+    def handler(value):
+        return value
+
     registry.register(ExtensionKind.TRANSFORM, "weird_feed_v1", handler)
 
     assert registry.resolve(ExtensionKind.TRANSFORM, "weird_feed_v1") is handler
