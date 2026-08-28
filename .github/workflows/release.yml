@@ -89,6 +89,7 @@ jobs:
 
       - name: Build immutable wheel and checksum
         run: |
+          python -m pip install "setuptools>=77"
           rm -rf dist
           python -m pip wheel . --no-deps --no-build-isolation -w dist
           (cd dist && sha256sum *.whl | tee SHA256SUMS)
