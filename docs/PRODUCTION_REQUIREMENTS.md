@@ -11,14 +11,14 @@ Evidence levels remain separate:
 
 1. **Portable semantics** — provider-neutral framework contract/algorithm.
 2. **Deterministic certification** — executable unit/contract/reference proof.
-3. **Real Fabric evidence** — approved Fabric item/API run with retained native correlation.
+3. **Real service/Fabric evidence** — approved real provider/Fabric execution with retained correlation.
 4. **External enterprise controls** — identity, RBAC, networking, secrets, retention, monitoring, capacity and governance.
 
 Never infer level 3 or 4 from level 1 or 2.
 
 Status vocabulary:
 
-- `IMPLEMENTED` — portable owner + executable proof at stated scope.
+- `IMPLEMENTED` — portable/adapter owner + executable proof at stated scope.
 - `PARTIAL` — useful core exists but material integration/strategy work remains.
 - `PLANNED` — required, not implemented.
 - `EXTERNAL` — supplied/proven by platform/enterprise authority.
@@ -27,16 +27,16 @@ Status vocabulary:
 
 1. Capture semantics and apply semantics are independent.
 2. Capture/movement executor and apply executor are independent.
-3. Native Fabric features are capability-certified stage delegates, not semantic authorities by default.
-4. One physical capture has one authoritative progress owner: FRAMEWORK, FABRIC_NATIVE or EXTERNAL.
-5. Native/external capture hands off through immutable `CaptureReceipt` evidence.
+3. Native/provider features are capability-certified stage delegates, not semantic authorities by default.
+4. One physical capture has one authoritative source progress owner: FRAMEWORK, FABRIC_NATIVE or EXTERNAL.
+5. Native/external capture hands off through immutable typed evidence.
 6. Provider CDC coordinates are normalized before entering semantic CDC logic.
-7. Provider/native source progress authority and framework downstream semantic application progress are distinct concepts.
+7. Provider/native source progress authority and framework downstream semantic application progress are distinct.
 8. Dataset is the default fault/retry boundary.
 9. Runtime state/evidence is environment-local and never promoted DEV -> UAT -> PROD.
-10. State progression occurs only after the required target mutation/reconciliation boundary is proven.
-11. An uncertain target write must be reconciled before any retry.
-12. Real Fabric/security/capacity evidence must not be fabricated by reference tests.
+10. State progression occurs only after required target mutation/reconciliation evidence.
+11. An uncertain target write is reconciled before retry.
+12. Real Fabric/provider/security/capacity evidence must not be fabricated by reference tests.
 
 ## 3. Capture strategy requirements
 
@@ -53,7 +53,7 @@ STREAM
 
 | Requirement | Status | Current evidence / remaining work |
 |---|---|---|
-| Stable FULL snapshot evidence | IMPLEMENTED reference | snapshot identity/completeness; real Fabric capture pending |
+| Stable FULL snapshot evidence | IMPLEMENTED reference | snapshot identity/completeness; real target/service proof pending |
 | Stable SNAPSHOT evidence before delete inference | IMPLEMENTED reference | complete snapshot guard/delete protection |
 | Composite WATERMARK | IMPLEMENTED | `(watermark, tie_breaker...)` ordering |
 | WATERMARK overlap | IMPLEMENTED reference | bounded reread + idempotent apply foundations |
@@ -61,12 +61,15 @@ STREAM
 | Single physical capture progress authority | IMPLEMENTED contract | capability validation |
 | Fabric capture adapter request/evidence boundary | IMPLEMENTED adapter contract | Copy Job/Copy Activity/Dataflow Gen2/Spark fake-transport certification |
 | Framework-owned bounded Fabric source range verification | IMPLEMENTED adapter contract | observed lower/upper must equal requested range |
-| Canonical ordered CDC envelope/events | IMPLEMENTED reference | `capture/cdc.py`, deterministic tests |
-| CDC identity/dedupe/conflict/order validation | IMPLEMENTED reference | exact duplicate ignore; conflict/ambiguous order fail closed |
-| Frozen CDC upper boundary + completeness evidence | IMPLEMENTED reference | bounded window certification |
+| Canonical ordered CDC envelope/events | IMPLEMENTED reference | `capture/cdc.py` |
+| CDC identity/dedupe/conflict/order validation | IMPLEMENTED reference | deterministic certification |
+| Frozen CDC upper boundary + completeness evidence | IMPLEMENTED reference | bounded-window certification |
 | CDC checkpoint state commit gate | IMPLEMENTED reference | target/reconciliation gate + no regression |
-| Durable CDC apply checkpoint | IMPLEMENTED schema/transaction reference | optimistic concurrency in control-plane IO |
+| Durable CDC apply checkpoint | IMPLEMENTED schema/transaction reference | optimistic concurrency |
 | Snapshot/bootstrap -> CDC | IMPLEMENTED reference | no-gap/no-double-apply fenced handoff |
+| Debezium/Kafka provider envelope | IMPLEMENTED adapter contract | `EXTERNAL_CDC/debezium_kafka_v1` |
+| Debezium/Kafka retention-aware resume range | IMPLEMENTED reference | next-required offset derived from framework apply checkpoint |
+| Real Kafka consumer/connector transport + cursor commit | PLANNED | live Kafka/Debezium proof |
 | File manifest freeze | PLANNED | immutable/readiness protocol |
 | API pagination/window guardrails | PLANNED | cursor/max-page/retry-after/replay-stable window behavior |
 
@@ -89,43 +92,29 @@ SNAPSHOT_DIFF
 |---|---|---|
 | APPEND | PLANNED | append-once identity; exact replay idempotency; conflicting identity fails closed |
 | REPLACE | IMPLEMENTED reference | isolated candidate, completeness/empty/drop guards, reconciliation, safe publication boundary |
-| UPSERT | IMPLEMENTED reference | composite merge key, ordered freshness tuple, latest candidate, idempotency, stale/equal-position handling; CDC I/U/D path implemented |
+| UPSERT | IMPLEMENTED reference | composite merge key, ordering/idempotency/stale/equal-position behavior; CDC I/U/D path implemented |
 | SCD1 | IMPLEMENTED reference | ordered current-state correctness; CDC I/U/D path implemented |
-| SCD2 | IMPLEMENTED reference | deterministic history, one-current-row invariant; CDC source-order/valid-time path implemented with retroactive correction fail-closed |
+| SCD2 | IMPLEMENTED reference | deterministic history; CDC source-order/valid-time path; retroactive correction fail-closed |
 | SNAPSHOT_DIFF | IMPLEMENTED reference | complete snapshot -> deterministic I/U/D, delete/quarantine guards |
 
 `CDC != SCD2`, `FULL != REPLACE`, and a native feature named `merge`/`SCD2`/`incremental refresh` is not automatically equivalent to these contracts.
 
-## 5. Current-state correctness
+## 5. Current-state and temporal correctness
 
-SCD1 and UPSERT share `apply/current_state.py` for batch/current-state ordering and `apply/cdc.py` for CDC current-state execution.
+SCD1 and UPSERT share `apply/current_state.py`; CDC current-state execution is in `apply/cdc.py`.
 
-Certified non-CDC scope:
+Certified current-state behavior includes composite keys, ordered freshness, latest candidate, exact rerun, stale IGNORE/ERROR, equal-position conflict failure, changed unordered update fail-closed, and target-only field preservation.
 
-- composite merge key;
-- event-time/version/sequence/LSN-like ordering tuple;
-- latest candidate per incoming key;
-- exact rerun no-op;
-- stale IGNORE/ERROR policy;
-- equal-position conflicting payload fails closed;
-- null/non-comparable ordering fails;
-- changed unordered update fails unless explicitly authorized;
-- duplicate, superseded and stale observations are separately counted;
-- incoming fields update existing state while target-only fields are retained.
+Certified CDC behavior includes INSERT/UPDATE/DELETE/reinsert, explicit delete policy, stale/equal-position handling, bootstrap lower-checkpoint proof and same-key cross-partition ambiguity failure.
 
-Certified CDC scope:
+CDC SCD2 keeps separate clocks:
 
-- canonical source partition + integer position tuple;
-- INSERT/UPDATE/DELETE/reinsert;
-- stale event ignore;
-- equal-position exact state no-op;
-- equal-position conflicting state fail closed;
-- explicit delete APPLY/IGNORE/ERROR policy;
-- missing DELETE idempotent no-op;
-- bootstrap row may enter CDC only when committed lower checkpoint proves event is newer;
-- same key moving across partitions without an ordering proof fails closed.
+```text
+canonical source position -> event order
+event_time                -> valid interval
+```
 
-Future physical target adapters still require transaction/unknown-outcome certification against real Lakehouse/Warehouse/SQL targets.
+A newer source event whose event time predates current history is currently rejected rather than silently rewriting history.
 
 ## 6. Execution engine/delegation requirements
 
@@ -152,7 +141,7 @@ apply_engine + apply_capability_profile
     -> final apply
 ```
 
-The immutable `ExecutionPlan` resolves both to concrete engines before execution. No hidden runtime switching is permitted.
+The immutable `ExecutionPlan` resolves both before execution. No hidden runtime switching is permitted.
 
 Capability rules:
 
@@ -163,41 +152,65 @@ Capability rules:
 - generic native profiles do not claim arbitrary UPSERT/SCD1/SCD2 equivalence;
 - default apply remains framework/Spark where no certified native apply profile exists.
 
-## 7. Fabric capture adapter requirements
-
-Current adapter-contract implementation covers:
+Current named profiles include:
 
 ```text
-FabricCaptureRequest
-FabricNativeRunEvidence
-FabricCaptureTransport Protocol
-FabricCaptureAdapter
-CopyJobCaptureAdapter
-CopyActivityCaptureAdapter
-DataflowGen2CaptureAdapter
-SparkJobCaptureAdapter
-FabricAdapterRegistry
+DATAFLOW_GEN2 / dataflow_gen2_incremental_bucket_v1
+EXTERNAL_CDC  / debezium_kafka_v1
 ```
+
+## 7. Fabric capture adapter requirements
+
+Current adapter-contract implementation covers `FabricCaptureRequest`, `FabricNativeRunEvidence`, `FabricCaptureTransport`, capture adapters for Copy Job/Copy Activity/Dataflow Gen2/Spark and explicit `FabricAdapterRegistry`.
 
 Deterministically certified:
 
-- adapter engine and execution kind match compiled unit;
-- pure capture adapter owns EXTRACT/STAGE, not downstream apply/state roles;
+- engine/execution-kind/role matching;
+- capture adapter cannot silently own apply/state roles;
 - FAILED/CANCELLED/UNKNOWN native status never yields success receipt;
-- landing/source/snapshot evidence mismatches fail closed;
+- landing/source/snapshot mismatch fails closed;
 - FRAMEWORK-owned bounded movement proves exact requested source bounds;
-- native run ID retained in `CaptureReceipt`;
-- no implicit credentials/workspace/client construction in semantic adapter.
+- native run ID retained;
+- semantic adapter does not construct credentials/workspace clients.
 
-Still required:
+Still required: actual Fabric REST/SDK/CLI transports, real run polling/correlation, approved authentication/environment bindings, Pipeline backend and real DEV evidence.
 
-- actual Fabric REST/SDK/CLI transports;
-- real Copy/Dataflow/SJD polling/correlation;
-- approved authentication/environment bindings;
-- Fabric Pipeline backend;
-- real DEV integration evidence.
+## 8. Debezium/Kafka provider requirements
 
-## 8. Recovery and reprocessing requirements
+Built-in adapter/profile:
+
+```text
+EXTERNAL_CDC / debezium_kafka_v1
+```
+
+Implemented adapter contract:
+
+- Kafka `topic + partition + offset` is canonical physical order;
+- DB LSN/binlog/source values remain provider metadata;
+- `c/u/d` map to INSERT/UPDATE/DELETE;
+- Kafka tombstone is transport cleanup, not duplicate DELETE;
+- Debezium snapshot `op=r` is rejected by default and may only map to INSERT by explicit policy;
+- Kafka record key is required explicitly;
+- mixed topics, missing upper partition and record beyond frozen upper fail closed;
+- provider adapter registry resolves explicitly by `(engine, profile)`.
+
+Implemented safe resume planning:
+
+```text
+next_required = framework_committed_apply_offset + 1
+```
+
+The planner checks Kafka earliest-retained/latest-available evidence and fails if retention no longer covers the next unapplied event. External consumer-group progress is not accepted as downstream-success evidence.
+
+Not yet implemented/proven:
+
+- real Kafka client/consumer transport;
+- consumer-group seek/commit coordination;
+- connector/broker authentication/networking;
+- rebalance/source-epoch semantics beyond fail-closed partition policy;
+- real Debezium/Kafka end-to-end execution.
+
+## 9. Recovery and reprocessing requirements
 
 Canonical run modes:
 
@@ -209,7 +222,7 @@ REPLAY
 FULL_REBUILD
 ```
 
-### 8.1 Recovery core — IMPLEMENTED reference
+### 9.1 Recovery core — IMPLEMENTED reference
 
 Implemented:
 
@@ -217,26 +230,22 @@ Implemented:
 - bounded retry/backoff;
 - attempt-specific dataset run IDs;
 - immutable root/previous attempt lineage;
-- explicit retryable audit status;
-- retry exhaustion signal;
+- retryability audit;
+- retry exhaustion;
 - reprocess request lifecycle;
-- process-control exceptions are not swallowed.
+- process-control exceptions not swallowed.
 
-Proof exists for `attempt 1 FAILED -> attempt 2 SUCCEEDED`.
-
-### 8.2 Unknown target mutation — IMPLEMENTED reference core
+### 9.2 Unknown target mutation — IMPLEMENTED reference
 
 ```text
 UNKNOWN_OUTCOME
     -> reconciliation
-       COMMITTED     -> mark success; do not write again
+       COMMITTED     -> success; no rewrite
        NOT_COMMITTED -> retry may proceed
-       UNRESOLVED    -> fail/stop; no blind retry
+       UNRESOLVED    -> stop; no blind retry
 ```
 
-No reconciliation callback also fails closed.
-
-### 8.3 Reprocess request contracts — IMPLEMENTED reference
+### 9.3 Reprocess request contracts — IMPLEMENTED reference
 
 - RETRY requires original dataset run ID.
 - BACKFILL requires explicit lower/upper range.
@@ -244,19 +253,23 @@ No reconciliation callback also fails closed.
 - FULL_REBUILD requires explicit `authoritative_reset=true` intent.
 - request semantic identity is immutable; lifecycle status may advance.
 
-### 8.4 Strategy-specific recovery — PARTIAL
+### 9.4 Strategy-specific recovery — PARTIAL
+
+Implemented provider-specific piece:
+
+- Debezium/Kafka safe retention-aware reread planning from framework CDC apply checkpoint.
 
 Still required:
 
-- freeze/reuse exact source windows for every capture family;
-- Copy/Dataflow/Mirroring/native CDC resume behavior;
-- provider-specific CDC source-offset commit/resume after downstream failure;
-- quarantine payload replay + `replayed_by_dataset_run_id` end to end;
+- quarantine payload REPLAY + `replayed_by_dataset_run_id` end to end;
 - FULL_REBUILD target/state reset + rebuild orchestration;
-- durable idempotency keys for physical target adapters;
+- Copy/Dataflow/Mirroring/native-provider downstream-failure resume proofs;
+- real Debezium/Kafka source-cursor commit coordination;
+- freeze/reuse exact source windows for remaining capture families;
+- durable target idempotency keys;
 - supported operator CLI/API.
 
-## 9. Control-plane requirements
+## 10. Control-plane requirements
 
 Promotable definitions:
 
@@ -293,11 +306,11 @@ reprocess_request
 deployment_history
 ```
 
-`cdc_checkpoint` stores downstream framework CDC application positions, committing dataset run and optimistic-concurrency version. For FABRIC_NATIVE/EXTERNAL source progress, native/external authority remains in provider evidence/`CaptureReceipt` and is not replaced by this table.
+`cdc_checkpoint` stores downstream framework CDC application positions, committing dataset run and optimistic-concurrency version. For FABRIC_NATIVE/EXTERNAL source progress, provider authority remains provider-owned.
 
-Current SQLAlchemy/SQLite proof certifies schema/materialization/transaction boundaries only. A production persistent repository remains required.
+Current SQLAlchemy/SQLite proof certifies schema/materialization/reference transaction boundaries only. A production persistent repository remains required.
 
-## 10. Data quality/reconciliation
+## 11. Data quality/reconciliation
 
 Required invariant:
 
@@ -305,86 +318,34 @@ Required invariant:
 rows_read = rows_accepted + rows_quarantined + rows_intentionally_filtered
 ```
 
-Implemented foundations:
+Implemented foundations include row DQ, explicit quarantine, row accounting, reconciliation results, publication/state gates and snapshot delete quarantine awareness.
 
-- row-level DQ;
-- explicit quarantine;
-- batch/system errors distinct from bad rows;
-- row accounting;
-- reconciliation results;
-- reconciliation may block publication/state progression;
-- snapshot delete inference is quarantine-aware.
+Still required: persistent governed quarantine payload store integration, privacy/retention integration, poison-event policy and complete replay lifecycle.
 
-Still required: persistent quarantine store, privacy/retention integration, CDC poison-event policy and complete replay lifecycle.
-
-## 11. CDC requirements — IMPLEMENTED portable core, provider integration PARTIAL
+## 12. CDC requirements — portable core IMPLEMENTED, provider integration PARTIAL
 
 Canonical design: `docs/CDC_DESIGN.md`.
 
-Implemented minimum:
+Implemented:
 
-- INSERT / UPDATE / DELETE;
-- event identity;
-- canonical business/merge key;
-- source partition + ordered integer position tuple;
-- before/after payload;
-- timezone-aware event time and transaction/source metadata;
-- frozen upper checkpoint + completeness evidence;
-- exact duplicate idempotency;
-- conflicting duplicate failure;
-- ambiguous same-position failure;
-- ambiguous same-key cross-partition failure;
-- overlap at/below committed checkpoint ignore;
-- target checkpoint advancement only after required downstream mutation/reconciliation;
-- durable optimistic checkpoint state;
-- CDC -> UPSERT/SCD1;
-- CDC -> SCD2 with separate source-order and valid-time clocks;
-- snapshot/bootstrap -> CDC fenced handoff with no gap/double apply for certified partition model.
-
-Current fail-closed boundaries:
-
-- provider must normalize opaque native coordinates before semantic core;
-- repartition/key movement without ordering proof is not accepted;
-- bootstrap partition changes are not certified;
-- retroactive SCD2 valid-time rewrite is not certified;
-- provider transaction atomicity beyond row-order contract is not yet generalized.
+- provider-neutral I/U/D event/checkpoint contract;
+- identity/dedupe/conflict/order proof;
+- frozen complete upper window;
+- CDC -> UPSERT/SCD1/SCD2;
+- durable optimistic downstream checkpoint;
+- snapshot/bootstrap fenced handoff;
+- Debezium/Kafka provider normalization/profile/registry;
+- Debezium/Kafka retention-aware safe reread planning.
 
 Still required:
 
-- selected built-in provider envelope adapters/capability profiles;
-- native/external offset resume/commit integration;
+- real Kafka/Debezium transport and source-cursor commit evidence;
+- additional provider adapters only where supported product scope requires them;
+- provider transaction atomicity where required;
 - poison-event quarantine/replay;
 - real CDC source/Fabric evidence.
 
-## 12. Snapshot/bootstrap -> CDC requirements — IMPLEMENTED reference
-
-Safe handoff contract:
-
-```text
-start/retain CDC at S
-S <= snapshot consistency checkpoint B
-complete snapshot consistent through B
-publish/apply snapshot
-CDC <= B -> ignore as snapshot-covered overlap
-CDC >  B -> apply
-```
-
-Must fail if snapshot is incomplete/not fenced, CDC retention starts after B, partition set changes during bootstrap, or first upper checkpoint regresses below B.
-
-## 13. SCD2 temporal correctness
-
-For CDC SCD2:
-
-```text
-canonical CDC position -> source order
-event_time             -> validity interval
-```
-
-Equal event time with different source positions is legal. A newer source event whose event time is earlier than current `valid_from` currently fails closed as retroactive history correction.
-
-General cross-strategy temporal taxonomy remains PARTIAL.
-
-## 14. Schema evolution
+## 13. Schema and broader temporal correctness
 
 General schema evolution remains PLANNED:
 
@@ -395,26 +356,15 @@ General schema evolution remains PLANNED:
 - controlled rebuild/cutover implications;
 - schema-change audit.
 
-## 15. Orchestration requirements
+General cross-strategy late/out-of-order taxonomy remains PARTIAL.
 
-Implemented reference:
+## 14. Orchestration requirements
 
-- metadata selection/grouping;
-- dependency/cycle validation;
-- bounded concurrency;
-- sibling failure isolation;
-- dependent BLOCKED;
-- unrelated continuation;
-- criticality-aware pipeline status.
+Implemented reference: metadata selection/grouping, dependency/cycle validation, bounded concurrency, sibling failure isolation, dependent BLOCKED, unrelated continuation and criticality-aware pipeline status.
 
-Still required:
+Still required: real Fabric Pipeline backend, cancellation/timeout propagation proof, real source/gateway/capacity tuning and operator-triggered reprocess wiring.
 
-- real Fabric Pipeline backend;
-- cancellation/timeout propagation proof;
-- capacity/source/gateway-aware real tuning;
-- operator-triggered reprocess orchestration wiring.
-
-## 16. CI/CD and supply chain
+## 15. CI/CD and supply chain
 
 Implemented/proven:
 
@@ -426,18 +376,16 @@ Implemented/proven:
 - runtime state excluded from promotion;
 - exact released framework wheel pinning by domains.
 
-Latest CDC evidence:
+Latest provider CDC evidence:
 
 ```text
-ccf0fc8950efb1f4d338cadcaf83aac5fd49a7b9  / 33215409341 / 153 passed
-ed6c13d4fcabe165ef86be2e547d794e15e5375c  / 33215708004 / 159 passed
-c41fbd00bb3d3c6bc71e20f958c4ec14106ac33c  / 33216133811 / 165 passed
-465a2c1e9ddf25b0ace2293f578c2c5bb3a653ae  / 33216281126 / 171 passed
+1087ab9231b9cb638a87bc2f78ef0c1b1fe32beb / 33219601375 / 179 passed
+ecdca38099a4f21c6f40701dc14889b464c20608 / 33219783325 / 183 passed
 ```
 
-Still required for next release: real Fabric artifact/environment deployment and smoke evidence.
+Still required for next release: real Fabric/provider artifact/environment execution and smoke evidence.
 
-## 17. Security/external controls
+## 16. Security/external controls
 
 Framework requirements:
 
@@ -448,33 +396,22 @@ Framework requirements:
 - auditable reprocess/quarantine/operator intent;
 - least-privilege-compatible adapters.
 
-External evidence required:
+External evidence required includes Entra/service principals/workspace identity/RBAC, tenant settings, gateway/private networking, secret authority, source CDC enablement/retention, broker/database access, production backup/restore, monitoring/on-call, data retention/privacy and capacity policy.
 
-- Entra/service principal/workspace identity;
-- workspace/domain RBAC;
-- tenant settings;
-- gateway/private networking;
-- secret authority;
-- source CDC enablement/retention;
-- production backup/restore;
-- monitoring/on-call;
-- data retention/privacy;
-- capacity/SKU policy.
-
-## 18. Release blockers from current head
+## 17. Release blockers from current head
 
 Do **not** publish `v0.4.0` yet.
 
-CDC canonical correctness and bootstrap are no longer release-gap placeholders. Current material blockers are:
+CDC canonical correctness, bootstrap and one Debezium/Kafka reference provider adapter are no longer release-gap placeholders. Current material blockers are:
 
-1. selected provider CDC envelope/capability integrations and source-offset recovery semantics;
-2. strategy-specific recovery completion: replay/rebuild/native-progress recovery;
+1. strategy-specific recovery completion: quarantine REPLAY, FULL_REBUILD and remaining native-progress recovery;
+2. real Debezium/Kafka source-cursor/transport integration and real Fabric transports;
 3. APPEND identity semantics or explicit milestone deferral;
 4. general schema evolution policy;
 5. file/API capture guardrails for broader source coverage;
-6. supported persistent control-plane/operator surface or a clearly bounded release scope;
-7. real Fabric transport/backend implementation;
-8. at least one approved DEV hybrid execution retaining native run correlation;
+6. supported persistent control-plane/operator surface or clearly bounded release scope;
+7. real Fabric Pipeline/backend implementation;
+8. at least one approved DEV hybrid execution retaining native/provider correlation;
 9. final audit/docs/CI against exact candidate head.
 
-Framework UPSERT, capture/apply executor separation, Fabric capture adapter contracts, recovery core, canonical CDC, durable CDC checkpointing and snapshot->CDC handoff are implemented reference capabilities.
+Framework UPSERT, capture/apply executor separation, Fabric capture adapter contracts, recovery core, canonical CDC, durable CDC checkpointing, snapshot->CDC handoff and Debezium/Kafka reference normalization/resume planning are implemented reference capabilities.
