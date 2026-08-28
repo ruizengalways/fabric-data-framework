@@ -9,6 +9,7 @@ from uuid import UUID
 
 from .config import DatasetConfig
 from .contracts.capture_receipt import CaptureReceipt
+from .contracts.recovery import DatasetAttemptLineage, ReprocessRequest
 from .operations import (
     DatasetRunAudit,
     PipelineRunAudit,
@@ -32,6 +33,8 @@ class ControlPlaneRepository(Protocol):
     def record_step_run(self, audit: StepRunAudit) -> None: ...
     def record_reconciliation(self, result: ReconciliationResult) -> None: ...
     def record_quarantine(self, batch: QuarantineBatch) -> None: ...
+    def record_attempt_lineage(self, lineage: DatasetAttemptLineage) -> None: ...
+    def record_reprocess_request(self, request: ReprocessRequest) -> None: ...
 
 
 class InMemoryControlPlane:
@@ -52,6 +55,8 @@ class InMemoryControlPlane:
         self.step_runs: list[StepRunAudit] = []
         self.reconciliation_results: list[ReconciliationResult] = []
         self.quarantine_batches: list[QuarantineBatch] = []
+        self.attempt_lineage: list[DatasetAttemptLineage] = []
+        self.reprocess_requests: list[ReprocessRequest] = []
 
     def deploy_dataset(self, config: DatasetConfig) -> None:
         with self._lock:
@@ -107,6 +112,37 @@ class InMemoryControlPlane:
         with self._lock:
             self.quarantine_batches.append(batch)
 
+    def record_attempt_lineage(self, lineage: DatasetAttemptLineage) -> None:
+        with self._lock:
+            if any(
+                existing.dataset_run_id == lineage.dataset_run_id
+                for existing in self.attempt_lineage
+            ):
+                raise ValueError(
+                    f"attempt lineage already recorded for {lineage.dataset_run_id}"
+                )
+            self.attempt_lineage.append(deepcopy(lineage))
+
+    def record_reprocess_request(self, request: ReprocessRequest) -> None:
+        with self._lock:
+            for index, existing in enumerate(self.reprocess_requests):
+                if existing.reprocess_request_id == request.reprocess_request_id:
+                    if (
+                        existing.dataset_id != request.dataset_id
+                        or existing.run_mode is not request.run_mode
+                        or existing.reason != request.reason
+                        or existing.requested_by != request.requested_by
+                        or existing.original_pipeline_run_id
+                        != request.original_pipeline_run_id
+                        or existing.original_dataset_run_id
+                        != request.original_dataset_run_id
+                        or existing.range_json != request.range_json
+                    ):
+                        raise ValueError("reprocess request semantic identity cannot change")
+                    self.reprocess_requests[index] = deepcopy(request)
+                    return
+            self.reprocess_requests.append(deepcopy(request))
+
     def quarantines_for_run(self, dataset_run_id: UUID) -> tuple[QuarantineBatch, ...]:
         with self._lock:
             return tuple(
@@ -120,3 +156,19 @@ class InMemoryControlPlane:
                 for item in self.capture_receipts
                 if item.dataset_run_id == dataset_run_id
             )
+
+    def lineage_for_root(self, root_dataset_run_id: UUID) -> tuple[DatasetAttemptLineage, ...]:
+        with self._lock:
+            items = [
+                deepcopy(item)
+                for item in self.attempt_lineage
+                if item.root_dataset_run_id == root_dataset_run_id
+            ]
+            return tuple(sorted(items, key=lambda item: item.attempt))
+
+    def get_reprocess_request(self, request_id: UUID) -> ReprocessRequest:
+        with self._lock:
+            for item in self.reprocess_requests:
+                if item.reprocess_request_id == request_id:
+                    return deepcopy(item)
+        raise KeyError(f"reprocess request not found: {request_id}")
