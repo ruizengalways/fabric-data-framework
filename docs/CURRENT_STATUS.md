@@ -8,27 +8,34 @@ Last updated: 2026-08-28
 - Phase 1 — framework foundation: **COMPLETE**.
 - Phase 2 — first executable Customer WATERMARK/SCD2 vertical slice: **COMPLETE**.
 - Phase 3 — enterprise delivery spine core: **COMPLETE**.
-- Self-hosted CI execution: **VALIDATED ON RUNNER `Bear`**.
+- Public-repository GitHub-hosted CI: **VALIDATED ON `ubuntu-latest` IN PR #8**.
 
 ## Last completed step
 
-Implemented and validated the provider-neutral enterprise delivery spine and moved GitHub Actions execution from unavailable GitHub-hosted runners to the repository self-hosted runner `Bear`.
+The repository is public and Framework CI/release workflows have been moved from the temporary self-hosted Bear runner back to GitHub-hosted `ubuntu-latest` on PR #8 (`chore/github-hosted-runners`).
 
-Phase 3 includes:
+GitHub-hosted workflow run `33140853145` completed successfully:
+
+```text
+build-wheel       SUCCESS
+test-python-3.11  SUCCESS
+test-python-3.13  SUCCESS
+runner group      GitHub Actions
+requested label   ubuntu-latest
+```
+
+The Phase 3 delivery spine remains unchanged:
 
 - framework package version `0.3.0`;
-- GitHub Actions PR/main CI with Python 3.11/3.13 test matrix, static checks and wheel build;
-- tag-triggered framework release workflow with version/tag guardrail, wheel SHA-256 and no-overwrite GitHub Release behaviour;
+- PR/main CI with Python 3.11/3.13 tests, isolated Ruff correctness checks, compile and wheel build;
+- tag-triggered immutable framework release workflow;
 - deterministic semantic config-bundle hashing;
-- immutable `ReleaseManifest` and release identity;
-- environment-local `EnvironmentBindings` and credential-free deployment planning;
-- control-plane migration CLI;
-- idempotent semantic metadata materialization into relational control-plane definition tables;
-- deployment-history persistence;
-- `fabric-framework` CLI entry point for CI/CD runners;
-- explicit protection of runtime state during promotion.
+- immutable `ReleaseManifest` identity;
+- environment-local bindings and deployment planning;
+- control-plane migration / metadata materialization / deployment-history CLI;
+- runtime-state protection during promotion.
 
-No enterprise Fabric workspace, tenant setting, capacity, connection, credential or runtime state was modified by this implementation.
+Historical Bear runs remain valid evidence, but Bear is no longer part of the active CI design for this public reference repository.
 
 ## Implemented Phase 3 commands
 
@@ -41,95 +48,40 @@ fabric-framework deployment-plan
 fabric-framework deployment-record
 ```
 
-These commands are provider-neutral. GitHub Actions, Azure Pipelines, Fabric Deployment Pipeline automation, `fabric-cicd`, Fabric CLI or a future internal deployment service can call the same release/control-plane contracts.
-
-## Promotion correctness now enforced
-
-The immutable release identity contains:
-
-```text
-domain_release_version
-domain_git_sha
-framework_version
-config_bundle_hash
-config_schema_version
-control_plane_schema_version
-fabric_item_manifest_version
-build_id
-```
-
-Environment bindings are outside that identity. DEV/UAT/PROD can therefore resolve different workspace/Lakehouse/Warehouse/connection resources while proving they received the same release hash.
-
-Semantic materialization updates only release-definition tables. It does not copy or reset watermark, dataset state/lease, runtime overrides, run history, reconciliation/quarantine/schema observations, reprocess history or deployment history. `deployment_history` is appended independently in the target environment.
-
-## Local validation
-
-- `pytest -q`: **37 passed**.
-- `python -m compileall`: PASS.
-- wheel build: PASS (`fabric_data_framework-0.3.0-py3-none-any.whl`).
-- wheel contents include `delivery.py` and `cli.py`: PASS.
-- Framework/Customer GitHub Actions workflow YAML parse: PASS.
-
-## Remote GitHub Actions validation
-
-The original GitHub-hosted `ubuntu-latest` jobs failed before runner assignment (`runner_id=0`, no steps), so workflow execution was moved to the self-hosted runner supplied for this project.
-
-Framework PR #7 validated the real runner identity from GitHub job metadata:
-
-```text
-runner_id = 2
-runner_name = "Bear"
-runner_group_name = "Default"
-job requested labels = ["self-hosted"]
-```
-
-The jobs API proves the runner display name is `Bear` and that the workflow successfully schedules with:
-
-```yaml
-runs-on: self-hosted
-```
-
-The jobs API field above represents the labels requested by the job; it does **not** prove the complete configured-label set on Bear. Therefore the framework does not assume that `Bear` is a custom scheduler label. If an explicit custom label is configured and independently verified later, scheduling can be tightened without changing application/runtime architecture.
-
-The first Bear execution exposed non-hermetic Ruff rule discovery from the self-hosted environment. CI was corrected to invoke Ruff with `--isolated` and an explicit core correctness policy (`E4,E7,E9,F`) so repository CI does not depend on runner-global Ruff configuration.
-
-Framework CI run `33137284837` completed successfully on Bear:
-
-- `build-wheel`: **SUCCESS**;
-- `test-python-3.13`: **SUCCESS**;
-- `test-python-3.11`: **SUCCESS**.
-
-After PR #7 was squash-merged as commit `5cbc8af005c550f8478fae936936722e95c33e0b`, the resulting `main` push CI run `33137410883` also completed with all three jobs successful. This proves checkout, Python provisioning, package installation, isolated static checks, the framework test suite, wheel build and artifact upload on the canonical default branch.
-
 ## Immutable release state
 
-The tag-triggered `v0.3.0` release workflow is defined and targets `self-hosted` execution. The immutable `v0.3.0` release has not yet been claimed; the immediate delivery step is to create/push the `v0.3.0` tag from the validated Framework `main` commit and prove the immutable release workflow on Bear.
+Framework source version `0.3.0` is on `main`, but immutable tag/release `v0.3.0` does not yet exist. The release workflow now targets `ubuntu-latest`.
 
-Customer must not claim successful exact-release integration against `0.3.0` until the immutable framework artifact exists.
+Customer exact-version integration must remain blocked until `v0.3.0` exists; a missing tag should fail that gate rather than produce a false-green skipped integration.
 
 ## Current Microsoft Fabric external boundary
 
-The framework does not embed tenant credentials or claim a real Fabric deployment has succeeded. The external write edge remains an adapter/integration task requiring an approved company Fabric identity and target bindings.
+No enterprise Fabric workspace, tenant setting, capacity, connection, credential or runtime state has been modified by repository CI/CD work. Real Fabric deployment remains an adapter/integration step using approved tenant identity and environment bindings.
 
-## Known limitations / external blockers
+## Known limitations / blockers
 
-- Immutable `v0.3.0` framework GitHub Release still needs to be created and proven on Bear.
-- Customer exact-release integration remains gated on that artifact.
-- Bear is currently one execution slot for the Framework repository, so matrix/build jobs execute serially unless additional runner instances are added.
-- The complete configured label set on Bear has not been retrieved through the available connector; only successful `self-hosted` scheduling and the runner display name are proven.
-- No real Fabric item deployment has yet been executed from these workflows.
-- No service principal/managed identity is configured in this repository.
-- No physical enterprise control-plane database adapter has been exercised; SQLite/SQLAlchemy is the local contract proof.
+- Immutable framework `v0.3.0` GitHub Release is still pending.
+- No real Fabric item deployment has executed.
+- No service principal/managed identity deployment identity is configured.
+- No physical enterprise control-plane store has been exercised; SQLite/SQLAlchemy is the current contract proof.
 - No Fabric Pipeline/Notebook item definition exists yet.
-- Late/out-of-order correction, deletes and remaining capture/apply strategy catalog are pending.
-- No Terraform.
+- Multi-dataset dispatcher/failure isolation is pending.
+- Late/out-of-order correction and delete handling are incomplete.
+- FULL/SNAPSHOT, CDC and remaining apply strategies are pending.
+- Backfill/replay runtime orchestration is only partially represented by contracts.
+- No Terraform implementation yet; `fabric-infra` remains intentionally deferred.
 
-## Exact next implementation step
+## Exact next implementation sequence
 
-1. Create and prove immutable framework release `v0.3.0` on Bear from the validated Framework `main` commit.
-2. Ensure `fabric-customer` has its own eligible repository-level self-hosted runner instance on the Bear machine (or later use an organization-level shared runner model).
-3. Run Customer PR #6 source-contract and exact-release integration, then merge the exact `fabric-data-framework==0.3.0` dependency upgrade when green.
-4. Continue with the metadata-driven multi-dataset dispatcher/failure-isolation slice.
-5. Wire a real GitHub-driven Fabric deployment adapter when an approved tenant identity/workspace binding is available.
+1. Merge PR #8 after the successful GitHub-hosted CI validation.
+2. Publish/prove immutable framework release `v0.3.0` on GitHub-hosted Actions.
+3. Complete Customer exact `0.3.0` integration and merge Customer Phase 3 PR #6.
+4. Implement metadata-driven multi-dataset dispatcher, dependency blocking, bounded concurrency and aggregate `SUCCESS` / `PARTIAL_SUCCESS` / `FAILED` outcomes.
+5. Add a tiny Customer multi-dataset scenario proving failure isolation.
+6. Implement recovery orchestration for retry/backfill/replay plus attempt lineage.
+7. Add representative FULL/SNAPSHOT -> SNAPSHOT_DIFF and CDC -> UPSERT scenarios.
+8. Add schema-evolution/delete/late-arrival policy handling.
+9. Build the first real Fabric adapter: Environment/package installation plus Notebook/Pipeline item deployment and smoke execution in an approved DEV workspace.
+10. Bind a real environment-local control-plane store and deployment identity when enterprise resources are available.
 
-Do not fake release or Fabric-estate validation.
+Do not fake release or Fabric-estate validation, and do not create dozens of synthetic domain tables merely for coverage.
