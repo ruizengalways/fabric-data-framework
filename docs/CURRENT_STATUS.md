@@ -8,11 +8,21 @@ Last updated: 2026-08-28
 - Phase 1 — framework foundation: **COMPLETE**.
 - Phase 2 — first executable Customer WATERMARK/SCD2 vertical slice: **COMPLETE**.
 - Phase 3 — enterprise delivery spine core: **COMPLETE**.
-- CI runner model: **MIGRATING BACK TO GITHUB-HOSTED `ubuntu-latest` NOW THAT THE REPOSITORY IS PUBLIC**.
+- Public-repository GitHub-hosted CI: **VALIDATED ON `ubuntu-latest` IN PR #8**.
 
 ## Last completed step
 
-The repository is now public. CI and release workflows on branch `chore/github-hosted-runners` use GitHub-hosted `ubuntu-latest` rather than the project-specific self-hosted Bear runner.
+The repository is public and Framework CI/release workflows have been moved from the temporary self-hosted Bear runner back to GitHub-hosted `ubuntu-latest` on PR #8 (`chore/github-hosted-runners`).
+
+GitHub-hosted workflow run `33140853145` completed successfully:
+
+```text
+build-wheel       SUCCESS
+test-python-3.11  SUCCESS
+test-python-3.13  SUCCESS
+runner group      GitHub Actions
+requested label   ubuntu-latest
+```
 
 The Phase 3 delivery spine remains unchanged:
 
@@ -25,7 +35,7 @@ The Phase 3 delivery spine remains unchanged:
 - control-plane migration / metadata materialization / deployment-history CLI;
 - runtime-state protection during promotion.
 
-The earlier Bear runs remain valid historical proof that the code and workflow contract passed on a clean runner. The active runner target is now GitHub-hosted because public repositories no longer need the temporary self-hosted workaround.
+Historical Bear runs remain valid evidence, but Bear is no longer part of the active CI design for this public reference repository.
 
 ## Implemented Phase 3 commands
 
@@ -38,27 +48,11 @@ fabric-framework deployment-plan
 fabric-framework deployment-record
 ```
 
-## Validation state
-
-Local validation from Phase 3:
-
-- `pytest -q`: **37 passed**;
-- compile: PASS;
-- wheel build: PASS;
-- workflow YAML parse: PASS.
-
-Previous remote validation on Bear:
-
-- Framework PR #7: build-wheel, Python 3.11 and Python 3.13 jobs all SUCCESS;
-- resulting `main` CI also SUCCESS.
-
-GitHub-hosted validation for the new runner configuration must pass before the migration PR is merged.
-
 ## Immutable release state
 
-Framework source version `0.3.0` is on `main`, but the immutable GitHub Release `v0.3.0` has not yet been published. The release workflow now targets `ubuntu-latest`.
+Framework source version `0.3.0` is on `main`, but immutable tag/release `v0.3.0` does not yet exist. The release workflow now targets `ubuntu-latest`.
 
-Customer exact-version integration must not be considered complete until tag/release `v0.3.0` exists.
+Customer exact-version integration must remain blocked until `v0.3.0` exists; a missing tag should fail that gate rather than produce a false-green skipped integration.
 
 ## Current Microsoft Fabric external boundary
 
@@ -79,8 +73,8 @@ No enterprise Fabric workspace, tenant setting, capacity, connection, credential
 
 ## Exact next implementation sequence
 
-1. Merge the GitHub-hosted runner migration after CI is green.
-2. Publish/prove immutable framework release `v0.3.0`.
+1. Merge PR #8 after the successful GitHub-hosted CI validation.
+2. Publish/prove immutable framework release `v0.3.0` on GitHub-hosted Actions.
 3. Complete Customer exact `0.3.0` integration and merge Customer Phase 3 PR #6.
 4. Implement metadata-driven multi-dataset dispatcher, dependency blocking, bounded concurrency and aggregate `SUCCESS` / `PARTIAL_SUCCESS` / `FAILED` outcomes.
 5. Add a tiny Customer multi-dataset scenario proving failure isolation.
