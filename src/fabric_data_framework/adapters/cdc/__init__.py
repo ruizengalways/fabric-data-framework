@@ -23,6 +23,7 @@ from .registry import (
     CDCProviderAdapterRegistry,
     DEFAULT_CDC_PROVIDER_ADAPTER_REGISTRY,
     DebeziumKafkaCDCAdapter,
+    DeltaCDFCDCAdapter,
 )
 from .resume import (
     DebeziumKafkaPartitionResume,
@@ -45,6 +46,7 @@ __all__ = [
     "DebeziumSnapshotReadPolicy",
     "DeltaCDFAdapterError",
     "DeltaCDFBatchResult",
+    "DeltaCDFCDCAdapter",
     "DeltaCDFChangeType",
     "DeltaCDFRecord",
     "delta_cdf_checkpoint",
