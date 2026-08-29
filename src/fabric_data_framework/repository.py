@@ -9,6 +9,7 @@ from uuid import UUID
 
 from .config import DatasetConfig
 from .contracts.capture_receipt import CaptureReceipt
+from .contracts.dispatch import DatasetDispatchOutcome
 from .contracts.recovery import DatasetAttemptLineage, ReprocessRequest
 from .operations import (
     DatasetRunAudit,
@@ -29,6 +30,7 @@ class ControlPlaneRepository(Protocol):
     def commit_watermark(self, dataset_id: str, position: WatermarkPosition) -> None: ...
     def record_pipeline_run(self, audit: PipelineRunAudit) -> None: ...
     def record_dataset_run(self, audit: DatasetRunAudit) -> None: ...
+    def get_dataset_outcome(self, dataset_run_id: UUID) -> DatasetDispatchOutcome | None: ...
     def record_capture_receipt(self, receipt: CaptureReceipt) -> None: ...
     def record_step_run(self, audit: StepRunAudit) -> None: ...
     def record_reconciliation(self, result: ReconciliationResult) -> None: ...
@@ -94,7 +96,32 @@ class InMemoryControlPlane:
 
     def record_dataset_run(self, audit: DatasetRunAudit) -> None:
         with self._lock:
+            for index, existing in enumerate(self.dataset_runs):
+                if existing.dataset_run_id == audit.dataset_run_id:
+                    if (
+                        existing.pipeline_run_id != audit.pipeline_run_id
+                        or existing.dataset_id != audit.dataset_id
+                        or existing.attempt != audit.attempt
+                        or existing.run_mode is not audit.run_mode
+                        or existing.effective_config_hash != audit.effective_config_hash
+                    ):
+                        raise ValueError("dataset run semantic identity cannot change")
+                    self.dataset_runs[index] = audit
+                    return
             self.dataset_runs.append(audit)
+
+    def get_dataset_outcome(self, dataset_run_id: UUID) -> DatasetDispatchOutcome | None:
+        with self._lock:
+            for audit in reversed(self.dataset_runs):
+                if audit.dataset_run_id == dataset_run_id:
+                    return DatasetDispatchOutcome(
+                        dataset_run_id=dataset_run_id,
+                        status=audit.status,
+                        retryable=audit.retryable,
+                        error_code=audit.error_code,
+                        error_message=audit.error_message,
+                    )
+        return None
 
     def record_capture_receipt(self, receipt: CaptureReceipt) -> None:
         with self._lock:
@@ -102,14 +129,35 @@ class InMemoryControlPlane:
 
     def record_step_run(self, audit: StepRunAudit) -> None:
         with self._lock:
+            for index, existing in enumerate(self.step_runs):
+                if existing.step_run_id == audit.step_run_id:
+                    if (
+                        existing.dataset_run_id != audit.dataset_run_id
+                        or existing.step_name != audit.step_name
+                    ):
+                        raise ValueError("step run semantic identity cannot change")
+                    self.step_runs[index] = audit
+                    return
             self.step_runs.append(audit)
 
     def record_reconciliation(self, result: ReconciliationResult) -> None:
         with self._lock:
+            if any(
+                existing.reconciliation_id == result.reconciliation_id
+                for existing in self.reconciliation_results
+            ):
+                raise ValueError(
+                    f"reconciliation {result.reconciliation_id} is already recorded"
+                )
             self.reconciliation_results.append(result)
 
     def record_quarantine(self, batch: QuarantineBatch) -> None:
         with self._lock:
+            if any(
+                existing.quarantine_id == batch.quarantine_id
+                for existing in self.quarantine_batches
+            ):
+                raise ValueError(f"quarantine batch {batch.quarantine_id} is already recorded")
             self.quarantine_batches.append(batch)
 
     def record_attempt_lineage(self, lineage: DatasetAttemptLineage) -> None:

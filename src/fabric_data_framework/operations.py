@@ -70,6 +70,7 @@ class PipelineRunAudit(FrozenModel):
     environment: str = Field(min_length=1)
     domain: str = Field(min_length=1)
     status: PipelineStatus
+    run_mode: RunMode = RunMode.NORMAL
     started_at: datetime = Field(default_factory=_utcnow)
     completed_at: datetime | None = None
     domain_git_sha: str = Field(pattern=r"^[0-9a-fA-F]{7,64}$")
@@ -99,6 +100,17 @@ class DatasetRunAudit(FrozenModel):
     error_code: str | None = None
     error_message: str | None = None
     retryable: bool | None = None
+    started_at: datetime = Field(default_factory=_utcnow)
+    completed_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_times(self) -> "DatasetRunAudit":
+        _require_aware(self.started_at, "started_at")
+        if self.completed_at is not None:
+            _require_aware(self.completed_at, "completed_at")
+            if self.completed_at < self.started_at:
+                raise ValueError("completed_at cannot be before started_at")
+        return self
 
 
 class StepRunAudit(FrozenModel):
@@ -135,9 +147,11 @@ class ReconciliationResult(FrozenModel):
     status: ReconciliationStatus
     metrics: tuple[ReconciliationMetric, ...] = ()
     blocks_state_advance: bool = True
+    created_at: datetime = Field(default_factory=_utcnow)
 
     @model_validator(mode="after")
     def validate_status(self) -> "ReconciliationResult":
+        _require_aware(self.created_at, "created_at")
         if self.status is ReconciliationStatus.PASS and any(
             not metric.passed for metric in self.metrics
         ):
