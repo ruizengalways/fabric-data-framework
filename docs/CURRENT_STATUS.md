@@ -2,159 +2,106 @@
 
 Last updated: 2026-08-29
 
-## Current phase
+## Current phase and release gate
 
-- Phase 0 — canonical architecture: **COMPLETE**.
-- Phase 1 — framework foundation: **COMPLETE**.
-- Phase 2 — first executable Customer WATERMARK/SCD2 vertical slice: **COMPLETE**.
-- Phase 3 — enterprise delivery spine: **COMPLETE AND RELEASED AS `v0.3.0`**.
-- Phase 4 — metadata dispatcher/failure isolation: **MERGED TO `main` AS UNRELEASED 0.4.0 DEVELOPMENT SOURCE**.
-- Current milestone — **PRODUCTION FRAMEWORK HARDENING; RELEASE PAUSED UNTIL REAL FABRIC/PROVIDER EVIDENCE AND REMAINING OPERATIONAL GAPS ARE CLOSED OR EXPLICITLY BOUNDED**.
+`v0.3.0` remains the latest immutable public framework release. Source version `0.4.0` is an unreleased development line.
 
-## Release gate
+Active work is PR #13 on `architecture/production-framework-blueprint`. **Do not publish v0.4.0 yet.** The hardening branch is now a broad portable/reference product slice, but real Fabric/Kafka execution and external enterprise controls remain unproven.
 
-Do **not** publish `v0.4.0` yet.
+The product target remains: after an enterprise installs the released wheel, routine datasets onboard through source-controlled metadata, environment bindings, capability profiles and bounded logical-name extensions rather than edits to the framework.
 
-Latest immutable public framework release remains `v0.3.0`. Source version `0.4.0` is an unreleased development line.
-
-Active work:
+## Latest validated implementation evidence
 
 ```text
-PR #13
-architecture/production-framework-blueprint
-```
+ae1eb99ab5fa9d7add5a62dda2d7448b6200d240
+GitHub Actions 33225341709
+268 tests passed
+typed read-only control-plane operator snapshot + control-plane-status CLI
 
-The product target is a wheel an enterprise domain installs and normally uses through source-controlled metadata, environment bindings, capability profiles and bounded logical-name extensions. Routine onboarding must not require framework edits.
-
-## Latest coherent implementation evidence
-
-Latest validated code baseline:
-
-```text
 1ee22d5828a5f53a3f9050722bdb5b7f7b28de43
 GitHub Actions 33225064570
 261 tests passed
-shared source-order/event-time taxonomy wired through batch current-state, CDC current-state and CDC-SCD2
-```
+shared source-order/event-time taxonomy wired through current-state and CDC/SCD2
 
-Recent hardening sequence:
-
-```text
 c326f062ad4e6be5185f17b9e6830946967361ab
-Actions 33224558393
+GitHub Actions 33224558393
 252 tests passed
 replay-stable file manifest + API frozen-window/pagination guardrails
 
 6eb4ff275ed1aad9092f60f098d2a9272fd06779
-Actions 33223276476
+GitHub Actions 33223276476
 231 tests passed
 typed schema contract/evolution policy + schema-change evidence
 
 2466d6f254b37a1d79a716e8dd95c5dd16d21cf4
-Actions 33222949040
+GitHub Actions 33222949040
 215 tests passed
 APPEND identity/replay semantics + control-plane v3 migration proof
 
 f3521aa79b2cc66865d46a30e119a7dc4784d698
-Actions 33220690474
+GitHub Actions 33220690474
 197 tests passed
 guarded FULL_REBUILD target/state cutover
-
-6b4a3cd2ddecd818d22fabe22988c043cdcff260
-Actions 33220487307
-190 tests passed
-fail-closed quarantine REPLAY coordination
-
-ecdca38099a4f21c6f40701dc14889b464c20608
-Actions 33219783325
-183 tests passed
-Debezium/Kafka capability profile + provider registry
 ```
 
-All new hardening evidence remains `REFERENCE`, `CI PROVEN` or `ADAPTER CONTRACT`. No hardening capability is yet `FABRIC PROVEN` through retained real workspace execution.
+All of the above are `REFERENCE`, `CI PROVEN` or `ADAPTER CONTRACT` evidence. No hardening capability is yet `FABRIC PROVEN` through a retained real workspace execution.
 
 ## Implemented development runtime
 
 The branch now provides:
 
-- strict immutable typed dataset metadata and allow-listed runtime overrides;
-- independent capture semantics, apply semantics, capture engine, apply engine and progress ownership;
-- immutable provider-neutral `ExecutionPlan`;
-- named capability profiles and fail-closed unsupported-combination validation;
+- strict immutable metadata/effective config and allow-listed runtime overrides;
+- independent capture semantics, apply semantics, capture engine, apply engine and progress owner;
+- immutable provider-neutral `ExecutionPlan` and named capability profiles;
 - composite WATERMARK + overlap;
-- normalized Bronze lineage;
-- DQ/quarantine/no-silent-loss accounting;
-- complete guarded apply catalog: APPEND, REPLACE, UPSERT, SCD1, SCD2 and SNAPSHOT_DIFF;
-- APPEND source-controlled identity with exact-replay no-op and conflicting-identity failure;
-- FULL -> REPLACE and SNAPSHOT -> SNAPSHOT_DIFF publication/delete protection;
+- Bronze lineage, row DQ/quarantine and no-silent-loss accounting;
+- all six canonical apply strategies: APPEND, REPLACE, UPSERT, SCD1, SCD2, SNAPSHOT_DIFF;
+- guarded FULL -> REPLACE and SNAPSHOT -> SNAPSHOT_DIFF publication/delete behavior;
 - canonical CDC I/U/D ordering/dedupe/bounded-window semantics;
-- CDC -> UPSERT/SCD1/SCD2;
-- durable optimistic downstream CDC checkpoints;
+- CDC -> UPSERT/SCD1/SCD2 and durable optimistic downstream CDC checkpoints;
 - snapshot/bootstrap -> CDC no-gap/no-double-apply handoff;
-- Debezium/Kafka topic/partition/offset normalization and retention-aware safe resume planning;
+- Debezium/Kafka topic/partition/offset adapter + retention-aware safe resume planning;
 - Fabric Copy Job/Copy Activity/Dataflow Gen2/Spark capture adapter contracts;
 - typed `CaptureReceipt` native/external handoff;
-- conservative retry, attempt lineage and unknown-target-commit recovery;
-- executable quarantine REPLAY coordination;
-- guarded FULL_REBUILD with stable destructive identity and optimistic capture-aware state cutover;
-- typed schema contracts and deterministic compatibility policy;
-- schema fingerprint/version materialization plus append-only runtime schema-change evidence;
-- immutable file-manifest readiness/completeness/version evidence;
-- API frozen-window, cursor-chain, completeness, page/record-limit and replay-drift guards;
-- shared temporal taxonomy separating source order from event/valid time;
-- shared source-order comparison wired into batch UPSERT/SCD1 and CDC current-state;
-- shared event-time comparison wired into CDC-SCD2 while preserving fail-closed retroactive-history behavior;
+- bounded retry, attempt lineage, unknown-commit tri-state recovery, quarantine REPLAY and guarded FULL_REBUILD;
+- typed schema contracts with deterministic EXACT/ADDITIVE_ONLY/SAFE_EVOLUTION policy and append-only schema-change evidence;
+- replay-stable file-manifest and API frozen-window/pagination guards;
+- shared temporal taxonomy separating source order from event/valid time, wired into batch current-state and CDC/SCD2 comparison paths;
 - metadata-driven dispatcher/dependency/failure isolation;
 - bounded logical-name domain extensions;
-- immutable release/delivery contracts and CLI foundations.
-
-## Apply strategy status
-
-```text
-APPEND          IMPLEMENTED reference
-REPLACE         IMPLEMENTED reference
-UPSERT          IMPLEMENTED reference
-SCD1            IMPLEMENTED reference
-SCD2            IMPLEMENTED reference
-SNAPSHOT_DIFF   IMPLEMENTED reference
-```
-
-APPEND uses `load.append_identity`, not `merge_key`. Exact business-event replay is a no-op even when run lineage changes; the same identity with changed business payload fails closed.
+- control-plane schema v3 with a real v2 -> v3 additive APPEND migration;
+- typed read-only operator snapshots over run/capture/progress/reconciliation/quarantine/schema/reprocess evidence;
+- `fabric-framework control-plane-status` JSON CLI for one dataset or an ordered dataset overview;
+- immutable release/delivery contracts and deployment provenance foundations.
 
 ## Temporal correctness
 
-The framework now has one provider-neutral taxonomy for the two independent clocks:
+The shared taxonomy is now implemented at reference level:
 
 ```text
 source order: STALE | EQUAL | NEWER
 event time:   EARLIER | EQUAL | LATER | UNKNOWN
 ```
 
-Shared conditions include `STALE_SOURCE_POSITION`, `EQUAL_SOURCE_POSITION`, `LATE_EVENT_TIME`, `SAME_EVENT_TIME` and `IN_ORDER`.
+A newer source event with earlier event/valid time is classified as `LATE_EVENT_TIME` and `requires_history_rewrite=true`. CDC-SCD2 still rejects that case with `CDCSCD2LateArrivingError`; this taxonomy does not imply retroactive history reconstruction. Equal event time with a newer source position remains legal.
 
-A newer source position with earlier valid/event time is explicitly classified as requiring history rewrite. Current CDC-SCD2 still refuses that rewrite with `CDCSCD2LateArrivingError`; the shared taxonomy does not pretend retroactive-history reconstruction is implemented. Equal event time with a newer source position remains legal.
+## Operator surface
 
-## Schema evolution
+`get_dataset_operational_snapshot()` returns a typed read-only view of:
 
-Source-controlled `SchemaContract` supports `EXACT`, `ADDITIVE_ONLY` and conservative `SAFE_EVOLUTION`. Certified widening/relaxation includes INT32 -> INT64, FLOAT32 -> FLOAT64, compatible STRING widening, DECIMAL precision widening at stable scale and required -> nullable. Removal, narrowing, nullable -> required, scale change and uncertified cross-family conversions fail closed.
+- latest dataset run + attempt lineage;
+- latest capture/native/provider correlation;
+- current WATERMARK/CDC downstream progress;
+- latest reconciliation;
+- unreplayed quarantine backlog counts;
+- latest schema-change observation;
+- active PENDING/RUNNING reprocess requests.
 
-Deployment materializes versioned rows in `dataset_contract`; runtime observations append to environment-local `schema_change` evidence.
+`list_dataset_operational_snapshots()` provides a deterministic dataset-id ordered overview. The CLI exposes the same contract through `control-plane-status` and optional JSON file output.
 
-## File/API capture guardrails
+This is a supported reference query surface. It does **not** make SQLite the production control-plane technology and does not provide mutation/operator approval workflows yet.
 
-File capture freezes source listing/snapshot reference plus object URI/version/readiness metadata into a deterministic manifest fingerprint. Retry/replay must resolve to the same manifest.
-
-API capture freezes logical bounds + predicate identity before page 1 and validates contiguous cursor chain, completion, terminal cursor, page/record limits, row accounting, cycles and retry/replay window drift.
-
-These are provider-neutral guardrails; actual storage/API clients remain integration work.
-
-## Recovery status
-
-Reference recovery includes bounded retry, attempt lineage, unknown-outcome reconciliation, quarantine REPLAY and guarded FULL_REBUILD. Remaining recovery work is primarily physical/provider-specific: native Fabric downstream-failure resume, real Kafka source-cursor commit coordination, durable physical-target idempotency and operator integration.
-
-## Control-plane ownership
-
-Current schema:
+## Control plane
 
 ```text
 CONTROL_PLANE_SCHEMA_VERSION = 3
@@ -163,39 +110,23 @@ v2 execution_policy_ordering_capture_receipt_recovery_and_cdc
 v3 append_identity_semantics
 ```
 
-v3 contains a real additive migration for existing v2 `load_policy` tables.
-
-Promotable definitions:
-
-```text
-dataset
-dataset_contract
-load_policy
-ordering_policy
-execution_policy
-apply_execution_policy
-orchestration_policy
-data_quality_policy
-reconciliation_policy
-```
-
-Environment-local runtime/evidence includes migrations, overrides, watermarks, CDC checkpoints, leases/state, pipeline/dataset/step runs, attempt lineage, capture receipts, reconciliation/quarantine/schema-change/reprocess/deployment evidence. None is promoted DEV -> UAT -> PROD.
+Promotable definitions remain separate from environment-local runtime/evidence. No watermarks, CDC checkpoints, runs, receipts, quarantine, schema observations or reprocess requests are promoted between environments.
 
 ## Fabric/provider boundary
 
-Current Fabric adapters are adapter contracts with injected transports and fake-transport certification. Debezium/Kafka is provider-adapter/reference recovery evidence. Missing real proof includes actual REST/SDK/CLI/Kafka clients, authentication/environment binding, live polling/seek/commit, retained provider run IDs and a real Fabric Pipeline backend.
+Current Fabric adapters use injected transports and fake-transport certification. Debezium/Kafka is provider-adapter/reference recovery evidence. Missing real proof includes actual REST/SDK/CLI/Kafka clients, authentication/environment binding, live polling/seek/commit, retained provider run IDs and a real Fabric Pipeline backend.
 
 Do not describe current adapter-contract evidence as real Fabric/Kafka integration.
 
 ## Exact next implementation sequence
 
-1. Add a supported control-plane read/query/operator surface so on-call workflows do not require hand-written table joins.
-2. Complete remaining native/provider progress recovery and durable physical-target idempotency proofs.
-3. Implement actual Fabric/Kafka transports and Fabric Pipeline backend.
-4. Prove at least one approved DEV hybrid execution retaining Fabric/provider correlation.
-5. Add additional provider CDC adapters only when supported product scope requires them.
-6. Re-run production readiness/guarantee/docs audit against the exact release-candidate head.
-7. Decide the next immutable release scope/version only after those gates are explicit.
+1. Add durable target-operation idempotency/operation-journal semantics so retry and unknown-outcome handling has a persistent stable operation key rather than only executor convention.
+2. Complete remaining native/provider progress recovery, especially downstream-failure resume for Fabric-native engines and real Kafka cursor coordination.
+3. Select/certify a production control-plane repository technology and transaction/concurrency behavior; retain the current operator API above that repository boundary.
+4. Implement actual Fabric/Kafka transports and Fabric Pipeline backend.
+5. Prove at least one approved DEV hybrid execution retaining Fabric/provider correlation.
+6. Add additional provider CDC adapters only when supported product scope requires them.
+7. Re-run exact-candidate audit/docs/CI and decide the next immutable release scope/version.
 
 ## Durable project memory
 
