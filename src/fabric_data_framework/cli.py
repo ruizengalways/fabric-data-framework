@@ -1,9 +1,10 @@
-"""Small provider-neutral CLI used by CI/CD runners and local deployment validation."""
+"""Small provider-neutral CLI used by CI/CD runners and operator validation."""
 
 from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 import sys
 
@@ -23,6 +24,7 @@ from .delivery import (
     write_json_model,
 )
 from .deployment import CIProvider, DeploymentMechanism, DeploymentProvenance
+from .operator import get_dataset_operational_snapshot, list_dataset_operational_snapshots
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -35,6 +37,14 @@ def _parser() -> argparse.ArgumentParser:
 
     migrate = subparsers.add_parser("control-plane-migrate")
     migrate.add_argument("--database-url", required=True)
+
+    status = subparsers.add_parser(
+        "control-plane-status",
+        help="Read typed dataset operational status without mutating control-plane state",
+    )
+    status.add_argument("--database-url", required=True)
+    status.add_argument("--dataset-id")
+    status.add_argument("--output")
 
     materialize = subparsers.add_parser("metadata-materialize")
     materialize.add_argument("--database-url", required=True)
@@ -89,6 +99,20 @@ def _artifacts(values: list[str]) -> dict[str, Path]:
     return result
 
 
+def _write_or_print_json(payload: object, output: str | None) -> None:
+    if hasattr(payload, "model_dump"):
+        data = payload.model_dump(mode="json")  # type: ignore[attr-defined]
+    else:
+        data = [item.model_dump(mode="json") for item in payload]  # type: ignore[union-attr]
+    rendered = json.dumps(data, indent=2, sort_keys=True, default=str) + "\n"
+    if output is None:
+        print(rendered, end="")
+        return
+    path = Path(output)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(rendered, encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -101,6 +125,15 @@ def main(argv: list[str] | None = None) -> int:
             engine = create_engine(args.database_url)
             apply_baseline_schema(engine)
             print(f"control-plane schema version={current_schema_version(engine)}")
+            return 0
+
+        if args.command == "control-plane-status":
+            engine = create_engine(args.database_url)
+            if args.dataset_id:
+                payload = get_dataset_operational_snapshot(engine, args.dataset_id)
+            else:
+                payload = list_dataset_operational_snapshots(engine)
+            _write_or_print_json(payload, args.output)
             return 0
 
         if args.command == "metadata-materialize":
@@ -164,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         raise AssertionError(f"unhandled command {args.command}")
-    except (ValueError, OSError) as exc:
+    except (KeyError, ValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
