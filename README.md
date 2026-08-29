@@ -72,9 +72,9 @@ Current unreleased hardening branch includes:
 
 These are portable/reference guarantees. Real Fabric adapter/runtime evidence and enterprise IAM/network/governance evidence are tracked separately and are not implied by Python tests.
 
-## Cheatsheet semantic alignment in progress
+## Cheatsheet semantic alignment
 
-The external data-engineering cheatsheet is now treated as an acceptance specification for mainstream source/capture/Bronze/Silver combinations. A 2026-08-29 audit found that the framework's existing fourteen `CapturePattern` values are **not the same taxonomy** as the cheatsheet's fourteen semantic rows: the current enum mixes source semantics, read strategy, provider technology and Bronze choice.
+The external data-engineering cheatsheet is treated as the acceptance specification for mainstream source/capture/Bronze/Silver combinations. A 2026-08-29 audit found that the framework's original fourteen `CapturePattern` values were **not the same taxonomy** as the cheatsheet's fourteen semantic rows because the legacy enum mixes source semantics, read strategy, provider technology and Bronze choice.
 
 Canonical recovery/design checkpoint:
 
@@ -82,7 +82,7 @@ Canonical recovery/design checkpoint:
 docs/CHEATSHEET_PATTERN_ALIGNMENT.md
 ```
 
-Pre-alignment assessment of the cheatsheet fourteen rows:
+Pre-alignment assessment was:
 
 ```text
 10 SUPPORTED
@@ -90,9 +90,11 @@ Pre-alignment assessment of the cheatsheet fourteen rows:
 2 GAP
 ```
 
-Release-significant missing/partial combinations are recurring Full Snapshot -> Snapshot Bronze, Watermark + Lookback -> Raw Append Bronze, Watermark + Lookback + Soft Delete -> Raw Append Bronze, and Full Changes -> intentionally-lossy Current Bronze.
+PR #34 (`1c7d67bedd125f5fb5e983be791085fd1eaa9b0e`) added orthogonal semantic dimensions, all fourteen cheatsheet presets, and legacy `CapturePattern` projection into semantics + provider family. PR #35 (`bf215fcb3538f9806b4002d2f154dbd46ae19412`) added source-controlled semantic onboarding validation and the `capture-semantic-onboarding-validate` CLI.
 
-The active design direction is backward-compatible: introduce orthogonal source/change/read/delete/Bronze/history dimensions and project legacy `CapturePattern` values into that model rather than adding a combinatorial enum for every new combination. Do not claim the current “14-pattern catalog” exactly equals the cheatsheet acceptance table until the alignment work and executable fourteen-row tests are complete.
+At the **semantic-contract + onboarding-validation level**, all fourteen cheatsheet rows are now first-class expressible/tested presets. This does **not** mean every row is live-provider/Fabric proven. Provider/runtime evidence remains separate.
+
+The next reusable semantic gap is full-baseline -> watermark bootstrap with explicit no-gap boundary evidence. The separate partial integration-evidence merge work remains on `codex/integration-evidence-merge` and must not be lost.
 
 ## CDC model
 
@@ -141,6 +143,7 @@ Python 3.11 / 3.13 + wheel SUCCESS
 
 ```text
 fabric-framework validate-tag ...
+fabric-framework capture-semantic-onboarding-validate ...
 fabric-framework control-plane-migrate ...
 fabric-framework metadata-materialize ...
 fabric-framework release-manifest ...
