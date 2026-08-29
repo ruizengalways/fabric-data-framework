@@ -91,7 +91,7 @@ def test_append_identity_is_materialized_as_promotable_semantic_metadata():
     assert row["apply_strategy"] == "APPEND"
 
 
-def test_control_plane_v3_migration_adds_append_identity_to_existing_v2_load_policy():
+def test_control_plane_v3_migration_survives_later_v4_addition():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     old = MetaData()
     migration_history = Table(
@@ -151,10 +151,13 @@ def test_control_plane_v3_migration_adds_append_identity_to_existing_v2_load_pol
         )
 
     assert current_schema_version(engine) == 2
-    assert apply_baseline_schema(engine) == CONTROL_PLANE_SCHEMA_VERSION == 3
+    assert apply_baseline_schema(engine) == CONTROL_PLANE_SCHEMA_VERSION == 4
 
-    columns = {column["name"] for column in inspect(engine).get_columns("load_policy")}
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("load_policy")}
     assert "append_identity" in columns
+    assert "target_operation" in inspector.get_table_names()
+    assert "target_operation_event" in inspector.get_table_names()
     with engine.connect() as connection:
         row = connection.execute(
             select(load_policy.c.append_identity).where(
