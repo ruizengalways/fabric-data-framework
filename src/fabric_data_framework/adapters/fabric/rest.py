@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import json
 from time import monotonic, sleep
@@ -125,6 +125,36 @@ def _job_id_from_location(location: str) -> UUID:
         ) from exc
 
 
+def _typed_parameter(name: str, value: object) -> dict[str, object]:
+    if not name or len(name) > 256:
+        raise ValueError("Fabric job parameter names must contain 1..256 characters")
+    if isinstance(value, bool):
+        parameter_type = "Boolean"
+        encoded: object = value
+    elif isinstance(value, int):
+        parameter_type = "Integer"
+        encoded = value
+    elif isinstance(value, float):
+        parameter_type = "Number"
+        encoded = value
+    elif isinstance(value, UUID):
+        parameter_type = "Guid"
+        encoded = str(value)
+    elif isinstance(value, datetime):
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError(f"Fabric DateTime parameter {name!r} must be timezone-aware")
+        parameter_type = "DateTime"
+        encoded = value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    elif isinstance(value, str):
+        parameter_type = "Text"
+        encoded = value
+    else:
+        raise ValueError(
+            f"unsupported Fabric job parameter type for {name!r}: {type(value).__name__}"
+        )
+    return {"name": name, "value": encoded, "type": parameter_type}
+
+
 class FabricRestClient:
     """Minimal v1 REST client for on-demand Fabric item jobs and polling."""
 
@@ -174,7 +204,8 @@ class FabricRestClient:
         request = Request(self._url(path_or_url), data=data, headers=headers, method=method)
         try:
             response = self._opener(request, timeout=self._request_timeout_seconds)
-            status = int(getattr(response, "status", response.getcode()))
+            status_value = getattr(response, "status", None)
+            status = int(status_value if status_value is not None else response.getcode())
             response_headers = response.headers
             raw = response.read()
         except HTTPError as exc:
@@ -241,7 +272,7 @@ class FabricRestClient:
             payload["executionData"] = dict(execution_data)
         if parameters:
             payload["parameters"] = [
-                {"name": name, "value": value}
+                _typed_parameter(name, value)
                 for name, value in sorted(parameters.items())
             ]
         body, headers = self._request(
