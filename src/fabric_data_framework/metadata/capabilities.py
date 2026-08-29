@@ -21,6 +21,7 @@ class UnsupportedExecutionCombination(ValueError):
 DEFAULT_CAPABILITY_PROFILE = "default"
 DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE = "dataflow_gen2_incremental_bucket_v1"
 DEBEZIUM_KAFKA_PROFILE = "debezium_kafka_v1"
+DELTA_CDF_PROFILE = "delta_cdf_v1"
 
 
 class EngineCapability(FrozenModel):
@@ -115,6 +116,20 @@ _DEFAULT_CAPABILITIES = (
         notes=(
             "Framework-controlled programmable execution and the default portable "
             "apply authority for implemented framework apply strategies."
+        ),
+    ),
+    EngineCapability(
+        profile_name=DELTA_CDF_PROFILE,
+        engine=ExecutionEngine.SPARK,
+        capture_strategies=frozenset({CaptureStrategy.CDC}),
+        progress_owners=frozenset({ProgressOwner.FRAMEWORK}),
+        supports_native_cdc=False,
+        supports_complete_snapshot_evidence=False,
+        notes=(
+            "Bounded Delta Change Data Feed read by commit version through Spark. "
+            "The framework owns downstream CDF application progress. The profile "
+            "normalizes Delta CDF rows into canonical CDC; final apply remains "
+            "independently selected and uses the default framework Spark authority."
         ),
     ),
     EngineCapability(
@@ -301,6 +316,7 @@ __all__ = [
     "CapabilityRegistry",
     "DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE",
     "DEBEZIUM_KAFKA_PROFILE",
+    "DELTA_CDF_PROFILE",
     "DEFAULT_CAPABILITY_PROFILE",
     "DEFAULT_CAPABILITY_REGISTRY",
     "EngineCapability",
