@@ -1,16 +1,16 @@
 # Cheatsheet Pattern Alignment — fabric-data-framework
 
-Status: Canonical design / active implementation checkpoint  
+Status: Canonical recovery/design checkpoint  
 Last updated: 2026-08-29
 
-## 1. Why this document exists
+## 1. External acceptance specification
 
-The external design reference used as the acceptance specification is:
+Use these as the semantic reference when evaluating mainstream data-engineering patterns:
 
 - `https://github.com/ruizengalways/data-engineering-cheetsheet/blob/main/README.md`
 - `https://github.com/ruizengalways/data-engineering-cheetsheet/blob/main/docs/pipeline-design-walkthrough.md`
 
-The cheatsheet's governing mental model is:
+Governing mental model:
 
 ```text
 data semantics
@@ -21,13 +21,11 @@ data semantics
   -> fidelity / recovery
 ```
 
-Those dimensions are intentionally orthogonal. A provider or transport name such as Debezium, Kafka, Delta CDF, API or file delivery must not silently define source semantics, Bronze meaning or history fidelity.
+Provider/transport names such as Debezium, Kafka, Delta CDF, API or files are not allowed to silently define source semantics, Bronze meaning or history fidelity.
 
-This document records the alignment gap discovered on 2026-08-29 and is the recovery point for future conversations.
+## 2. Baseline and merged implementation
 
-## 2. Current baseline
-
-At the time this alignment work started:
+Alignment work started from:
 
 ```text
 main = 8ce4048bf69fe6c729ae6218995331e26ca60b78
@@ -35,23 +33,33 @@ public release = v0.3.0
 source version = 0.4.0 development / unreleased
 ```
 
-The approved-DEV evidence work remains separate. The unfinished evidence-merge work is retained on:
+Merged semantic alignment slices:
 
 ```text
-codex/integration-evidence-merge
+PR #34 -> 1c7d67bedd125f5fb5e983be791085fd1eaa9b0e
+orthogonal capture semantic contracts + 14 cheatsheet acceptance presets
+Actions 33253215030
+Python 3.11 / 3.13 / static / wheel SUCCESS
+expected 419 tests (407 baseline + 12 new acceptance tests)
+
+PR #35 -> bf215fcb3538f9806b4002d2f154dbd46ae19412
+cheatsheet semantic onboarding validation + CLI gate
+Actions 33253394201
+Python 3.11 / 3.13 / static / wheel SUCCESS
+expected 430 tests (419 post-#34 baseline + 11 new tests)
 ```
 
-Do not discard or overwrite that branch when continuing capture-semantics work.
-
-The capture-semantics alignment work starts on:
+Correct evidence label for both slices:
 
 ```text
-codex/cheatsheet-capture-semantics
+IMPLEMENTED + CI PROVEN REFERENCE
 ```
 
-## 3. Important discovery: the two “14 pattern” lists are not the same taxonomy
+They are not live Fabric/provider evidence.
 
-The framework currently has fourteen `CapturePattern` enum members, but they mix several dimensions:
+## 3. Why this alignment was needed
+
+Before PR #34 the framework had fourteen `CapturePattern` enum members, but that enum mixed several independent dimensions:
 
 ```text
 FULL_SNAPSHOT             source/data semantics
@@ -66,7 +74,7 @@ FILE_INCREMENTAL          delivery shape
 EVENT_SOURCE              source semantics
 ```
 
-The cheatsheet's fourteen rows instead describe semantic combinations such as:
+The cheatsheet fourteen rows instead describe semantic combinations such as:
 
 ```text
 Full Snapshot -> Current Bronze
@@ -79,26 +87,26 @@ Full Changes -> Event Bronze
 Full Changes -> Current Bronze (intentionally lossy)
 ```
 
-Therefore “framework has 14 patterns” must not be interpreted as “framework exactly implements every cheatsheet row”.
+Therefore the previous statement “framework has 14 patterns” did not mean “framework exactly models the cheatsheet 14 rows”.
 
-## 4. Exact cheatsheet-row assessment before this work
+## 4. Pre-alignment assessment
 
-| # | Cheatsheet semantic pattern | Current framework mapping | Assessment before alignment |
-|---:|---|---|---|
-| 1 | Full Snapshot -> Current Bronze | `FULL_SNAPSHOT` + `OVERWRITE` | SUPPORTED |
-| 2 | Full Snapshot -> Snapshot Bronze | no first-class current mapping | GAP |
-| 3 | Watermark -> Current Bronze | `WATERMARK_INCREMENTAL` + `MERGE` | SUPPORTED |
-| 4 | Watermark + Lookback -> Current Bronze | `WATERMARK_LOOKBACK` + `MERGE` | SUPPORTED |
-| 5 | Watermark + Lookback -> Raw Append Bronze | current pattern allows only `MERGE` | GAP |
-| 6 | Watermark + Soft Delete -> Current Bronze | `WATERMARK_TOMBSTONE` | SUPPORTED |
-| 7 | Watermark + Lookback + Soft Delete -> Raw Append Bronze | primitives exist but no exact combined contract | PARTIAL |
-| 8 | Net Changes -> Current Bronze | `CDC_NET_CURRENT` | SUPPORTED |
-| 9 | Net Changes -> Append Bronze | `CDC_NET_OBSERVATION` | SUPPORTED |
-| 10 | Full / All Changes -> Event Bronze | `CDC_FULL` and provider variants | SUPPORTED |
-| 11 | Full Changes -> Current Bronze, intentionally lossy | current state can be derived, but `CDC_FULL` Bronze is APPEND-only | PARTIAL |
-| 12 | Business Events -> Event Bronze | `EVENT_SOURCE` | SUPPORTED semantic contract |
-| 13 | Snapshot Diff -> Current | `SNAPSHOT_DIFF` + `MERGE` | SUPPORTED |
-| 14 | Snapshot Diff -> Append Changes | `SNAPSHOT_DIFF` + `APPEND` | SUPPORTED |
+| # | Cheatsheet semantic pattern | Pre-alignment status |
+|---:|---|---|
+| 1 | Full Snapshot -> Current Bronze | SUPPORTED |
+| 2 | Full Snapshot -> Snapshot Bronze | GAP |
+| 3 | Watermark -> Current Bronze | SUPPORTED |
+| 4 | Watermark + Lookback -> Current Bronze | SUPPORTED |
+| 5 | Watermark + Lookback -> Raw Append Bronze | GAP |
+| 6 | Watermark + Soft Delete -> Current Bronze | SUPPORTED |
+| 7 | Watermark + Lookback + Soft Delete -> Raw Append Bronze | PARTIAL |
+| 8 | Net Changes -> Current Bronze | SUPPORTED |
+| 9 | Net Changes -> Append Bronze | SUPPORTED |
+| 10 | Full / All Changes -> Event Bronze | SUPPORTED |
+| 11 | Full Changes -> Current Bronze, intentionally lossy | PARTIAL |
+| 12 | Business Events -> Event Bronze | SUPPORTED semantic contract |
+| 13 | Snapshot Diff -> Current | SUPPORTED |
+| 14 | Snapshot Diff -> Append Changes | SUPPORTED |
 
 Pre-alignment summary:
 
@@ -108,89 +116,22 @@ Pre-alignment summary:
 2 gaps
 ```
 
-This is a semantic-product assessment, not a real-provider evidence claim.
+## 5. What PR #34 changed
 
-## 5. Four release-significant semantic gaps
-
-### Gap A — recurring Full Snapshot -> Snapshot Bronze
-
-The framework must represent periodic complete source pictures as immutable Bronze observations:
+New module:
 
 ```text
-snapshot_id | snapshot_time | business columns...
+src/fabric_data_framework/capture/semantic_contracts.py
 ```
 
-This is distinct from `SNAPSHOT_DIFF`. Snapshot Bronze stores the complete pictures; snapshot diff stores derived N-vs-N-1 changes.
-
-Required contract properties:
-
-```text
-source semantics = CURRENT_STATE / complete snapshot
-Bronze meaning   = SNAPSHOT_HISTORY
-Bronze write     = APPEND
-retry identity   = snapshot_id
-history ceiling  = SNAPSHOT_GRAIN
-```
-
-### Gap B — Watermark + Lookback -> Raw Append Bronze
-
-The framework must preserve intentionally repeated extraction observations:
-
-```text
-batch_001 | id=100 | source_version=501
-batch_002 | id=100 | source_version=501   # lookback reread
-batch_002 | id=100 | source_version=502
-```
-
-Bronze retains delivery/observation lineage. Silver collapses rereads using business key + source version/order and then materializes current state or observed history.
-
-Required contract properties:
-
-```text
-source semantics = CURRENT_STATE
-read strategy    = WATERMARK_LOOKBACK
-Bronze meaning   = RAW_OBSERVATION
-Bronze write     = APPEND
-history ceiling  = OBSERVED_CHANGES
-physical delete  = not visible unless another delete signal exists
-```
-
-### Gap C — Watermark + Lookback + Soft Delete -> Raw Append Bronze
-
-This combines three independent concerns:
-
-```text
-lookback protects against late/missed reads
-soft-delete/tombstone row makes delete observable
-raw append preserves every extraction observation
-```
-
-The model must not require a combinatorial enum such as `WATERMARK_LOOKBACK_TOMBSTONE_RAW_APPEND`.
-
-### Gap D — Full Changes -> Current Bronze (intentionally lossy)
-
-A full ordered change feed may intentionally be collapsed before current Bronze:
-
-```text
-ordered full changes
-  -> collapse/apply per business key
-  -> final state in bounded window
-  -> MERGE current Bronze
-```
-
-This must be explicitly labelled lossy. It must never claim Event Bronze or full replay history after the collapse.
-
-## 6. Target model: orthogonal semantic dimensions
-
-The framework should move toward a composition model rather than adding more large combined enum names.
-
-Target dimensions:
+New orthogonal dimensions:
 
 ```text
 SourceSemantics
   CURRENT_STATE
   CHANGE_FEED
   BUSINESS_EVENT
+  SOURCE_DEFINED
 
 ChangeGranularity
   CURRENT
@@ -204,10 +145,11 @@ ReadStrategy
   FULL
   WATERMARK
   WATERMARK_LOOKBACK
-  CURSOR
-  LOG_POSITION
-  OFFSET
+  CHANGE_WINDOW
+  SOURCE_POSITION
+  PARTITION_OFFSET
   COMMIT_VERSION
+  CURSOR
   FILE_MANIFEST
   SOURCE_DEFINED
 
@@ -215,7 +157,6 @@ DeleteSemantics
   NONE
   SNAPSHOT_ABSENCE
   SOFT_DELETE
-  TOMBSTONE_EVENT
   EXPLICIT_EVENT
   SOURCE_DEFINED
 
@@ -224,122 +165,244 @@ BronzeContract
   RAW_OBSERVATION
   SNAPSHOT_HISTORY
   EVENT
+```
 
+`CaptureSemanticContract` also carries:
+
+```text
+BronzeWriteMode
 HistoryFidelity
-  NONE
-  OBSERVED_CHANGES
-  BATCH_GRAIN
-  SNAPSHOT_GRAIN
-  FULL_EVENT
-  SOURCE_DEFINED
+retry identity intent
+SCD1/SCD2 compatibility flags
+intentional-loss marker
+guidance
 ```
 
-Provider/execution selection stays separate:
+All fourteen cheatsheet rows are now executable named presets through `CheatsheetPattern` and `cheatsheet_pattern_contract()`.
+
+The four previous semantic gaps are now expressible directly:
 
 ```text
-DB_QUERY
-FABRIC_COPY_JOB
-FABRIC_COPY_ACTIVITY
-DATAFLOW_GEN2
-SPARK
-NATIVE_CDC
+FULL_SNAPSHOT_HISTORY
+WATERMARK_LOOKBACK_RAW
+WATERMARK_LOOKBACK_SOFT_DELETE_RAW
+FULL_CHANGES_CURRENT_LOSSY
+```
+
+This closes the **semantic-contract representation gap**. It does not by itself prove every physical runtime path in Fabric.
+
+## 6. Backward compatibility
+
+Legacy `CapturePattern` remains supported.
+
+PR #34 added:
+
+```text
+project_legacy_capture_pattern()
+```
+
+which projects the existing combined preset into:
+
+```text
+orthogonal semantic contract
++
+separate CaptureProviderFamily
+```
+
+Examples:
+
+```text
 DEBEZIUM_KAFKA
+  -> source semantics = CHANGE_FEED
+  -> granularity = FULL
+  -> read strategy = PARTITION_OFFSET
+  -> provider family = DEBEZIUM_KAFKA
+
 DELTA_CDF
-API
-FILE
-KAFKA
-...
+  -> source semantics = CHANGE_FEED
+  -> granularity = FULL
+  -> read strategy = COMMIT_VERSION
+  -> provider family = DELTA_CDF
+
+API_CURSOR_INCREMENTAL
+  -> semantics/fidelity = SOURCE_DEFINED
+  -> read strategy = CURSOR
+  -> provider family = API
 ```
 
-A provider cannot increase source fidelity.
+Do not remove or rename legacy `CapturePattern` until downstream domain repositories have a deliberate migration path.
 
-## 7. Backward compatibility rule
+## 7. What PR #35 changed
 
-Do not break existing `CapturePattern` consumers in the first slice.
-
-Implementation strategy:
+New source-controlled onboarding model:
 
 ```text
-new orthogonal semantic contract
-        ^
-        |
-legacy CapturePattern -> compatibility projection / preset
+DatasetSemanticCaptureSelection
 ```
 
-`CapturePattern` becomes a convenience/onboarding preset over the orthogonal contract rather than the only semantic truth.
+A domain repo can now declare an exact cheatsheet semantic preset instead of being forced into the legacy combined enum.
 
-New combinations should be expressible without adding one enum member for every Cartesian-product combination.
+Example:
 
-## 8. Cheatsheet acceptance specification
-
-The cheatsheet fourteen-row table becomes an executable acceptance specification.
-
-For every row the framework tests must assert at least:
-
-```text
-source semantics
-change granularity
-read strategy / progress coordinate class
-physical-delete visibility
-delete semantics
-Bronze contract
-Bronze write mode
-retry/replay identity intent
-Silver current / SCD1 compatibility
-SCD2/history fidelity ceiling
-intentional-loss warning where applicable
+```json
+{
+  "dataset_id": "crm.customer",
+  "cheatsheet_pattern": "WATERMARK_LOOKBACK_RAW",
+  "history_claim": "OBSERVED_CHANGES",
+  "delete_claim": "NONE",
+  "rationale": "Keep extraction observations and collapse rereads in Silver.",
+  "known_limitations": [
+    "Hard deletes are not visible."
+  ]
+}
 ```
 
-A future cheatsheet mainstream pattern addition must produce an explicit framework status:
+Validation now fails closed when:
 
 ```text
-SUPPORTED
-PARTIAL
-UNSUPPORTED
+semantic preset and DatasetConfig.capture_strategy disagree
+WATERMARK_LOOKBACK has no positive overlap
+strict WATERMARK is selected while overlap_window_seconds > 0
+history claim contradicts the semantic ceiling
+delete claim contradicts the semantic contract
+selection references an unknown dataset
+--require-all finds an unclassified DatasetConfig
 ```
 
-Documentation and code must not silently drift.
-
-## 9. Related non-pattern gaps that remain important
-
-### Watermark bootstrap
-
-CDC already has a first-class snapshot-fence bootstrap contract. The equivalent full-baseline -> watermark handoff is not yet at the same evidence level and should be added after the semantic model stabilizes.
-
-Expected shape:
+Review warnings include:
 
 ```text
-freeze/capture initial high watermark W
+bounded/source-defined history without documented limitations
+soft-delete semantics selected while delete_policy=IGNORE
+current-only/lossy Full Changes collapse
+```
+
+New CLI:
+
+```bash
+fabric-framework capture-semantic-onboarding-validate \
+  --config-dir config/datasets \
+  --selections config/capture-semantic-selections.json \
+  --require-all \
+  --output evidence/capture-semantic-onboarding.json
+```
+
+The legacy command remains available:
+
+```text
+capture-onboarding-validate
+```
+
+## 8. Current truth about the cheatsheet 14 rows
+
+At the **semantic-contract + onboarding-validation level**, all fourteen cheatsheet rows are now first-class expressible/tested presets.
+
+That means the old `10 supported / 2 partial / 2 gap` assessment is no longer the current semantic-model result.
+
+However, do not translate that into the stronger claim “every row has been proven end-to-end on every physical provider”.
+
+Current distinction:
+
+```text
+semantic representation / validation    YES for all 14 cheatsheet rows
+portable/reference apply primitives      broad existing coverage
+provider-specific transport/runtime      varies by provider/path
+real approved DEV service proof          still incomplete
+production enterprise proof              still external/incomplete
+```
+
+## 9. Next release-significant semantic/runtime gap: watermark bootstrap
+
+CDC already has a first-class no-gap/no-double-apply snapshot-fence bootstrap contract.
+
+The next reusable semantic gap is the equivalent initial full baseline -> watermark incremental handoff.
+
+Target evidence shape:
+
+```text
+establish/freeze initial source high watermark W
+        ↓
 obtain complete baseline proven consistent through W
+        ↓
 commit baseline
-start incremental strictly after the defined W boundary
+        ↓
+start steady-state incremental after the defined W boundary
 ```
 
-Exact ordering depends on the source isolation/version contract and must fail closed if no-gap proof is unavailable.
+The implementation must not assume every timestamp watermark can prove this safely. It should make source isolation/version evidence explicit and fail closed when no-gap proof is unavailable.
+
+Expected work:
+
+```text
+WatermarkBootstrapEvidence
+WatermarkBootstrapPlan
+boundary/tie-breaker semantics
+complete-baseline evidence
+source-consistency evidence
+safe first incremental lower bound
+retry/replay identity
+negative tests for gap/double-apply ambiguity
+```
+
+## 10. Other intentionally unresolved boundaries
 
 ### Retroactive SCD2
 
-Normal deterministic SCD2 exists. Automatic retroactive/back-dated business-effective history rewrite remains intentionally unsupported. A newer captured source event with an earlier valid-time that requires rewriting committed history should continue to fail closed unless an explicit rewrite policy is introduced.
+Normal deterministic SCD2 exists. Automatic back-dated business-effective history rewrite remains intentionally unsupported. Newer captured source data that would require rewriting committed earlier valid-time history should remain fail-closed unless an explicit rewrite policy is introduced.
 
-### Provider runtime evidence
+### Physical provider proof
 
-Semantic support does not imply live provider proof. Real Fabric, Kafka, Delta CDF and production SQL evidence remain governed by `PRODUCTION_READINESS_AUDIT.md` and `DEV_INTEGRATION_EVIDENCE.md`.
+Semantic support does not imply live provider proof. Real Fabric, Kafka, Delta CDF and production SQL evidence remain governed by:
 
-## 10. Implementation order from this checkpoint
+```text
+PRODUCTION_READINESS_AUDIT.md
+DEV_INTEGRATION_EVIDENCE.md
+```
 
-1. add orthogonal capture semantic models without breaking legacy `CapturePattern`;
-2. encode all fourteen cheatsheet rows as named semantic presets / acceptance cases;
-3. add executable tests for all fourteen rows;
-4. close the four semantic gaps listed above at contract level;
-5. wire legacy pattern projection and onboarding validation to the new semantic truth;
-6. add full-baseline -> watermark bootstrap evidence contract;
-7. update `CAPTURE_PATTERN_CATALOG.md`, `GUARANTEE_COVERAGE.md`, `CURRENT_STATUS.md` and readiness docs with exact CI evidence;
-8. resume approved-DEV evidence execution and the separate integration-evidence merge work;
-9. do not release `0.4.0` until exact-candidate semantic/docs/CI state and retained real evidence agree.
+### Provider-specific runtime clients
 
-## 11. Evidence language
+API/file/Kafka/Delta semantics and recovery contracts are not the same thing as having every possible provider connector/client embedded in the package. Provider integrations should be added only where product scope requires them.
 
-Until real service evidence exists, the correct labels remain:
+## 11. Parallel unfinished evidence work — do not lose
+
+The earlier partial integration-evidence merge implementation remains on:
+
+```text
+codex/integration-evidence-merge
+```
+
+Known commit on that branch:
+
+```text
+d50769f3926e07d291c950199c1fa2e74b82c59c
+```
+
+It contains `integration_evidence_merge.py` with strict staged-manifest conflict semantics.
+
+Still required there:
+
+```text
+tests
+CLI integration-evidence-merge
+docs
+PR/CI/merge
+```
+
+Do not overwrite or forget that branch while doing capture semantics.
+
+## 12. Current recommended continuation order
+
+1. implement full-baseline -> watermark bootstrap evidence contract and tests;
+2. synchronize `CAPTURE_PATTERN_CATALOG.md`, `GUARANTEE_COVERAGE.md`, `CURRENT_STATUS.md` and readiness docs with the new merged semantic baseline;
+3. finish/merge `codex/integration-evidence-merge`;
+4. continue exact-release approved DEV read-only evidence and real control-plane certification;
+5. only then authorize representative real Pipeline/Copy/Spark/Warehouse mutation/failure drills;
+6. keep Kafka/Delta live proof conditional on `0.4.0` release scope;
+7. do not publish `0.4.0` until exact-candidate code/tests/docs and retained approved real evidence agree.
+
+## 13. Evidence language
+
+Use:
 
 ```text
 IMPLEMENTED reference
@@ -348,4 +411,4 @@ ADAPTER CONTRACT
 IMPLEMENTED + CI PROVEN ... CONTRACT
 ```
 
-Do not call these changes `FABRIC PROVEN`, `PRODUCTION DB PROVEN`, `KAFKA PROVEN` or equivalent merely because deterministic tests pass.
+Do not call these semantic/onboarding changes `FABRIC PROVEN`, `PRODUCTION DB PROVEN`, `KAFKA PROVEN` or equivalent merely because deterministic CI is green.
