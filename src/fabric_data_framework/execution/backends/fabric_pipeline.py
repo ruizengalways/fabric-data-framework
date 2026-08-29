@@ -63,7 +63,7 @@ class FabricPipelineBackend:
         self._outcome_reader = outcome_reader
 
     @staticmethod
-    def _record_backend_failure(
+    def _record_failure(
         repository: ControlPlaneRepository,
         *,
         pipeline_run_id: UUID,
@@ -133,6 +133,34 @@ class FabricPipelineBackend:
             )
         )
 
+    def _fail_with_remote_evidence(
+        self,
+        repository: ControlPlaneRepository,
+        *,
+        invocation: FabricPipelineInvocation,
+        effective: EffectiveDatasetConfig,
+        evidence: FabricJobInstance,
+        status: DatasetStatus,
+        error_code: str,
+        error_message: str,
+        retryable: bool | None,
+    ) -> DatasetDispatchOutcome:
+        # dataset_run is the parent of step_run in the relational control plane. Record
+        # it first so a real SQL backend cannot fail on the provider-evidence FK.
+        outcome = self._record_failure(
+            repository,
+            pipeline_run_id=invocation.pipeline_run_id,
+            dataset_run_id=invocation.dataset_run_id,
+            effective=effective,
+            run_mode=invocation.run_mode,
+            status=status,
+            error_code=error_code,
+            error_message=error_message,
+            retryable=retryable,
+        )
+        self._record_remote_evidence(repository, invocation=invocation, evidence=evidence)
+        return outcome
+
     def execute_one(
         self,
         *,
@@ -142,7 +170,6 @@ class FabricPipelineBackend:
         run_mode: RunMode,
     ) -> DatasetDispatchOutcome:
         dataset_run_id = uuid4()
-        execution_plan = compile_execution_plan(effective, run_mode=run_mode)
         invocation = FabricPipelineInvocation(
             pipeline_run_id=pipeline_run_id,
             dataset_run_id=dataset_run_id,
@@ -150,13 +177,13 @@ class FabricPipelineBackend:
             run_mode=run_mode,
             attempt=1,
             effective_config_hash=effective.effective_config_hash,
-            execution_plan=execution_plan,
+            execution_plan=compile_execution_plan(effective, run_mode=run_mode),
             binding=self._binding_resolver(effective),
         )
         try:
             evidence = self._transport.invoke(invocation)
         except FabricRestError as exc:
-            return self._record_backend_failure(
+            return self._record_failure(
                 repository,
                 pipeline_run_id=pipeline_run_id,
                 dataset_run_id=dataset_run_id,
@@ -168,7 +195,7 @@ class FabricPipelineBackend:
                 retryable=exc.retriable,
             )
         except Exception as exc:  # provider boundary; sibling datasets must continue
-            return self._record_backend_failure(
+            return self._record_failure(
                 repository,
                 pipeline_run_id=pipeline_run_id,
                 dataset_run_id=dataset_run_id,
@@ -180,15 +207,12 @@ class FabricPipelineBackend:
                 retryable=None,
             )
 
-        self._record_remote_evidence(repository, invocation=invocation, evidence=evidence)
-
         if evidence.status is FabricJobStatus.DEDUPED:
-            return self._record_backend_failure(
+            return self._fail_with_remote_evidence(
                 repository,
-                pipeline_run_id=pipeline_run_id,
-                dataset_run_id=dataset_run_id,
+                invocation=invocation,
                 effective=effective,
-                run_mode=run_mode,
+                evidence=evidence,
                 status=DatasetStatus.BLOCKED,
                 error_code="FABRIC_PIPELINE_DEDUPED",
                 error_message=(
@@ -198,24 +222,22 @@ class FabricPipelineBackend:
                 retryable=True,
             )
         if evidence.status is FabricJobStatus.CANCELLED:
-            return self._record_backend_failure(
+            return self._fail_with_remote_evidence(
                 repository,
-                pipeline_run_id=pipeline_run_id,
-                dataset_run_id=dataset_run_id,
+                invocation=invocation,
                 effective=effective,
-                run_mode=run_mode,
+                evidence=evidence,
                 status=DatasetStatus.CANCELLED,
                 error_code="FABRIC_PIPELINE_CANCELLED",
                 error_message=f"Fabric job {evidence.job_instance_id} was cancelled",
                 retryable=None,
             )
         if evidence.status is FabricJobStatus.FAILED:
-            return self._record_backend_failure(
+            return self._fail_with_remote_evidence(
                 repository,
-                pipeline_run_id=pipeline_run_id,
-                dataset_run_id=dataset_run_id,
+                invocation=invocation,
                 effective=effective,
-                run_mode=run_mode,
+                evidence=evidence,
                 status=DatasetStatus.FAILED,
                 error_code="FABRIC_PIPELINE_FAILED",
                 error_message=(
@@ -226,12 +248,11 @@ class FabricPipelineBackend:
                 retryable=None,
             )
         if evidence.status is not FabricJobStatus.COMPLETED:
-            return self._record_backend_failure(
+            return self._fail_with_remote_evidence(
                 repository,
-                pipeline_run_id=pipeline_run_id,
-                dataset_run_id=dataset_run_id,
+                invocation=invocation,
                 effective=effective,
-                run_mode=run_mode,
+                evidence=evidence,
                 status=DatasetStatus.FAILED,
                 error_code="FABRIC_PIPELINE_NON_TERMINAL",
                 error_message=(
@@ -241,14 +262,15 @@ class FabricPipelineBackend:
                 retryable=None,
             )
 
+        # A Completed Fabric job must have already persisted the exact framework
+        # dataset outcome. This read is the semantic handoff from remote orchestration.
         outcome = self._outcome_reader(dataset_run_id)
         if outcome is None:
-            return self._record_backend_failure(
+            return self._fail_with_remote_evidence(
                 repository,
-                pipeline_run_id=pipeline_run_id,
-                dataset_run_id=dataset_run_id,
+                invocation=invocation,
                 effective=effective,
-                run_mode=run_mode,
+                evidence=evidence,
                 status=DatasetStatus.FAILED,
                 error_code="FABRIC_PIPELINE_RESULT_MISSING",
                 error_message=(
@@ -258,12 +280,11 @@ class FabricPipelineBackend:
                 retryable=None,
             )
         if outcome.dataset_run_id != dataset_run_id:
-            return self._record_backend_failure(
+            return self._fail_with_remote_evidence(
                 repository,
-                pipeline_run_id=pipeline_run_id,
-                dataset_run_id=dataset_run_id,
+                invocation=invocation,
                 effective=effective,
-                run_mode=run_mode,
+                evidence=evidence,
                 status=DatasetStatus.FAILED,
                 error_code="FABRIC_PIPELINE_RESULT_MISMATCH",
                 error_message=(
@@ -273,12 +294,11 @@ class FabricPipelineBackend:
                 retryable=None,
             )
         if outcome.status not in _TERMINAL_DATASET_STATUSES:
-            return self._record_backend_failure(
+            return self._fail_with_remote_evidence(
                 repository,
-                pipeline_run_id=pipeline_run_id,
-                dataset_run_id=dataset_run_id,
+                invocation=invocation,
                 effective=effective,
-                run_mode=run_mode,
+                evidence=evidence,
                 status=DatasetStatus.FAILED,
                 error_code="FABRIC_PIPELINE_RESULT_NON_TERMINAL",
                 error_message=(
@@ -287,6 +307,10 @@ class FabricPipelineBackend:
                 ),
                 retryable=None,
             )
+
+        # The remote child owns persistence of the successful DatasetRunAudit. The
+        # parent adds Fabric-native correlation only after that durable outcome exists.
+        self._record_remote_evidence(repository, invocation=invocation, evidence=evidence)
         return outcome
 
     def execute_ready_wave(
