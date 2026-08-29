@@ -1,5 +1,15 @@
-"""Capture-strategy implementations and contracts."""
+"""Capture-strategy implementations and source-family guardrail contracts."""
 
+from .api import (
+    APICaptureError,
+    APICaptureEvidence,
+    APICaptureWindow,
+    APIPageEvidence,
+    APIPaginationPolicy,
+    assert_same_api_window,
+    freeze_api_window,
+    validate_api_capture,
+)
 from .bootstrap_cdc import (
     CDCBootstrapEvidence,
     CDCBootstrapEvidenceError,
@@ -21,6 +31,15 @@ from .cdc import (
     build_cdc_checkpoint,
     normalize_cdc_batch,
 )
+from .files import (
+    FileManifestError,
+    FileManifestPolicy,
+    FileObjectEvidence,
+    FileReadiness,
+    FrozenFileManifest,
+    assert_same_file_manifest,
+    freeze_file_manifest,
+)
 from .full import (
     FullCaptureBatch,
     FullSnapshotEvidence,
@@ -35,6 +54,11 @@ from .snapshot import (
 )
 
 __all__ = [
+    "APICaptureError",
+    "APICaptureEvidence",
+    "APICaptureWindow",
+    "APIPageEvidence",
+    "APIPaginationPolicy",
     "CDCBootstrapEvidence",
     "CDCBootstrapEvidenceError",
     "CDCBootstrapPlan",
@@ -48,16 +72,26 @@ __all__ = [
     "CDCOperation",
     "CDCOrderingError",
     "CDCSourcePosition",
+    "FileManifestError",
+    "FileManifestPolicy",
+    "FileObjectEvidence",
+    "FileReadiness",
+    "FrozenFileManifest",
     "FullCaptureBatch",
     "FullSnapshotEvidence",
     "FullSnapshotEvidenceError",
     "SnapshotCaptureBatch",
     "SnapshotEvidence",
     "SnapshotEvidenceError",
+    "assert_same_api_window",
+    "assert_same_file_manifest",
     "build_cdc_checkpoint",
     "capture_full_snapshot",
     "capture_snapshot",
+    "freeze_api_window",
+    "freeze_file_manifest",
     "normalize_bootstrap_cdc_batch",
     "normalize_cdc_batch",
     "plan_cdc_bootstrap",
+    "validate_api_capture",
 ]

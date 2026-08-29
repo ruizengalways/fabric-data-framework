@@ -24,8 +24,25 @@ from .apply.upsert import (
     UpsertOrderingError,
     apply_upsert,
 )
-from .capture.full import FullSnapshotEvidence
-from .capture.snapshot import SnapshotEvidence
+from .capture import (
+    APICaptureError,
+    APICaptureEvidence,
+    APICaptureWindow,
+    APIPageEvidence,
+    APIPaginationPolicy,
+    FileManifestError,
+    FileManifestPolicy,
+    FileObjectEvidence,
+    FileReadiness,
+    FrozenFileManifest,
+    FullSnapshotEvidence,
+    SnapshotEvidence,
+    assert_same_api_window,
+    assert_same_file_manifest,
+    freeze_api_window,
+    freeze_file_manifest,
+    validate_api_capture,
+)
 from .config import (
     ApplyStrategy,
     CaptureStrategy,
@@ -85,6 +102,11 @@ from .schema_contract import (
 )
 
 __all__ = [
+    "APICaptureError",
+    "APICaptureEvidence",
+    "APICaptureWindow",
+    "APIPageEvidence",
+    "APIPaginationPolicy",
     "AppendApplyResult",
     "AppendConflictError",
     "AppendIdentityError",
@@ -108,6 +130,11 @@ __all__ = [
     "ExtensionConfig",
     "ExtensionKind",
     "ExtensionRegistry",
+    "FileManifestError",
+    "FileManifestPolicy",
+    "FileObjectEvidence",
+    "FileReadiness",
+    "FrozenFileManifest",
     "FullSnapshotEvidence",
     "InMemoryAppendTarget",
     "LoadPolicy",
@@ -147,6 +174,8 @@ __all__ = [
     "apply_append",
     "apply_scd1",
     "apply_upsert",
+    "assert_same_api_window",
+    "assert_same_file_manifest",
     "build_default_execution_plan",
     "classify_schema_evolution",
     "compile_execution_plan",
@@ -154,8 +183,11 @@ __all__ = [
     "execute_append_batch",
     "execute_full_replace",
     "execute_snapshot_diff",
+    "freeze_api_window",
+    "freeze_file_manifest",
     "require_compatible_schema",
     "resolve_effective_config",
+    "validate_api_capture",
 ]
 
 __version__ = "0.4.0"
