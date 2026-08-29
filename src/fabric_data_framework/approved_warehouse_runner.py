@@ -130,6 +130,7 @@ class ApprovedWarehouseEvidenceReport(FrozenModel):
     target_reference: str
     marker_reference: str
     native_operation_id: str | None = None
+    marker_executed: bool
     initial_action: str
     ambiguity_origin: WarehouseAmbiguityOrigin
     execution_exception_type: str | None = Field(default=None, max_length=256)
@@ -431,7 +432,7 @@ def execute_approved_warehouse(
                     # ambiguous. Persist UNKNOWN using only the exception type, then
                     # probe the target marker. Never infer NOT_COMMITTED from absence.
                     execution_exception_type = type(exc).__name__
-                    unknown = mark_target_operation_unknown(
+                    mark_target_operation_unknown(
                         control_engine,
                         operation_key=intent.operation_key,
                         expected_version=claim.record.version,
@@ -573,6 +574,7 @@ def execute_approved_warehouse(
                     target_reference=intent.target_reference,
                     marker_reference=atomic_result.marker_reference,
                     native_operation_id=atomic_result.marker.native_operation_id,
+                    marker_executed=atomic_result.executed,
                     initial_action=claim.action.value,
                     ambiguity_origin=ambiguity_origin,
                     execution_exception_type=execution_exception_type,
