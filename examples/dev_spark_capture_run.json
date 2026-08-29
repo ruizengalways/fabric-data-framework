@@ -1,0 +1,19 @@
+{
+  "check_id": "fabric.spark",
+  "dataset_id": "crm.customer_spark",
+  "landing_reference": "bronze.crm_customer_spark",
+  "observation_extension": "crm.customer.spark-observer",
+  "extension_artifact_name": "fabric-customer-0.4.0.dev1-py3-none-any.whl",
+  "spark_execution_data_extension": "crm.customer.spark-execution-data",
+  "source_lower_bound": {
+    "updated_at": "2026-08-29T00:00:00Z",
+    "customer_id": 10
+  },
+  "source_upper_bound": {
+    "updated_at": "2026-08-30T00:00:00Z",
+    "customer_id": 99
+  },
+  "parameters": {
+    "mode": "approved-evidence"
+  }
+}
