@@ -138,17 +138,19 @@ API cursor != durable history by itself
 
 Public baseline: `v0.3.0`.
 
-Production hardening PR #13 is merged to main at `9b2278822ff4c566051c69180c8ca63b021866e4`; main Actions `33225627461` succeeded.
-
-Current source onboarding work is PR #14 `feature/capture-pattern-catalog`.
-
-Latest validated PR #14 evidence:
+Production hardening PR #13 and capture/onboarding PR #14 are merged to `main`:
 
 ```text
-78018b90c3dfb7f7ff2297aa173e9e8dfaee40e6
-Actions 33237905150
+9b2278822ff4c566051c69180c8ca63b021866e4
+main Actions 33225627461
+SUCCESS
+
+4b20300c822e16a398342e0cc97da90ee51b035a
+main Actions 33238779139
 310 tests passed
 ```
+
+The next portable hardening slice is durable target-operation idempotency / operation-journal semantics. `v0.4.0` remains unreleased.
 
 The current reference/contract product slice includes:
 
