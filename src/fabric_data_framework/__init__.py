@@ -1,5 +1,12 @@
 """Reusable contracts for the enterprise Microsoft Fabric data framework."""
 
+from .apply.append import (
+    AppendApplyResult,
+    AppendConflictError,
+    AppendIdentityError,
+    InMemoryAppendTarget,
+    apply_append,
+)
 from .apply.replace import ReplaceGuardPolicy
 from .apply.scd1 import (
     SCD1ApplyPolicy,
@@ -59,11 +66,28 @@ from .dispatcher import (
     PipelineDispatchResult,
     dispatch_datasets,
 )
-from .execution import execute_full_replace, execute_snapshot_diff
+from .execution import execute_append_batch, execute_full_replace, execute_snapshot_diff
 from .extensions import ExtensionKind, ExtensionRegistry
 from .metadata import CapabilityRegistry, UnsupportedExecutionCombination
+from .quality import (
+    SchemaChangeKind,
+    SchemaEvolutionClassification,
+    SchemaEvolutionDecision,
+    classify_schema_evolution,
+    require_compatible_schema,
+)
+from .schema_contract import (
+    LogicalType,
+    SchemaCompatibilityPolicy,
+    SchemaContract,
+    SchemaField,
+    SchemaShape,
+)
 
 __all__ = [
+    "AppendApplyResult",
+    "AppendConflictError",
+    "AppendIdentityError",
     "ApplyStrategy",
     "CapabilityRegistry",
     "CaptureReceipt",
@@ -85,7 +109,9 @@ __all__ = [
     "ExtensionKind",
     "ExtensionRegistry",
     "FullSnapshotEvidence",
+    "InMemoryAppendTarget",
     "LoadPolicy",
+    "LogicalType",
     "OrchestrationIntegrityError",
     "OrchestrationPolicy",
     "OverrideField",
@@ -100,6 +126,13 @@ __all__ = [
     "SCD1ApplyResult",
     "SCD1ConflictError",
     "SCD1OrderingError",
+    "SchemaChangeKind",
+    "SchemaCompatibilityPolicy",
+    "SchemaContract",
+    "SchemaEvolutionClassification",
+    "SchemaEvolutionDecision",
+    "SchemaField",
+    "SchemaShape",
     "SnapshotDiffPolicy",
     "SnapshotEvidence",
     "SourceConfig",
@@ -111,13 +144,17 @@ __all__ = [
     "UpsertConflictError",
     "UpsertOrderingError",
     "WatermarkConfig",
+    "apply_append",
     "apply_scd1",
     "apply_upsert",
     "build_default_execution_plan",
+    "classify_schema_evolution",
     "compile_execution_plan",
     "dispatch_datasets",
+    "execute_append_batch",
     "execute_full_replace",
     "execute_snapshot_diff",
+    "require_compatible_schema",
     "resolve_effective_config",
 ]
 

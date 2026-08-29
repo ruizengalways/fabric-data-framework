@@ -16,6 +16,7 @@ from .control_plane import (
     apply_baseline_schema,
     data_quality_policy,
     dataset,
+    dataset_contract,
     deployment_history,
     execution_policy,
     load_policy,
@@ -178,6 +179,28 @@ def materialize_semantic_metadata(
                 dataset_insert,
                 {**dataset_insert, **common_audit},
             )
+
+            if config.schema_contract is not None:
+                contract = config.schema_contract
+                contract_values = {
+                    "dataset_id": config.dataset_id,
+                    "contract_version": contract.contract_version,
+                    "schema_fingerprint": contract.fingerprint,
+                    "compatibility_policy": contract.compatibility_policy.value,
+                    "definition": contract.persisted_definition(),
+                    "created_at": now,
+                    "updated_at": None,
+                }
+                _upsert_definition(
+                    connection,
+                    dataset_contract,
+                    {
+                        "dataset_id": config.dataset_id,
+                        "contract_version": contract.contract_version,
+                    },
+                    contract_values,
+                    {**contract_values, **common_audit},
+                )
 
             watermark_config = config.load.watermark
             load_values = {

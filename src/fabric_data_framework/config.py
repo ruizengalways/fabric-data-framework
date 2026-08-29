@@ -12,6 +12,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .schema_contract import SchemaContract
+
 
 class FrozenModel(BaseModel):
     """Base model for immutable, strict framework contracts."""
@@ -257,6 +259,7 @@ class DatasetConfig(FrozenModel):
     orchestration: OrchestrationPolicy
     quality: DataQualityPolicy
     reconciliation: ReconciliationPolicy
+    schema_contract: SchemaContract | None = None
     execution: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
     extensions: ExtensionConfig = Field(default_factory=ExtensionConfig)
     enabled: bool = True
