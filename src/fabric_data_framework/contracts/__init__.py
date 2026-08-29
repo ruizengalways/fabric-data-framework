@@ -28,6 +28,14 @@ from .replay import (
     QuarantineReplayPayloadProvider,
     QuarantineReplayPlan,
 )
+from .target_operation import (
+    InvalidTargetOperationTransition,
+    TargetOperationJournalEntry,
+    TargetOperationReconciliation,
+    TargetOperationSpec,
+    TargetOperationStatus,
+    validate_target_operation_transition,
+)
 
 __all__ = [
     "CaptureReceipt",
@@ -41,6 +49,7 @@ __all__ = [
     "FullRebuildStateAdapter",
     "FullRebuildStateReplacement",
     "FullRebuildStateSnapshot",
+    "InvalidTargetOperationTransition",
     "QuarantineBatchEvidence",
     "QuarantineReplayPayload",
     "QuarantineReplayPayloadProvider",
@@ -48,7 +57,12 @@ __all__ = [
     "RebuildProgressKind",
     "ReprocessRequest",
     "ReprocessRequestStatus",
+    "TargetOperationJournalEntry",
+    "TargetOperationReconciliation",
+    "TargetOperationSpec",
+    "TargetOperationStatus",
     "UnknownOutcomeResolution",
     "build_default_execution_plan",
     "compile_execution_plan",
+    "validate_target_operation_transition",
 ]
