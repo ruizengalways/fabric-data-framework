@@ -1,16 +1,16 @@
 # Current Status — fabric-data-framework
 
 Status: Canonical recovery checkpoint  
-Last updated: 2026-08-29
+Last updated: 2026-08-30
 
 ## Release gate
 
 ```text
 latest public release = v0.3.0
 source version        = 0.4.0 development / unreleased
-latest main baseline  = 395736a3a400480da5876a43591961c478426314
-latest full CI        = Actions 33255472348
-full test baseline    = 477
+latest main baseline  = f8c2f24264480613ca048aaece09371a72aa529a
+latest full CI        = Actions 33279105627
+full test baseline    = 490
 ```
 
 **Do not publish `0.4.0` yet.** Portable semantics, runtime contracts and approved-runner surfaces are broad. The remaining gate is retained exact-release approved real-environment evidence plus required enterprise controls.
@@ -40,6 +40,8 @@ PR #41  approved production control-plane certification runner
         Actions 33254804867 / 466 tests
 PR #43  approved Fabric Pipeline evidence runner + persistent provider-error redaction
         Actions 33255472348 / 477 tests
+PR #45  approved Copy Job + Spark capture evidence runner + bounded observer extensions
+        Actions 33279105627 / 490 tests
 ```
 
 Docs checkpoints keep recovery context synchronized between code slices.
@@ -75,16 +77,7 @@ contradictory staged reruns are never silently arbitrated
 
 Canonical detail: `CHEATSHEET_PATTERN_ALIGNMENT.md`.
 
-At semantic-contract + onboarding-validation level all fourteen cheatsheet rows are first-class and tested. The formerly missing/partial combinations are now explicit:
-
-```text
-Full Snapshot -> Snapshot Bronze
-Watermark + Lookback -> Raw Append Bronze
-Watermark + Lookback + Soft Delete -> Raw Append Bronze
-Full Changes -> Current Bronze (intentionally lossy)
-```
-
-Legacy `CapturePattern` remains supported through compatibility projection.
+At semantic-contract + onboarding-validation level all fourteen cheatsheet rows are first-class and tested. Legacy `CapturePattern` remains supported through compatibility projection.
 
 ## Bootstrap / history safety
 
@@ -163,6 +156,7 @@ Canonical runbooks:
 DEV_INTEGRATION_EVIDENCE.md
 APPROVED_CONTROL_PLANE_CERTIFICATION.md
 APPROVED_PIPELINE_EVIDENCE.md
+APPROVED_CAPTURE_EVIDENCE.md
 INTEGRATION_EVIDENCE_MERGE.md
 ```
 
@@ -188,25 +182,7 @@ Failed/conflicting merge does not overwrite retained output. Source partial mani
 
 ### Control-plane certification stage
 
-PR #41 adds:
-
-```text
-integration-control-plane-certify-run
-```
-
-Requirements:
-
-```text
-exact config/spec identity
-production-eligible profile
-runtime-only DB URL value
-complete IAM/network/restore/HA/monitoring/retention references
-explicit conformance-write authorization
-existing certify_control_plane_backend(run_conformance=True)
-credential-safe retained report
-```
-
-Correct label:
+PR #41 adds `integration-control-plane-certify-run`. Correct label remains:
 
 ```text
 IMPLEMENTED + CI PROVEN APPROVED CONTROL-PLANE CERTIFICATION RUNNER CONTRACT
@@ -216,11 +192,7 @@ Real selected-backend PASS remains unproven.
 
 ### Pipeline execution stage
 
-PR #43 adds:
-
-```text
-integration-pipeline-run
-```
+PR #43 adds `integration-pipeline-run`.
 
 The runner refuses remote mutation unless the same exact-spec prerequisite manifest already contains:
 
@@ -230,33 +202,7 @@ CONTROL_PLANE_CERTIFICATION PASS
 selected FABRIC_PIPELINE_RUN NOT_RUN
 ```
 
-It also validates:
-
-```text
-release manifest domain/framework/release hash
-exact dataset config bundle hash
-selected dataset exists in release bundle
-workspace/pipeline item binding
-production-eligible relational control-plane profile
-Fabric token + control-plane DB runtime inputs
-explicit Pipeline execution authorization
-```
-
-Before remote invocation the runner records the parent `PipelineRunAudit`, satisfying the real relational child FK path. It reuses `FabricPipelineBackend`; the backend generates the exact `dataset_run_id` passed to the reusable child Pipeline.
-
-PASS requires:
-
-```text
-provider status = Completed
-exact durable DatasetDispatchOutcome exists for generated dataset_run_id
-outcome is terminal
-outcome.status = SUCCEEDED
-native workspace/item/job/root correlation matches invocation
-```
-
-Provider `Completed` with no durable child outcome is retained as FAIL. Any existing substantive Pipeline evidence in the prerequisite manifest blocks automatic rerun.
-
-Credential-like unexpected provider exception text is redacted before persistence to dataset-run audit state.
+It validates the exact release/config bundle, production-eligible relational control plane, runtime token/DB URL and explicit authorization. Fabric `Completed` is PASS only when the exact durable `DatasetDispatchOutcome` for the generated child `dataset_run_id` exists and is `SUCCEEDED`.
 
 Correct label:
 
@@ -266,6 +212,85 @@ IMPLEMENTED + CI PROVEN APPROVED PIPELINE RUNNER CONTRACT
 
 No live exact-release Pipeline evidence is retained yet.
 
+### Copy Job + Spark capture stage
+
+PR #45 adds:
+
+```text
+integration-capture-run
+ApprovedCaptureRunConfig
+ApprovedCaptureEvidenceReport
+```
+
+The runner requires the same exact-spec prerequisites:
+
+```text
+FABRIC_ITEM_READ PASS
+CONTROL_PLANE_CERTIFICATION PASS
+selected FABRIC_COPY_JOB_CAPTURE/FABRIC_SPARK_CAPTURE NOT_RUN
+```
+
+It also validates:
+
+```text
+exact ReleaseManifest release hash
+exact dataset config bundle hash
+selected dataset exists in release bundle
+workspace/item binding
+fingerprinted customer/domain extension artifact name
+explicit capture execution authorization
+```
+
+Provider/item-specific facts are supplied only through controlled logical entry points:
+
+```text
+fabric_data_framework.capture_observers
+fabric_data_framework.spark_execution_data
+```
+
+The customer extension handles observation/executionData translation only. The framework still owns provider invocation, one-shot execution, `FabricNativeRunEvidence`, `CaptureReceipt` construction, bound/landing validation, provider correlation, retained evidence safety and PASS/FAIL.
+
+Copy Job rules:
+
+```text
+execution_engine = FABRIC_COPY_JOB
+progress_owner   = FABRIC_NATIVE
+framework lower/upper bounds and per-run parameters are rejected
+```
+
+Spark rules:
+
+```text
+execution_engine = SPARK
+progress_owner   = FRAMEWORK
+WATERMARK/CDC approved evidence requires frozen source_upper_bound
+bounds/runtime parameters require spark_execution_data_extension
+compiled plan must expose a dedicated capture-only SPARK_JOB_DEFINITION unit
+```
+
+A combined Spark unit that also owns APPLY/RECONCILE/COMMIT_STATE is not reused as capture-only evidence.
+
+PASS requires:
+
+```text
+provider terminal success
+post-run FabricCaptureObservation
+verified FabricNativeRunEvidence
+verified CaptureReceipt
+matching workspace/item/job/root correlation
+safe ApprovedCaptureEvidenceReport
+```
+
+Provider `Completed` with observer failure or wrong framework bounds is retained as FAIL, never PASS.
+
+Correct label:
+
+```text
+IMPLEMENTED + CI PROVEN APPROVED CAPTURE RUNNER CONTRACT
+```
+
+No live exact-release Copy Job or Spark evidence is retained yet.
+
 ## Still unproven in approved infrastructure
 
 ```text
@@ -273,8 +298,8 @@ enterprise Entra token acquisition
 real workspace/item authorization smoke
 real Fabric SQL Database / Azure SQL Database certification PASS
 real approved Pipeline execution
-real Copy Job capture + post-run observation
-real bounded Spark execution + post-run observation
+real Copy Job capture + approved post-run observation
+real bounded Spark execution + approved post-run observation
 real Fabric Warehouse target+marker transaction
 ambiguous Warehouse COMMIT/network failure drill
 production-approved marker-absence certifier
@@ -296,13 +321,13 @@ Preferred real-evidence path when approved enterprise inputs are available:
 3. run real production control-plane certification;
 4. merge item + control-plane prerequisite evidence;
 5. run approved Pipeline evidence stage;
-6. run approved Copy Job and bounded Spark capture stages;
+6. run approved Copy Job and bounded Spark capture stages using fingerprinted customer observer extensions;
 7. execute real Warehouse target+marker transaction and ambiguous COMMIT drill;
 8. merge all required evidence and pass `integration-evidence-validate --require-certified`;
 9. prove Kafka/Delta live only if part of the `0.4.0` public promise;
 10. run exact-candidate release audit.
 
-If real enterprise credentials/tenant/database are unavailable in the current execution context, the next reusable implementation slice is an explicitly-authorized **approved Copy Job + Spark capture runner**. It must call the existing `FabricCaptureAdapter.execute_with_evidence()` exactly once and build PASS only from the verified `CaptureReceipt` + native evidence pair.
+If real enterprise credentials/tenant/database are unavailable in the current execution context, the next reusable implementation slice is an explicitly-authorized **approved Fabric Warehouse transaction + ambiguous COMMIT drill runner**. It must preserve the provider-native marker as commit proof and must never convert marker absence alone into `NOT_COMMITTED`.
 
 ## Repository boundaries
 
@@ -326,8 +351,10 @@ PRODUCTION_READINESS_AUDIT.md
 DEV_INTEGRATION_EVIDENCE.md
 APPROVED_CONTROL_PLANE_CERTIFICATION.md
 APPROVED_PIPELINE_EVIDENCE.md
+APPROVED_CAPTURE_EVIDENCE.md
 INTEGRATION_EVIDENCE_MERGE.md
 GUARANTEE_COVERAGE.md
+EXTENSION_MODEL.md
 PROJECT_BLUEPRINT.md
 PRODUCTION_REQUIREMENTS.md
 CAPTURE_PATTERN_CATALOG.md
