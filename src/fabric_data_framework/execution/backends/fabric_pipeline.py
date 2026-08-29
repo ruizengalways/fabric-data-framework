@@ -24,6 +24,7 @@ from ...contracts.dispatch import DatasetDispatchOutcome
 from ...contracts.execution_plan import compile_execution_plan
 from ...operations import DatasetRunAudit, StepRunAudit, StepStatus
 from ...repository import ControlPlaneRepository
+from ...retained_evidence_safety import assert_safe_retained_text
 
 
 FabricPipelineBindingResolver = Callable[[EffectiveDatasetConfig], FabricPipelineBinding]
@@ -46,6 +47,17 @@ _REMOTE_STEP_STATUS = {
     FabricJobStatus.CANCELLED: StepStatus.FAILED,
     FabricJobStatus.DEDUPED: StepStatus.SKIPPED,
 }
+
+
+def _safe_provider_exception_message(exc: Exception) -> str:
+    """Preserve useful provider text unless it appears credential-bearing."""
+
+    rendered = f"{type(exc).__name__}: {exc}"
+    try:
+        assert_safe_retained_text(rendered, "Fabric Pipeline provider error")
+    except ValueError:
+        return f"{type(exc).__name__}: provider error detail redacted"
+    return rendered
 
 
 class FabricPipelineBackend:
@@ -191,7 +203,7 @@ class FabricPipelineBackend:
                 run_mode=run_mode,
                 status=DatasetStatus.FAILED,
                 error_code=exc.error_code or "FABRIC_REST_ERROR",
-                error_message=f"{type(exc).__name__}: {exc}",
+                error_message=_safe_provider_exception_message(exc),
                 retryable=exc.retriable,
             )
         except Exception as exc:  # provider boundary; sibling datasets must continue
@@ -203,7 +215,7 @@ class FabricPipelineBackend:
                 run_mode=run_mode,
                 status=DatasetStatus.FAILED,
                 error_code="FABRIC_PIPELINE_EXCEPTION",
-                error_message=f"{type(exc).__name__}: {exc}",
+                error_message=_safe_provider_exception_message(exc),
                 retryable=None,
             )
 
