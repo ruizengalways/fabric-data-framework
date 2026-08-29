@@ -72,6 +72,28 @@ Current unreleased hardening branch includes:
 
 These are portable/reference guarantees. Real Fabric adapter/runtime evidence and enterprise IAM/network/governance evidence are tracked separately and are not implied by Python tests.
 
+## Cheatsheet semantic alignment in progress
+
+The external data-engineering cheatsheet is now treated as an acceptance specification for mainstream source/capture/Bronze/Silver combinations. A 2026-08-29 audit found that the framework's existing fourteen `CapturePattern` values are **not the same taxonomy** as the cheatsheet's fourteen semantic rows: the current enum mixes source semantics, read strategy, provider technology and Bronze choice.
+
+Canonical recovery/design checkpoint:
+
+```text
+docs/CHEATSHEET_PATTERN_ALIGNMENT.md
+```
+
+Pre-alignment assessment of the cheatsheet fourteen rows:
+
+```text
+10 SUPPORTED
+2 PARTIAL
+2 GAP
+```
+
+Release-significant missing/partial combinations are recurring Full Snapshot -> Snapshot Bronze, Watermark + Lookback -> Raw Append Bronze, Watermark + Lookback + Soft Delete -> Raw Append Bronze, and Full Changes -> intentionally-lossy Current Bronze.
+
+The active design direction is backward-compatible: introduce orthogonal source/change/read/delete/Bronze/history dimensions and project legacy `CapturePattern` values into that model rather than adding a combinatorial enum for every new combination. Do not claim the current “14-pattern catalog” exactly equals the cheatsheet acceptance table until the alignment work and executable fourteen-row tests are complete.
+
 ## CDC model
 
 Canonical detail: `docs/CDC_DESIGN.md`.
@@ -138,13 +160,14 @@ Read in this order when resuming in a new conversation:
 4. `docs/EXECUTION_ENGINE_STRATEGY.md`
 5. `docs/FABRIC_EXECUTION_MODEL.md`
 6. `docs/CDC_DESIGN.md`
-7. `docs/REPOSITORY_STRUCTURE.md`
-8. `docs/CONTROL_PLANE_DESIGN.md`
-9. `docs/CICD_DESIGN.md`
-10. `docs/PRODUCTION_READINESS_AUDIT.md`
-11. `docs/GUARANTEE_COVERAGE.md`
-12. `docs/CURRENT_STATUS.md`
-13. `docs/adr/`
-14. `docs/runbooks/`
+7. `docs/CHEATSHEET_PATTERN_ALIGNMENT.md`
+8. `docs/REPOSITORY_STRUCTURE.md`
+9. `docs/CONTROL_PLANE_DESIGN.md`
+10. `docs/CICD_DESIGN.md`
+11. `docs/PRODUCTION_READINESS_AUDIT.md`
+12. `docs/GUARANTEE_COVERAGE.md`
+13. `docs/CURRENT_STATUS.md`
+14. `docs/adr/`
+15. `docs/runbooks/`
 
 If documentation conflicts with code/tests, inspect implementation and repair documentation before continuing.
