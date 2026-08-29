@@ -31,6 +31,11 @@ from .delivery import (
     write_json_model,
 )
 from .deployment import CIProvider, DeploymentMechanism, DeploymentProvenance
+from .integration_evidence import (
+    load_integration_evidence_manifest,
+    load_integration_evidence_spec,
+    validate_integration_evidence_manifest,
+)
 from .operator import get_dataset_operational_snapshot, list_dataset_operational_snapshots
 
 
@@ -86,6 +91,18 @@ def _parser() -> argparse.ArgumentParser:
         help="Exit non-zero unless production profile, conformance and external evidence all pass",
     )
     certify.add_argument("--output")
+
+    integration = subparsers.add_parser(
+        "integration-evidence-validate",
+        help="Validate a retained approved-environment evidence manifest against its exact spec",
+    )
+    integration.add_argument("--spec", required=True)
+    integration.add_argument("--manifest", required=True)
+    integration.add_argument(
+        "--require-certified",
+        action="store_true",
+        help="Exit non-zero unless every required integration check is PASS",
+    )
 
     onboarding = subparsers.add_parser(
         "capture-onboarding-validate",
@@ -211,6 +228,21 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("control plane is not production-certified")
             if args.require_reference_certified and not report.reference_certified:
                 raise ValueError("control plane is not reference-certified")
+            return 0
+
+        if args.command == "integration-evidence-validate":
+            spec = load_integration_evidence_spec(args.spec)
+            manifest = load_integration_evidence_manifest(args.manifest)
+            validate_integration_evidence_manifest(
+                spec,
+                manifest,
+                require_certified=args.require_certified,
+            )
+            print(
+                f"integration_evidence_id={manifest.evidence_id} "
+                f"manifest_hash={manifest.manifest_hash} "
+                f"certified={str(manifest.certified).lower()}"
+            )
             return 0
 
         if args.command == "capture-onboarding-validate":
