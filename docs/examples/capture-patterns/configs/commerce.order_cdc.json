@@ -1,0 +1,39 @@
+{
+  "dataset_id": "commerce.order_cdc",
+  "source": {
+    "system": "commerce",
+    "object": "orders",
+    "connection_ref": "commerce_kafka"
+  },
+  "target": {
+    "layer": "silver",
+    "object": "order_history"
+  },
+  "load": {
+    "capture_strategy": "CDC",
+    "apply_strategy": "SCD2",
+    "business_key": ["order_id"],
+    "merge_key": ["order_id"],
+    "tracked_columns": ["status", "customer_id", "total_amount"],
+    "delete_policy": "APPLY"
+  },
+  "orchestration": {
+    "execution_group": "commerce_cdc",
+    "retry_count": 3,
+    "batch_size": 200000,
+    "max_concurrency": 2
+  },
+  "quality": {
+    "policy_name": "standard",
+    "quarantine_policy": "row"
+  },
+  "reconciliation": {
+    "policy_name": "cdc_checkpoint"
+  },
+  "execution": {
+    "engine": "EXTERNAL_CDC",
+    "progress_owner": "EXTERNAL",
+    "capability_profile": "debezium_kafka_v1",
+    "apply_engine": "SPARK"
+  }
+}
