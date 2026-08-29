@@ -7,12 +7,12 @@ Last updated: 2026-08-29
 
 CDC is a capture/change representation, not an apply strategy.
 
-The framework consumes CDC from Fabric-native, database-native or external systems without allowing Debezium, SQL Server LSNs, binlog coordinates, Kafka offsets or Copy Job details to redefine target semantics.
+The framework consumes CDC from Fabric-native, database-native, Delta or external systems without allowing Debezium, SQL Server LSNs, Delta commit versions, binlog coordinates, Kafka offsets or Copy Job details to redefine target semantics.
 
 Canonical separation:
 
 ```text
-provider CDC envelope / native checkpoint
+provider CDC/CDF envelope / native checkpoint
         |
         v
 provider adapter / capability profile
@@ -36,6 +36,8 @@ cdc_checkpoint commit
 
 `CDC != SCD2` remains a hard architecture invariant.
 
+The broader source-fidelity/onboarding taxonomy is defined in `CAPTURE_PATTERN_CATALOG.md`. In particular, `CDC_NET_*` and full-event CDC are different history contracts even though both map to coarse `CaptureStrategy.CDC`.
+
 ## 2. Canonical source position
 
 Provider adapters normalize source coordinates into:
@@ -51,13 +53,14 @@ Examples conceptually include:
 ```text
 SQL Server       -> (LSN components..., row sequence)
 Kafka/Debezium   -> topic:partition + (offset,)
+Delta CDF        -> table reference + (commit_version, deterministic row sequence)
 MySQL binlog     -> (file generation, position, row sequence)
 other provider   -> deterministic integer tuple
 ```
 
 The semantic core does not compare opaque provider strings and does not guess ordering.
 
-If one native coordinate can contain several row changes, the provider adapter must expose enough sequence information to make each canonical row event position unique.
+If one native coordinate can contain several row changes, the provider adapter must expose enough sequence information to make each canonical event position unique or fail closed when order cannot be proven.
 
 ## 3. Canonical event
 
@@ -75,14 +78,7 @@ transaction_id
 metadata
 ```
 
-Validation rules:
-
-- key must be present and non-null;
-- INSERT/UPDATE require `after`;
-- DELETE cannot contain an `after` image;
-- payload key values cannot contradict the canonical event key;
-- framework-reserved `_framework_cdc_*` fields cannot be injected by source payloads;
-- event time, when supplied, must be timezone-aware.
+Validation rules include non-null key, operation-consistent before/after shape, payload/key consistency, reserved-field protection and timezone-aware event time where supplied.
 
 Provider metadata may be retained, but correctness depends on typed canonical fields rather than arbitrary metadata keys.
 
@@ -107,37 +103,18 @@ Normalization guarantees:
 - exact duplicate event ID + exact content -> idempotent ignore;
 - same event ID + different content -> fail;
 - two different events at one canonical position -> fail;
-- same business key appearing in multiple partitions in one bounded batch -> fail because deterministic per-key order is not proven;
-- accepted events are sorted deterministically by partition, position, event ID.
+- same business key appearing in multiple partitions in one bounded batch -> fail unless deterministic per-key order is proven;
+- accepted events are sorted deterministically.
 
-The current certified model deliberately rejects ambiguous repartition/key-movement cases rather than synthesizing an order.
+The certified core deliberately rejects ambiguous repartition/key-movement/order cases rather than synthesizing business order.
 
 ## 5. Current-state apply: CDC -> UPSERT / SCD1
 
 `apply/cdc.py` applies normalized events sequentially to current-state targets.
 
-Target rows touched by CDC retain:
+Target rows touched by CDC retain framework CDC partition/position metadata. Certified behavior includes insert/update/delete/reinsert, stale suppression, equal-position conflict detection, unchanged-state position advancement and bootstrap-boundary protection.
 
-```text
-_framework_cdc_partition
-_framework_cdc_position
-```
-
-Certified behavior:
-
-- INSERT creates current state;
-- UPDATE merges source fields into current state;
-- DELETE can APPLY / IGNORE / ERROR by explicit policy;
-- DELETE of an already-missing target is an idempotent no-op;
-- stale event relative to target row position is ignored;
-- equal position + equal state is a no-op;
-- equal position + conflicting state fails closed;
-- unchanged business payload at a newer position advances CDC position without counting a business update;
-- source partition change for an already-positioned key fails closed.
-
-Bootstrap rows that do not yet carry row-level CDC position are accepted only when a committed lower checkpoint proves the new event is strictly after the bootstrap boundary.
-
-UPSERT and SCD1 share this CDC correctness path; the semantic naming remains distinct.
+UPSERT and SCD1 share this CDC correctness path; semantic naming remains distinct.
 
 ## 6. History apply: CDC -> SCD2
 
@@ -148,24 +125,11 @@ CDC source position -> source event order
 event_time          -> business validity interval
 ```
 
-Two events with the same `event_time` may still be ordered by distinct CDC positions. The earlier history version may become a zero-duration interval.
+Two events with the same `event_time` may still be ordered by distinct CDC positions.
 
-Current certified behavior:
+Current certified behavior includes insert, changed/unchanged update, delete, reinsert, closing-position evidence and equal-source-position conflict failure.
 
-- INSERT opens a current history version;
-- changed UPDATE closes current + opens new version;
-- unchanged UPDATE advances CDC source position without generating false history;
-- DELETE closes current version;
-- reinsert after delete opens a new current version;
-- closed versions record which CDC position closed them;
-- equal source-position conflict fails closed;
-- bootstrap SCD2 rows require the same committed lower-checkpoint proof before first CDC mutation.
-
-Not yet certified:
-
-- retroactive valid-time rewrite when a newer CDC position carries an `event_time` earlier than current `valid_from`.
-
-That case raises `CDCSCD2LateArrivingError` rather than silently rewriting history.
+A newer source event whose event/valid time is earlier than the current version requires retroactive history rewrite. That behavior remains intentionally unsupported and raises `CDCSCD2LateArrivingError` rather than silently rewriting history.
 
 ## 7. Checkpoint state and concurrency
 
@@ -181,62 +145,30 @@ cdc_checkpoint
   updated_at
 ```
 
-Important distinction:
+Canonical source positions represent framework downstream semantic application progress. `version` is the optimistic-concurrency token, not an LSN/offset/commit version itself.
 
-```text
-canonical source positions = framework CDC semantic application progress
-version                    = control-plane optimistic concurrency token
-```
+Checkpoint commit requires target mutation committed, required reconciliation passed, no position regression/partition drop and a matching expected version.
 
-The version is not an LSN/offset.
+For FABRIC_NATIVE or EXTERNAL capture, provider source progress remains provider-owned and is correlated separately. The framework checkpoint must not pretend to own a native cursor.
 
-Checkpoint commit requires:
-
-- target mutation committed;
-- required reconciliation passed;
-- no checkpoint regression/partition drop;
-- caller-supplied `expected_version` equals current version.
-
-A stale writer cannot overwrite newer state.
-
-For FABRIC_NATIVE or EXTERNAL capture progress ownership, provider checkpoint authority remains provider-owned and is retained in `CaptureReceipt.external_checkpoint_reference` / native evidence. `cdc_checkpoint` represents downstream framework semantic application progress; it must not be used to pretend the framework owns the native source cursor.
-
-`cdc_checkpoint` is never promoted between DEV/UAT/PROD.
+For framework-owned source readers such as `SPARK/delta_cdf_v1`, the bounded source coordinate and downstream application checkpoint can be framework-controlled, but the state still advances only after target/reconciliation success.
 
 ## 8. Snapshot/bootstrap -> CDC handoff
 
-A safe initial load requires a source fence:
+Safe bootstrap requires a retained CDC start/fence around a complete snapshot:
 
 ```text
-CDC stream/buffer starts at S
-        |
-        | S <= B
-        v
-complete snapshot is consistent through B
-        |
-        v
-publish/apply snapshot
-        |
-        v
-consume buffered CDC
-  <= B  -> ignore (already represented by snapshot)
-  >  B  -> apply
+retain CDC from S
+S <= snapshot consistency boundary B
+complete snapshot through B
+apply/publish snapshot
+CDC <= B -> overlap already represented
+CDC >  B -> apply
 ```
 
-`CDCBootstrapEvidence` requires complete snapshot evidence, stable snapshot ID, source epoch/incarnation identity, CDC stream-start checkpoint, snapshot-consistency checkpoint and proof that CDC is retained/buffered from stream start.
-
-Current fail-closed constraints:
-
-- stream start later than snapshot checkpoint -> possible gap -> fail;
-- partition set changes during bootstrap -> fail;
-- first CDC upper checkpoint regresses below snapshot checkpoint -> fail;
-- incomplete or non-fenced snapshot -> fail.
-
-This gives deterministic no-gap/no-double-apply behavior for the currently certified partition model.
+Incomplete/future-start/repartition/regression cases fail closed.
 
 ## 9. Debezium on Kafka built-in provider profile
-
-The first built-in CDC provider adapter is intentionally narrow and explicit:
 
 ```text
 execution engine: EXTERNAL_CDC
@@ -256,8 +188,6 @@ metadata/capabilities.py
 
 ### Canonical ordering
 
-For Debezium records already consumed from Kafka:
-
 ```text
 topic + partition + offset
         |
@@ -266,11 +196,9 @@ partition = "<topic>:<partition>"
 values    = (offset,)
 ```
 
-Database LSN/binlog/source coordinates are retained as provider metadata only. They are not promoted to the canonical row order because one database coordinate may correspond to multiple row changes and provider encodings vary.
+Database LSN/binlog coordinates are retained as provider metadata rather than guessed into a universal row order.
 
 ### Envelope policy
-
-Certified mappings:
 
 ```text
 Debezium op=c -> INSERT
@@ -279,11 +207,130 @@ Debezium op=d -> DELETE
 Kafka tombstone -> transport cleanup; ignore
 ```
 
-Debezium snapshot read `op=r` is rejected by default. The framework already has an explicit snapshot/bootstrap handoff and silently accepting `r` could double-apply bootstrap state. `AS_INSERT` is available only as an explicit adapter policy when the caller intentionally owns that behavior.
+Snapshot `op=r` is rejected by default to avoid double-applying bootstrap state. Explicit adapter policy is required to treat it as insert.
 
-The adapter requires an explicit Kafka record key. It does not guess the business key from `before`/`after` payloads.
+### Recovery
 
-### Provider registry
+Safe resume is derived from the framework-applied checkpoint, not a possibly-ahead consumer-group cursor:
+
+```text
+next_required = committed_framework_offset + 1
+```
+
+Retention floor later than `next_required`, missing committed partitions or impossible requested bounds fail closed. The planner proves safe reread range but does not claim to manage a real Kafka consumer group.
+
+## 10. Delta Change Data Feed built-in provider profile
+
+Delta CDF is now a first-class provider/reference adapter rather than a CUSTOM-only source.
+
+```text
+execution engine: SPARK
+capability profile: delta_cdf_v1
+progress owner: FRAMEWORK
+capture strategy: CDC
+apply engine: independent; framework/Spark by default
+```
+
+Implementation ownership:
+
+```text
+adapters/cdc/delta_cdf.py
+adapters/cdc/registry.py
+metadata/capabilities.py
+```
+
+### Input contract
+
+`DeltaCDFRecord` models:
+
+```text
+change_type
+  insert
+  delete
+  update_preimage
+  update_postimage
+
+commit_version
+commit_timestamp
+data
+```
+
+Commit timestamp must be timezone-aware and is retained as event time/evidence. Commit version is the source ordering boundary used for checkpointing.
+
+### UPDATE normalization
+
+For one business key inside one commit:
+
+```text
+update_preimage + update_postimage
+        |
+        v
+one canonical UPDATE
+  before = preimage
+  after  = postimage
+```
+
+Missing pairs or ambiguous record-type combinations fail closed.
+
+### Within-commit ordering boundary
+
+Delta CDF exposes commit ordering but does not provide a universal framework-independent row sequence for arbitrary multiple logical mutations of the same key inside one commit.
+
+Therefore the adapter is deliberately conservative:
+
+- different keys in one commit receive a deterministic key-sorted row sequence so framework processing/checkpoint positions are stable;
+- metadata marks this as deterministic processing order, **not invented business temporal order**;
+- more than one non-identical same-type row for the same key+commit fails;
+- more than one logical mutation of the same key in one commit that cannot be uniquely reconstructed fails.
+
+This prevents deterministic implementation order from being misrepresented as source temporal truth.
+
+### Canonical position and checkpoint
+
+Conceptually:
+
+```text
+partition = "delta-cdf:<table_reference>"
+position  = (commit_version, deterministic_row_sequence)
+```
+
+A committed CDF version checkpoint represents the whole commit using a terminal sequence sentinel:
+
+```text
+(commit_version, MAX_COMMIT_ROW_SEQUENCE)
+```
+
+This allows intentional overlap reads: records at/below the lower committed version are normalized as already-applied overlap and ignored idempotently.
+
+### Bounded read contract
+
+`normalize_delta_cdf_batch()` requires:
+
+- non-empty table reference;
+- unique non-null business key columns;
+- frozen upper commit version;
+- explicit `complete_through_upper=true` evidence;
+- optional lower committed version not greater than upper;
+- no input row beyond the frozen upper version.
+
+Exact duplicate provider rows are ignored idempotently. Conflicting/ambiguous same-key/commit records fail closed.
+
+### Retention/recovery boundary
+
+The adapter/profile defines the checkpoint contract but does not yet call a real Fabric Lakehouse reader. A future transport must prove the requested version range still exists. If retention has removed the next unapplied version, recovery must surface an explicit gap; it must not jump to a newer CDF version.
+
+### Evidence level
+
+Current Delta CDF status is:
+
+```text
+canonical adapter          ADAPTER CONTRACT
+commit checkpoint semantics REFERENCE
+capability/profile registry REFERENCE
+real Fabric Lakehouse CDF   NOT YET PROVEN
+```
+
+## 11. Provider registry
 
 `CDCProviderAdapterRegistry` resolves by:
 
@@ -291,50 +338,19 @@ The adapter requires an explicit Kafka record key. It does not guess the busines
 (ExecutionEngine, capability_profile)
 ```
 
-The default registry contains:
+Default built-in mappings now include:
 
 ```text
 (EXTERNAL_CDC, debezium_kafka_v1)
     -> DebeziumKafkaCDCAdapter
+
+(SPARK, delta_cdf_v1)
+    -> DeltaCDFCDCAdapter
 ```
 
-Unknown/duplicate registrations fail explicitly. The registry does not construct Kafka clients, credentials or arbitrary parser imports.
+Unknown/duplicate registrations fail explicitly. The registry does not construct provider clients, credentials or arbitrary parser imports.
 
-## 10. Debezium/Kafka recovery and retention-aware resume
-
-Safe downstream recovery is based on the framework committed CDC application checkpoint, **not** the external consumer-group cursor.
-
-Example failure mode:
-
-```text
-Kafka consumer/connector cursor = 500
-framework Silver applied through = 420
-```
-
-Resuming from 500 would silently lose events 421..500. Therefore `plan_debezium_kafka_resume()` derives:
-
-```text
-next_required = committed_framework_offset + 1
-```
-
-and checks provider retention evidence:
-
-```text
-earliest_retained <= next_required <= requested_upper <= latest_available
-```
-
-Fail-closed rules include:
-
-- retention floor later than `next_required` -> `DebeziumKafkaResumeGapError`;
-- committed partition missing from provider evidence -> gap error;
-- requested upper beyond provider latest -> fail;
-- requested upper below committed offset -> fail;
-- partition set changes after committed state -> fail by default;
-- new partition requires explicit acknowledgement.
-
-This planner proves a safe seek/reread range. It does **not** claim to commit or manage a real Kafka consumer group; real transport/client integration remains separate.
-
-## 11. Physical progress ownership
+## 12. Physical progress ownership
 
 There are two different questions:
 
@@ -343,102 +359,90 @@ Who owns source/native capture progress?
 Who owns framework downstream semantic application progress?
 ```
 
-`ProgressOwner` answers the first question.
-
 Examples:
 
 ```text
 Copy Job / Fabric-native CDC
   native checkpoint authority -> FABRIC_NATIVE
-  CaptureReceipt retains native run/checkpoint evidence
-  framework CDC apply checkpoint tracks downstream semantic completion only
+  CaptureReceipt retains native correlation
+  framework apply checkpoint tracks downstream semantic completion
 
 Debezium/Kafka
   source consumer/connector progress -> EXTERNAL
-  framework safe resume starts from downstream apply checkpoint
-  external cursor commit remains external/provider integration
+  safe reread starts from framework downstream apply checkpoint
+  external cursor commit remains provider integration
 
-Spark/framework source reader
-  source capture progress -> FRAMEWORK
-  canonical checkpoint may also be the authoritative source progress
+Delta CDF via Spark
+  bounded CDF commit-version reader -> FRAMEWORK
+  checkpoint advances only after target/reconciliation success
 ```
 
-The framework must never move a native/external source cursor merely because downstream apply succeeded unless that adapter/transport explicitly owns the corresponding commit protocol.
+The framework must never move a native/external source cursor merely because downstream apply succeeded unless the corresponding adapter/transport explicitly owns that commit protocol.
 
-## 12. Recovery interaction
+## 13. Recovery interaction
 
 CDC participates in the same fail-closed recovery model:
 
 ```text
-capture/window frozen
+capture/window/version range frozen
  -> normalize/apply
  -> target outcome
  -> reconcile
  -> cdc_checkpoint commit
 ```
 
-If target outcome is unknown:
+Unknown target outcome is resolved as COMMITTED / NOT_COMMITTED / UNRESOLVED before retry/state movement.
 
-```text
-COMMITTED     -> converge without duplicate write
-NOT_COMMITTED -> retry may proceed
-UNRESOLVED    -> stop
-```
+## 14. Current deterministic evidence
 
-The CDC apply checkpoint is not advanced before this is resolved.
-
-Provider-specific source-cursor coordination remains an adapter/transport concern. The Debezium/Kafka reference now proves retention-aware source reread planning but not live consumer-group commit behavior.
-
-## 13. Current deterministic evidence
+Earlier CDC sequence:
 
 ```text
 ccf0fc8950efb1f4d338cadcaf83aac5fd49a7b9
 Actions 33215409341
-153 tests passed
 canonical CDC + CDC -> UPSERT/SCD1
 
 ed6c13d4fcabe165ef86be2e547d794e15e5375c
 Actions 33215708004
-159 tests passed
 CDC -> SCD2
 
 c41fbd00bb3d3c6bc71e20f958c4ec14106ac33c
 Actions 33216133811
-165 tests passed
-durable checkpoint + optimistic concurrency
+durable downstream checkpoint
 
 465a2c1e9ddf25b0ace2293f578c2c5bb3a653ae
 Actions 33216281126
-171 tests passed
-snapshot/bootstrap -> CDC handoff
+snapshot/bootstrap -> CDC
 
 1087ab9231b9cb638a87bc2f78ef0c1b1fe32beb
 Actions 33219601375
-179 tests passed
-Debezium/Kafka envelope adapter + retention-aware resume
-
-ecdca38099a4f21c6f40701dc14889b464c20608
-Actions 33219783325
-183 tests passed
-Debezium/Kafka capability profile + provider registry
+Debezium/Kafka adapter + safe resume
 ```
 
-These are REFERENCE/ADAPTER-CONTRACT/CI proofs. They are not evidence of a real Kafka broker, Debezium connector, database CDC service, Copy Job or Fabric workspace execution.
+Current provider/onboarding extension:
 
-## 14. Remaining CDC work
+```text
+78018b90c3dfb7f7ff2297aa173e9e8dfaee40e6
+Actions 33237905150
+310 tests passed
+Delta CDF adapter/profile + capture pattern catalog/onboarding examples
+```
 
-Required before CDC can be called broadly production-integrated:
+These are REFERENCE/ADAPTER-CONTRACT/CI proofs, not evidence of real Kafka, Debezium, Delta CDF or Fabric workspace execution.
+
+## 15. Remaining CDC work
 
 1. real Kafka/Debezium transport and consumer-group correlation/commit evidence;
-2. additional provider mappings only for explicitly supported source products;
-3. provider transaction-boundary handling where atomic multi-row treatment is required;
-4. partition/rebalance/source-epoch operational policies beyond the current fail-closed model;
-5. poison-event quarantine/replay integration;
-6. retroactive SCD2 history correction policy if product scope chooses to support it;
-7. persistent production control-plane repository and transaction tests;
-8. at least one approved DEV end-to-end CDC execution.
+2. real Fabric Lakehouse Delta CDF bounded-read and retention-gap recovery evidence;
+3. additional provider mappings only for explicitly supported source products;
+4. provider transaction-boundary handling where atomic multi-row treatment is required;
+5. partition/rebalance/source-epoch operational policies beyond the current fail-closed model;
+6. poison-event quarantine/replay integration;
+7. retroactive SCD2 history correction only if product scope chooses to support it;
+8. persistent production control-plane repository and transaction tests;
+9. approved DEV end-to-end CDC/CDF executions.
 
-## 15. Extension boundary
+## 16. Extension boundary
 
 Provider-specific parsing belongs in a controlled adapter/extension boundary, not the semantic core.
 

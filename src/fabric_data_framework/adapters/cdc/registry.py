@@ -18,6 +18,12 @@ from .debezium_kafka import (
     DebeziumSnapshotReadPolicy,
     normalize_debezium_kafka_batch,
 )
+from .delta_cdf import (
+    DELTA_CDF_PROFILE,
+    DeltaCDFBatchResult,
+    DeltaCDFRecord,
+    normalize_delta_cdf_batch,
+)
 from .resume import DebeziumKafkaResumePlan, plan_debezium_kafka_resume
 
 
@@ -66,6 +72,32 @@ class DebeziumKafkaCDCAdapter:
         )
 
 
+class DeltaCDFCDCAdapter:
+    """Built-in SPARK adapter for bounded Delta Change Data Feed reads."""
+
+    execution_engine = ExecutionEngine.SPARK
+    capability_profile = DELTA_CDF_PROFILE
+
+    def normalize(
+        self,
+        records: Sequence[DeltaCDFRecord],
+        *,
+        table_reference: str,
+        key_columns: tuple[str, ...],
+        upper_commit_version: int,
+        complete_through_upper: bool,
+        lower_committed_version: int | None = None,
+    ) -> DeltaCDFBatchResult:
+        return normalize_delta_cdf_batch(
+            records,
+            table_reference=table_reference,
+            key_columns=key_columns,
+            upper_commit_version=upper_commit_version,
+            complete_through_upper=complete_through_upper,
+            lower_committed_version=lower_committed_version,
+        )
+
+
 class CDCProviderAdapterRegistry:
     """Explicit profile registry used by execution backends/provider transports."""
 
@@ -102,7 +134,7 @@ class CDCProviderAdapterRegistry:
 
 
 DEFAULT_CDC_PROVIDER_ADAPTER_REGISTRY = CDCProviderAdapterRegistry(
-    (DebeziumKafkaCDCAdapter(),)
+    (DebeziumKafkaCDCAdapter(), DeltaCDFCDCAdapter())
 )
 
 
@@ -110,4 +142,5 @@ __all__ = [
     "CDCProviderAdapterRegistry",
     "DEFAULT_CDC_PROVIDER_ADAPTER_REGISTRY",
     "DebeziumKafkaCDCAdapter",
+    "DeltaCDFCDCAdapter",
 ]

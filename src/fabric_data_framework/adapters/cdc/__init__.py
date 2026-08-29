@@ -10,10 +10,20 @@ from .debezium_kafka import (
     DebeziumSnapshotReadPolicy,
     normalize_debezium_kafka_batch,
 )
+from .delta_cdf import (
+    DELTA_CDF_PROFILE,
+    DeltaCDFAdapterError,
+    DeltaCDFBatchResult,
+    DeltaCDFChangeType,
+    DeltaCDFRecord,
+    delta_cdf_checkpoint,
+    normalize_delta_cdf_batch,
+)
 from .registry import (
     CDCProviderAdapterRegistry,
     DEFAULT_CDC_PROVIDER_ADAPTER_REGISTRY,
     DebeziumKafkaCDCAdapter,
+    DeltaCDFCDCAdapter,
 )
 from .resume import (
     DebeziumKafkaPartitionResume,
@@ -25,6 +35,7 @@ from .resume import (
 __all__ = [
     "CDCProviderAdapterRegistry",
     "DEFAULT_CDC_PROVIDER_ADAPTER_REGISTRY",
+    "DELTA_CDF_PROFILE",
     "DebeziumKafkaAdapterError",
     "DebeziumKafkaBatchResult",
     "DebeziumKafkaCDCAdapter",
@@ -33,6 +44,13 @@ __all__ = [
     "DebeziumKafkaResumeGapError",
     "DebeziumKafkaResumePlan",
     "DebeziumSnapshotReadPolicy",
+    "DeltaCDFAdapterError",
+    "DeltaCDFBatchResult",
+    "DeltaCDFCDCAdapter",
+    "DeltaCDFChangeType",
+    "DeltaCDFRecord",
+    "delta_cdf_checkpoint",
     "normalize_debezium_kafka_batch",
+    "normalize_delta_cdf_batch",
     "plan_debezium_kafka_resume",
 ]

@@ -11,6 +11,7 @@ import sys
 from sqlalchemy import create_engine
 
 from . import __version__
+from .capture import load_capture_selections, validate_capture_selection
 from .control_plane import apply_baseline_schema, current_schema_version
 from .delivery import (
     build_release_manifest,
@@ -45,6 +46,19 @@ def _parser() -> argparse.ArgumentParser:
     status.add_argument("--database-url", required=True)
     status.add_argument("--dataset-id")
     status.add_argument("--output")
+
+    onboarding = subparsers.add_parser(
+        "capture-onboarding-validate",
+        help="Validate source-controlled capture-pattern/history/delete claims",
+    )
+    onboarding.add_argument("--config-dir", required=True)
+    onboarding.add_argument("--selections", required=True)
+    onboarding.add_argument(
+        "--require-all",
+        action="store_true",
+        help="Require every DatasetConfig in config-dir to have a capture selection",
+    )
+    onboarding.add_argument("--output")
 
     materialize = subparsers.add_parser("metadata-materialize")
     materialize.add_argument("--database-url", required=True)
@@ -134,6 +148,28 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 payload = list_dataset_operational_snapshots(engine)
             _write_or_print_json(payload, args.output)
+            return 0
+
+        if args.command == "capture-onboarding-validate":
+            configs = load_dataset_configs(args.config_dir)
+            configs_by_id = {item.dataset_id: item for item in configs}
+            selections = load_capture_selections(args.selections)
+            reports = []
+            for selection in selections:
+                config = configs_by_id.get(selection.dataset_id)
+                if config is None:
+                    raise ValueError(
+                        f"capture selection references unknown dataset {selection.dataset_id!r}"
+                    )
+                reports.append(validate_capture_selection(config, selection))
+            if args.require_all:
+                selected_ids = {item.dataset_id for item in selections}
+                missing = sorted(set(configs_by_id) - selected_ids)
+                if missing:
+                    raise ValueError(
+                        "DatasetConfig values missing capture selection: " + ", ".join(missing)
+                    )
+            _write_or_print_json(tuple(reports), args.output)
             return 0
 
         if args.command == "metadata-materialize":
