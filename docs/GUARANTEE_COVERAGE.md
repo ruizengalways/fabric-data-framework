@@ -15,10 +15,10 @@ Last updated: 2026-08-30
 ## Latest coherent CI baseline
 
 ```text
-main baseline = f8c2f24264480613ca048aaece09371a72aa529a
-PR #45
-Actions 33279105627
-490 tests
+code baseline = e7bd8b7c55c5acdf14c58c24085c30e104edf0d6  (PR #47 merge)
+PR #47 head   = 7c5cb2caf83fadb2b363dad7a90c30f2554f4ba3
+Actions       = 33279727906
+501 tests
 Python 3.11 + 3.13 + static + wheel SUCCESS
 ```
 
@@ -31,7 +31,8 @@ PR #37 / 441 tests  full-baseline -> watermark bootstrap
 PR #39 / 455 tests  staged integration evidence merge
 PR #41 / 466 tests  approved production control-plane certification runner
 PR #43 / 477 tests  approved Fabric Pipeline evidence runner
-PR #45 / 490 tests  approved Copy Job + Spark capture runner + bounded evidence extensions
+PR #45 / 490 tests  approved Copy Job + Spark capture runner
+PR #47 / 501 tests  approved Warehouse commit/recovery runner
 ```
 
 ## Core guarantee map
@@ -82,6 +83,18 @@ PR #45 / 490 tests  approved Copy Job + Spark capture runner + bounded evidence 
 | Capture PASS requires verified observation -> native evidence -> CaptureReceipt | approved capture runner + FabricCaptureAdapter | IMPLEMENTED + CI PROVEN APPROVED CAPTURE RUNNER CONTRACT |
 | Provider Completed + observer/receipt mismatch -> FAIL | approved capture runner | REFERENCE + CI PROVEN fail-closed |
 | Safe capture report excludes arbitrary provider/observer diagnostics | approved capture runner | REFERENCE + CI PROVEN GUARDRAIL |
+| Warehouse approved run requires item+control-plane PASS prerequisites | approved Warehouse runner | REFERENCE + CI PROVEN GUARDRAIL |
+| Warehouse selected check must still be NOT_RUN | approved Warehouse runner | REFERENCE + CI PROVEN GUARDRAIL |
+| Warehouse exact release/config-bundle validation | approved Warehouse runner | REFERENCE + CI PROVEN |
+| Warehouse mutation extension artifact fingerprint required | approved Warehouse runner + ReleaseManifest | REFERENCE + CI PROVEN provenance guardrail |
+| Controlled Warehouse mutation entry point | extensions + approved Warehouse runner | IMPLEMENTED + CI PROVEN BOUNDED EXTENSION CONTRACT |
+| Framework owns Warehouse transaction + commit marker | approved Warehouse runner + marker store | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT |
+| Matching target marker reconciles UNKNOWN -> SUCCEEDED | approved Warehouse runner + target probe | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT |
+| Marker absence remains UNRESOLVED | target probe + approved Warehouse runner | REFERENCE + CI PROVEN fail-closed |
+| Marker absence alone never authorizes retry | target operation recovery | REFERENCE + CI PROVEN fail-closed |
+| Provider/driver exception retained by type only | target probe + approved Warehouse runner | REFERENCE + CI PROVEN secret-safety guardrail |
+| Successful deterministic run proves simulated framework ACK-loss recovery | approved Warehouse runner | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT |
+| Simulated ACK loss is not claimed as real network/driver COMMIT disconnect | approved Warehouse evidence model | EXPLICIT EVIDENCE BOUNDARY |
 | v0.3.0 immutable wheel/checksum | historical release | RELEASE PROVEN for v0.3.0 |
 
 ## Capture/history truth ceilings
@@ -129,13 +142,26 @@ Fabric Completed
   = eligible for approved Copy/Spark PASS
 ```
 
-Warehouse remains:
+Warehouse specifically:
 
 ```text
 matching same-transaction marker -> COMMITTED
 marker absent -> UNRESOLVED
 marker absent + independently certified no-late-commit absence proof -> NOT_COMMITTED
 ```
+
+Approved Warehouse deterministic recovery path:
+
+```text
+target+marker commit returns
+  -> simulate framework ACK loss
+  -> UNKNOWN
+  -> marker probe COMMITTED
+  -> SUCCEEDED
+  -> later SKIP_SUCCEEDED
+```
+
+That path proves framework recovery behavior, not occurrence of a real driver/network COMMIT disconnect.
 
 ## Evidence accumulation invariants
 
@@ -170,7 +196,8 @@ provider-specific semantic evidence before PASS
 | Data Pipeline | approved runner ready | retained live run + native/durable framework correlation |
 | Copy Job | approved runner ready | retained live job + approved observer + verified receipt |
 | Spark Job Definition | approved runner ready | retained bounded live job + approved observer + verified receipt |
-| Fabric Warehouse commit/ambiguous failure | provider contract only | approved runner + real transaction/lost-ack drill |
+| Fabric Warehouse commit/recovery | approved runner ready | retained real target+marker transaction and recovery PASS |
+| Real ambiguous Warehouse COMMIT disconnect | not proven | controlled network/driver fault-injection approved run |
 | Production-approved marker absence proof | absent | provider/session-specific certifier evidence |
 | Live Kafka coordination | reference adapter/resume only | live broker proof if release scope includes Kafka |
 | Live Delta CDF bounded read/retention | adapter contract only | live Lakehouse proof if release scope includes Delta |
