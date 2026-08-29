@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from datetime import datetime, timedelta, timezone
-import json
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -19,6 +18,7 @@ from fabric_data_framework.config import (
     DatasetStatus,
     LoadPolicy,
     OrchestrationPolicy,
+    PipelineStatus,
     ReconciliationPolicy,
     SourceConfig,
     TargetConfig,
@@ -126,8 +126,6 @@ def _prerequisite(
     pipeline_status: IntegrationEvidenceStatus = IntegrationEvidenceStatus.NOT_RUN,
     control_status: IntegrationEvidenceStatus = IntegrationEvidenceStatus.PASS,
 ) -> IntegrationEvidenceManifest:
-    workspace_id = uuid4()
-    item_id = uuid4()
     results = (
         IntegrationEvidenceCheckResult(
             check_id="fabric.item.read",
@@ -135,8 +133,8 @@ def _prerequisite(
             status=IntegrationEvidenceStatus.PASS,
             started_at=NOW,
             completed_at=NOW,
-            workspace_id=workspace_id,
-            item_id=item_id,
+            workspace_id=uuid4(),
+            item_id=uuid4(),
             evidence_references=("artifact:item-read",),
         ),
         IntegrationEvidenceCheckResult(
@@ -293,11 +291,10 @@ class _FailedTransport:
         )
 
 
-def test_pipeline_authorization_gate_prevents_runtime_database_url_retrieval(tmp_path: Path):
+def test_pipeline_authorization_gate_prevents_runtime_database_url_retrieval():
     configs = (_dataset(),)
     release = _release(configs)
     spec = _spec(release.bundle.release_hash)
-    workspace_id, item_id = uuid4(), uuid4()
     env = TrackingEnvironment(
         {
             "FABRIC_ACCESS_TOKEN": "ephemeral",
@@ -307,7 +304,7 @@ def test_pipeline_authorization_gate_prevents_runtime_database_url_retrieval(tmp
 
     with pytest.raises(ValueError, match="not explicitly authorized"):
         execute_approved_pipeline(
-            config=_runner_config(release.bundle.release_hash, workspace_id, item_id),
+            config=_runner_config(release.bundle.release_hash, uuid4(), uuid4()),
             spec=spec,
             prerequisite_manifest=_prerequisite(spec),
             release_manifest=release,
@@ -322,9 +319,7 @@ def test_pipeline_authorization_gate_prevents_runtime_database_url_retrieval(tmp
     assert env.getitem_calls == []
 
 
-def test_pipeline_requires_passed_item_and_control_plane_prerequisites_before_secret_read(
-    tmp_path: Path,
-):
+def test_pipeline_requires_passed_item_and_control_plane_prerequisites_before_secret_read():
     configs = (_dataset(),)
     release = _release(configs)
     spec = _spec(release.bundle.release_hash)
@@ -355,9 +350,7 @@ def test_pipeline_requires_passed_item_and_control_plane_prerequisites_before_se
     assert env.getitem_calls == []
 
 
-def test_pipeline_refuses_automatic_rerun_when_prerequisite_manifest_already_has_result(
-    tmp_path: Path,
-):
+def test_pipeline_refuses_automatic_rerun_when_prerequisite_manifest_already_has_result():
     configs = (_dataset(),)
     release = _release(configs)
     spec = _spec(release.bundle.release_hash)
@@ -388,9 +381,7 @@ def test_pipeline_refuses_automatic_rerun_when_prerequisite_manifest_already_has
     assert env.getitem_calls == []
 
 
-def test_pipeline_exact_release_bundle_mismatch_is_rejected_before_database_url_read(
-    tmp_path: Path,
-):
+def test_pipeline_exact_release_bundle_mismatch_is_rejected_before_database_url_read():
     configs = (_dataset(),)
     release = _release(configs)
     spec = _spec(release.bundle.release_hash)
