@@ -12,6 +12,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .schema_contract import SchemaContract
+
 
 class FrozenModel(BaseModel):
     """Base model for immutable, strict framework contracts."""
@@ -70,6 +72,28 @@ class Criticality(str, Enum):
     CRITICAL = "CRITICAL"
 
 
+class ExecutionEngine(str, Enum):
+    """Physical engine selected for a capture or apply execution stage."""
+
+    AUTO = "AUTO"
+    FABRIC_COPY_JOB = "FABRIC_COPY_JOB"
+    FABRIC_COPY_ACTIVITY = "FABRIC_COPY_ACTIVITY"
+    DATAFLOW_GEN2 = "DATAFLOW_GEN2"
+    SPARK = "SPARK"
+    FABRIC_MIRRORING = "FABRIC_MIRRORING"
+    EXTERNAL_CDC = "EXTERNAL_CDC"
+    SQL = "SQL"
+    CUSTOM = "CUSTOM"
+
+
+class ProgressOwner(str, Enum):
+    """Single authoritative checkpoint owner for one physical capture operation."""
+
+    FRAMEWORK = "FRAMEWORK"
+    FABRIC_NATIVE = "FABRIC_NATIVE"
+    EXTERNAL = "EXTERNAL"
+
+
 class SourceConfig(FrozenModel):
     system: str = Field(min_length=1)
     object: str = Field(min_length=1)
@@ -108,8 +132,11 @@ class LoadPolicy(FrozenModel):
     apply_strategy: ApplyStrategy
     business_key: tuple[str, ...] = ()
     merge_key: tuple[str, ...] = ()
+    append_identity: tuple[str, ...] = ()
     watermark: WatermarkConfig | None = None
     event_time_column: str | None = None
+    version_column: str | None = None
+    sequence_column: str | None = None
     tracked_columns: tuple[str, ...] = ()
     delete_policy: str = "IGNORE"
 
@@ -118,10 +145,23 @@ class LoadPolicy(FrozenModel):
         for label, columns in (
             ("business_key", self.business_key),
             ("merge_key", self.merge_key),
+            ("append_identity", self.append_identity),
             ("tracked_columns", self.tracked_columns),
         ):
             if len(set(columns)) != len(columns):
                 raise ValueError(f"{label} columns must be unique")
+
+        ordering_columns = tuple(
+            column
+            for column in (
+                self.event_time_column,
+                self.version_column,
+                self.sequence_column,
+            )
+            if column is not None
+        )
+        if len(set(ordering_columns)) != len(ordering_columns):
+            raise ValueError("event/version/sequence ordering columns must be unique")
 
         if self.capture_strategy is CaptureStrategy.WATERMARK:
             if self.watermark is None:
@@ -137,7 +177,23 @@ class LoadPolicy(FrozenModel):
             raise ValueError(f"{self.apply_strategy.value} apply requires merge_key")
         if self.apply_strategy is ApplyStrategy.SCD2 and not self.business_key:
             raise ValueError("SCD2 apply requires business_key")
+        if self.apply_strategy is ApplyStrategy.APPEND and not self.append_identity:
+            raise ValueError("APPEND apply requires append_identity")
         return self
+
+    @property
+    def ordering_columns(self) -> tuple[str, ...]:
+        """Ordered source-position columns used by current-state/history apply."""
+
+        return tuple(
+            column
+            for column in (
+                self.event_time_column,
+                self.version_column,
+                self.sequence_column,
+            )
+            if column is not None
+        )
 
 
 class OrchestrationPolicy(FrozenModel):
@@ -167,6 +223,34 @@ class ReconciliationPolicy(FrozenModel):
     required_for_state_commit: bool = True
 
 
+class ExecutionPolicy(FrozenModel):
+    """Source-controlled physical execution selection for dataset stages.
+
+    ``engine`` and ``capability_profile`` describe capture/movement. Apply is an
+    independent stage with its own engine/profile so native ingestion never implies
+    native final-target semantics.
+    """
+
+    engine: ExecutionEngine = ExecutionEngine.AUTO
+    progress_owner: ProgressOwner = ProgressOwner.FRAMEWORK
+    capability_profile: str | None = None
+    apply_engine: ExecutionEngine = ExecutionEngine.AUTO
+    apply_capability_profile: str | None = None
+
+
+_EXTENSION_NAME_PATTERN = r"^[a-z][a-z0-9_.-]*$"
+
+
+class ExtensionConfig(FrozenModel):
+    """Logical names resolved from a controlled domain extension registry."""
+
+    capture: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
+    parser: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
+    transform: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
+    quality: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
+    apply: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
+
+
 class DatasetConfig(FrozenModel):
     dataset_id: str = Field(min_length=1)
     source: SourceConfig
@@ -175,6 +259,9 @@ class DatasetConfig(FrozenModel):
     orchestration: OrchestrationPolicy
     quality: DataQualityPolicy
     reconciliation: ReconciliationPolicy
+    schema_contract: SchemaContract | None = None
+    execution: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
+    extensions: ExtensionConfig = Field(default_factory=ExtensionConfig)
     enabled: bool = True
     config_schema_version: int = Field(default=1, ge=1)
 
@@ -182,6 +269,13 @@ class DatasetConfig(FrozenModel):
     def validate_dataset(self) -> "DatasetConfig":
         if self.dataset_id in self.orchestration.dependencies:
             raise ValueError("dataset must not depend on itself")
+        if self.execution.engine is ExecutionEngine.CUSTOM and not self.extensions.capture:
+            raise ValueError("CUSTOM execution requires extensions.capture")
+        if (
+            self.execution.apply_engine is ExecutionEngine.CUSTOM
+            and not self.extensions.apply
+        ):
+            raise ValueError("CUSTOM apply execution requires extensions.apply")
         return self
 
     @property

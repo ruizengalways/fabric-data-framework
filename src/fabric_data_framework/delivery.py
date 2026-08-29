@@ -16,11 +16,15 @@ from .control_plane import (
     apply_baseline_schema,
     data_quality_policy,
     dataset,
+    dataset_contract,
     deployment_history,
+    execution_policy,
     load_policy,
     orchestration_policy,
+    ordering_policy,
     reconciliation_policy,
 )
+from .control_plane_stage_policy import apply_execution_policy
 from .deployment import (
     DeploymentPlan,
     DeploymentProvenance,
@@ -176,6 +180,28 @@ def materialize_semantic_metadata(
                 {**dataset_insert, **common_audit},
             )
 
+            if config.schema_contract is not None:
+                contract = config.schema_contract
+                contract_values = {
+                    "dataset_id": config.dataset_id,
+                    "contract_version": contract.contract_version,
+                    "schema_fingerprint": contract.fingerprint,
+                    "compatibility_policy": contract.compatibility_policy.value,
+                    "definition": contract.persisted_definition(),
+                    "created_at": now,
+                    "updated_at": None,
+                }
+                _upsert_definition(
+                    connection,
+                    dataset_contract,
+                    {
+                        "dataset_id": config.dataset_id,
+                        "contract_version": contract.contract_version,
+                    },
+                    contract_values,
+                    {**contract_values, **common_audit},
+                )
+
             watermark_config = config.load.watermark
             load_values = {
                 "dataset_id": config.dataset_id,
@@ -183,6 +209,7 @@ def materialize_semantic_metadata(
                 "apply_strategy": config.load.apply_strategy.value,
                 "business_key": list(config.load.business_key),
                 "merge_key": list(config.load.merge_key),
+                "append_identity": list(config.load.append_identity),
                 "watermark_column": watermark_config.column if watermark_config else None,
                 "watermark_tie_breaker": list(watermark_config.tie_breaker)
                 if watermark_config
@@ -202,6 +229,54 @@ def materialize_semantic_metadata(
                 {"dataset_id": config.dataset_id},
                 load_values,
                 {**load_values, **common_audit},
+            )
+
+            ordering_values = {
+                "dataset_id": config.dataset_id,
+                "event_time_column": config.load.event_time_column,
+                "version_column": config.load.version_column,
+                "sequence_column": config.load.sequence_column,
+                "created_at": now,
+                "updated_at": None,
+            }
+            _upsert_definition(
+                connection,
+                ordering_policy,
+                {"dataset_id": config.dataset_id},
+                ordering_values,
+                {**ordering_values, **common_audit},
+            )
+
+            execution_values = {
+                "dataset_id": config.dataset_id,
+                "execution_engine": config.execution.engine.value,
+                "progress_owner": config.execution.progress_owner.value,
+                "capability_profile": config.execution.capability_profile,
+                "extensions": config.extensions.model_dump(mode="json"),
+                "created_at": now,
+                "updated_at": None,
+            }
+            _upsert_definition(
+                connection,
+                execution_policy,
+                {"dataset_id": config.dataset_id},
+                execution_values,
+                {**execution_values, **common_audit},
+            )
+
+            apply_execution_values = {
+                "dataset_id": config.dataset_id,
+                "execution_engine": config.execution.apply_engine.value,
+                "capability_profile": config.execution.apply_capability_profile,
+                "created_at": now,
+                "updated_at": None,
+            }
+            _upsert_definition(
+                connection,
+                apply_execution_policy,
+                {"dataset_id": config.dataset_id},
+                apply_execution_values,
+                {**apply_execution_values, **common_audit},
             )
 
             orchestration_values = {

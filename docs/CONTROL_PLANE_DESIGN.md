@@ -1,530 +1,195 @@
 # Control Plane and Metadata-Driven Runtime Design
 
 Status: Canonical detailed design
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
-## 1. Purpose
+## Purpose
 
-This document defines the production-oriented metadata/control-plane model for `fabric-data-framework`. It expands the ecosystem/project blueprints without changing repository ownership boundaries.
+The control plane stores durable semantic definitions, environment-local runtime state and operational evidence for metadata-driven framework execution. It is not a business warehouse and not an unrestricted mutable configuration database.
 
-The design must support domains with tens of datasets using reusable orchestration rather than one bespoke pipeline per table.
+## Core principles
 
-## 2. Core principles
+1. Git/source-controlled domain definitions are the semantic source of truth.
+2. Deployment materializes a runtime-readable semantic snapshot.
+3. Runtime overrides are allow-listed operational controls only.
+4. Effective config is immutable and deterministically hashed per attempt.
+5. Capture/apply semantics and physical engines are separate decisions.
+6. One physical capture has one authoritative source-progress owner.
+7. Native/external capture is correlated through immutable CaptureReceipt evidence.
+8. Runtime state/evidence is environment-local and never promoted.
+9. Dataset is the default failure/retry boundary.
+10. Unknown target outcome is reconciled before retry.
+11. State progression is gated by target commit + required reconciliation.
+12. Schema contract is promotable; schema observation is environment-local.
+13. Operator-facing reads use typed projections instead of raw table coupling.
 
-1. Dataset semantics are declared once and consumed generically.
-2. Git remains the canonical source for semantic configuration.
-3. Runtime control tables support state and audited operational tuning; they are not an uncontrolled second source of business semantics.
-4. A dataset is the default fault/isolation boundary.
-5. Watermark/state advances only after successful required gates.
-6. Quarantine is explicit and reconciled; data loss is never silent.
-7. Every run is traceable to code, config and framework versions.
-8. Reprocess/retry/replay are modeled operations, not ad-hoc manual reruns.
-
-## 3. Configuration layers
-
-### 3.1 Source-controlled semantic definition
-
-A domain-owned dataset definition declares stable execution semantics, for example:
-
-```yaml
-dataset: crm.customer
-source:
-  system: crm
-  object: dbo.Customer
-target:
-  layer: silver
-  object: customer
-capture_strategy: WATERMARK
-apply_strategy: SCD2
-business_key: [customer_id]
-merge_key: [customer_id]
-watermark:
-  column: modified_at
-  tie_breaker: [customer_id]
-event_time_column: modified_at
-tracked_columns: [name, address, segment]
-orchestration:
-  execution_group: crm_daily
-  criticality: HIGH
-  dependencies: []
-quality:
-  policy: customer_standard
-  quarantine_policy: reject_bad_rows
-reconciliation:
-  policy: standard_count_and_key
-```
-
-Semantic fields that alter data meaning or correctness require a Git change and deployment. This includes business/merge keys, capture/apply strategy, schema contract, delete semantics and DQ/reconciliation semantics.
-
-### 3.2 Deployed metadata snapshot
-
-Deployment materializes a runtime-readable representation containing at least:
-
-- dataset definition;
-- config schema version;
-- config hash;
-- domain Git SHA/release;
-- framework version expected by the domain release;
-- deployed environment;
-- deployment timestamp/history reference.
-
-The runtime reads the deployed snapshot rather than parsing arbitrary mutable files at every activity step.
-
-### 3.3 Runtime operational override
-
-Operations may change approved runtime knobs without redeploying semantic configuration. Each override includes:
-
-- environment/domain/dataset or execution-group scope;
-- parameter name and typed value;
-- reason/ticket/reference;
-- requested/changed by;
-- created timestamp;
-- valid-from/valid-to or explicit expiry;
-- enabled status;
-- previous/effective value lineage.
-
-Typical allowed knobs:
-
-- dataset enabled/disabled;
-- priority;
-- retry count/backoff profile;
-- timeout;
-- batch/chunk size;
-- bounded concurrency profile;
-- approved watermark overlap window;
-- temporary execution-group inclusion/exclusion.
-
-The first implementation should use an allow-list of overridable fields rather than arbitrary key/value mutation.
-
-## 4. Effective configuration
-
-Before dataset execution, the framework resolves:
+## Configuration layers
 
 ```text
-DeployedDatasetDefinition
- + valid RuntimeOverride(s)
- + RunRequest / ReprocessRequest
- = EffectiveDatasetConfig
+Git semantic definition
+    -> deployed semantic snapshot
+        + allow-listed RuntimeOverride
+        + RunRequest / ReprocessRequest
+    -> immutable EffectiveDatasetConfig
 ```
 
-The resulting object is immutable for the lifetime of a dataset attempt and has its own deterministic hash/version recorded on `dataset_run`.
+Runtime overrides cannot change semantic identities such as merge/append keys, capture/apply strategy, schema contract, execution profile or custom extension identity.
 
-If an override is invalid, expired, conflicting or would change forbidden semantic fields, resolution fails before data mutation.
-
-## 5. Control-plane entities
-
-Names below are logical; physical SQL naming can be finalized with migrations.
-
-## 5.1 `dataset`
-
-Registry of deployed datasets.
-
-Key fields:
-
-- `dataset_id` stable logical identifier;
-- domain/source system/source object;
-- target logical layer/object;
-- enabled default;
-- criticality;
-- execution group;
-- current deployed config version/hash;
-- deployed Git SHA;
-- expected framework version;
-- active/effective dates.
-
-## 5.2 `dataset_contract`
-
-Schema/contract identity and compatibility policy.
-
-Key fields:
-
-- dataset ID;
-- contract/schema version;
-- schema fingerprint or reference;
-- compatibility policy;
-- effective/deployed version metadata.
-
-## 5.3 `load_policy`
-
-Stable capture/apply/state semantics.
-
-Key fields:
-
-- capture strategy;
-- apply strategy;
-- business key list;
-- merge key list;
-- watermark column;
-- watermark tie-breaker list;
-- event-time column;
-- overlap-window default/allowed bounds;
-- tracked columns or tracking rule reference;
-- delete policy;
-- late-arrival policy;
-- dedupe/source-sequence policy.
-
-## 5.4 `orchestration_policy`
-
-Execution/failure/parallelism defaults.
-
-Key fields:
-
-- execution group;
-- criticality;
-- dependency list/stage;
-- concurrency/source-concurrency profile;
-- timeout;
-- retry/backoff profile;
-- final failure policy;
-- schedule association if needed by deployment/orchestration layer.
-
-## 5.5 `data_quality_policy`
-
-References reusable rule sets and action thresholds.
-
-Rules may produce outcomes such as:
-
-- pass;
-- warn;
-- quarantine row;
-- quarantine batch;
-- fail dataset.
-
-Business-specific rules remain domain-owned even if executed by reusable framework primitives.
-
-## 5.6 `reconciliation_policy`
-
-Defines completion gates such as:
-
-- source vs accepted/quarantined/filtered count balance;
-- source/target key counts;
-- insert/update/delete controls;
-- hashes/control totals;
-- freshness/event-time expectations.
-
-The policy also defines whether mismatches warn, quarantine, fail or prevent state advancement.
-
-## 5.7 `runtime_override`
-
-Audited operational control described in section 3.3.
-
-Semantic changes are forbidden through this table by validation policy.
-
-## 5.8 `watermark`
-
-Committed source progress for incremental datasets.
-
-Key fields:
-
-- dataset ID;
-- committed watermark value;
-- committed tie-breaker value(s);
-- state version;
-- last successful dataset run ID;
-- committed timestamp.
-
-A proposed next watermark may be calculated during a run but becomes committed only after target apply and required reconciliation succeed.
-
-## 5.9 `dataset_state`
-
-Generic current runtime state beyond watermark, such as last successful run, last full rebuild, schema version observed and state version for optimistic concurrency.
-
-## 5.10 `dataset_lease`
-
-Prevents overlapping mutable executions of the same stateful dataset.
-
-Fields include dataset, lease/run owner, acquisition time, expiry/heartbeat if used and state version.
-
-A stale-lease recovery procedure is required before production use.
-
-## 5.11 `pipeline_run`
-
-One orchestration request/run.
-
-Recommended fields:
-
-- `pipeline_run_id` framework UUID;
-- Fabric pipeline run ID/correlation ID where available;
-- environment/domain/execution group;
-- run mode;
-- requested by/trigger type;
-- selected dataset count;
-- start/end/duration;
-- aggregate status;
-- succeeded/failed/quarantined/skipped/blocked counts;
-- domain Git SHA/release;
-- framework version;
-- deployed metadata version/hash reference;
-- parent/reprocess request reference;
-- error summary for orchestration-level failure.
-
-## 5.12 `dataset_run`
-
-One dataset attempt inside a pipeline/reprocess context.
-
-Recommended fields:
-
-- `dataset_run_id`;
-- pipeline run ID;
-- dataset ID;
-- attempt number;
-- run mode;
-- effective-config hash/version;
-- start/end/duration;
-- status;
-- source range/snapshot/event-time boundaries;
-- watermark before/proposed/after;
-- rows read;
-- rows accepted;
-- rows inserted/updated/deleted;
-- rows rejected/quarantined;
-- rows intentionally filtered;
-- reconciliation status;
-- schema version/fingerprint observed;
-- error category/code/message;
-- retryable flag;
-- original dataset run ID for retry/replay lineage.
-
-## 5.13 `step_run`
-
-Audit of significant dataset-execution steps.
-
-Suggested step names:
-
-`RESOLVE_CONFIG`, `ACQUIRE_LEASE`, `CAPTURE`, `BRONZE_WRITE`, `VALIDATE`, `QUARANTINE`, `TRANSFORM`, `APPLY`, `RECONCILE`, `COMMIT_STATE`, `FINALIZE`.
-
-Fields include dataset run ID, step name, attempt, start/end/status, row/byte metrics where meaningful and error details.
-
-Do not create a step row for every trivial Python function; the unit is an operationally meaningful checkpoint.
-
-## 5.14 `reconciliation_result`
-
-Stores rule-level/group-level reconciliation results, expected/actual values, tolerance, severity and action taken.
-
-## 5.15 `quarantine_batch`
-
-Stores quarantine lineage and location rather than requiring large rejected payloads in the control database.
-
-Recommended fields:
-
-- quarantine ID;
-- dataset/pipeline/dataset-run IDs;
-- scope (`ROW_SET` or `BATCH`);
-- rule/reason/category;
-- record count;
-- quarantine storage/table/path logical reference;
-- schema version;
-- created timestamp;
-- replay eligibility/status;
-- resolved/reprocessed run reference;
-- retention classification if required.
-
-Row-level quarantine data carries framework lineage columns in the quarantine store.
-
-## 5.16 `schema_change`
-
-Records observed schema differences and disposition (`ACCEPTED`, `WARNED`, `QUARANTINED`, `REJECTED`, etc.).
-
-## 5.17 `reprocess_request`
-
-Explicit request to retry/backfill/replay/rebuild.
-
-Fields include:
-
-- request ID;
-- dataset(s)/scope;
-- mode;
-- source range/watermark range/snapshot/quarantine reference;
-- reason;
-- requested by/time;
-- approval/reference if later required;
-- status;
-- resulting pipeline/dataset run references.
-
-## 5.18 `deployment_history`
-
-Records environment deployment provenance:
-
-- domain release/Git SHA;
-- framework version;
-- config hash/version;
-- deployment mechanism/run ID;
-- target environment;
-- timestamp/status.
-
-## 6. Orchestration design
-
-## 6.1 Dispatcher
-
-Reference Fabric orchestration:
+## Current schema version
 
 ```text
-Start
- -> create pipeline_run
- -> lookup effective dataset list
- -> filter enabled + requested execution group + dependency readiness
- -> bounded parallel dispatcher
-       -> dataset executor for each dataset
- -> aggregate recorded dataset statuses
- -> write final pipeline_run status
- -> optionally fail Fabric parent at final gate if aggregate policy requires
+CONTROL_PLANE_SCHEMA_VERSION = 3
 ```
 
-The Fabric pipeline should pass identifiers, not dozens of table-specific settings. Dataset executor code loads effective metadata using `dataset_id`.
-
-## 6.2 Failure isolation
-
-Do not model a forty-table batch as one atomic success/failure unit.
-
-For each dataset:
-
-- handle/audit its own failure path;
-- finalize `dataset_run` terminal status;
-- preserve watermark/state on failure;
-- allow unrelated siblings to continue.
-
-After all eligible independent work has completed, aggregate:
-
-- `SUCCESS` if required work succeeded;
-- `PARTIAL_SUCCESS` if only policy-allowed non-critical items failed/quarantined/skipped;
-- `FAILED` for critical failures, threshold breaches or orchestration integrity failure.
-
-A production alert can therefore fire on the final failed aggregate without losing useful progress on unrelated datasets.
-
-## 6.3 Dependencies
-
-Initial support should use explicit execution groups/stages and simple dataset dependencies. If a prerequisite fails:
-
-- direct dependents become `BLOCKED_DEPENDENCY`;
-- unrelated datasets continue;
-- blocked datasets do not touch state or targets.
-
-Do not build a general-purpose workflow engine until concrete domain requirements justify it.
-
-## 6.4 Concurrency
-
-Concurrency controls exist at multiple levels:
-
-- parent dispatcher maximum parallel datasets;
-- execution-group/source-system limit;
-- per-dataset single-writer lease for stateful loads;
-- optional sink/source-specific concurrency profile.
-
-Operational overrides may reduce limits during incidents or source-system pressure.
-
-## 7. Quarantine lifecycle
-
-### 7.1 Row-level invalid data
-
-If policy allows row quarantine:
-
-1. validate row;
-2. write invalid row plus lineage/reason to quarantine location;
-3. continue with accepted rows only if rule/action permits;
-4. include quarantined count in reconciliation;
-5. make final dataset status/warning policy explicit.
-
-### 7.2 Batch contract violation
-
-If the batch is unsafe to apply:
-
-1. preserve/source-faithful Bronze where appropriate;
-2. record quarantine batch and reason;
-3. do not apply target mutation;
-4. do not advance state;
-5. finalize dataset as `QUARANTINED` or `FAILED` according to policy.
-
-### 7.3 System error
-
-System errors are not quarantine. Record a failed step/dataset with retryability classification.
-
-### 7.4 Replay
-
-Corrected/released quarantined data is reprocessed by an explicit `reprocess_request` in `REPLAY` mode. New run IDs are created while retaining original quarantine/run lineage.
-
-## 8. Audit/reconciliation invariants
-
-At minimum, production correctness should be able to answer:
-
-- Which code/config/framework version processed this dataset?
-- What source range or watermark did it read?
-- What was written/inserted/updated/deleted?
-- What was rejected or quarantined and why?
-- Did accepted + quarantined + intentional filters reconcile to input?
-- Which step failed?
-- Was state/watermark advanced?
-- Can this exact scope be retried/replayed safely?
-
-For relevant loads, a useful accounting invariant is conceptually:
+Migration history:
 
 ```text
-rows_read = rows_accepted + rows_quarantined + rows_intentionally_filtered
+v1 phase1_initial_control_plane_schema
+v2 execution_policy_ordering_capture_receipt_recovery_and_cdc
+v3 append_identity_semantics
 ```
 
-with strategy-specific adjustments documented rather than silently ignored.
+v3 explicitly adds `load_policy.append_identity` for an existing v2 store before recording migration success. `create_all()` alone is not treated as a general ALTER migration mechanism.
 
-## 9. State commit protocol
+## Promotable semantic definitions
 
-For a stateful incremental dataset:
+```text
+dataset
+dataset_contract
+load_policy
+ordering_policy
+execution_policy
+apply_execution_policy
+orchestration_policy
+data_quality_policy
+reconciliation_policy
+```
 
-1. read committed state/version;
-2. acquire lease/guard;
-3. calculate source range;
-4. execute data movement/transform/apply idempotently;
-5. reconcile required invariants;
-6. atomically/optimistically commit next state referencing successful dataset run;
-7. finalize audit;
-8. release lease.
+`dataset_contract` is versioned expected schema. `load_policy` owns capture/apply semantics and business/merge/append keys. `ordering_policy` owns event/version/sequence metadata. Execution policy independently selects capture and apply execution.
 
-A failure before step 6 leaves committed state unchanged.
+## Environment-local runtime/evidence
 
-If state commit certainty is lost after data mutation, rerun/recovery must rely on idempotency and reconciliation rather than assuming nothing was written.
+```text
+schema_migration_history
+runtime_override
+watermark
+cdc_checkpoint
+dataset_state
+dataset_lease
+pipeline_run
+dataset_run
+dataset_attempt_lineage
+capture_receipt
+step_run
+reconciliation_result
+quarantine_batch
+schema_change
+reprocess_request
+deployment_history
+```
 
-## 10. Runtime override governance
+These never move DEV -> UAT -> PROD.
 
-Operational flexibility must not become uncontrolled production configuration drift.
+`cdc_checkpoint` records framework downstream CDC semantic application, not native/provider source cursor authority. `capture_receipt` retains native/provider correlation. `schema_change` records observation without rewriting source-controlled schema. `quarantine_batch` stores lineage/location/count, not large payloads.
 
-Required controls:
+## State/progress ownership
 
-- typed/allow-listed parameters;
-- environment/dataset/group scope;
-- operator identity;
-- reason/ticket;
-- expiry where practical;
-- audit history;
-- effective-config hash on each run;
-- ability to list active overrides;
-- safe removal/reversion.
+Framework-owned progress:
 
-Semantic changes remain Git-driven.
+```text
+read state/version
+  -> freeze source boundary
+  -> execute idempotent candidate/mutation
+  -> reconcile/prove target outcome
+  -> commit next state
+```
 
-## 11. Testing requirements
+Native/external progress:
 
-Before production claims, tests must cover at least:
+```text
+provider owns source cursor
+  -> CaptureReceipt records correlation
+  -> framework downstream semantic apply
+  -> framework commits its own semantic state separately
+```
 
-- metadata validation for merge/business keys and watermark requirements;
-- forbidden semantic runtime overrides;
-- effective-config precedence and deterministic hashing;
-- one non-critical dataset failure while siblings succeed;
-- critical failure causing final aggregate failure only after eligible siblings finish;
-- dependency blocking without unrelated cancellation;
-- dataset lease/concurrent-state protection;
-- failed incremental load not advancing watermark;
-- quarantined rows accounted for in reconciliation;
-- batch quarantine preventing target/state commit;
-- retry/replay lineage;
-- step audit completeness for success and failure paths.
+No dual checkpoint truth is allowed.
 
-## 12. Fabric implementation notes
+## Recovery protocol
 
-The architecture intentionally maps well to Microsoft Fabric Data Factory capabilities such as parameterized pipelines, Lookup-driven dynamic dataset selection, ForEach bounded parallelism and completion/failure control-flow branches.
+Failure classes are RETRYABLE, NON_RETRYABLE and UNKNOWN_OUTCOME. Unknown target mutation resolves to COMMITTED, NOT_COMMITTED or UNRESOLVED before any retry decision. Quarantine REPLAY and FULL_REBUILD are explicit audited flows.
 
-Exact Fabric activity limits and deployment syntax are implementation details and must be checked against current Microsoft Learn documentation when the Fabric item is built.
+The remaining portable durability gap is a stable persistent target-operation key/journal that makes physical mutation idempotency explicit across attempts rather than depending only on executor convention.
 
-## 13. Initial implementation boundary
+## Read-only operator projection
 
-Phase 1 should implement the **contracts and control-plane schema foundations**, not the full Fabric dispatcher or SCD2/WATERMARK algorithms.
+`operator.py` is the supported reference query layer above the relational schema.
 
-The first coherent foundation slice should include typed metadata models, override rules/effective-config resolution, run/status/audit/quarantine/reconciliation contracts, initial control-plane schema/migrations approach, infrastructure resolution interface and high-value unit/contract tests.
+`get_dataset_operational_snapshot()` returns a typed projection containing:
 
-Phase 2 will use those contracts in the first Customer WATERMARK/SCD2 vertical slice. Multi-dataset dispatcher hardening follows once the per-dataset executor semantics are proven.
+- latest `dataset_run` plus optional attempt lineage/root/previous/reprocess identity;
+- latest `capture_receipt` and native/provider correlation;
+- current WATERMARK and/or CDC downstream progress;
+- latest reconciliation result;
+- unreplayed quarantine batch/row counts;
+- latest schema-change observation;
+- active PENDING/RUNNING reprocess requests.
+
+`list_dataset_operational_snapshots()` returns dataset-id ordered overviews.
+
+The CLI exposes the same models through:
+
+```text
+fabric-framework control-plane-status --database-url ... [--dataset-id ...] [--output ...]
+```
+
+This command is read-only. It does not mutate checkpoints, replay data or authorize recovery.
+
+The operator API is intentionally typed so a future production repository can replace direct SQLAlchemy queries without changing runbook semantics unnecessarily.
+
+## Source-boundary evidence
+
+File/API guardrails currently remain provider-neutral capture contracts rather than dedicated relational index tables. Future durable indexing should be added through explicit environment-local migrations if provider integration needs it; do not overload CaptureReceipt with arbitrary opaque state.
+
+## Operator questions the production store must answer
+
+- which dataset/attempt failed and at which stage;
+- framework/domain/config/deployment identity;
+- concrete capture/apply engine/profile;
+- source range/snapshot/file manifest/API window/native run/checkpoint evidence;
+- row/mutation/quarantine/reconciliation counts;
+- schema expected vs observed classification;
+- state before/after and committing attempt;
+- recovery root/previous/request lineage;
+- target-operation idempotency/outcome evidence once implemented.
+
+## Current proof vs production store
+
+Implemented/reference-tested:
+
+- additive schema creation/idempotency;
+- real v2 -> v3 additive migration;
+- definition/runtime promotion boundary;
+- semantic materialization including schema and APPEND identity;
+- CaptureReceipt/recovery/CDC/schema evidence;
+- runtime-state preservation during materialization;
+- typed read-only operator aggregation and JSON CLI.
+
+Not production-proven:
+
+- approved persistent control-plane technology;
+- real parallel transaction behavior under production load;
+- migration checksum/rollback/rolling compatibility;
+- authenticated operator mutation/approval surface;
+- retention/backup/restore;
+- IAM/network/security integration.
+
+SQLite/in-memory remain deterministic reference proof only.
+
+## Next control-plane work
+
+1. add target-operation idempotency journal/state with optimistic lifecycle transitions;
+2. select/certify the production repository technology while preserving typed operator contracts;
+3. persist richer provider source/idempotency evidence where real integration requires it;
+4. add authenticated mutation workflows only if included in product scope;
+5. add production migration governance once a real store is selected.

@@ -1,4 +1,4 @@
-"""Logical relational control-plane schema and baseline migration contract."""
+"""Logical relational control-plane schema and additive migration contract."""
 
 from __future__ import annotations
 
@@ -21,7 +21,12 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 
 
-CONTROL_PLANE_SCHEMA_VERSION = 1
+CONTROL_PLANE_SCHEMA_VERSION = 3
+CONTROL_PLANE_MIGRATIONS = (
+    (1, "phase1_initial_control_plane_schema"),
+    (2, "execution_policy_ordering_capture_receipt_recovery_and_cdc"),
+    (3, "append_identity_semantics"),
+)
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -86,12 +91,43 @@ load_policy = Table(
     Column("apply_strategy", String(32), nullable=False),
     Column("business_key", JSON, nullable=False),
     Column("merge_key", JSON, nullable=False),
+    Column("append_identity", JSON, nullable=False, server_default="[]"),
     Column("watermark_column", String(255), nullable=True),
     Column("watermark_tie_breaker", JSON, nullable=True),
     Column("watermark_overlap_seconds", Integer, nullable=False),
     Column("event_time_column", String(255), nullable=True),
     Column("tracked_columns", JSON, nullable=False),
     Column("delete_policy", String(64), nullable=False),
+    *_audit_columns(),
+)
+
+ordering_policy = Table(
+    "ordering_policy",
+    metadata,
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), primary_key=True),
+    Column("event_time_column", String(255), nullable=True),
+    Column("version_column", String(255), nullable=True),
+    Column("sequence_column", String(255), nullable=True),
+    *_audit_columns(),
+)
+
+execution_policy = Table(
+    "execution_policy",
+    metadata,
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), primary_key=True),
+    Column("execution_engine", String(64), nullable=False),
+    Column("progress_owner", String(64), nullable=False),
+    Column("capability_profile", String(255), nullable=True),
+    Column("extensions", JSON, nullable=False),
+    *_audit_columns(),
+)
+
+apply_execution_policy = Table(
+    "apply_execution_policy",
+    metadata,
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), primary_key=True),
+    Column("execution_engine", String(64), nullable=False),
+    Column("capability_profile", String(255), nullable=True),
     *_audit_columns(),
 )
 
@@ -157,6 +193,16 @@ watermark = Table(
     *_audit_columns(),
 )
 
+cdc_checkpoint = Table(
+    "cdc_checkpoint",
+    metadata,
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), primary_key=True),
+    Column("positions", JSON, nullable=False),
+    Column("committed_dataset_run_id", String(36), nullable=False),
+    Column("version", Integer, nullable=False),
+    *_audit_columns(),
+)
+
 dataset_state = Table(
     "dataset_state",
     metadata,
@@ -215,6 +261,31 @@ dataset_run = Table(
     Column("retryable", Boolean, nullable=True),
     Column("started_at", DateTime(timezone=True), nullable=False),
     Column("completed_at", DateTime(timezone=True), nullable=True),
+)
+
+capture_receipt = Table(
+    "capture_receipt",
+    metadata,
+    Column("capture_receipt_id", String(36), primary_key=True),
+    Column("dataset_run_id", String(36), nullable=False),
+    Column("dataset_id", String(255), nullable=False),
+    Column("capture_strategy", String(32), nullable=False),
+    Column("execution_engine", String(64), nullable=False),
+    Column("progress_owner", String(64), nullable=False),
+    Column("native_run_id", String(512), nullable=True),
+    Column("source_reference", String(1024), nullable=True),
+    Column("landing_reference", String(1024), nullable=False),
+    Column("rows_read", Integer, nullable=False),
+    Column("rows_written", Integer, nullable=False),
+    Column("source_lower_bound", JSON, nullable=True),
+    Column("source_upper_bound", JSON, nullable=True),
+    Column("snapshot_id", String(512), nullable=True),
+    Column("complete_snapshot", Boolean, nullable=True),
+    Column("external_checkpoint_reference", String(2048), nullable=True),
+    Column("schema_version", String(255), nullable=True),
+    Column("started_at", DateTime(timezone=True), nullable=False),
+    Column("completed_at", DateTime(timezone=True), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
 step_run = Table(
@@ -285,6 +356,24 @@ reprocess_request = Table(
     *_audit_columns(),
 )
 
+dataset_attempt_lineage = Table(
+    "dataset_attempt_lineage",
+    metadata,
+    Column("dataset_run_id", String(36), primary_key=True),
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), nullable=False),
+    Column("root_dataset_run_id", String(36), nullable=False),
+    Column("previous_dataset_run_id", String(36), nullable=True),
+    Column("attempt", Integer, nullable=False),
+    Column("run_mode", String(32), nullable=False),
+    Column(
+        "reprocess_request_id",
+        String(36),
+        ForeignKey("reprocess_request.reprocess_request_id"),
+        nullable=True,
+    ),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
 deployment_history = Table(
     "deployment_history",
     metadata,
@@ -313,6 +402,9 @@ PROMOTABLE_DEFINITION_TABLES = frozenset(
         "dataset",
         "dataset_contract",
         "load_policy",
+        "ordering_policy",
+        "execution_policy",
+        "apply_execution_policy",
         "orchestration_policy",
         "data_quality_policy",
         "reconciliation_policy",
@@ -323,10 +415,13 @@ ENVIRONMENT_LOCAL_STATE_TABLES = frozenset(
         "schema_migration_history",
         "runtime_override",
         "watermark",
+        "cdc_checkpoint",
         "dataset_state",
         "dataset_lease",
         "pipeline_run",
         "dataset_run",
+        "dataset_attempt_lineage",
+        "capture_receipt",
         "step_run",
         "reconciliation_result",
         "quarantine_batch",
@@ -346,34 +441,65 @@ def current_schema_version(engine: Engine) -> int:
     if not inspector.has_table(schema_migration_history.name):
         return 0
     with engine.connect() as connection:
-        version = connection.execute(select(schema_migration_history.c.version)).scalars().all()
-    return max(version, default=0)
+        versions = connection.execute(
+            select(schema_migration_history.c.version)
+        ).scalars().all()
+    return max(versions, default=0)
+
+
+def _apply_migration(connection, version: int) -> None:
+    if version != 3:
+        return
+
+    columns = {item["name"] for item in inspect(connection).get_columns(load_policy.name)}
+    if "append_identity" in columns:
+        return
+
+    preparer = connection.dialect.identifier_preparer
+    table_name = preparer.quote(load_policy.name)
+    column_name = preparer.quote("append_identity")
+    type_sql = load_policy.c.append_identity.type.compile(dialect=connection.dialect)
+    connection.exec_driver_sql(
+        f"ALTER TABLE {table_name} ADD COLUMN {column_name} {type_sql} "
+        "DEFAULT '[]' NOT NULL"
+    )
 
 
 def apply_baseline_schema(engine: Engine) -> int:
-    """Idempotently establish the Phase-1 logical baseline schema."""
+    """Idempotently create additive schema and execute/record missing migrations."""
 
     metadata.create_all(engine, checkfirst=True)
-    if current_schema_version(engine) >= CONTROL_PLANE_SCHEMA_VERSION:
-        return CONTROL_PLANE_SCHEMA_VERSION
-
-    with engine.begin() as connection:
-        connection.execute(
-            schema_migration_history.insert().values(
-                version=CONTROL_PLANE_SCHEMA_VERSION,
-                name="phase1_initial_control_plane_schema",
-                applied_at=datetime.now(timezone.utc),
-            )
-        )
+    current = current_schema_version(engine)
+    pending = [item for item in CONTROL_PLANE_MIGRATIONS if item[0] > current]
+    if pending:
+        now = datetime.now(timezone.utc)
+        with engine.begin() as connection:
+            for version, name in pending:
+                _apply_migration(connection, version)
+                connection.execute(
+                    schema_migration_history.insert().values(
+                        version=version,
+                        name=name,
+                        applied_at=now,
+                    )
+                )
     return CONTROL_PLANE_SCHEMA_VERSION
 
 
 __all__ = [
+    "CONTROL_PLANE_MIGRATIONS",
     "CONTROL_PLANE_SCHEMA_VERSION",
     "ENVIRONMENT_LOCAL_STATE_TABLES",
     "PROMOTABLE_DEFINITION_TABLES",
     "apply_baseline_schema",
+    "apply_execution_policy",
+    "capture_receipt",
+    "cdc_checkpoint",
     "current_schema_version",
+    "dataset_attempt_lineage",
+    "execution_policy",
     "metadata",
+    "ordering_policy",
+    "reprocess_request",
     "table_names",
 ]

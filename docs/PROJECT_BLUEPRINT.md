@@ -1,220 +1,183 @@
 # fabric-data-framework — Project Blueprint
 
 Status: Canonical
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
-## 1. Goal
+## Goal
 
-Build a production-grade reusable Microsoft Fabric data-engineering runtime package consumed by domain repositories through explicit immutable versions.
+Build a production-grade reusable Microsoft Fabric Data Engineering runtime consumed by domain repositories through explicit immutable framework versions. The framework owns cross-domain correctness and operations; domains declare business semantics, mappings/rules and bounded extensions.
 
-The framework standardizes stable cross-domain behaviour while domain transformations and business rules remain explicit in domain repositories.
+Primary product test:
 
-## 2. Design principles
+> After an enterprise installs a released framework wheel, ordinary datasets onboard through metadata, environment bindings, capability profiles and bounded domain extensions rather than edits to `fabric-data-framework`.
 
-1. Share versioned code, not a cross-domain shared runtime.
-2. Metadata drives stable behaviour; business logic remains code.
-3. Capture and apply strategies are independent axes.
-4. Git semantic configuration, deployed snapshots, operational overrides and runtime state are separate concerns.
-5. Dataset is the default failure/isolation boundary.
-6. Quarantine, reconciliation, audit and recovery are execution semantics, not afterthoughts.
-7. Stateful progress advances only after required target/reconciliation gates.
-8. DEV/UAT/PROD promote the same immutable release identity while runtime state remains environment-local.
-9. Correctness is proved with small deterministic scenarios before strategy breadth or infrastructure scale.
-10. Parent orchestration selects and coordinates datasets; it does not duplicate capture/apply algorithms.
+## Canonical reading order
 
-## 3. Implemented package shape
+1. `docs/CURRENT_STATUS.md`
+2. `docs/PRODUCTION_READINESS_AUDIT.md`
+3. `docs/GUARANTEE_COVERAGE.md`
+4. `docs/PROJECT_BLUEPRINT.md`
+5. `docs/PRODUCTION_REQUIREMENTS.md`
+6. `docs/EXECUTION_ENGINE_STRATEGY.md`
+7. `docs/FABRIC_EXECUTION_MODEL.md`
+8. `docs/CDC_DESIGN.md`
+9. `docs/CONTROL_PLANE_DESIGN.md`
+10. `docs/REPOSITORY_STRUCTURE.md`
+11. `docs/CICD_DESIGN.md`
+12. `docs/ECOSYSTEM_BLUEPRINT.md`
 
-```text
-src/fabric_data_framework/
-  config.py            typed semantic metadata + operational overrides
-  infrastructure.py    logical Fabric resource resolution contract
-  runtime.py           run context, statuses and state/watermark gates
-  operations.py        audit, row accounting, quarantine and reconciliation contracts
-  control_plane.py     logical relational control-plane schema
-  deployment.py        provider-neutral release/deployment provenance
-  delivery.py          release/config materialization and delivery helpers
-  repository.py        control-plane repository protocol + thread-safe in-memory adapter
-  dispatcher.py        metadata selection, dependencies, bounded concurrency, failure isolation
-  watermark.py         composite incremental selection
-  bronze.py            normalized Bronze envelope
-  quality.py           reusable row validation/quarantine primitives
-  scd2.py              deterministic SCD2 reference engine + in-memory target
-  reconciliation.py    SCD2/reference completion gates
-  execution.py         reference WATERMARK -> Bronze -> DQ -> SCD2 executor
-  cli.py               provider-neutral delivery/control-plane CLI
-```
+GitHub docs are durable project memory. If docs disagree with code/tests, repair docs before further architecture work.
 
-The in-memory adapters are deliberate test/reference implementations, not the chosen enterprise Fabric physical store.
-
-## 4. Metadata contract
-
-`DatasetConfig` declares source/target identity, capture/apply strategy, business/merge keys, WATERMARK semantics, event time, tracked columns, execution group/criticality/dependencies and DQ/reconciliation policies.
-
-Runtime overrides remain allow-listed operational values only. Semantic changes such as merge keys or apply strategy require source-controlled deployment.
-
-Before execution, the dispatcher resolves one immutable `EffectiveDatasetConfig` per selected dataset from the deployed definition plus active valid overrides.
-
-## 5. WATERMARK semantics
-
-For `WATERMARK`, the framework orders source records by:
+## Repository ownership
 
 ```text
-(watermark_column, tie_breaker...)
+fabric-infra          estate/capacity/workspace/RBAC/network/bindings
+fabric-data-framework reusable semantic runtime/adapters/control-plane contracts
+fabric-customer       deployable domain solution exact-pinning a released wheel
 ```
 
-and selects positions strictly greater than the committed position. This prevents data loss when multiple records share the same timestamp.
+Dependency direction is `fabric-infra -> environment contract` and `fabric-data-framework -> immutable package -> fabric-customer`. Framework never depends on Customer. Share code, not runtime state.
 
-An optional overlap window re-reads a bounded datetime range and relies on idempotent target behaviour. Null watermark or tie-breaker values are rejected before mutation because their source position is not safely orderable.
+## Design principles
 
-## 6. Bronze contract
+1. Capture and apply semantics are independent.
+2. Capture/movement and apply engines are independent.
+3. Mature DE semantics have framework-owned portable implementations.
+4. Native Fabric/provider features are capability-certified delegates.
+5. One physical capture has one authoritative source-progress owner.
+6. Native/external capture enters framework semantics through typed evidence.
+7. Provider CDC normalizes before semantic apply.
+8. Provider source progress and framework downstream apply progress are distinct.
+9. Semantic definitions, deployed metadata, overrides and runtime state are separate.
+10. Dataset is the default failure/retry boundary.
+11. Quarantine, reconciliation, schema compatibility, temporal classification and recovery are first-class semantics.
+12. Unknown target commit is reconciled before retry.
+13. Retry/replay preserves frozen source boundary/set.
+14. DEV/UAT/PROD promote immutable definitions/artifacts, never runtime rows.
+15. Provider-neutral decisions remain testable outside Fabric.
+16. Releases represent coherent product milestones, not commit cadence.
 
-Captured rows are wrapped with normalized metadata including pipeline/dataset run IDs, source identity, ingestion timestamp, source commit time/sequence, operation and schema version. Domain/provider-specific envelopes do not leak into downstream strategy code.
+## Semantic axes
 
-## 7. Data quality and quarantine
-
-Reusable `RowRule` execution separates accepted and quarantined Bronze records. Row-level quarantine is a handled outcome that can still permit state advancement when reconciliation accounts for it and policy allows it.
-
-Batch-level quarantine remains a state-commit blocker. System/permission/code failures are failures, not quarantine.
-
-## 8. SCD2 invariants
-
-The reference SCD2 engine enforces:
-
-- business key required;
-- tracked-column hash determines change/no-change;
-- unchanged tracked attributes do not create a new version;
-- changed attributes close the current version and open one new current version;
-- at most one current row per business key;
-- exact rerun of an already-applied version is idempotent;
-- a conflicting different row at the exact current effective timestamp fails explicitly;
-- late/out-of-order event earlier than the current version fails explicitly until a later policy is implemented.
-
-Delete policy and general late-arrival correction are intentionally not solved yet.
-
-## 9. Dataset execution and dispatcher boundary
-
-The proven reference dataset executor remains:
+Capture:
 
 ```text
-resolve deployed config
-  -> read committed watermark
-  -> composite WATERMARK selection
-  -> normalized Bronze records
-  -> domain-supplied DQ rules
-  -> row quarantine + lineage
-  -> domain mapper
-  -> calculate proposed SCD2 state
-  -> reconcile row accounting + SCD2 invariant
-  -> commit target
-  -> commit watermark/state
-  -> durable dataset/step audit
+FULL | WATERMARK | CDC | SNAPSHOT | MIRROR | STREAM
 ```
 
-The metadata-driven dispatcher sits above strategy executors:
+Apply:
 
 ```text
-pipeline request
-  -> list deployed datasets
-  -> resolve effective configs
-  -> filter enabled / execution group / explicit request
-  -> validate dependencies and cycles
-  -> bounded parallel ready-set execution
-  -> dataset-level outcome/audit
-  -> block dependents of failed prerequisites
-  -> continue unrelated branches
-  -> aggregate SUCCESS / PARTIAL_SUCCESS / FAILED
+APPEND | REPLACE | UPSERT | SCD1 | SCD2 | SNAPSHOT_DIFF
 ```
 
-The dispatcher passes a small immutable `DatasetDispatchRequest` to an executor resolved from metadata. It does not know WATERMARK/SCD2 internals. Future SNAPSHOT and CDC strategy executors plug into the same boundary.
-
-HIGH and CRITICAL datasets are required by the current default aggregate policy. A non-success terminal outcome for one of those datasets causes final `FAILED`; failures isolated to lower criticalities produce `PARTIAL_SUCCESS` after eligible work finishes. This default is explicit and can later be policy-driven without changing executor algorithms.
-
-If a prerequisite fails, only its dependent branch becomes `BLOCKED`; unrelated datasets remain eligible. Cycles and references to undeployed dependencies are orchestration-integrity errors and are rejected before unsafe execution.
-
-## 10. Control-plane and environment model
-
-The logical 19-table control-plane schema remains canonical. Repository contracts include dataset listing and pipeline-run recording required by the dispatcher. The reference in-memory adapter is lock-protected so bounded concurrency is tested against intentional shared-state semantics.
-
-Each environment has independent state. CI/CD promotes schema/semantic definitions, never DEV watermarks/run history/overrides/quarantine state into UAT/PROD.
-
-The current physical relational schema has not yet been expanded with every dispatcher aggregate count/error-summary field described in `CONTROL_PLANE_DESIGN.md`. That expansion belongs with a schema migration and real persistent repository adapter; the framework must not claim physical persistence that has only been proved in an in-memory result object.
-
-## 11. Testing strategy and current evidence
-
-Framework unit/contract/integration tests cover:
-
-- Phase 1 metadata/override/control-plane/deployment contracts;
-- duplicate timestamp/tie-breaker WATERMARK selection;
-- no-new-row watermark preservation;
-- SCD2 insert/change/unchanged/idempotent rerun;
-- explicit late-arrival rejection;
-- row-level quarantine with watermark advancement after accounting/reconciliation;
-- reconciliation failure preserving target and committed watermark;
-- non-critical dataset failure with sibling continuation and `PARTIAL_SUCCESS`;
-- critical dataset failure with sibling continuation and final `FAILED`;
-- dependency blocking without unrelated cancellation;
-- executor exception isolation;
-- bounded dispatcher concurrency;
-- execution-group filtering;
-- dependency-cycle rejection before execution.
-
-Customer repository adds cross-package domain integration scenarios. The next domain proof is a tiny Customer multi-dataset graph consuming the released/merged dispatcher version.
-
-## 12. Versioning and delivery
-
-`0.1.0` established framework contracts. `0.2.0` added the first executable capture/Bronze/DQ/SCD2/reconciliation vertical slice. `0.3.0` established the enterprise delivery spine and is now frozen as immutable GitHub Release `v0.3.0` with wheel and portable checksum assets.
-
-The 0.3.0 release path has been proven end to end: GitHub Actions UI initiation, release-candidate validation, wheel build, checksum verification, annotated tag creation, GitHub Release publication, and downstream Customer released-wheel integration.
-
-Phase 4 dispatcher work is versioned as `0.4.0`. It is rebased on the released 0.3.0 baseline before merge so the immutable older release cannot absorb newer runtime semantics.
-
-The delivery model remains:
+Physical capture/movement engine:
 
 ```text
-feature -> PR -> CI -> main -> immutable version/tag/artifact -> DEV -> UAT -> PROD
+FABRIC_COPY_JOB | FABRIC_COPY_ACTIVITY | DATAFLOW_GEN2 |
+SPARK | FABRIC_MIRRORING | EXTERNAL_CDC | SQL | CUSTOM
 ```
 
-Domains exact-pin framework versions and upgrade explicitly.
+Apply engine is selected independently. File manifests/API pagination are source-family guardrail evidence, not new apply semantics.
 
-## 13. Roadmap status
+## Current unreleased baseline
 
-### Phase 0 — COMPLETE
-Architecture, ownership and recoverable docs.
+Public baseline: `v0.3.0`.
 
-### Phase 1 — COMPLETE
-Typed metadata/control-plane/runtime/deployment foundations.
+Current source: unreleased `0.4.0` on PR #13.
 
-### Phase 2 — COMPLETE
-Reusable primitives required for one `crm.customer` WATERMARK -> Bronze -> validation/quarantine -> SCD2 -> reconciliation -> state-commit vertical slice.
+Latest validated code evidence:
 
-### Phase 3 — COMPLETE AND RELEASED AS v0.3.0
-Provider-neutral delivery spine, GitHub-hosted CI/release workflows, immutable release identity, metadata materialization, environment bindings and deployment-history contracts. Customer exact released-wheel integration has passed against the published framework artifact.
+```text
+ae1eb99ab5fa9d7add5a62dda2d7448b6200d240
+Actions 33225341709
+268 tests passed
+```
 
-### Phase 4 — CURRENT
-Metadata-driven multi-dataset dispatcher and failure isolation:
+Current reference/contract product slice includes:
 
-- effective metadata selection;
-- execution groups and priorities;
-- dependency validation/cycle detection;
-- bounded parallel ready-set execution;
-- dataset fault boundaries;
-- dependent blocking;
-- criticality-aware aggregate outcomes;
-- pipeline/dataset lineage contracts.
+- typed metadata/effective config/overrides;
+- capture/apply engine separation and capability resolution;
+- composite WATERMARK + overlap;
+- Bronze/DQ/quarantine/accounting;
+- all six apply strategies including append-once APPEND;
+- canonical CDC + CDC -> UPSERT/SCD1/SCD2;
+- downstream CDC checkpointing + snapshot->CDC handoff;
+- Debezium/Kafka normalization/resume planning;
+- Fabric capture adapter contracts;
+- retry/attempt/unknown-outcome recovery, quarantine REPLAY and FULL_REBUILD;
+- typed schema contracts/evolution/evidence;
+- replay-stable file/API source guards;
+- shared source-order/event-time taxonomy wired into apply paths;
+- control-plane v3 with real additive v2->v3 migration;
+- typed read-only operator snapshots and `control-plane-status` CLI;
+- immutable delivery/release contracts.
 
-After framework 0.4.0 CI/merge, add the smallest Customer multi-dataset scenario that proves this generic behaviour.
+No current hardening test is equivalent to an approved real Fabric run.
 
-### Next runtime phases
+## Apply architecture
 
-1. retry/backfill/replay orchestration and attempt lineage;
-2. FULL/SNAPSHOT -> SNAPSHOT_DIFF representative executor;
-3. CDC normalization -> UPSERT representative executor;
-4. delete, schema-evolution and late/out-of-order policies;
-5. expanded persistent control-plane repository/migrations and operational query surface;
-6. first real Fabric Environment + Notebook + Pipeline deployment/smoke adapter;
-7. lightweight streaming slice after the batch/control-plane model is solid;
-8. Terraform/infrastructure automation later in `fabric-infra`.
+Framework-owned reference behavior now covers every canonical apply strategy. APPEND uses source-controlled append identity; REPLACE/SNAPSHOT_DIFF require isolated candidates and completeness guards; UPSERT/SCD1 share ordered current-state primitives; SCD2 preserves deterministic one-current-row history.
 
-## 14. Documentation obligation
+`CDC != SCD2` and `FULL != REPLACE` remain explicit invariants.
 
-Every coherent implementation slice updates `docs/CURRENT_STATUS.md`; architecture changes update this blueprint/ADRs. Routine work inside accepted architecture does not stop for approval after every small file.
+## Temporal architecture
+
+Source order and event/valid time are independent clocks:
+
+```text
+source: STALE / EQUAL / NEWER
+time:   EARLIER / EQUAL / LATER / UNKNOWN
+```
+
+The shared taxonomy is consumed by batch current-state and CDC paths. A newer source event with earlier valid time requires history rewrite and currently fails closed for SCD2 rather than silently changing historical intervals.
+
+## Schema architecture
+
+Typed source-controlled schema contracts are versioned/fingerprinted with explicit `EXACT`, `ADDITIVE_ONLY` and conservative `SAFE_EVOLUTION` compatibility. Physical engine auto-merge cannot redefine framework semantics.
+
+## Source-boundary/replay architecture
+
+Framework-owned acquisition freezes what is being read before relying on retry/replay:
+
+```text
+WATERMARK      bounded composite position/overlap
+CDC            frozen upper checkpoint + completeness
+FULL/SNAPSHOT  snapshot identity + completeness
+files          frozen URI/version/readiness manifest
+API            frozen logical window + cursor chain
+```
+
+## Recovery architecture
+
+Implemented reference behavior includes bounded retry, attempt lineage, explicit reprocess intent and unknown-outcome tri-state reconciliation. Quarantine REPLAY and FULL_REBUILD are audited flows. Durable target-operation idempotency is the next portable recovery hardening item.
+
+## Control-plane/operator architecture
+
+Promotable definitions remain separate from environment-local runtime evidence. Schema version is currently v3.
+
+The operator layer returns typed read-only snapshots rather than raw SQL rows. It aggregates latest run/lineage, capture/provider correlation, WATERMARK/CDC progress, reconciliation, quarantine backlog, schema observation and active reprocess requests. The same surface is exposed as JSON through `fabric-framework control-plane-status`.
+
+This preserves an API boundary that can move above a future approved production repository implementation.
+
+## Many-table topology
+
+Avoid both one handcrafted pipeline per table and one giant opaque source pipeline. Use metadata-selected execution groups based on source/gateway, engine/profile, schedule/SLA, volume, dependency, criticality, capacity and blast radius. Ordinary onboarding changes domain metadata/contracts, not framework algorithms.
+
+## Current roadmap
+
+1. durable target-operation idempotency/operation journal;
+2. remaining native/provider downstream-failure recovery and real Kafka cursor coordination;
+3. selected/certified production control-plane store while preserving the operator API;
+4. real Fabric/Kafka transports + Fabric Pipeline backend;
+5. approved DEV hybrid execution retaining provider/native correlation;
+6. additional provider adapters only as supported scope requires;
+7. exact-candidate audit/docs/CI and next immutable release decision.
+
+## Release model
+
+The same immutable framework artifact is promoted; environment bindings differ; runtime state never moves; domains exact-pin released versions. `v0.4.0` remains blocked until release claims match real integration evidence.
+
+## Documentation obligation
+
+Every substantive slice updates `CURRENT_STATUS.md`; evidence/requirements changes update `PRODUCTION_REQUIREMENTS.md`, `GUARANTEE_COVERAGE.md`, `PRODUCTION_READINESS_AUDIT.md` and relevant design docs in the same coherent branch.

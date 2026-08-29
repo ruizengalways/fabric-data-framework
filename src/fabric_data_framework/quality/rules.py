@@ -1,4 +1,4 @@
-"""Reusable validation and quarantine primitives for row-level data quality."""
+"""Reusable validation and row-quarantine primitives."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Callable
 
 from pydantic import BaseModel, ConfigDict
 
-from .bronze import BronzeRecord
+from ..bronze import BronzeRecord
 
 
 class FrozenModel(BaseModel):
