@@ -186,6 +186,7 @@ def materialize_semantic_metadata(
                 "apply_strategy": config.load.apply_strategy.value,
                 "business_key": list(config.load.business_key),
                 "merge_key": list(config.load.merge_key),
+                "append_identity": list(config.load.append_identity),
                 "watermark_column": watermark_config.column if watermark_config else None,
                 "watermark_tie_breaker": list(watermark_config.tie_breaker)
                 if watermark_config

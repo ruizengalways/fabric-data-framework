@@ -1,5 +1,15 @@
 """Apply-strategy implementations and publication guards."""
 
+from .append import (
+    APPEND_IDENTITY_HASH,
+    APPEND_PAYLOAD_HASH,
+    AppendApplyError,
+    AppendApplyResult,
+    AppendConflictError,
+    AppendIdentityError,
+    InMemoryAppendTarget,
+    apply_append,
+)
 from .cdc import (
     CDCApplyError,
     CDCCurrentStateApplyResult,
@@ -50,6 +60,12 @@ from .upsert import (
 )
 
 __all__ = [
+    "APPEND_IDENTITY_HASH",
+    "APPEND_PAYLOAD_HASH",
+    "AppendApplyError",
+    "AppendApplyResult",
+    "AppendConflictError",
+    "AppendIdentityError",
     "CDCApplyError",
     "CDCDeleteAction",
     "CDCDeleteRejectedError",
@@ -62,6 +78,7 @@ __all__ = [
     "CDC_CLOSED_POSITION",
     "CDC_PARTITION",
     "CDC_POSITION",
+    "InMemoryAppendTarget",
     "InMemoryReplaceTarget",
     "InMemorySCD1Target",
     "InMemoryUpsertTarget",
@@ -80,6 +97,7 @@ __all__ = [
     "UpsertApplyResult",
     "UpsertConflictError",
     "UpsertOrderingError",
+    "apply_append",
     "apply_cdc_current_state",
     "apply_cdc_scd2",
     "apply_scd1",

@@ -130,6 +130,7 @@ class LoadPolicy(FrozenModel):
     apply_strategy: ApplyStrategy
     business_key: tuple[str, ...] = ()
     merge_key: tuple[str, ...] = ()
+    append_identity: tuple[str, ...] = ()
     watermark: WatermarkConfig | None = None
     event_time_column: str | None = None
     version_column: str | None = None
@@ -142,6 +143,7 @@ class LoadPolicy(FrozenModel):
         for label, columns in (
             ("business_key", self.business_key),
             ("merge_key", self.merge_key),
+            ("append_identity", self.append_identity),
             ("tracked_columns", self.tracked_columns),
         ):
             if len(set(columns)) != len(columns):
@@ -173,6 +175,8 @@ class LoadPolicy(FrozenModel):
             raise ValueError(f"{self.apply_strategy.value} apply requires merge_key")
         if self.apply_strategy is ApplyStrategy.SCD2 and not self.business_key:
             raise ValueError("SCD2 apply requires business_key")
+        if self.apply_strategy is ApplyStrategy.APPEND and not self.append_identity:
+            raise ValueError("APPEND apply requires append_identity")
         return self
 
     @property

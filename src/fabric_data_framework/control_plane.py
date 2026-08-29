@@ -21,10 +21,11 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 
 
-CONTROL_PLANE_SCHEMA_VERSION = 2
+CONTROL_PLANE_SCHEMA_VERSION = 3
 CONTROL_PLANE_MIGRATIONS = (
     (1, "phase1_initial_control_plane_schema"),
     (2, "execution_policy_ordering_capture_receipt_recovery_and_cdc"),
+    (3, "append_identity_semantics"),
 )
 
 NAMING_CONVENTION = {
@@ -90,6 +91,7 @@ load_policy = Table(
     Column("apply_strategy", String(32), nullable=False),
     Column("business_key", JSON, nullable=False),
     Column("merge_key", JSON, nullable=False),
+    Column("append_identity", JSON, nullable=False, server_default="[]"),
     Column("watermark_column", String(255), nullable=True),
     Column("watermark_tie_breaker", JSON, nullable=True),
     Column("watermark_overlap_seconds", Integer, nullable=False),
@@ -445,8 +447,26 @@ def current_schema_version(engine: Engine) -> int:
     return max(versions, default=0)
 
 
+def _apply_migration(connection, version: int) -> None:
+    if version != 3:
+        return
+
+    columns = {item["name"] for item in inspect(connection).get_columns(load_policy.name)}
+    if "append_identity" in columns:
+        return
+
+    preparer = connection.dialect.identifier_preparer
+    table_name = preparer.quote(load_policy.name)
+    column_name = preparer.quote("append_identity")
+    type_sql = load_policy.c.append_identity.type.compile(dialect=connection.dialect)
+    connection.exec_driver_sql(
+        f"ALTER TABLE {table_name} ADD COLUMN {column_name} {type_sql} "
+        "DEFAULT '[]' NOT NULL"
+    )
+
+
 def apply_baseline_schema(engine: Engine) -> int:
-    """Idempotently create additive schema and record every missing migration."""
+    """Idempotently create additive schema and execute/record missing migrations."""
 
     metadata.create_all(engine, checkfirst=True)
     current = current_schema_version(engine)
@@ -455,6 +475,7 @@ def apply_baseline_schema(engine: Engine) -> int:
         now = datetime.now(timezone.utc)
         with engine.begin() as connection:
             for version, name in pending:
+                _apply_migration(connection, version)
                 connection.execute(
                     schema_migration_history.insert().values(
                         version=version,

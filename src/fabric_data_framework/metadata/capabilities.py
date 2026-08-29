@@ -37,6 +37,7 @@ class EngineCapability(FrozenModel):
 
 _FRAMEWORK_APPLY_STRATEGIES = frozenset(
     {
+        ApplyStrategy.APPEND,
         ApplyStrategy.REPLACE,
         ApplyStrategy.UPSERT,
         ApplyStrategy.SCD1,
