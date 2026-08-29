@@ -14,8 +14,10 @@ from typing import Any
 from uuid import UUID
 
 from .adapters.fabric.adapter import FabricCaptureExecutionResult
+from .adapters.fabric.contracts import FabricNativeRunStatus
 from .adapters.fabric.pipeline import FabricPipelineInvocation
 from .adapters.fabric.rest import FabricJobInstance, FabricJobStatus, FabricRestClient
+from .config import ExecutionEngine
 from .control_plane_certification import ControlPlaneCertificationReport
 from .contracts.execution_plan import ExecutionKind
 from .integration_evidence import (
@@ -103,6 +105,8 @@ def build_fabric_pipeline_check_result(
         raise ValueError("Fabric Pipeline evidence requires provider Completed status")
     if job.item_id != invocation.binding.pipeline_item_id:
         raise ValueError("Fabric Pipeline job item does not match invocation binding")
+    if job.job_type != invocation.binding.job_type:
+        raise ValueError("Fabric Pipeline job type does not match invocation binding")
     if job.root_activity_id is None:
         raise ValueError("Fabric Pipeline PASS evidence requires root_activity_id")
     started_at = job.start_time_utc or _utcnow()
@@ -146,10 +150,16 @@ def build_fabric_capture_check_result(
 
     evidence = result.native_evidence
     receipt = result.receipt
+    if evidence.status is not FabricNativeRunStatus.SUCCEEDED:
+        raise ValueError("Fabric capture PASS requires successful native evidence")
     if evidence.execution_kind is ExecutionKind.FABRIC_COPY_JOB:
         kind = IntegrationEvidenceCheckKind.FABRIC_COPY_JOB_CAPTURE
+        if receipt.execution_engine is not ExecutionEngine.FABRIC_COPY_JOB:
+            raise ValueError("Copy Job native evidence does not match CaptureReceipt engine")
     elif evidence.execution_kind is ExecutionKind.SPARK_JOB_DEFINITION:
         kind = IntegrationEvidenceCheckKind.FABRIC_SPARK_CAPTURE
+        if receipt.execution_engine is not ExecutionEngine.SPARK:
+            raise ValueError("Spark native evidence does not match CaptureReceipt engine")
     else:
         raise ValueError(
             "DEV capture evidence builder supports Copy Job and Spark Job Definition only"
