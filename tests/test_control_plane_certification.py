@@ -24,7 +24,9 @@ def _checks(report):
     return {item.check_id: item for item in report.checks}
 
 
-def test_sqlite_reference_can_pass_full_deterministic_conformance_without_becoming_production(tmp_path):
+def test_sqlite_reference_can_pass_full_deterministic_conformance_without_becoming_production(
+    tmp_path,
+):
     engine = _engine(tmp_path)
 
     report = certify_control_plane_backend(
@@ -44,7 +46,10 @@ def test_sqlite_reference_can_pass_full_deterministic_conformance_without_becomi
     assert checks["transaction_rollback"].status is CertificationCheckStatus.PASS
     assert checks["target_operation_cas"].status is CertificationCheckStatus.PASS
     assert checks["cdc_checkpoint_cas"].status is CertificationCheckStatus.PASS
-    assert checks["external_production_eligibility"].status is CertificationCheckStatus.EXTERNAL_REQUIRED
+    assert (
+        checks["external_production_eligibility"].status
+        is CertificationCheckStatus.EXTERNAL_REQUIRED
+    )
 
 
 def test_certification_does_not_silently_migrate_an_empty_database(tmp_path):
@@ -123,16 +128,28 @@ def test_production_profile_requires_each_external_evidence_category(tmp_path):
     )
 
     checks = _checks(report)
-    assert checks["external_identity_access_control_reference"].status is CertificationCheckStatus.PASS
-    assert checks["external_network_security_reference"].status is CertificationCheckStatus.EXTERNAL_REQUIRED
+    assert (
+        checks["external_identity_access_control_reference"].status
+        is CertificationCheckStatus.PASS
+    )
+    assert (
+        checks["external_network_security_reference"].status
+        is CertificationCheckStatus.EXTERNAL_REQUIRED
+    )
     assert report.external_evidence_complete is False
     assert report.production_certified is False
 
 
 def test_backend_profiles_are_explicit_and_not_generic_mssql_claims():
     assert get_control_plane_backend_profile("sqlite_reference_v1") == SQLITE_REFERENCE_V1
-    assert get_control_plane_backend_profile("fabric_sql_database_v1") == FABRIC_SQL_DATABASE_V1
-    assert get_control_plane_backend_profile("azure_sql_database_v1") == AZURE_SQL_DATABASE_V1
+    assert (
+        get_control_plane_backend_profile("fabric_sql_database_v1")
+        == FABRIC_SQL_DATABASE_V1
+    )
+    assert (
+        get_control_plane_backend_profile("azure_sql_database_v1")
+        == AZURE_SQL_DATABASE_V1
+    )
     assert FABRIC_SQL_DATABASE_V1.allowed_sqlalchemy_dialects == ("mssql",)
     assert FABRIC_SQL_DATABASE_V1.production_eligible is True
 
@@ -169,7 +186,6 @@ def test_conformance_probe_rows_are_cleaned_up(tmp_path):
     assert report.reference_certified is True
 
     with engine.connect() as connection:
-        dataset_ids = set(connection.execute(dataset.select()).mappings().all()[0]["dataset_id"] for _ in [0])
         all_ids = set(connection.execute(dataset.select()).scalars().all())
     assert "business.real_dataset" in all_ids
     assert not any(value.startswith("__cert_") for value in all_ids)
