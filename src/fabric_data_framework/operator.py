@@ -14,8 +14,9 @@ from uuid import UUID
 from pydantic import Field
 from sqlalchemy import Engine, func, select
 
-from .config import FrozenModel, RunMode
+from .config import ApplyStrategy, FrozenModel, RunMode
 from .contracts.recovery import ReprocessRequestStatus
+from .contracts.target_operation import TargetOperationStatus
 from .control_plane import (
     apply_baseline_schema,
     capture_receipt,
@@ -27,6 +28,7 @@ from .control_plane import (
     reconciliation_result,
     reprocess_request,
     schema_change,
+    target_operation,
     watermark,
 )
 
@@ -72,6 +74,24 @@ class CaptureCorrelationView(FrozenModel):
     rows_read: int = Field(ge=0)
     rows_written: int = Field(ge=0)
     completed_at: datetime
+
+
+class TargetOperationView(FrozenModel):
+    operation_key: str
+    run_mode: RunMode
+    apply_strategy: ApplyStrategy
+    target_reference: str
+    mutation_scope_hash: str
+    first_dataset_run_id: UUID
+    last_dataset_run_id: UUID
+    status: TargetOperationStatus
+    attempts_started: int = Field(ge=0)
+    outcome_reference: str | None = None
+    last_error_code: str | None = None
+    version: int = Field(ge=1)
+    created_at: datetime
+    updated_at: datetime | None = None
+    committed_at: datetime | None = None
 
 
 class WatermarkProgressView(FrozenModel):
@@ -129,6 +149,7 @@ class DatasetOperationalSnapshot(FrozenModel):
     dataset_id: str
     latest_run: DatasetRunView | None = None
     latest_capture: CaptureCorrelationView | None = None
+    latest_target_operation: TargetOperationView | None = None
     watermark: WatermarkProgressView | None = None
     cdc_checkpoint: CDCProgressView | None = None
     latest_reconciliation: ReconciliationView | None = None
@@ -235,6 +256,40 @@ def get_dataset_operational_snapshot(
                 rows_written=int(capture_row["rows_written"]),
                 completed_at=capture_row["completed_at"],
             )
+
+        operation_row = _latest(
+            connection,
+            target_operation,
+            target_operation.c.dataset_id == dataset_id,
+            (
+                func.coalesce(
+                    target_operation.c.updated_at,
+                    target_operation.c.created_at,
+                ).desc(),
+                target_operation.c.operation_key.desc(),
+            ),
+        )
+        operation_view = (
+            TargetOperationView(
+                operation_key=str(operation_row["operation_key"]),
+                run_mode=RunMode(str(operation_row["run_mode"])),
+                apply_strategy=ApplyStrategy(str(operation_row["apply_strategy"])),
+                target_reference=str(operation_row["target_reference"]),
+                mutation_scope_hash=str(operation_row["mutation_scope_hash"]),
+                first_dataset_run_id=UUID(str(operation_row["first_dataset_run_id"])),
+                last_dataset_run_id=UUID(str(operation_row["last_dataset_run_id"])),
+                status=TargetOperationStatus(str(operation_row["status"])),
+                attempts_started=int(operation_row["attempts_started"]),
+                outcome_reference=operation_row["outcome_reference"],
+                last_error_code=operation_row["last_error_code"],
+                version=int(operation_row["version"]),
+                created_at=operation_row["created_at"],
+                updated_at=operation_row["updated_at"],
+                committed_at=operation_row["committed_at"],
+            )
+            if operation_row is not None
+            else None
+        )
 
         watermark_row = connection.execute(
             select(watermark).where(watermark.c.dataset_id == dataset_id)
@@ -347,6 +402,7 @@ def get_dataset_operational_snapshot(
         dataset_id=dataset_id,
         latest_run=latest_run,
         latest_capture=latest_capture,
+        latest_target_operation=operation_view,
         watermark=watermark_view,
         cdc_checkpoint=cdc_view,
         latest_reconciliation=reconciliation_view,
@@ -377,6 +433,7 @@ __all__ = [
     "ReconciliationView",
     "ReprocessRequestView",
     "SchemaChangeView",
+    "TargetOperationView",
     "WatermarkProgressView",
     "get_dataset_operational_snapshot",
     "list_dataset_operational_snapshots",
