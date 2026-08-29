@@ -82,6 +82,18 @@ def _binding(_):
     )
 
 
+def _assert_native_step(repository, transport, *, expected_status):
+    assert len(repository.step_runs) == 1
+    step = repository.step_runs[0]
+    assert step.step_name == "fabric_pipeline_remote_job"
+    assert step.status.value == expected_status
+    assert step.details is not None
+    assert step.details["job_instance_id"] == str(transport.job_id)
+    assert step.details["root_activity_id"] == str(transport.root_id)
+    assert step.details["remote_status"] == transport.status.value
+    assert step.details["execution_plan_hash"]
+
+
 def test_completed_fabric_job_requires_matching_durable_framework_outcome():
     repository = InMemoryControlPlane()
     effective = _effective()
@@ -113,8 +125,12 @@ def test_completed_fabric_job_requires_matching_durable_framework_outcome():
     assert invocation.pipeline_run_id == pipeline_run_id
     assert invocation.dataset_id == "crm.customer"
     assert invocation.framework_parameters["framework_dataset_run_id"] == outcome.dataset_run_id
-    assert invocation.framework_parameters["execution_plan_hash"] == invocation.execution_plan.plan_hash
+    assert (
+        invocation.framework_parameters["execution_plan_hash"]
+        == invocation.execution_plan.plan_hash
+    )
     assert repository.dataset_runs == []
+    _assert_native_step(repository, transport, expected_status="SUCCEEDED")
 
 
 def test_completed_remote_job_without_framework_outcome_fails_closed():
@@ -139,6 +155,8 @@ def test_completed_remote_job_without_framework_outcome_fails_closed():
     assert outcome.error_code == "FABRIC_PIPELINE_RESULT_MISSING"
     assert len(repository.dataset_runs) == 1
     assert repository.dataset_runs[0].error_code == "FABRIC_PIPELINE_RESULT_MISSING"
+    assert repository.step_runs[0].dataset_run_id == repository.dataset_runs[0].dataset_run_id
+    _assert_native_step(repository, transport, expected_status="SUCCEEDED")
 
 
 def test_failed_fabric_job_records_provider_correlation_and_failure():
@@ -163,14 +181,17 @@ def test_failed_fabric_job_records_provider_correlation_and_failure():
     assert outcome.error_code == "FABRIC_PIPELINE_FAILED"
     assert str(transport.job_id) in outcome.error_message
     assert str(transport.root_id) in outcome.error_message
+    assert repository.dataset_runs[0].dataset_run_id == repository.step_runs[0].dataset_run_id
+    _assert_native_step(repository, transport, expected_status="FAILED")
 
 
 def test_deduped_fabric_job_is_blocked_not_misreported_as_success():
     repository = InMemoryControlPlane()
     effective = _effective()
     repository.deploy_dataset(effective.config)
+    transport = _Transport(FabricJobStatus.DEDUPED)
     backend = FabricPipelineBackend(
-        transport=_Transport(FabricJobStatus.DEDUPED),
+        transport=transport,
         binding_resolver=_binding,
         outcome_reader=lambda _: None,
     )
@@ -185,6 +206,7 @@ def test_deduped_fabric_job_is_blocked_not_misreported_as_success():
     assert outcome.status is DatasetStatus.BLOCKED
     assert outcome.retryable is True
     assert outcome.error_code == "FABRIC_PIPELINE_DEDUPED"
+    _assert_native_step(repository, transport, expected_status="SKIPPED")
 
 
 def test_wave_executes_all_selected_datasets_with_bounded_backend_contract():
@@ -212,3 +234,4 @@ def test_wave_executes_all_selected_datasets_with_bounded_backend_contract():
 
     assert outcomes["crm.customer"].status is DatasetStatus.SUCCEEDED
     assert len(transport.invocations) == 1
+    assert len(repository.step_runs) == 1
