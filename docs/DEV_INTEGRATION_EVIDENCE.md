@@ -24,6 +24,10 @@ A successful HTTP call by itself is not certification.
 
 ```text
 source-controlled IntegrationEvidenceSpec
+source-controlled ApprovedIntegrationRunnerConfig (no secret values)
+        |
+        v
+credential-free preflight
         |
         v
 approved DEV check runners
@@ -69,19 +73,132 @@ https://api.fabric.microsoft.com/.default
 
 The core package does not require or configure `azure-identity`. The deployment environment owns credential selection and policy.
 
+## Source-controlled runner configuration
+
+`ApprovedIntegrationRunnerConfig` is the environment-facing configuration for an exact evidence run. It contains only:
+
+```text
+environment
+domain
+framework_version
+release_hash
+names of runtime environment variables
+control-plane profile name
+environment-local Fabric workspace/item UUID bindings by check_id
+```
+
+It must not contain access tokens, database URLs, passwords or secret-bearing endpoints.
+
+A schema-valid example is retained at:
+
+```text
+examples/dev_integration_runner_config.json
+```
+
+The example UUIDs and release hash are placeholders. A real DEV configuration must replace them with the exact released artifact identity and actual DEV item IDs.
+
+Runtime values are injected separately, for example:
+
+```text
+FABRIC_ACCESS_TOKEN
+FABRIC_CONTROL_PLANE_DATABASE_URL
+FABRIC_WAREHOUSE_DATABASE_URL
+```
+
+Only the environment-variable **names** are source controlled. Preflight inspects whether each variable is non-empty but never copies its value into the retained plan.
+
+## Credential-free preflight
+
+Before any provider call, run:
+
+```bash
+fabric-framework integration-run-preflight \
+  --config dev-integration-runner.json \
+  --spec evidence-spec.json \
+  --require-ready \
+  --output evidence/preflight.json
+```
+
+By default this plans every required check. Checks that can start remote execution, write target/control state, change provider cursor state or run conformance mutations are classified as mutating and are **not authorized by default**.
+
+To approve the full mutating DEV plan explicitly:
+
+```bash
+fabric-framework integration-run-preflight \
+  --config dev-integration-runner.json \
+  --spec evidence-spec.json \
+  --allow-mutating-checks \
+  --require-ready \
+  --output evidence/preflight-full.json
+```
+
+`--allow-mutating-checks` changes the preflight authorization result only. It does not execute provider calls.
+
+### Staged preflight
+
+A first DEV connection should not require Warehouse/control-plane credentials before a safe Fabric read can be tested. Use repeated `--check-id` options to stage a subset:
+
+```bash
+fabric-framework integration-run-preflight \
+  --config dev-integration-runner.json \
+  --spec evidence-spec.json \
+  --check-id fabric.item.read \
+  --require-ready \
+  --output evidence/preflight-item-read.json
+```
+
+For this subset only the Fabric token and the selected item binding are prerequisites. Later stages can select control-plane, Pipeline, Copy, Spark and Warehouse checks separately.
+
+Preflight fails closed when:
+
+```text
+config/spec environment differs
+config/spec domain differs
+config/spec framework version differs
+config/spec release_hash differs
+selected check_id is unknown
+a Fabric check lacks workspace/item binding
+a binding references a check not declared in the evidence spec
+a required runtime env-var value is absent/blank
+a mutating selected check is not explicitly authorized
+```
+
 ## Minimum Fabric authorization smoke
 
-Use `run_fabric_item_read_check()` against a known DEV item before starting expensive jobs.
+The first real provider call can now be executed directly from the CLI:
 
-The check calls the current Fabric Core item endpoint:
+```bash
+fabric-framework integration-item-smoke-run \
+  --config dev-integration-runner.json \
+  --spec evidence-spec.json \
+  --check-id fabric.item.read \
+  --evidence-reference approved-ci:item-read:<artifact-key> \
+  --output evidence/item-read-manifest.json
+```
+
+This command:
+
+```text
+validates exact config/spec release identity
+runs staged read-only preflight
+reads the token only at request time
+calls Fabric Core item GET
+verifies returned item ID == configured item ID
+writes a partial IntegrationEvidenceManifest
+leaves every other spec check as NOT_RUN
+```
+
+The check calls:
 
 ```text
 GET /v1/workspaces/{workspaceId}/items/{itemId}
 ```
 
-It validates the returned item ID. HTTP 200 without matching identity is not accepted as PASS.
+HTTP 200 without matching identity is not accepted as PASS.
 
-The caller must supply a retained evidence reference, for example an approved CI artifact path or evidence-store key. Do not use a signed download URL.
+If the provider call or identity validation fails, the partial manifest records a sanitized `FAIL`; raw provider exception text is not persisted. The access token is never written to the preflight plan or manifest.
+
+A successful read-only item smoke is intentionally **not** a certified full evidence manifest when other required checks remain `NOT_RUN`.
 
 ## Pipeline evidence
 
@@ -117,7 +234,7 @@ FabricCaptureExecutionResult
   native_evidence  -> provider workspace/item/job/root/status diagnostics
 ```
 
-`build_fabric_capture_check_result()` verifies that the native job identity agrees with `CaptureReceipt.native_run_id` and requires the provider root activity ID.
+`build_fabric_capture_check_result()` verifies that native evidence is successful, the native kind matches the receipt engine, the provider job identity agrees with `CaptureReceipt.native_run_id`, remote status is `Completed`, and root activity correlation exists.
 
 Copy Job native incremental/CDC progress remains provider-owned. It must not be copied into the framework downstream checkpoint as if it were framework-owned state.
 
@@ -166,7 +283,7 @@ Example:
 }
 ```
 
-A runner ID not declared in this spec is rejected rather than silently ignored.
+A source-controlled example is retained at `examples/dev_integration_evidence_spec.json`. A runner ID not declared in this spec is rejected rather than silently ignored.
 
 ## Runner behavior
 
@@ -174,10 +291,10 @@ A runner ID not declared in this spec is rejected rather than silently ignored.
 
 ```text
 registered runner returns exact valid PASS -> PASS
-registered runner returns FAIL           -> FAIL
-registered runner raises                 -> sanitized FAIL
-missing runner                           -> NOT_RUN
-unknown runner ID                        -> whole run rejected
+registered runner returns FAIL             -> FAIL
+registered runner raises                   -> sanitized FAIL
+missing runner                             -> NOT_RUN
+unknown runner ID                          -> whole run rejected
 ```
 
 Provider/driver exception text is not copied into retained evidence because it can include connection strings or credential-bearing URLs.
@@ -210,18 +327,18 @@ The printed `manifest_hash` can be stored in deployment provenance or an externa
 ## Suggested DEV execution order
 
 ```text
-1. resolve environment-local bindings
-2. acquire ephemeral identity through approved environment configuration
-3. read-only Fabric item smoke
-4. certify the real control-plane backend
-5. execute one representative Pipeline child handoff
+1. create exact-release evidence spec + runner config
+2. staged preflight for fabric.item.read
+3. run read-only Fabric item smoke
+4. preflight and certify the real control-plane backend
+5. explicitly authorize and execute one representative Pipeline child handoff
 6. execute representative Copy Job capture
 7. execute representative bounded Spark capture
 8. execute Warehouse mutation + same-transaction marker
 9. run required failure drills
-10. assemble sanitized evidence manifest
+10. assemble sanitized complete evidence manifest
 11. run --require-certified gate
-12. retain manifest, reports and provider correlation artifacts immutably
+12. retain manifest, preflight plans, reports and provider correlation artifacts immutably
 ```
 
 Do not start with destructive or expensive checks before the read-only authorization and backend prerequisites pass.
@@ -249,6 +366,8 @@ Until a real approved DEV run is retained:
 
 ```text
 DEV evidence harness                  IMPLEMENTED + CI PROVEN CONTRACT
+approved-run preflight                IMPLEMENTED + CI PROVEN CONTRACT
+Fabric item smoke runner              IMPLEMENTED + CI PROVEN READ-ONLY RUNNER CONTRACT
 Fabric Pipeline backend               IMPLEMENTED + CI PROVEN BACKEND
 Copy/Spark transports                 IMPLEMENTED + CI PROVEN TRANSPORT CONTRACT
 Warehouse target commit proof         IMPLEMENTED + CI PROVEN PROVIDER CONTRACT
