@@ -5,7 +5,7 @@ Last updated: 2026-08-29
 
 ## 1. External acceptance specification
 
-Use these as the semantic reference when evaluating mainstream data-engineering patterns:
+Use these as the semantic reference for mainstream data-engineering patterns:
 
 - `https://github.com/ruizengalways/data-engineering-cheetsheet/blob/main/README.md`
 - `https://github.com/ruizengalways/data-engineering-cheetsheet/blob/main/docs/pipeline-design-walkthrough.md`
@@ -21,57 +21,67 @@ data semantics
   -> fidelity / recovery
 ```
 
-Provider/transport names such as Debezium, Kafka, Delta CDF, API or files are not allowed to silently define source semantics, Bronze meaning or history fidelity.
+Provider/transport names such as Debezium, Kafka, Delta CDF, API or files do not silently define source semantics, Bronze meaning or history fidelity.
 
-## 2. Baseline and merged implementation
+## 2. Current merged baseline
 
-Alignment work started from:
+Public release remains:
 
 ```text
-main = 8ce4048bf69fe6c729ae6218995331e26ca60b78
-public release = v0.3.0
-source version = 0.4.0 development / unreleased
+v0.3.0
 ```
 
-Merged semantic alignment slices:
+Source remains:
+
+```text
+0.4.0 development / unreleased
+```
+
+Latest capture-semantics baselines:
 
 ```text
 PR #34 -> 1c7d67bedd125f5fb5e983be791085fd1eaa9b0e
-orthogonal capture semantic contracts + 14 cheatsheet acceptance presets
+orthogonal capture semantic contracts + exact 14 cheatsheet presets
 Actions 33253215030
-Python 3.11 / 3.13 / static / wheel SUCCESS
-expected 419 tests (407 baseline + 12 new acceptance tests)
+419 tests
 
 PR #35 -> bf215fcb3538f9806b4002d2f154dbd46ae19412
-cheatsheet semantic onboarding validation + CLI gate
+semantic onboarding selection/validation + CLI gate
 Actions 33253394201
+430 tests
+
+PR #36 -> 95b070159aa5efe705a752da737ab483439c6b1f
+canonical docs checkpoint
+Actions 33253488946
+
+PR #37 -> d69b2ff49f984331b6753bcd9274ea9a298ce798
+full-baseline -> WATERMARK bootstrap evidence contract
+Actions 33253581049
+441 tests
 Python 3.11 / 3.13 / static / wheel SUCCESS
-expected 430 tests (419 post-#34 baseline + 11 new tests)
 ```
 
-Correct evidence label for both slices:
+Correct evidence label for #34/#35/#37:
 
 ```text
 IMPLEMENTED + CI PROVEN REFERENCE
 ```
 
-They are not live Fabric/provider evidence.
+None of these commits is live Fabric/provider proof.
 
-## 3. Why this alignment was needed
+## 3. Why the capture model changed
 
-Before PR #34 the framework had fourteen `CapturePattern` enum members, but that enum mixed several independent dimensions:
+The original fourteen `CapturePattern` values mixed independent dimensions:
 
 ```text
-FULL_SNAPSHOT             source/data semantics
+FULL_SNAPSHOT             source semantics
 WATERMARK_LOOKBACK        read-safety strategy
 CDC_NET_CURRENT           change granularity + Bronze choice
-CDC_FULL                  change granularity
 TRANSACTION_LOG_CDC       capture mechanism
-DEBEZIUM_KAFKA            capture + transport technology
+DEBEZIUM_KAFKA            provider + transport
 DELTA_CDF                 provider technology
-API_CURSOR_INCREMENTAL    delivery + cursor strategy
+API_CURSOR_INCREMENTAL    delivery + cursor
 FILE_INCREMENTAL          delivery shape
-EVENT_SOURCE              source semantics
 ```
 
 The cheatsheet fourteen rows instead describe semantic combinations such as:
@@ -87,28 +97,7 @@ Full Changes -> Event Bronze
 Full Changes -> Current Bronze (intentionally lossy)
 ```
 
-Therefore the previous statement “framework has 14 patterns” did not mean “framework exactly models the cheatsheet 14 rows”.
-
-## 4. Pre-alignment assessment
-
-| # | Cheatsheet semantic pattern | Pre-alignment status |
-|---:|---|---|
-| 1 | Full Snapshot -> Current Bronze | SUPPORTED |
-| 2 | Full Snapshot -> Snapshot Bronze | GAP |
-| 3 | Watermark -> Current Bronze | SUPPORTED |
-| 4 | Watermark + Lookback -> Current Bronze | SUPPORTED |
-| 5 | Watermark + Lookback -> Raw Append Bronze | GAP |
-| 6 | Watermark + Soft Delete -> Current Bronze | SUPPORTED |
-| 7 | Watermark + Lookback + Soft Delete -> Raw Append Bronze | PARTIAL |
-| 8 | Net Changes -> Current Bronze | SUPPORTED |
-| 9 | Net Changes -> Append Bronze | SUPPORTED |
-| 10 | Full / All Changes -> Event Bronze | SUPPORTED |
-| 11 | Full Changes -> Current Bronze, intentionally lossy | PARTIAL |
-| 12 | Business Events -> Event Bronze | SUPPORTED semantic contract |
-| 13 | Snapshot Diff -> Current | SUPPORTED |
-| 14 | Snapshot Diff -> Append Changes | SUPPORTED |
-
-Pre-alignment summary:
+Pre-alignment assessment was:
 
 ```text
 10 supported
@@ -116,131 +105,98 @@ Pre-alignment summary:
 2 gaps
 ```
 
-## 5. What PR #34 changed
-
-New module:
+The missing/partial combinations were:
 
 ```text
-src/fabric_data_framework/capture/semantic_contracts.py
+Full Snapshot -> Snapshot Bronze
+Watermark + Lookback -> Raw Append Bronze
+Watermark + Lookback + Soft Delete -> Raw Append Bronze
+Full Changes -> Current Bronze (intentionally lossy)
 ```
 
-New orthogonal dimensions:
+## 4. Current semantic model
+
+`src/fabric_data_framework/capture/semantic_contracts.py` separates:
 
 ```text
 SourceSemantics
-  CURRENT_STATE
-  CHANGE_FEED
-  BUSINESS_EVENT
-  SOURCE_DEFINED
-
 ChangeGranularity
-  CURRENT
-  SNAPSHOT
-  NET
-  FULL
-  EVENT
-  SOURCE_DEFINED
-
 ReadStrategy
-  FULL
-  WATERMARK
-  WATERMARK_LOOKBACK
-  CHANGE_WINDOW
-  SOURCE_POSITION
-  PARTITION_OFFSET
-  COMMIT_VERSION
-  CURSOR
-  FILE_MANIFEST
-  SOURCE_DEFINED
-
 DeleteSemantics
-  NONE
-  SNAPSHOT_ABSENCE
-  SOFT_DELETE
-  EXPLICIT_EVENT
-  SOURCE_DEFINED
-
 BronzeContract
-  CURRENT
-  RAW_OBSERVATION
-  SNAPSHOT_HISTORY
-  EVENT
-```
-
-`CaptureSemanticContract` also carries:
-
-```text
-BronzeWriteMode
 HistoryFidelity
-retry identity intent
-SCD1/SCD2 compatibility flags
-intentional-loss marker
-guidance
+CaptureProviderFamily
 ```
 
-All fourteen cheatsheet rows are now executable named presets through `CheatsheetPattern` and `cheatsheet_pattern_contract()`.
+`CaptureSemanticContract` also carries Bronze write mode, retry/replay identity intent, SCD compatibility, intentional-loss marker and guidance.
 
-The four previous semantic gaps are now expressible directly:
+Exact cheatsheet presets are represented by `CheatsheetPattern`:
 
 ```text
+FULL_SNAPSHOT_CURRENT
 FULL_SNAPSHOT_HISTORY
+WATERMARK_CURRENT
+WATERMARK_LOOKBACK_CURRENT
 WATERMARK_LOOKBACK_RAW
+WATERMARK_SOFT_DELETE_CURRENT
 WATERMARK_LOOKBACK_SOFT_DELETE_RAW
+NET_CHANGES_CURRENT
+NET_CHANGES_APPEND
+FULL_CHANGES_EVENT
 FULL_CHANGES_CURRENT_LOSSY
+BUSINESS_EVENTS
+SNAPSHOT_DIFF_CURRENT
+SNAPSHOT_DIFF_APPEND
 ```
 
-This closes the **semantic-contract representation gap**. It does not by itself prove every physical runtime path in Fabric.
+At the **semantic-contract + onboarding-validation level, all fourteen cheatsheet rows are now first-class and tested**.
 
-## 6. Backward compatibility
+This statement does not mean every physical execution path is live-provider proven.
+
+## 5. Backward compatibility
 
 Legacy `CapturePattern` remains supported.
-
-PR #34 added:
 
 ```text
 project_legacy_capture_pattern()
 ```
 
-which projects the existing combined preset into:
+projects the combined legacy preset into:
 
 ```text
 orthogonal semantic contract
 +
-separate CaptureProviderFamily
+CaptureProviderFamily
 ```
 
 Examples:
 
 ```text
 DEBEZIUM_KAFKA
-  -> source semantics = CHANGE_FEED
-  -> granularity = FULL
-  -> read strategy = PARTITION_OFFSET
-  -> provider family = DEBEZIUM_KAFKA
+  semantics = CHANGE_FEED / FULL
+  read = PARTITION_OFFSET
+  provider = DEBEZIUM_KAFKA
 
 DELTA_CDF
-  -> source semantics = CHANGE_FEED
-  -> granularity = FULL
-  -> read strategy = COMMIT_VERSION
-  -> provider family = DELTA_CDF
+  semantics = CHANGE_FEED / FULL
+  read = COMMIT_VERSION
+  provider = DELTA_CDF
 
 API_CURSOR_INCREMENTAL
-  -> semantics/fidelity = SOURCE_DEFINED
-  -> read strategy = CURSOR
-  -> provider family = API
+  semantics/fidelity = SOURCE_DEFINED
+  read = CURSOR
+  provider = API
 ```
 
-Do not remove or rename legacy `CapturePattern` until downstream domain repositories have a deliberate migration path.
+Do not remove or rename the legacy enum until domain repositories have a deliberate migration path.
 
-## 7. What PR #35 changed
+## 6. Semantic onboarding contract
 
-New source-controlled onboarding model:
+Domain repositories can use:
 
 ```text
 DatasetSemanticCaptureSelection
 ```
-
-A domain repo can now declare an exact cheatsheet semantic preset instead of being forced into the legacy combined enum.
 
 Example:
 
@@ -251,33 +207,11 @@ Example:
   "history_claim": "OBSERVED_CHANGES",
   "delete_claim": "NONE",
   "rationale": "Keep extraction observations and collapse rereads in Silver.",
-  "known_limitations": [
-    "Hard deletes are not visible."
-  ]
+  "known_limitations": ["Hard deletes are not visible."]
 }
 ```
 
-Validation now fails closed when:
-
-```text
-semantic preset and DatasetConfig.capture_strategy disagree
-WATERMARK_LOOKBACK has no positive overlap
-strict WATERMARK is selected while overlap_window_seconds > 0
-history claim contradicts the semantic ceiling
-delete claim contradicts the semantic contract
-selection references an unknown dataset
---require-all finds an unclassified DatasetConfig
-```
-
-Review warnings include:
-
-```text
-bounded/source-defined history without documented limitations
-soft-delete semantics selected while delete_policy=IGNORE
-current-only/lossy Full Changes collapse
-```
-
-New CLI:
+CI command:
 
 ```bash
 fabric-framework capture-semantic-onboarding-validate \
@@ -287,120 +221,139 @@ fabric-framework capture-semantic-onboarding-validate \
   --output evidence/capture-semantic-onboarding.json
 ```
 
-The legacy command remains available:
+Validation fails closed for semantic/config mismatch, missing lookback overlap, strict-watermark config with positive overlap, overstated history/delete claims, unknown datasets and `--require-all` omissions.
+
+## 7. Full-baseline -> WATERMARK bootstrap is now implemented
+
+PR #37 added:
 
 ```text
-capture-onboarding-validate
+src/fabric_data_framework/capture/bootstrap_watermark.py
 ```
 
-## 8. Current truth about the cheatsheet 14 rows
-
-At the **semantic-contract + onboarding-validation level**, all fourteen cheatsheet rows are now first-class expressible/tested presets.
-
-That means the old `10 supported / 2 partial / 2 gap` assessment is no longer the current semantic-model result.
-
-However, do not translate that into the stronger claim “every row has been proven end-to-end on every physical provider”.
-
-Current distinction:
-
-```text
-semantic representation / validation    YES for all 14 cheatsheet rows
-portable/reference apply primitives      broad existing coverage
-provider-specific transport/runtime      varies by provider/path
-real approved DEV service proof          still incomplete
-production enterprise proof              still external/incomplete
-```
-
-## 9. Next release-significant semantic/runtime gap: watermark bootstrap
-
-CDC already has a first-class no-gap/no-double-apply snapshot-fence bootstrap contract.
-
-The next reusable semantic gap is the equivalent initial full baseline -> watermark incremental handoff.
-
-Target evidence shape:
-
-```text
-establish/freeze initial source high watermark W
-        ↓
-obtain complete baseline proven consistent through W
-        ↓
-commit baseline
-        ↓
-start steady-state incremental after the defined W boundary
-```
-
-The implementation must not assume every timestamp watermark can prove this safely. It should make source isolation/version evidence explicit and fail closed when no-gap proof is unavailable.
-
-Expected work:
+Main contracts:
 
 ```text
 WatermarkBootstrapEvidence
 WatermarkBootstrapPlan
-boundary/tie-breaker semantics
-complete-baseline evidence
-source-consistency evidence
-safe first incremental lower bound
-retry/replay identity
-negative tests for gap/double-apply ambiguity
+plan_watermark_bootstrap()
+plan_first_watermark_batch()
+assert_same_watermark_bootstrap()
 ```
 
-## 10. Other intentionally unresolved boundaries
+A safe handoff requires explicit evidence that:
+
+```text
+baseline is complete and authoritative
+baseline is consistent through exact boundary W
+watermark ordering is deterministic
+future/post-W changes remain visible after W is committed
+```
+
+The framework intentionally does **not** assume a generic `updated_at` column proves those properties.
+
+Strict mode:
+
+```text
+complete baseline through composite W
+  -> commit W
+  -> first incremental reads positions > W
+```
+
+Strict mode requires deterministic tie-breaker semantics.
+
+Lookback mode:
+
+```text
+complete baseline through W
+  -> commit W
+  -> first incremental intentionally rereads overlap
+```
+
+The plan records that baseline rows may be reread and that downstream processing must be idempotent.
+
+Retry/replay must reuse the exact bootstrap fence evidence; silently changing snapshot/boundary/source epoch is rejected.
+
+This closes the reusable provider-neutral watermark bootstrap contract. A specific source/provider still has to prove that it can satisfy the evidence fields.
+
+## 8. Current scope truth
+
+```text
+14 cheatsheet semantic combinations             IMPLEMENTED + CI PROVEN reference
+semantic onboarding / overclaim guardrails       IMPLEMENTED + CI PROVEN reference
+snapshot -> CDC bootstrap                        IMPLEMENTED + CI PROVEN reference
+full baseline -> watermark bootstrap             IMPLEMENTED + CI PROVEN reference
+UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF             broad reference implementation
+provider-specific capture/runtime                varies by provider
+real approved DEV Fabric execution               NOT YET PROVEN
+real production SQL backend                      NOT YET PROVEN
+enterprise IAM/network/DR/governance              EXTERNAL / NOT YET RETAINED
+```
+
+Capture fidelity remains an upper bound on history fidelity.
+
+## 9. Intentionally unresolved boundaries
 
 ### Retroactive SCD2
 
-Normal deterministic SCD2 exists. Automatic back-dated business-effective history rewrite remains intentionally unsupported. Newer captured source data that would require rewriting committed earlier valid-time history should remain fail-closed unless an explicit rewrite policy is introduced.
-
-### Physical provider proof
-
-Semantic support does not imply live provider proof. Real Fabric, Kafka, Delta CDF and production SQL evidence remain governed by:
-
-```text
-PRODUCTION_READINESS_AUDIT.md
-DEV_INTEGRATION_EVIDENCE.md
-```
+Automatic back-dated business-effective history rewrite remains intentionally unsupported. If newer captured data would require rewriting already committed earlier valid-time history, normal execution remains fail-closed unless a separate explicit rewrite policy is introduced.
 
 ### Provider-specific runtime clients
 
-API/file/Kafka/Delta semantics and recovery contracts are not the same thing as having every possible provider connector/client embedded in the package. Provider integrations should be added only where product scope requires them.
+API/file/Kafka/Delta semantic and recovery contracts are not equivalent to having every possible connector/client embedded in this package. Add provider integrations only where product scope requires them.
 
-## 11. Parallel unfinished evidence work — do not lose
+### Real provider proof
 
-The earlier partial integration-evidence merge implementation remains on:
+Passing deterministic tests does not prove Fabric, Kafka, Delta CDF or production SQL service behavior. Real evidence remains governed by `PRODUCTION_READINESS_AUDIT.md` and `DEV_INTEGRATION_EVIDENCE.md`.
+
+## 10. Parallel unfinished evidence work — preserve and resume next
+
+The earlier staged integration-evidence merge implementation remains on:
 
 ```text
 codex/integration-evidence-merge
 ```
 
-Known commit on that branch:
+Known commit:
 
 ```text
 d50769f3926e07d291c950199c1fa2e74b82c59c
 ```
 
-It contains `integration_evidence_merge.py` with strict staged-manifest conflict semantics.
-
-Still required there:
+It contains `integration_evidence_merge.py` with strict conflict semantics:
 
 ```text
+NOT_RUN behaves as absence
+one substantive result is retained
+identical duplicate substantive results are allowed
+different substantive results for the same check -> conflict
+no latest/PASS-wins/FAIL-wins arbitration
+```
+
+Still required:
+
+```text
+port/rebase the implementation onto current main
 tests
 CLI integration-evidence-merge
 docs
-PR/CI/merge
+PR / full CI / merge
 ```
 
-Do not overwrite or forget that branch while doing capture semantics.
+Do not discard the original branch while porting it.
 
-## 12. Current recommended continuation order
+## 11. Recommended continuation order
 
-1. implement full-baseline -> watermark bootstrap evidence contract and tests;
-2. synchronize `CAPTURE_PATTERN_CATALOG.md`, `GUARANTEE_COVERAGE.md`, `CURRENT_STATUS.md` and readiness docs with the new merged semantic baseline;
-3. finish/merge `codex/integration-evidence-merge`;
-4. continue exact-release approved DEV read-only evidence and real control-plane certification;
-5. only then authorize representative real Pipeline/Copy/Spark/Warehouse mutation/failure drills;
-6. keep Kafka/Delta live proof conditional on `0.4.0` release scope;
-7. do not publish `0.4.0` until exact-candidate code/tests/docs and retained approved real evidence agree.
+1. finish and merge staged integration-evidence accumulation/merge on top of current main;
+2. update `CURRENT_STATUS.md`, `GUARANTEE_COVERAGE.md` and `PRODUCTION_READINESS_AUDIT.md` with the #34-#37 baselines;
+3. add environment-variable-driven real control-plane certification runner;
+4. run exact-release approved DEV read-only item evidence;
+5. run real control-plane certification;
+6. only after prerequisites pass, explicitly authorize representative Pipeline/Copy/Spark/Warehouse runs and failure drills;
+7. prove live Kafka/Delta only if included in the `0.4.0` public promise;
+8. do not publish `0.4.0` until code/tests/docs and retained approved real evidence agree.
 
-## 13. Evidence language
+## 12. Evidence language
 
 Use:
 
@@ -411,4 +364,4 @@ ADAPTER CONTRACT
 IMPLEMENTED + CI PROVEN ... CONTRACT
 ```
 
-Do not call these semantic/onboarding changes `FABRIC PROVEN`, `PRODUCTION DB PROVEN`, `KAFKA PROVEN` or equivalent merely because deterministic CI is green.
+Do not call semantic/bootstrap CI `FABRIC PROVEN`, `PRODUCTION DB PROVEN`, `KAFKA PROVEN` or equivalent.
