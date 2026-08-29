@@ -1,11 +1,12 @@
 """Production control-plane backend qualification and conformance evidence.
 
-The framework owns relational semantics, not one physical database product.  This
+The framework owns relational semantics, not one physical database product. This
 module makes the production boundary explicit: a backend profile states which SQL
 family is eligible, deterministic conformance proves the framework's transaction/CAS
-contracts, and separate external evidence proves enterprise operational controls.
+contracts, and separate external evidence proves service identity and enterprise
+operational controls.
 
-SQLite is intentionally a reference profile only.  Passing every deterministic test
+SQLite is intentionally a reference profile only. Passing every deterministic test
 must never promote SQLite to a production-certified control plane.
 """
 
@@ -112,8 +113,9 @@ CONTROL_PLANE_BACKEND_PROFILES = {
 
 
 class ControlPlaneExternalEvidence(FrozenModel):
-    """References to enterprise evidence that deterministic DB tests cannot prove."""
+    """References to provider/enterprise evidence deterministic DB tests cannot prove."""
 
+    backend_service_identity_reference: str | None = Field(default=None, min_length=1)
     identity_access_control_reference: str | None = Field(default=None, min_length=1)
     network_security_reference: str | None = Field(default=None, min_length=1)
     backup_restore_reference: str | None = Field(default=None, min_length=1)
@@ -126,6 +128,7 @@ class ControlPlaneExternalEvidence(FrozenModel):
     def complete(self) -> bool:
         return all(
             (
+                self.backend_service_identity_reference,
                 self.identity_access_control_reference,
                 self.network_security_reference,
                 self.backup_restore_reference,
@@ -162,7 +165,9 @@ class ControlPlaneCertificationReport(FrozenModel):
             for item in self.checks
             if item.status not in {CertificationCheckStatus.EXTERNAL_REQUIRED}
         ]
-        return bool(automated) and all(item.status is CertificationCheckStatus.PASS for item in automated)
+        return bool(automated) and all(
+            item.status is CertificationCheckStatus.PASS for item in automated
+        )
 
     @computed_field
     @property
@@ -205,6 +210,7 @@ class ControlPlaneCertificationReport(FrozenModel):
 
 
 _REQUIRED_EXTERNAL_FIELDS: tuple[tuple[str, str], ...] = (
+    ("backend_service_identity_reference", "backend service identity evidence"),
     ("identity_access_control_reference", "identity/access-control evidence"),
     ("network_security_reference", "network security evidence"),
     ("backup_restore_reference", "backup/restore drill evidence"),
@@ -221,14 +227,25 @@ def get_control_plane_backend_profile(profile_name: str) -> ControlPlaneBackendP
         raise ValueError(f"unknown control-plane backend profile: {profile_name}") from exc
 
 
-def _check(check_id: str, status: CertificationCheckStatus, detail: str) -> ControlPlaneCertificationCheck:
-    return ControlPlaneCertificationCheck(check_id=check_id, status=status, detail=detail)
+def _check(
+    check_id: str,
+    status: CertificationCheckStatus,
+    detail: str,
+) -> ControlPlaneCertificationCheck:
+    return ControlPlaneCertificationCheck(
+        check_id=check_id,
+        status=status,
+        detail=detail,
+    )
 
 
-def _run_probe(check_id: str, probe: Callable[[], str]) -> ControlPlaneCertificationCheck:
+def _run_probe(
+    check_id: str,
+    probe: Callable[[], str],
+) -> ControlPlaneCertificationCheck:
     try:
         detail = probe()
-    except Exception as exc:  # certification must report fail-closed evidence, not abort silently
+    except Exception as exc:  # certification reports fail-closed evidence
         return _check(
             check_id,
             CertificationCheckStatus.FAIL,
@@ -366,7 +383,9 @@ def _target_operation_cas_probe(engine: Engine) -> str:
             outcome_reference="certification:committed",
         )
         if reconciled.status.value != "SUCCEEDED":
-            raise RuntimeError("target-operation reconciliation did not converge to SUCCEEDED")
+            raise RuntimeError(
+                "target-operation reconciliation did not converge to SUCCEEDED"
+            )
         return "stale expected-version writer was rejected and reconciliation CAS succeeded"
     finally:
         _cleanup_certification_dataset(engine, dataset_id)
@@ -427,12 +446,12 @@ def certify_control_plane_backend(
     """Evaluate one already-migrated control-plane database.
 
     This function intentionally does not call ``apply_baseline_schema`` before static
-    checks.  Production certification must not hide an unapplied migration by silently
-    changing the database.  Run ``control-plane-migrate`` as an explicit deployment
+    checks. Production certification must not hide an unapplied migration by silently
+    changing the database. Run ``control-plane-migrate`` as an explicit deployment
     step first.
 
     ``run_conformance`` performs temporary writes and must only be used against a
-    database/environment approved for certification probes.  Probe rows use reserved
+    database/environment approved for certification probes. Probe rows use reserved
     ``__cert_*`` dataset IDs and are cleaned up after each test.
     """
 
@@ -445,9 +464,7 @@ def certify_control_plane_backend(
             CertificationCheckStatus.PASS
             if dialect in profile.allowed_sqlalchemy_dialects
             else CertificationCheckStatus.FAIL,
-            (
-                f"observed dialect {dialect!r}; allowed={profile.allowed_sqlalchemy_dialects}"
-            ),
+            f"observed dialect {dialect!r}; allowed={profile.allowed_sqlalchemy_dialects}",
         )
     )
 
@@ -467,7 +484,9 @@ def certify_control_plane_backend(
     checks.append(
         _check(
             "required_tables",
-            CertificationCheckStatus.PASS if not missing_tables else CertificationCheckStatus.FAIL,
+            CertificationCheckStatus.PASS
+            if not missing_tables
+            else CertificationCheckStatus.FAIL,
             "all framework tables are present"
             if not missing_tables
             else f"missing tables: {', '.join(missing_tables)}",
@@ -478,14 +497,18 @@ def certify_control_plane_backend(
     if "schema_migration_history" in observed_tables:
         with engine.connect() as connection:
             migration_versions = set(
-                connection.execute(select(schema_migration_history.c.version)).scalars().all()
+                connection.execute(
+                    select(schema_migration_history.c.version)
+                ).scalars().all()
             )
     required_versions = {version for version, _ in CONTROL_PLANE_MIGRATIONS}
     missing_versions = sorted(required_versions - migration_versions)
     checks.append(
         _check(
             "migration_history",
-            CertificationCheckStatus.PASS if not missing_versions else CertificationCheckStatus.FAIL,
+            CertificationCheckStatus.PASS
+            if not missing_versions
+            else CertificationCheckStatus.FAIL,
             "all declared migrations are recorded"
             if not missing_versions
             else f"missing migration versions: {missing_versions}",
