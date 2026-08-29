@@ -1,5 +1,21 @@
 """Recovery, retry and reprocessing runtime."""
 
+from .fabric_warehouse import (
+    FABRIC_WAREHOUSE_DEFAULT_MARKER_TABLE,
+    FABRIC_WAREHOUSE_MARKER_VERSION,
+    FabricWarehouseAbsenceCertifier,
+    FabricWarehouseAbsenceEvidence,
+    FabricWarehouseAtomicMutationResult,
+    FabricWarehouseMarkerConflict,
+    FabricWarehouseMarkerStore,
+    FabricWarehouseMutation,
+    FabricWarehouseMutationEvidence,
+    FabricWarehouseOperationMarker,
+    FabricWarehouseSecondaryCorrelation,
+    FabricWarehouseSecondaryCorrelationReader,
+    FabricWarehouseTargetCommitProbe,
+    build_fabric_warehouse_operation_marker_table,
+)
 from .rebuild import (
     FullRebuildContext,
     FullRebuildError,
@@ -45,6 +61,19 @@ from .target_probe import (
 
 __all__ = [
     "AttemptContext",
+    "FABRIC_WAREHOUSE_DEFAULT_MARKER_TABLE",
+    "FABRIC_WAREHOUSE_MARKER_VERSION",
+    "FabricWarehouseAbsenceCertifier",
+    "FabricWarehouseAbsenceEvidence",
+    "FabricWarehouseAtomicMutationResult",
+    "FabricWarehouseMarkerConflict",
+    "FabricWarehouseMarkerStore",
+    "FabricWarehouseMutation",
+    "FabricWarehouseMutationEvidence",
+    "FabricWarehouseOperationMarker",
+    "FabricWarehouseSecondaryCorrelation",
+    "FabricWarehouseSecondaryCorrelationReader",
+    "FabricWarehouseTargetCommitProbe",
     "FailureClassification",
     "FailureDisposition",
     "FullRebuildContext",
@@ -71,6 +100,7 @@ __all__ = [
     "TargetCommitProbeRunResult",
     "UnknownCommitOutcomeError",
     "UnknownOutcomeUnresolvedError",
+    "build_fabric_warehouse_operation_marker_table",
     "classify_failure",
     "execute_full_rebuild",
     "execute_quarantine_replay",
