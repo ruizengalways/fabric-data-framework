@@ -26,16 +26,16 @@ Real Fabric/Kafka/Delta execution       NOT YET PROVEN
 External enterprise controls            EXTERNAL / NOT PROVEN BY THIS REPO
 ```
 
-Latest validated PR #14 implementation:
+Latest validated `main` implementation:
 
 ```text
-78018b90c3dfb7f7ff2297aa173e9e8dfaee40e6
-GitHub Actions 33237905150
+4b20300c822e16a398342e0cc97da90ee51b035a
+GitHub Actions 33238779139
 310 tests passed
 14-pattern capture catalog + source-controlled onboarding claims + Delta CDF adapter/profile + executable examples
 ```
 
-Merged hardening baseline:
+Earlier merged hardening baseline:
 
 ```text
 9b2278822ff4c566051c69180c8ca63b021866e4
@@ -83,9 +83,9 @@ SUCCESS
 
 ## Source-fidelity readiness
 
-The framework now has an explicit onboarding layer for the mainstream capture cases that commonly cause production mistakes.
+The framework has an explicit onboarding layer for the mainstream capture cases that commonly cause production mistakes.
 
-### What is now prevented deterministically
+### What is prevented deterministically
 
 - calling a watermark feed full event history;
 - claiming hard-delete visibility from a source that exposes no delete signal;
@@ -176,7 +176,7 @@ Additional provider adapters should be added only when supported product scope r
 
 ## Control-plane audit
 
-Current reference schema is v3. The new capture selection is deliberately a source-controlled onboarding/CI contract and does not add a control-plane v4. If runtime/operator visibility later requires materialization, that should be a deliberate schema decision with migration/evidence rather than an incidental column addition.
+Current reference schema is v3. The capture selection is deliberately a source-controlled onboarding/CI contract and does not add a control-plane v4. If runtime/operator visibility later requires materialization, that should be a deliberate schema decision with migration/evidence rather than an incidental column addition.
 
 ## Fabric/provider evidence boundary
 
@@ -196,4 +196,4 @@ code == tests == canonical docs == control-plane/release contract
 
 and its product promise must match retained real integration evidence.
 
-Current decision: **release remains blocked; PR #14 is source-onboarding/provider hardening only, not a release trigger.**
+Current decision: **release remains blocked. PR #14 is merged as unreleased source-onboarding/provider hardening; the next P0/P1 slice is durable target-operation idempotency.**

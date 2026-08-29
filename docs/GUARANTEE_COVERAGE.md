@@ -64,8 +64,8 @@ Last updated: 2026-08-29
 ## Latest CI evidence
 
 ```text
-78018b90c3dfb7f7ff2297aa173e9e8dfaee40e6
-Actions 33237905150
+4b20300c822e16a398342e0cc97da90ee51b035a
+main Actions 33238779139
 310 passed
 capture catalog + onboarding CI + Delta CDF adapter/profile + executable examples
 

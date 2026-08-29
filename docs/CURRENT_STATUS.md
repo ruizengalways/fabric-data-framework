@@ -6,30 +6,30 @@ Last updated: 2026-08-29
 
 `v0.3.0` remains the latest immutable public framework release. Source version `0.4.0` is an unreleased development line. **Do not publish v0.4.0 yet.**
 
-The large production-hardening PR #13 was squash-merged to `main`:
+The production-hardening and mainstream capture/onboarding slices are both merged to `main`:
 
 ```text
-9b2278822ff4c566051c69180c8ca63b021866e4
+PR #13 -> 9b2278822ff4c566051c69180c8ca63b021866e4
 main Actions 33225627461
 SUCCESS
+
+PR #14 -> 4b20300c822e16a398342e0cc97da90ee51b035a
+main Actions 33238779139
+310 tests passed
+Python 3.11 + 3.13 + wheel/static checks SUCCESS
 ```
 
-Active work is now:
-
-```text
-PR #14
-feature/capture-pattern-catalog
-```
+The next implementation slice is durable target-operation idempotency / operation-journal semantics. `v0.4.0` remains unreleased while real Fabric/provider integration and remaining durability work are incomplete.
 
 The product target remains: after an enterprise installs the released wheel, routine datasets onboard through source-controlled metadata, source-fidelity classification, environment bindings, capability profiles and bounded logical-name extensions rather than edits to the framework.
 
 ## Latest validated implementation evidence
 
-Current PR #14 baseline:
+Current main baseline:
 
 ```text
-78018b90c3dfb7f7ff2297aa173e9e8dfaee40e6
-GitHub Actions 33237905150
+4b20300c822e16a398342e0cc97da90ee51b035a
+GitHub Actions 33238779139
 310 tests passed
 Python 3.11 + 3.13 + wheel/static checks green
 ```
@@ -87,7 +87,7 @@ Silver apply
     -> APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF
 ```
 
-Executable `CapturePattern` values now cover the fourteen common families requested for mainstream Data Engineering:
+Executable `CapturePattern` values cover fourteen common mainstream Data Engineering families:
 
 ```text
 FULL_SNAPSHOT
@@ -145,7 +145,7 @@ fabric-framework capture-onboarding-validate \
 
 `--require-all` makes missing source classification a CI failure.
 
-The onboarding selection is currently a source-controlled companion contract, not a new control-plane table. Control-plane schema therefore remains v3 in this slice.
+The onboarding selection is currently a source-controlled companion contract, not a new control-plane table. Control-plane schema therefore remains v3 after PR #14.
 
 ## Executable examples
 
@@ -169,7 +169,7 @@ The test suite loads these exact files through `DatasetConfig`, `DatasetCaptureS
 
 ## Delta Change Data Feed status
 
-`DELTA_CDF` is now a built-in provider/reference path rather than CUSTOM-only guidance:
+`DELTA_CDF` is a built-in provider/reference path rather than CUSTOM-only guidance:
 
 ```text
 capture strategy: CDC
@@ -187,7 +187,7 @@ This is deterministic adapter/profile evidence only. Real Fabric Lakehouse CDF e
 
 ## Implemented development runtime
 
-Merged/mainline hardening plus PR #14 now provides:
+Current `main` provides:
 
 - strict immutable metadata/effective config and allow-listed runtime overrides;
 - independent capture semantics, apply semantics, capture engine, apply engine and progress owner;
