@@ -49,8 +49,12 @@ from .full import (
 from .onboarding import (
     CaptureOnboardingReport,
     DatasetCaptureSelection,
+    DatasetSemanticCaptureSelection,
+    SemanticCaptureOnboardingReport,
     load_capture_selections,
+    load_semantic_capture_selections,
     validate_capture_selection,
+    validate_semantic_capture_selection,
 )
 from .patterns import (
     BronzeContent,
@@ -118,6 +122,7 @@ __all__ = [
     "ChangeGranularity",
     "CheatsheetPattern",
     "DatasetCaptureSelection",
+    "DatasetSemanticCaptureSelection",
     "DeleteSemantics",
     "DeleteVisibility",
     "FileManifestError",
@@ -131,6 +136,7 @@ __all__ = [
     "HistoryFidelity",
     "LegacyCapturePatternProjection",
     "ReadStrategy",
+    "SemanticCaptureOnboardingReport",
     "SnapshotCaptureBatch",
     "SnapshotEvidence",
     "SnapshotEvidenceError",
@@ -148,10 +154,12 @@ __all__ = [
     "freeze_api_window",
     "freeze_file_manifest",
     "load_capture_selections",
+    "load_semantic_capture_selections",
     "normalize_bootstrap_cdc_batch",
     "normalize_cdc_batch",
     "plan_cdc_bootstrap",
     "project_legacy_capture_pattern",
     "validate_api_capture",
     "validate_capture_selection",
+    "validate_semantic_capture_selection",
 ]

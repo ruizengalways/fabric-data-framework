@@ -13,7 +13,12 @@ from sqlalchemy import create_engine
 
 from . import __version__
 from .adapters.fabric.rest import FabricRestClient
-from .capture import load_capture_selections, validate_capture_selection
+from .capture import (
+    load_capture_selections,
+    load_semantic_capture_selections,
+    validate_capture_selection,
+    validate_semantic_capture_selection,
+)
 from .control_plane import apply_baseline_schema, current_schema_version
 from .control_plane_certification import (
     CONTROL_PLANE_BACKEND_PROFILES,
@@ -161,7 +166,7 @@ def _parser() -> argparse.ArgumentParser:
 
     onboarding = subparsers.add_parser(
         "capture-onboarding-validate",
-        help="Validate source-controlled capture-pattern/history/delete claims",
+        help="Validate source-controlled legacy capture-pattern/history/delete claims",
     )
     onboarding.add_argument("--config-dir", required=True)
     onboarding.add_argument("--selections", required=True)
@@ -171,6 +176,19 @@ def _parser() -> argparse.ArgumentParser:
         help="Require every DatasetConfig in config-dir to have a capture selection",
     )
     onboarding.add_argument("--output")
+
+    semantic_onboarding = subparsers.add_parser(
+        "capture-semantic-onboarding-validate",
+        help="Validate cheatsheet-aligned source/Bronze/history semantic selections",
+    )
+    semantic_onboarding.add_argument("--config-dir", required=True)
+    semantic_onboarding.add_argument("--selections", required=True)
+    semantic_onboarding.add_argument(
+        "--require-all",
+        action="store_true",
+        help="Require every DatasetConfig in config-dir to have a semantic capture selection",
+    )
+    semantic_onboarding.add_argument("--output")
 
     materialize = subparsers.add_parser("metadata-materialize")
     materialize.add_argument("--database-url", required=True)
@@ -392,6 +410,29 @@ def main(argv: list[str] | None = None) -> int:
                 if missing:
                     raise ValueError(
                         "DatasetConfig values missing capture selection: " + ", ".join(missing)
+                    )
+            _write_or_print_json(tuple(reports), args.output)
+            return 0
+
+        if args.command == "capture-semantic-onboarding-validate":
+            configs = load_dataset_configs(args.config_dir)
+            configs_by_id = {item.dataset_id: item for item in configs}
+            selections = load_semantic_capture_selections(args.selections)
+            reports = []
+            for selection in selections:
+                config = configs_by_id.get(selection.dataset_id)
+                if config is None:
+                    raise ValueError(
+                        f"semantic capture selection references unknown dataset {selection.dataset_id!r}"
+                    )
+                reports.append(validate_semantic_capture_selection(config, selection))
+            if args.require_all:
+                selected_ids = {item.dataset_id for item in selections}
+                missing = sorted(set(configs_by_id) - selected_ids)
+                if missing:
+                    raise ValueError(
+                        "DatasetConfig values missing semantic capture selection: "
+                        + ", ".join(missing)
                     )
             _write_or_print_json(tuple(reports), args.output)
             return 0
