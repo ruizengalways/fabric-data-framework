@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -137,7 +138,7 @@ def _artifacts(tmp_path: Path):
     _write(spec_path, spec)
     _write(prerequisite_path, prerequisite)
     _write(release_path, release)
-    return dataset, config_path, spec_path, prerequisite_path, release_path, config_dir, spec
+    return config_path, spec_path, prerequisite_path, release_path, config_dir, spec
 
 
 def _argv(config, spec, prerequisite, release, config_dir, output, *, allow=True):
@@ -168,15 +169,16 @@ def _argv(config, spec, prerequisite, release, config_dir, output, *, allow=True
 
 
 def test_pipeline_cli_routes_exact_artifacts_and_writes_partial_manifest(tmp_path: Path, monkeypatch):
-    dataset, config, spec_path, prerequisite, release, config_dir, spec = _artifacts(tmp_path)
+    config, spec_path, prerequisite, release, config_dir, spec = _artifacts(tmp_path)
     output = tmp_path / "pipeline-partial.json"
+    now = datetime.now(timezone.utc)
     expected = IntegrationEvidenceManifest(
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
         release_hash=spec.release_hash,
-        started_at=dataset.model_fields_set and __import__("datetime").datetime.now(__import__("datetime").timezone.utc),
-        completed_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+        started_at=now,
+        completed_at=now,
         checks=spec.checks,
         results=(
             IntegrationEvidenceCheckResult(
@@ -223,7 +225,7 @@ def test_pipeline_cli_routes_exact_artifacts_and_writes_partial_manifest(tmp_pat
 
 
 def test_pipeline_cli_failure_does_not_write_manifest(tmp_path: Path, monkeypatch):
-    _, config, spec, prerequisite, release, config_dir, _ = _artifacts(tmp_path)
+    config, spec, prerequisite, release, config_dir, _ = _artifacts(tmp_path)
     output = tmp_path / "pipeline-partial.json"
 
     def fake_execute(**kwargs):
