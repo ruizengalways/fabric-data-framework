@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from ...adapters.fabric.pipeline import (
@@ -17,11 +18,11 @@ from ...adapters.fabric.pipeline import (
     FabricPipelineInvocation,
     FabricPipelineTransport,
 )
-from ...adapters.fabric.rest import FabricJobStatus, FabricRestError
+from ...adapters.fabric.rest import FabricJobInstance, FabricJobStatus, FabricRestError
 from ...config import DatasetStatus, EffectiveDatasetConfig, RunMode
 from ...contracts.dispatch import DatasetDispatchOutcome
 from ...contracts.execution_plan import compile_execution_plan
-from ...operations import DatasetRunAudit
+from ...operations import DatasetRunAudit, StepRunAudit, StepStatus
 from ...repository import ControlPlaneRepository
 
 
@@ -38,6 +39,13 @@ _TERMINAL_DATASET_STATUSES = frozenset(
         DatasetStatus.CANCELLED,
     }
 )
+
+_REMOTE_STEP_STATUS = {
+    FabricJobStatus.COMPLETED: StepStatus.SUCCEEDED,
+    FabricJobStatus.FAILED: StepStatus.FAILED,
+    FabricJobStatus.CANCELLED: StepStatus.FAILED,
+    FabricJobStatus.DEDUPED: StepStatus.SKIPPED,
+}
 
 
 class FabricPipelineBackend:
@@ -89,6 +97,42 @@ class FabricPipelineBackend:
             error_message=error_message,
         )
 
+    @staticmethod
+    def _record_remote_evidence(
+        repository: ControlPlaneRepository,
+        *,
+        invocation: FabricPipelineInvocation,
+        evidence: FabricJobInstance,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        started_at = evidence.start_time_utc or now
+        completed_at = evidence.end_time_utc or now
+        if completed_at < started_at:
+            completed_at = started_at
+        repository.record_step_run(
+            StepRunAudit(
+                dataset_run_id=invocation.dataset_run_id,
+                step_name="fabric_pipeline_remote_job",
+                status=_REMOTE_STEP_STATUS.get(evidence.status, StepStatus.FAILED),
+                started_at=started_at,
+                completed_at=completed_at,
+                details={
+                    "workspace_id": str(invocation.binding.workspace_id),
+                    "pipeline_item_id": str(invocation.binding.pipeline_item_id),
+                    "job_instance_id": str(evidence.job_instance_id),
+                    "root_activity_id": (
+                        str(evidence.root_activity_id)
+                        if evidence.root_activity_id is not None
+                        else None
+                    ),
+                    "job_type": evidence.job_type,
+                    "remote_status": evidence.status.value,
+                    "failure_reason": evidence.failure_reason,
+                    "execution_plan_hash": invocation.execution_plan.plan_hash,
+                },
+            )
+        )
+
     def execute_one(
         self,
         *,
@@ -135,6 +179,8 @@ class FabricPipelineBackend:
                 error_message=f"{type(exc).__name__}: {exc}",
                 retryable=None,
             )
+
+        self._record_remote_evidence(repository, invocation=invocation, evidence=evidence)
 
         if evidence.status is FabricJobStatus.DEDUPED:
             return self._record_backend_failure(
