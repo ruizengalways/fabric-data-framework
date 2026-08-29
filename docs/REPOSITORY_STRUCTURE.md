@@ -5,58 +5,40 @@ Last updated: 2026-08-29
 
 ## 1. Purpose
 
-The repository tree must make production ownership discoverable before a new engineer opens a file.
-
-The early flat package was useful for proving vertical slices. The unreleased 0.4.0 hardening line is moving real implementations into stable production concerns rather than growing a flat module list.
-
-Do not create empty folders merely to look enterprise. Introduce an ownership package when real code and guarantees belong there.
+The repository tree must make production ownership discoverable. Organize by stable concern, not by implementation chronology, and do not create empty folders merely to look enterprise.
 
 ## 2. Design rules
 
-1. Organize by stable production concern, not implementation chronology.
-2. Keep capture semantics separate from apply semantics.
-3. Keep physical execution/capability selection separate from semantic algorithms.
-4. Keep provider-neutral core separate from Fabric/provider adapters.
-5. Keep control-plane persistence separate from data-plane algorithms.
-6. Keep recovery as a first-class package, not scattered flags.
-7. Keep delivery/release tooling separate from runtime execution.
-8. Provider CDC envelope parsing belongs outside canonical CDC semantics.
-9. Domain/company-specific physical bindings do not enter this repository.
-10. Public imports remain intentional; restructuring must not accidentally expand API promises.
-11. Preserve released-consumer compatibility where reasonable.
-12. Every claimed production guarantee maps to code + executable evidence.
+1. Capture semantics stay separate from apply semantics.
+2. Physical engine/capability selection stays separate from semantic algorithms.
+3. Provider-neutral core stays separate from Fabric/provider adapters.
+4. Control-plane persistence stays separate from data-plane algorithms.
+5. Recovery is first-class, not scattered flags.
+6. Provider CDC parsing belongs outside canonical CDC semantics.
+7. File/API source guardrails belong in capture contracts, not domain notebooks.
+8. Schema contracts belong to metadata/quality ownership, not implicit engine auto-merge.
+9. Domain-specific physical bindings do not enter this repo.
+10. Public imports remain intentional and evidence-backed.
 
-## 3. Current top-level project memory
+## 3. Durable project memory
 
 ```text
-fabric-data-framework/
-├── .github/workflows/
-├── docs/
-│   ├── adr/
-│   ├── runbooks/
-│   ├── ECOSYSTEM_BLUEPRINT.md
-│   ├── PROJECT_BLUEPRINT.md
-│   ├── PRODUCTION_REQUIREMENTS.md
-│   ├── EXECUTION_ENGINE_STRATEGY.md
-│   ├── FABRIC_EXECUTION_MODEL.md
-│   ├── CDC_DESIGN.md
-│   ├── REPOSITORY_STRUCTURE.md
-│   ├── CONTROL_PLANE_DESIGN.md
-│   ├── CICD_DESIGN.md
-│   ├── PRODUCTION_READINESS_AUDIT.md
-│   ├── GUARANTEE_COVERAGE.md
-│   └── CURRENT_STATUS.md
-├── src/fabric_data_framework/
-├── tests/
-├── pyproject.toml
-└── README.md
+docs/
+  CURRENT_STATUS.md
+  PRODUCTION_READINESS_AUDIT.md
+  GUARANTEE_COVERAGE.md
+  PROJECT_BLUEPRINT.md
+  PRODUCTION_REQUIREMENTS.md
+  EXECUTION_ENGINE_STRATEGY.md
+  FABRIC_EXECUTION_MODEL.md
+  CDC_DESIGN.md
+  CONTROL_PLANE_DESIGN.md
+  REPOSITORY_STRUCTURE.md
+  CICD_DESIGN.md
+  ECOSYSTEM_BLUEPRINT.md
 ```
 
-Docs are durable project memory, not secondary prose.
-
 ## 4. Current realized Python ownership
-
-The hardening branch currently contains meaningful packages including:
 
 ```text
 src/fabric_data_framework/
@@ -64,15 +46,19 @@ src/fabric_data_framework/
 │   ├── dispatch.py
 │   ├── execution_plan.py
 │   ├── capture_receipt.py
-│   └── recovery.py
+│   ├── recovery.py
+│   └── rebuild.py
 ├── metadata/
 │   └── capabilities.py
 ├── capture/
 │   ├── full.py
 │   ├── snapshot.py
 │   ├── cdc.py
-│   └── bootstrap_cdc.py
+│   ├── bootstrap_cdc.py
+│   ├── files.py
+│   └── api.py
 ├── apply/
+│   ├── append.py
 │   ├── current_state.py
 │   ├── replace.py
 │   ├── upsert.py
@@ -83,26 +69,28 @@ src/fabric_data_framework/
 ├── data_plane/
 │   └── staging.py
 ├── quality/
+│   ├── rules.py
+│   ├── append.py
+│   ├── full_refresh.py
+│   ├── snapshot_diff.py
+│   └── schema_evolution.py
 ├── orchestration/
 │   └── planner.py
 ├── execution/
+│   ├── append.py
 │   ├── dataset_runner.py
 │   ├── full_replace.py
 │   ├── snapshot_diff.py
 │   └── backends/
 ├── recovery/
-│   └── runtime.py
+│   ├── runtime.py
+│   ├── replay.py
+│   └── rebuild.py
 ├── adapters/
 │   ├── fabric/
-│   │   ├── contracts.py
-│   │   ├── adapter.py
-│   │   └── __init__.py
 │   └── cdc/
-│       ├── debezium_kafka.py
-│       ├── resume.py
-│       ├── registry.py
-│       └── __init__.py
 ├── extensions/
+├── schema_contract.py
 ├── config.py
 ├── control_plane.py
 ├── control_plane_io.py
@@ -116,234 +104,91 @@ src/fabric_data_framework/
 └── cli.py
 ```
 
-Some older modules remain top-level for compatibility/incremental refactoring. New capabilities should land in their stable ownership package when the boundary is clear.
+Some compatibility-era concerns remain top-level. Do not move them cosmetically without preserving public imports and migration behavior.
 
 ## 5. Ownership rules
 
 ### `contracts/`
-
-Dependency-light stable value objects/interfaces: execution plan, capture receipt, recovery requests/lineage, dispatch/runtime/binding contracts. No provider client dependencies.
+Dependency-light stable handoff/planning/recovery value objects and protocols.
 
 ### `metadata/`
-
-Turns source-controlled metadata into immutable effective semantics. Owns validation, hashing, compatibility and `(engine, capability_profile)` resolution.
-
-Current named profiles include Dataflow incremental capture and `EXTERNAL_CDC/debezium_kafka_v1`.
+Capability profiles and semantic execution validation. Named profiles bind an engine/profile to only the behavior the framework can certify.
 
 ### `capture/`
+Owns source-boundary acquisition semantics/evidence, not target history behavior.
 
-Owns bounded source acquisition semantics and source-boundary evidence. It does not decide target history/current-state behavior.
-
-Current examples:
+Current source-family contracts include:
 
 ```text
-capture/full.py
-capture/snapshot.py
-capture/cdc.py
-capture/bootstrap_cdc.py
+full.py          authoritative full-snapshot evidence
+snapshot.py      snapshot completeness evidence
+cdc.py           provider-neutral CDC event/checkpoint semantics
+bootstrap_cdc.py snapshot -> CDC fenced handoff
+files.py         immutable manifest/readiness/version/retry-drift guards
+api.py           frozen source window + cursor-chain/completeness/limit guards
 ```
 
-`capture/cdc.py` is provider-neutral. Debezium/LSN/binlog/Kafka/native Fabric envelope mapping belongs in adapters/connectors/extensions.
+`files.py` and `api.py` are provider-neutral guardrails. Storage SDK/HTTP client details belong in adapters/connectors/domain integration.
 
 ### `apply/`
-
-Owns portable target semantics independent from movement mechanism.
-
-Current examples:
+Owns portable target semantics:
 
 ```text
-apply/current_state.py
-apply/replace.py
-apply/upsert.py
-apply/scd1.py
-apply/cdc.py
-apply/cdc_scd2.py
-apply/snapshot_diff.py
+APPEND
+REPLACE
+UPSERT
+SCD1
+SCD2
+SNAPSHOT_DIFF
 ```
 
-`apply/cdc.py` handles CDC current-state semantics for UPSERT/SCD1. `apply/cdc_scd2.py` handles history semantics while keeping source order separate from valid time.
+`append.py` owns append identity/payload fingerprint semantics. `current_state.py` is shared by batch UPSERT/SCD1. CDC current/history apply remains separate from capture normalization.
 
-APPEND remains future work.
+### `schema_contract.py` + `quality/schema_evolution.py`
+Own typed expected schema, stable fingerprint and compatibility classification. Physical Delta/Spark schema merge cannot silently redefine these semantics.
 
 ### `data_plane/`
-
-Owns normalized Bronze/staging/publication candidates/row accounting shared by strategies.
+Owns isolated staging/candidates and shared normalized data-plane structures.
 
 ### `quality/`
-
-Owns row/batch/schema quality, quarantine and reconciliation gates. Quality may block state/publication but must not secretly mutate checkpoints.
+Owns row/batch/schema validation, quarantine and reconciliation gates. Quality can block progression but does not mutate checkpoints itself.
 
 ### `orchestration/`
-
-Owns dataset selection, dependency readiness, concurrency and aggregate policy. It does not implement capture/apply algorithms.
+Owns metadata selection, dependencies, concurrency and aggregate status.
 
 ### `execution/`
-
-Owns lifecycle execution and physical backend boundaries. Thin Fabric SJD/notebook entrypoints should call this/runtime packages rather than embed algorithms.
+Owns lifecycle executors and physical backend boundaries. Thin Fabric SJD/notebook entrypoints call this package rather than embedding framework algorithms.
 
 ### `recovery/`
-
-Owns retry classification/backoff, attempt lineage, reprocess intent and unknown-target-outcome recovery. Quarantine replay and FULL_REBUILD execution belong here with explicit data/state provider contracts.
+Owns retry classification/backoff, attempt lineage, quarantine replay, FULL_REBUILD and unknown-target-outcome coordination.
 
 ### `adapters/fabric/`
-
-Translates already-compiled physical Fabric capture units into provider invocation/evidence boundaries. Fabric service APIs must not leak into semantic algorithms.
+Translates compiled Fabric execution units into provider request/evidence boundaries. Actual REST/SDK/CLI transport/auth stays outside semantic code.
 
 ### `adapters/cdc/`
-
-Owns provider-specific CDC envelope/checkpoint translation and provider recovery-range evidence.
-
-Current built-in provider:
-
-```text
-DebeziumKafkaCDCAdapter
-  engine/profile: EXTERNAL_CDC / debezium_kafka_v1
-  canonical order: topic + partition + offset
-```
-
-Files:
-
-```text
-debezium_kafka.py
-  strict envelope -> CDCEvent/CDCCheckpoint
-  tombstone/snapshot-read policy
-
-resume.py
-  retention-aware seek range derived from framework CDC apply checkpoint
-
-registry.py
-  explicit (engine, capability_profile) -> provider adapter mapping
-```
-
-The adapter package does not construct Kafka credentials/clients, commit consumer offsets, or own UPSERT/SCD1/SCD2 semantics.
+Owns provider-specific CDC envelope and recovery-range translation. Current built-in reference is Debezium/Kafka with topic/partition/offset ordering.
 
 ### `control_plane.py` / `control_plane_io.py` / `repository.py`
+Current compatibility-era split for relational schema, persistence helpers and repository interfaces/reference implementations. Schema version is currently v3.
 
-Current compatibility-era split for schema, relational persistence helpers and repository interfaces/reference adapter.
-
-Environment-local state includes `cdc_checkpoint` with optimistic concurrency.
-
-Long-term package target remains `control_plane/` once migration can preserve public compatibility cleanly.
+Long-term package target remains `control_plane/` only when compatibility-safe.
 
 ### `delivery.py` / `deployment.py` / `cli.py`
+Own release identity, bindings, metadata materialization, provenance and operator/delivery commands.
 
-Release identity, bindings, metadata materialization, deployment planning/provenance and operator/delivery commands.
+### `extensions/`
+Resolve controlled logical names. Metadata never imports arbitrary module paths.
 
-### extensions
+## 6. Current test ownership
 
-Custom behavior is selected by registered logical name, not arbitrary module path from metadata.
-
-## 6. Target package shape
-
-```text
-src/fabric_data_framework/
-├── contracts/
-├── metadata/
-├── capture/
-│   ├── base.py
-│   ├── full.py
-│   ├── watermark.py
-│   ├── snapshot.py
-│   ├── cdc.py
-│   ├── bootstrap_cdc.py
-│   ├── mirror.py
-│   └── stream.py
-├── apply/
-│   ├── base.py
-│   ├── append.py
-│   ├── replace.py
-│   ├── current_state.py
-│   ├── upsert.py
-│   ├── scd1.py
-│   ├── scd2.py
-│   ├── cdc.py
-│   ├── cdc_scd2.py
-│   └── snapshot_diff.py
-├── data_plane/
-├── quality/
-├── orchestration/
-├── execution/
-├── recovery/
-│   ├── runtime.py
-│   ├── replay.py
-│   └── rebuild.py
-├── state/
-│   ├── watermark.py
-│   ├── cdc.py
-│   ├── checkpoints.py
-│   ├── leases.py
-│   └── idempotency.py
-├── control_plane/
-│   ├── schema.py
-│   ├── repository.py
-│   ├── migrations.py
-│   └── queries.py
-├── observability/
-├── connectors/
-│   ├── base.py
-│   ├── capabilities.py
-│   ├── registry.py
-│   └── cdc/
-├── adapters/
-│   ├── fabric/
-│   ├── cdc/
-│   └── testing/
-├── delivery/
-├── extensions/
-└── testing/
-```
-
-Exact names may evolve; concern ownership must not blur.
-
-## 7. CDC/provider boundary
-
-Canonical direction:
+Representative tests now include:
 
 ```text
-provider envelope
-  Debezium / database-native / Copy Job / custom
-        |
-        v
-provider adapter / connector
-        |
-        v
-CDCEvent + CDCCheckpoint
-        |
-        v
-capture/cdc.py
-        |
-        v
-apply/cdc.py or apply/cdc_scd2.py
-```
-
-The current Debezium/Kafka implementation is the reference example: provider JSON and Kafka offset semantics stop at `adapters/cdc/`.
-
-Do not put provider-specific JSON field names or LSN string parsing inside apply algorithms.
-
-## 8. Production Fabric item structure
-
-A professional production implementation does not require many visible activities merely to look complex.
-
-Recommended hierarchy:
-
-```text
-Domain/source parent Pipeline
-  -> resolve metadata/execution groups
-  -> bounded fan-out
-  -> dataset/stage child execution
-       -> Copy Job / Copy Activity / Dataflow / SJD / thin Notebook as planned
-       -> framework semantic runtime
-```
-
-A child pipeline with one thin SJD/notebook can be professional when reusable algorithms/state/recovery/audit are in released packages/control plane and parameters/bindings are explicit. Activity count is not an architecture-quality metric.
-
-Use separate pipelines/execution groups when operational boundaries differ materially: source/gateway, capture engine, schedule/SLA, volume, criticality, dependency, capacity or blast radius.
-
-## 9. Test ownership
-
-Tests mirror ownership concerns:
-
-```text
+test_append.py
+test_append_execution.py
+test_schema_evolution.py
+test_file_capture.py
+test_api_capture.py
 test_scd1.py
 test_upsert.py
 test_cdc.py
@@ -354,14 +199,32 @@ test_debezium_kafka_cdc_adapter.py
 test_cdc_provider_registry.py
 test_fabric_capture_adapters.py
 test_recovery.py
-...
+test_replay.py
+test_rebuild.py
 ```
 
 Provider adapter tests prove mapping/evidence boundaries. Semantic tests remain runnable without Fabric/Kafka.
 
-## 10. Refactoring rule
+## 7. Target package shape
 
-Do not perform cosmetic package moves that create compatibility churn without adding ownership clarity.
+The long-term ownership model may evolve toward dedicated `state/`, `control_plane/`, `observability/`, `connectors/`, `delivery/` packages when real implementation warrants the move. Do not create them merely for appearance.
+
+## 8. Production Fabric item structure
+
+Recommended hierarchy:
+
+```text
+Domain/source parent Pipeline
+  -> resolve metadata/execution groups
+  -> bounded fan-out
+  -> dataset/stage execution
+       -> Copy Job / Copy Activity / Dataflow / SJD / thin Notebook
+       -> framework semantic runtime
+```
+
+Activity count is not an architecture-quality metric. Split execution groups when source/gateway, engine, schedule/SLA, volume, dependency, capacity or blast radius differs materially.
+
+## 9. Refactoring rule
 
 When moving a public/released symbol:
 
@@ -369,14 +232,11 @@ When moving a public/released symbol:
 2. move tests with ownership;
 3. update canonical docs;
 4. run wheel + Python 3.11/3.13 CI;
-5. record any intentional API break in the eventual release boundary.
+5. record any intentional API break at an immutable release boundary.
 
-## 11. Current structural next steps
+## 10. Current structural next steps
 
-1. implement quarantine REPLAY under `recovery/` with an external payload-provider boundary;
-2. implement FULL_REBUILD execution under `recovery/` with explicit destructive-reset authority;
-3. implement APPEND under `apply/`;
-4. add file/API capture guardrails under `capture/`/connectors;
-5. add additional CDC provider adapters only when product scope requires them;
-6. move persistent state/query concerns toward `control_plane/` and `state/` only when compatibility-safe;
-7. add actual Fabric/Kafka transport/backend modules without leaking service APIs into semantic packages.
+1. add a shared temporal/late-event policy owner and route existing strategy-specific decisions through it;
+2. add supported persistent repository/query ownership when a real store is selected;
+3. add actual Fabric/Kafka transport/backend modules without leaking service APIs into semantic packages;
+4. add additional provider adapters only as supported product scope requires.

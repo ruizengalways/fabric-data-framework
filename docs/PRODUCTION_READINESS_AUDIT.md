@@ -5,115 +5,116 @@ Last updated: 2026-08-29
 
 ## 1. Evidence model
 
-This audit deliberately separates:
+This audit separates four evidence classes:
 
 1. **Portable semantic implementation** — reusable framework contract/algorithm.
 2. **Deterministic certification** — executable unit/contract/reference proof.
 3. **Real provider/Fabric integration evidence** — approved real service execution with retained correlation.
 4. **External enterprise controls** — tenant, Entra, RBAC, networking, gateway, secrets, retention, monitoring, capacity and governance.
 
-A green Python suite proves levels 1/2 only. A typed provider adapter does not become level 3 until an actual provider/service run is retained as evidence.
+Green Python CI proves levels 1/2 only. Adapter-contract tests do not become level 3 until a real provider/service run is retained.
 
 ## 2. Current overall assessment
 
 Current unreleased 0.4.0 development line on PR #13:
 
 ```text
-Portable semantic implementation     STRONG / materially expanded
+Portable semantic implementation     STRONG / broad core product slice
 Deterministic certification           STRONG for implemented slices
 Provider adapter contract coverage    STRONG for Fabric capture + Debezium/Kafka reference
-Real Fabric/Kafka execution evidence  NOT YET PROVEN for hardening branch
+Real Fabric/Kafka execution evidence  NOT YET PROVEN
 External enterprise controls          EXTERNAL / NOT PROVEN BY THIS REPO
 ```
 
-Latest provider CDC evidence before this docs synchronization:
+Latest validated implementation evidence:
 
 ```text
-1087ab9231b9cb638a87bc2f78ef0c1b1fe32beb
-GitHub Actions 33219601375
-179 passed
-Debezium/Kafka envelope + retention-aware resume
+c326f062ad4e6be5185f17b9e6830946967361ab
+GitHub Actions 33224558393
+252 tests passed
+file/API replay-stable capture guardrails
 
-ecdca38099a4f21c6f40701dc14889b464c20608
-GitHub Actions 33219783325
-183 passed
-Debezium/Kafka capability profile + provider registry
+6eb4ff275ed1aad9092f60f098d2a9272fd06779
+GitHub Actions 33223276476
+231 tests passed
+schema contract/evolution + runtime evidence
+
+2466d6f254b37a1d79a716e8dd95c5dd16d21cf4
+GitHub Actions 33222949040
+215 tests passed
+APPEND + real v2->v3 additive migration proof
 ```
-
-Earlier CDC sequence reached 171 tests through canonical CDC, CDC apply, durable checkpoint and snapshot/bootstrap handoff.
 
 `v0.3.0` remains the latest public release. **Do not publish v0.4.0 yet.**
 
 ## 3. Capability assessment
 
-| Capability | Portable/adapter code | Deterministic | Real service | Assessment |
+| Capability | Portable/adapter code | Deterministic proof | Real service | Assessment |
 |---|---:|---:|---:|---|
 | Typed metadata/effective config | Yes | Yes | N/A | IMPLEMENTED |
-| Composite WATERMARK + overlap | Yes | Yes | No current service run | IMPLEMENTED portable |
-| Bronze lineage | Yes | Yes | No | IMPLEMENTED portable |
-| DQ/quarantine/accounting | Yes | Yes | No persistent production quarantine proof | IMPLEMENTED portable |
-| FULL -> REPLACE guards | Yes | Yes | No target publication proof | IMPLEMENTED reference |
+| Composite WATERMARK + overlap | Yes | Yes | No | IMPLEMENTED reference |
+| Bronze lineage | Yes | Yes | No | IMPLEMENTED reference |
+| DQ/quarantine/accounting | Yes | Yes | No prod quarantine store | IMPLEMENTED reference |
+| APPEND append-once/replay/conflict semantics | Yes | Yes | No | IMPLEMENTED reference |
+| FULL -> REPLACE guards | Yes | Yes | No | IMPLEMENTED reference |
 | SNAPSHOT -> SNAPSHOT_DIFF/delete guards | Yes | Yes | No | IMPLEMENTED reference |
-| SCD1 current-state correctness | Yes | Yes | No | IMPLEMENTED reference |
-| UPSERT current-state correctness | Yes | Yes | No | IMPLEMENTED reference |
+| UPSERT/SCD1 current-state correctness | Yes | Yes | No | IMPLEMENTED reference |
 | SCD2 bounded history correctness | Yes | Yes | No | IMPLEMENTED reference |
 | Capture/apply executor separation | Yes | Yes | N/A | IMPLEMENTED contract |
-| Named engine/profile capability resolver | Yes | Yes | Product-specific real certification pending | IMPLEMENTED contract |
-| CaptureReceipt | Yes | Yes | No real native receipt yet | IMPLEMENTED contract |
-| Fabric Copy/Dataflow/Spark capture adapter boundary | Yes | Yes fake transport | No | ADAPTER CONTRACT ONLY |
-| Recovery failure classification/retry/attempt lineage | Yes | Yes | No | IMPLEMENTED reference core |
-| Unknown commit tri-state behavior | Yes | Yes | No physical target drill | IMPLEMENTED reference core |
+| Named capability resolver | Yes | Yes | Real profile proof pending | IMPLEMENTED contract |
+| CaptureReceipt | Yes | Yes | No real native receipt | IMPLEMENTED contract |
+| Fabric Copy/Dataflow/Spark capture adapter boundary | Yes | Fake transport | No | ADAPTER CONTRACT ONLY |
+| Retry/attempt/unknown-commit recovery core | Yes | Yes | No physical drill | IMPLEMENTED reference |
+| Quarantine REPLAY coordination | Yes | Yes | No governed prod payload store | IMPLEMENTED reference |
+| FULL_REBUILD target/state cutover | Yes | Yes | No physical target | IMPLEMENTED reference |
 | Canonical CDC event/order/dedupe/window | Yes | Yes | No | IMPLEMENTED reference |
-| CDC -> UPSERT/SCD1 | Yes | Yes | No | IMPLEMENTED reference |
-| CDC -> SCD2 separate source-order/valid-time | Yes | Yes | No | IMPLEMENTED reference |
-| Durable CDC apply checkpoint + optimistic concurrency | Yes | Yes SQLAlchemy/SQLite | No approved prod store | IMPLEMENTED reference |
-| Snapshot/bootstrap -> CDC no-gap/no-double-apply | Yes | Yes | No real source fence | IMPLEMENTED reference |
-| Debezium/Kafka c/u/d envelope normalization | Yes | Yes | No live Kafka/Debezium | ADAPTER CONTRACT |
-| Debezium tombstone/snapshot-read policy | Yes | Yes | No live Kafka/Debezium | ADAPTER CONTRACT |
-| Debezium/Kafka topic/partition/offset canonical order | Yes | Yes | No live Kafka/Debezium | ADAPTER CONTRACT |
-| `EXTERNAL_CDC/debezium_kafka_v1` capability profile | Yes | Yes | N/A | IMPLEMENTED contract |
-| Explicit CDC provider registry | Yes | Yes | N/A | IMPLEMENTED contract |
-| Kafka retention-aware safe resume planning | Yes | Yes | No live broker seek | IMPLEMENTED reference provider recovery |
-| Kafka consumer-group/source-cursor commit coordination | No live transport | No | No | GAP |
-| Quarantine payload REPLAY | Request contract only | No full replay | No | P0 GAP |
-| FULL_REBUILD execution | Authorization only | No reset/rebuild | No | P0 GAP |
-| Remaining native-progress recovery | Partial | Debezium safe resume only | No | GAP |
-| APPEND identity semantics | No | No | No | GAP |
-| General schema evolution | design/table only | No full policy | No | P0 GAP |
-| Persistent production control plane | reference only | SQLite tests | No | GAP |
-| Operator status/retry/backfill/replay/rebuild surface | runtime contracts only | No supported surface | No | GAP |
-| Fabric Pipeline backend | design only | No | No | P0 GAP |
-| Real Fabric REST/SDK/CLI transport | interface only | fake transport only | No | P0 GAP |
-| Real Kafka/Debezium transport | adapter/parser only | deterministic records only | No | P0 GAP |
-| Same-wheel DEV/UAT/PROD proof | delivery contract only | v0.3.0 release path | No | P0 GAP |
+| CDC -> UPSERT/SCD1/SCD2 | Yes | Yes | No | IMPLEMENTED reference |
+| Durable CDC apply checkpoint | Yes | SQLite transaction proof | No prod store | IMPLEMENTED reference |
+| Snapshot/bootstrap -> CDC | Yes | Yes | No real source fence | IMPLEMENTED reference |
+| Debezium/Kafka normalization | Yes | Yes | No live Kafka/Debezium | ADAPTER CONTRACT |
+| Kafka retention-aware safe resume | Yes | Yes | No live broker | IMPLEMENTED reference provider recovery |
+| Schema contract/fingerprint | Yes | Yes | N/A | IMPLEMENTED reference |
+| EXACT/ADDITIVE_ONLY/SAFE_EVOLUTION classification | Yes | Yes | No real target migration | IMPLEMENTED reference |
+| Versioned dataset_contract materialization | Yes | Yes | SQLite only | IMPLEMENTED reference |
+| Runtime schema_change evidence | Yes | Yes | SQLite only | IMPLEMENTED reference |
+| Frozen file manifest/readiness/completeness | Yes | Yes | No storage client | IMPLEMENTED reference |
+| API frozen window/cursor/limits/completeness | Yes | Yes | No API client | IMPLEMENTED reference |
+| Control-plane v2->v3 additive migration | Yes | Yes | SQLite/reference | IMPLEMENTED reference |
+| Shared cross-strategy temporal taxonomy | No common owner yet | Partial strategy-specific behavior | No | GAP |
+| Persistent production control plane | Reference only | SQLite tests | No | GAP |
+| Operator query/reprocess surface | Contracts/CLI foundations | Partial | No | GAP |
+| Fabric Pipeline backend | Design only | No | No | P0 GAP |
+| Real Fabric/Kafka transport | Interfaces/adapters only | No live call | No | P0 GAP |
+| Approved DEV hybrid execution | No | No | No | P0 GAP |
 
 ## 4. Strongest portable guarantees
 
-### 4.1 Current-state and history correctness
+### Apply correctness
 
-SCD1/UPSERT share a current-state primitive proving composite keys, ordered positions, exact-rerun idempotency, stale policy and equal-position conflict failure. SCD2 preserves one-current-row history invariants.
+All six canonical apply strategies now have framework-owned portable behavior. APPEND uses explicit append identity rather than pretending append is an unordered blind insert. Exact replay is idempotent; identity collision with changed business payload fails closed.
 
-CDC adds a provider-neutral source-order layer and deliberately keeps source order separate from SCD2 valid-time.
+### Destructive-load protection
 
-### 4.2 Destructive-load protection
+FULL and SNAPSHOT paths require explicit completeness evidence and publication/delete guards. Successful iteration alone is not proof of an authoritative empty source.
 
-FULL and SNAPSHOT paths require explicit completeness evidence and publication/delete guards. Successful source iteration alone is not treated as proof of an authoritative empty/complete source.
+### Schema safety
 
-### 4.3 Stage delegation safety
+Schema changes are classified against a source-controlled versioned contract. Only explicitly certified widening/relaxation is considered compatible. Removal, narrowing and unproven conversion fail closed. Runtime observation is audited separately from the promotable contract.
+
+### Replay-stable source acquisition
+
+File and API sources now have provider-neutral freeze/evidence contracts:
 
 ```text
-ExecutionPlan
-    -> provider request/evidence
-    -> adapter validation
-    -> canonical framework evidence
-    -> remaining semantic stages
+file discovery -> immutable manifest fingerprint
+API bounds/filter -> immutable window fingerprint -> cursor chain
 ```
 
-Provider execution success alone does not prove full dataset success.
+Retry/replay cannot silently resolve to a different file version/set or a shifted API window.
 
-### 4.4 Recovery safety
+### Recovery safety
 
-Automatic retry is conservative. Unknown target mutation is reconciled before retry:
+Unknown target mutation is reconciled before retry:
 
 ```text
 COMMITTED     => converge success / no duplicate write
@@ -121,106 +122,74 @@ NOT_COMMITTED => retry may proceed
 UNRESOLVED    => stop
 ```
 
-### 4.5 CDC checkpoint ownership
+Quarantine REPLAY and FULL_REBUILD are explicit audited flows rather than ad hoc reruns.
+
+## 5. Remaining P0/P1 scope
+
+### P0 before release confidence materially increases
+
+1. real Fabric/Kafka transport implementation;
+2. Fabric Pipeline backend;
+3. at least one approved DEV hybrid execution retaining native/provider IDs and framework correlation;
+4. persistent control-plane repository choice or an explicitly bounded release scope proving the supported operator surface;
+5. final candidate-head audit/docs/CI.
+
+### P1 correctness/operability hardening
+
+1. shared cross-strategy late/out-of-order taxonomy;
+2. remaining Copy/Dataflow/Mirroring/provider-specific downstream-failure resume proofs;
+3. durable physical-target idempotency evidence;
+4. live Kafka consumer seek/commit coordination;
+5. additional CDC provider adapters only where supported product scope requires them;
+6. transaction/rebalance/source-epoch policies where required.
+
+Retroactive SCD2 history correction remains intentionally unsupported and must not be inferred from general late-event handling.
+
+## 6. Control-plane audit
+
+Current reference schema is v3:
 
 ```text
-provider/native source cursor
-        !=
-framework downstream CDC apply checkpoint
+v1 phase1_initial_control_plane_schema
+v2 execution_policy_ordering_capture_receipt_recovery_and_cdc
+v3 append_identity_semantics
 ```
 
-This prevents the framework from claiming source progress it does not own.
+The v3 migration executes a real additive `ALTER TABLE` for an existing v2 `load_policy` rather than relying on SQLAlchemy `create_all()` to alter an existing table.
 
-## 5. Debezium/Kafka provider readiness
+Promotable schema contract rows are versioned in `dataset_contract`. Runtime observations remain environment-local in `schema_change`.
 
-The built-in reference adapter proves a bounded provider translation contract:
+SQLite proves schema/transaction behavior only; it is not an endorsed production control-plane store.
 
-```text
-Debezium Kafka record
-    -> validate topic/key/window
-    -> map c/u/d
-    -> ignore tombstone
-    -> reject snapshot r by default
-    -> canonical topic:partition + offset
-    -> provider-neutral CDC semantic core
-```
+## 7. Fabric/provider evidence boundary
 
-It also proves recovery-range planning from the **framework applied checkpoint**, not from a possibly-ahead consumer-group cursor.
+Current Fabric adapters prove request/evidence validation and fail-closed boundaries using injected fake transports. Debezium/Kafka proves provider envelope normalization and reference resume planning. They do **not** prove authentication, networking, API versions, polling, Kafka rebalance/commit behavior, capacity or real run IDs.
 
-If Kafka retention has already deleted the next unapplied offset, the framework fails with an explicit retention-gap error rather than silently continuing.
+Correct label: `ADAPTER CONTRACT` / `REFERENCE PROVIDER RECOVERY`, not real Fabric/Kafka integration.
 
-What this does **not** prove:
+## 8. External evidence this repo must not fake
 
-- Kafka authentication/networking;
-- actual broker earliest/latest offset APIs;
-- consumer seek/poll/commit behavior;
-- Debezium connector configuration;
-- database CDC retention/enablement;
-- rebalances/source epoch behavior;
-- a live end-to-end CDC run.
-
-Therefore the correct label is `ADAPTER CONTRACT + REFERENCE PROVIDER RECOVERY`, not “Kafka integration complete”.
-
-## 6. Recovery remaining scope
-
-Recovery core is implemented, but end-to-end strategy recovery remains partial.
-
-Next required proofs:
-
-1. quarantine REPLAY retrieves retained payload through a governed provider boundary;
-2. original quarantine evidence remains immutable;
-3. replay marker advances only after successful replay target/reconciliation gate;
-4. already-replayed/conflicting replay attempts fail safely or converge idempotently;
-5. FULL_REBUILD requires explicit destructive authority and resets/rebuilds target/state safely;
-6. Copy/Dataflow/Mirroring/other provider source progress gets strategy-specific recovery proof;
-7. real physical target idempotency/unknown-outcome drills.
-
-## 7. Fabric adapter evidence boundary
-
-Current Fabric capture adapters are real framework code with injected transport protocols; deterministic tests use fake evidence.
-
-They prove interface and fail-closed correctness boundaries, not authentication, tenant/workspace permission, API-version behavior, polling, gateway, capacity or real run IDs.
-
-At least one approved DEV hybrid execution is required before release confidence increases materially.
-
-## 8. Current P0 work
-
-Immediate hardening sequence:
-
-1. quarantine REPLAY execution + replay lineage;
-2. FULL_REBUILD execution/state-reset semantics;
-3. remaining native/provider progress recovery;
-4. APPEND identity/collision/replay semantics;
-5. schema evolution;
-6. file/API capture guardrails;
-7. persistent operator/control-plane surface;
-8. real Fabric/Kafka transports + DEV execution proof.
-
-Additional CDC provider adapters should only be added when supported product scope requires them; the canonical CDC semantic core should remain unchanged.
-
-## 9. External evidence this repo must not fake
-
-- Fabric capacity/SKU and throttling policy;
+- Fabric capacity/SKU/throttling;
 - tenant settings;
 - workspace/domain provisioning;
-- Entra groups/service principals/workspace identity/RBAC;
+- Entra/workspace identity/RBAC;
 - gateway/private networking;
 - secrets/key authority;
 - source database CDC enablement/retention;
-- Kafka broker/connector authentication and retention policy;
+- Kafka broker/connector authentication and retention;
 - production backup/restore;
 - monitoring/on-call;
-- quarantine/audit retention/privacy;
-- approvals/change controls where required.
+- quarantine/audit privacy/retention;
+- enterprise approvals/change controls where required.
 
-## 10. Release gate
+## 9. Release gate
 
-Before a next public release, the exact release head must satisfy:
+Before a next public release, the exact release candidate must satisfy:
 
 ```text
 code == tests == canonical docs == control-plane/release schema contract
 ```
 
-and the milestone must include real provider/Fabric integration evidence rather than only provider-neutral/fake-transport proof.
+and the release scope must include real provider/Fabric integration evidence or explicitly narrow the product promise so no unproven integration is implied.
 
 Current decision: **release remains blocked**.
