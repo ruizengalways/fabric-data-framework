@@ -14,7 +14,7 @@ import json
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from .config import FrozenModel
 from .contracts.recovery import UnknownOutcomeResolution
@@ -78,13 +78,18 @@ class TargetOperationIntent(FrozenModel):
     input_fingerprint: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
     semantic_version: int = Field(default=1, ge=1)
 
+    @field_validator("effective_config_hash", "input_fingerprint")
+    @classmethod
+    def normalize_hashes(cls, value: str) -> str:
+        return value.lower()
+
     @property
     def operation_key(self) -> str:
         canonical = json.dumps(
             {
                 "dataset_id": self.dataset_id,
-                "effective_config_hash": self.effective_config_hash.lower(),
-                "input_fingerprint": self.input_fingerprint.lower(),
+                "effective_config_hash": self.effective_config_hash,
+                "input_fingerprint": self.input_fingerprint,
                 "operation_kind": self.operation_kind,
                 "semantic_version": self.semantic_version,
                 "target_reference": self.target_reference,
@@ -116,6 +121,11 @@ class TargetOperationRecord(FrozenModel):
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime | None = None
     completed_at: datetime | None = None
+
+    @field_validator("effective_config_hash", "input_fingerprint")
+    @classmethod
+    def normalize_hashes(cls, value: str) -> str:
+        return value.lower()
 
     @property
     def intent(self) -> TargetOperationIntent:
