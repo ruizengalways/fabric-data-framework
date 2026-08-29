@@ -16,8 +16,11 @@ from .delta_cdf import (
     DeltaCDFBatchResult,
     DeltaCDFChangeType,
     DeltaCDFRecord,
+    DeltaCDFResumePlan,
+    DeltaCDFRetentionGapError,
     delta_cdf_checkpoint,
     normalize_delta_cdf_batch,
+    plan_delta_cdf_resume,
 )
 from .registry import (
     CDCProviderAdapterRegistry,
@@ -26,9 +29,13 @@ from .registry import (
     DeltaCDFCDCAdapter,
 )
 from .resume import (
+    DebeziumKafkaCursorCoordinationPlan,
+    DebeziumKafkaPartitionCursorAlignment,
     DebeziumKafkaPartitionResume,
     DebeziumKafkaResumeGapError,
     DebeziumKafkaResumePlan,
+    KafkaCursorRelation,
+    plan_debezium_kafka_cursor_coordination,
     plan_debezium_kafka_resume,
 )
 
@@ -39,6 +46,8 @@ __all__ = [
     "DebeziumKafkaAdapterError",
     "DebeziumKafkaBatchResult",
     "DebeziumKafkaCDCAdapter",
+    "DebeziumKafkaCursorCoordinationPlan",
+    "DebeziumKafkaPartitionCursorAlignment",
     "DebeziumKafkaPartitionResume",
     "DebeziumKafkaRecord",
     "DebeziumKafkaResumeGapError",
@@ -49,8 +58,13 @@ __all__ = [
     "DeltaCDFCDCAdapter",
     "DeltaCDFChangeType",
     "DeltaCDFRecord",
+    "DeltaCDFResumePlan",
+    "DeltaCDFRetentionGapError",
+    "KafkaCursorRelation",
     "delta_cdf_checkpoint",
     "normalize_debezium_kafka_batch",
     "normalize_delta_cdf_batch",
+    "plan_debezium_kafka_cursor_coordination",
     "plan_debezium_kafka_resume",
+    "plan_delta_cdf_resume",
 ]

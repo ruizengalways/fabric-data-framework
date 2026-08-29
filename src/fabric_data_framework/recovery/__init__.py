@@ -35,6 +35,13 @@ from .runtime import (
     classify_failure,
     execute_with_retry,
 )
+from .target_probe import (
+    TargetCommitProbe,
+    TargetCommitProbeEvidence,
+    TargetCommitProbeRequest,
+    TargetCommitProbeRunResult,
+    probe_and_reconcile_target_operation,
+)
 
 __all__ = [
     "AttemptContext",
@@ -58,6 +65,10 @@ __all__ = [
     "RecoveryRunResult",
     "RetryPolicy",
     "RetryableExecutionError",
+    "TargetCommitProbe",
+    "TargetCommitProbeEvidence",
+    "TargetCommitProbeRequest",
+    "TargetCommitProbeRunResult",
     "UnknownCommitOutcomeError",
     "UnknownOutcomeUnresolvedError",
     "classify_failure",
@@ -66,4 +77,5 @@ __all__ = [
     "execute_with_retry",
     "prepare_full_rebuild",
     "prepare_quarantine_replay",
+    "probe_and_reconcile_target_operation",
 ]
