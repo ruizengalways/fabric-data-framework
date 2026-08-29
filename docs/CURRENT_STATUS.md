@@ -28,7 +28,7 @@ The target product is a wheel an enterprise domain installs and normally uses th
 
 ## Latest coherent implementation evidence
 
-Current CDC hardening sequence is green:
+Current hardening sequence is green:
 
 ```text
 ccf0fc8950efb1f4d338cadcaf83aac5fd49a7b9
@@ -60,6 +60,16 @@ ecdca38099a4f21c6f40701dc14889b464c20608
 Actions 33219783325
 183 tests passed
 Debezium/Kafka capability profile + explicit provider-adapter registry
+
+6b4a3cd2ddecd818d22fabe22988c043cdcff260
+Actions 33220487307
+190 tests passed
+fail-closed quarantine REPLAY coordination
+
+f3521aa79b2cc66865d46a30e119a7dc4784d698
+Actions 33220690474
+197 tests passed
+guarded FULL_REBUILD target/state cutover
 ```
 
 Earlier hardening evidence remains relevant:
@@ -102,6 +112,8 @@ The hardening branch now provides:
 - controlled logical-name domain extension registry;
 - conservative retry, attempt lineage and unknown-target-commit recovery;
 - RETRY/BACKFILL/REPLAY/FULL_REBUILD request contracts;
+- executable quarantine REPLAY with external governed payload-provider boundary, batch identity/row-count validation and post-gate replay marking;
+- guarded FULL_REBUILD with stable destructive operation identity, optimistic state cutover and capture-aware replacement state;
 - canonical CDC event/order/dedupe/bounded-window contracts;
 - CDC -> UPSERT/SCD1 current-state apply;
 - CDC -> SCD2 history apply with source-order/valid-time separation;
@@ -230,7 +242,15 @@ UNKNOWN_OUTCOME -> reconcile first
   UNRESOLVED    -> stop
 ```
 
-Attempt root/previous lineage and reprocess requests are environment-local evidence. Debezium/Kafka now has a provider-specific safe source-resume planner, but quarantine REPLAY, FULL_REBUILD execution and other native-progress recovery remain incomplete.
+### Quarantine REPLAY
+
+REPLAY no longer means only an audited intent. The framework now resolves immutable quarantine evidence from the control plane, loads payload through a governed external payload-provider protocol, verifies dataset/reference/row-count identity and calls replay logic with a typed plan. `replayed_by_dataset_run_id` advances only after target/reconciliation state gate success. Exact rerun by the same replay run is idempotent; a different run cannot silently claim an already replayed batch.
+
+### FULL_REBUILD
+
+FULL_REBUILD uses `reprocess_request_id` as the stable destructive-operation identity across attempts. Target reconstruction must explicitly prove authoritative completion and pass the required state gate before runtime progress is cut over. Replacement progress is capture-aware (`NONE`, `WATERMARK`, `CDC`, `EXTERNAL`) and state persistence uses optimistic versioning so a concurrent state change is never overwritten. Re-running an already completed rebuild request converges without repeating destructive work.
+
+Remaining recovery gaps are physical/native integration specific: Copy/Dataflow/Mirroring downstream-failure resume proofs, real Kafka cursor commit coordination, remaining capture-family frozen-window certification, persistent target idempotency and supported operator API/CLI.
 
 ## Fabric adapter status
 
@@ -302,14 +322,14 @@ SQLAlchemy/SQLite control-plane evidence is a schema/transaction reference proof
 
 ## Exact next implementation sequence
 
-1. Complete strategy-specific recovery: quarantine REPLAY, FULL_REBUILD execution and remaining native/external progress recovery.
-2. Add additional provider CDC adapters only where a supported product scope requires them; keep canonical CDC unchanged.
-3. Implement APPEND identity/collision/replay semantics.
-4. Implement general schema-evolution classification and compatibility policy.
-5. Add shared late/out-of-order taxonomy beyond the current fail-closed SCD2 retroactive case.
-6. Add file-manifest and API-pagination/window capture guardrails.
-7. Add supported persistent control-plane repository/operator query surface.
-8. Implement actual Fabric/Kafka transports/backend and prove at least one approved DEV hybrid execution.
+1. Implement APPEND identity/collision/replay semantics with source-controlled append identity and control-plane materialization.
+2. Implement general schema-evolution classification and compatibility policy.
+3. Add shared late/out-of-order taxonomy beyond the current fail-closed SCD2 retroactive case.
+4. Add file-manifest and API-pagination/window capture guardrails.
+5. Complete remaining physical/native progress recovery and durable target-idempotency proofs.
+6. Add supported persistent control-plane repository/operator query surface.
+7. Implement actual Fabric/Kafka transports/backend and prove at least one approved DEV hybrid execution.
+8. Add additional provider CDC adapters only where supported product scope requires them; keep canonical CDC unchanged.
 9. Re-run production readiness/guarantee/docs audit against the exact candidate head.
 10. Only then decide the next immutable framework release scope/version.
 
