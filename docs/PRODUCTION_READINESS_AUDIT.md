@@ -17,37 +17,40 @@ Green CI proves levels 1/2 only. Executable HTTP/SQL code is not real Fabric/pro
 ## Current assessment
 
 ```text
-Portable semantic implementation        STRONG / broad core product slice
-Deterministic certification              STRONG for implemented slices
-Source-fidelity onboarding               IMPLEMENTED / CI PROVEN reference
-Target-operation journal                 IMPLEMENTED / CI PROVEN reference
-Provider-native recovery contracts       IMPLEMENTED / CI PROVEN reference
-Control-plane certification framework    IMPLEMENTED / CI PROVEN contract
-Fabric Data Pipeline backend             IMPLEMENTED / CI PROVEN backend
-SQLAlchemy runtime repository            IMPLEMENTED / CI PROVEN relational runtime
-Copy Job REST capture transport          IMPLEMENTED / CI PROVEN transport contract
-Spark Job Definition capture transport   IMPLEMENTED / CI PROVEN transport contract
-Provider-specific target commit proof    NEXT P0 / NOT YET IMPLEMENTED
-Real Fabric/Kafka/Delta execution        NOT YET PROVEN
-Real production SQL backend              NOT YET PROVEN
-External enterprise controls             EXTERNAL / NOT PROVEN BY THIS REPO
+Portable semantic implementation             STRONG / broad core product slice
+Deterministic certification                   STRONG for implemented slices
+Source-fidelity onboarding                    IMPLEMENTED / CI PROVEN reference
+Target-operation journal                      IMPLEMENTED / CI PROVEN reference
+Provider-native recovery contracts            IMPLEMENTED / CI PROVEN reference
+Control-plane certification framework         IMPLEMENTED / CI PROVEN contract
+Fabric Data Pipeline backend                  IMPLEMENTED / CI PROVEN backend
+SQLAlchemy runtime repository                 IMPLEMENTED / CI PROVEN relational runtime
+Copy Job REST capture transport               IMPLEMENTED / CI PROVEN transport contract
+Spark Job Definition capture transport        IMPLEMENTED / CI PROVEN transport contract
+Fabric Warehouse target commit proof          IMPLEMENTED / CI PROVEN provider contract
+Real Fabric/Kafka/Delta execution             NOT YET PROVEN
+Real production SQL backend                   NOT YET PROVEN
+External enterprise controls                  EXTERNAL / NOT PROVEN BY THIS REPO
 ```
 
 Latest validated merged implementation:
 
 ```text
-8f23942acd5b03d817e42b97d9f490acc6bee89f
-PR #26 validation: GitHub Actions 33247494948
-362 tests
+67562e4312dc9c37e8b7fb8d79535bb621bd573f
+PR #28 validation: GitHub Actions 33247800732
+372 tests
 Python 3.11 + 3.13 + wheel/static checks green
-Copy Job + Spark Job Definition concrete capture REST transports
+Fabric Warehouse target mutation + atomic marker proof + durable journal reconciliation
 ```
 
-Previous relational runtime baseline:
+Previous provider/runtime baselines:
 
 ```text
-2fa8e2c4bc6875b529a4968694722d4108a635ff
-PR #24 validation: GitHub Actions 33246594883
+PR #26 -> 8f23942acd5b03d817e42b97d9f490acc6bee89f
+362 tests
+Copy Job + Spark Job Definition concrete capture REST transports
+
+PR #24 -> 2fa8e2c4bc6875b529a4968694722d4108a635ff
 350 tests
 SQLAlchemy runtime repository + durable Fabric child/parent outcome handoff
 ```
@@ -60,140 +63,123 @@ SQLAlchemy runtime repository + durable Fabric child/parent outcome handoff
 |---|---:|---:|---:|---|
 | Typed metadata/effective config | Yes | Yes | N/A | IMPLEMENTED |
 | 14-pattern source-fidelity catalog | Yes | Yes | N/A | IMPLEMENTED reference |
-| Capture onboarding CI claims/examples | Yes | Yes | N/A | IMPLEMENTED/CI PROVEN |
 | APPEND/REPLACE/UPSERT/SCD1/SCD2/SNAPSHOT_DIFF | Yes | Yes | No | IMPLEMENTED reference |
 | Canonical CDC + downstream checkpoint | Yes | Yes | No | IMPLEMENTED reference |
-| Kafka cursor coordination/retention safety | Yes | Yes | No live broker drill | IMPLEMENTED/CI PROVEN reference |
+| Kafka cursor coordination/retention safety | Yes | Yes | No live broker | IMPLEMENTED/CI PROVEN reference |
 | Delta CDF normalization/resume safety | Yes | Yes | No live Lakehouse CDF | IMPLEMENTED/CI PROVEN reference |
 | Durable target-operation identity/CAS | Yes | Yes | No live target | IMPLEMENTED/CI PROVEN reference |
-| Provider-neutral target commit probe | Yes | Yes | No provider-specific commit proof | IMPLEMENTED/CI PROVEN contract |
-| Control-plane v4 schema/migrations | Yes | Yes | SQLite/reference | IMPLEMENTED reference |
-| Backend certification profiles/probes | Yes | Yes | No real mssql candidate run | IMPLEMENTED/CI PROVEN contract |
-| Fabric REST Job Scheduler client | Yes | Yes | No live Fabric call | IMPLEMENTED/CI PROVEN transport |
-| Fabric Data Pipeline backend | Yes | Yes | No live Pipeline job | IMPLEMENTED/CI PROVEN backend |
-| Remote Pipeline Completed requires framework outcome | Yes | Yes | No live child handoff | IMPLEMENTED/CI PROVEN |
+| Provider-neutral target commit probe | Yes | Yes | Provider-specific Warehouse implementation now exists | IMPLEMENTED contract |
+| Control-plane v4 + backend certification | Yes | Yes | No real production candidate run | IMPLEMENTED/CI PROVEN contract |
 | SQLAlchemy `ControlPlaneRepository` | Yes | Yes | No real Fabric/Azure SQL | IMPLEMENTED/CI PROVEN relational runtime |
-| Durable relational DatasetDispatchOutcome | Yes | Yes | No cross-process real DB | IMPLEMENTED/CI PROVEN |
-| Copy Job specific REST start/status paths | Yes | Yes | No live Copy Job | IMPLEMENTED/CI PROVEN transport contract |
-| Copy Job FABRIC_NATIVE progress guardrails | Yes | Yes | No live incremental drill | IMPLEMENTED/CI PROVEN contract |
-| Copy Job CDC fidelity documented as net-change constrained | Yes | Yes | Provider semantics not live-certified here | IMPLEMENTED metadata guardrail |
-| Spark Job Definition dedicated REST start path | Yes | Yes | No live SJD | IMPLEMENTED/CI PROVEN transport contract |
-| Spark framework-bound executionData resolver | Yes | Yes | No real child contract | IMPLEMENTED/CI PROVEN contract |
+| Fabric REST Job Scheduler | Yes | Yes | No live Fabric call | IMPLEMENTED/CI PROVEN transport |
+| Fabric Data Pipeline backend | Yes | Yes | No live Pipeline job | IMPLEMENTED/CI PROVEN backend |
+| Copy Job REST capture transport | Yes | Yes | No live Copy Job | IMPLEMENTED/CI PROVEN transport contract |
+| Spark Job Definition REST capture transport | Yes | Yes | No live SJD | IMPLEMENTED/CI PROVEN transport contract |
 | Mandatory Copy/Spark post-run observation | Yes | Yes | No real observer | IMPLEMENTED/CI PROVEN contract |
-| Invalid local wait settings blocked before remote POST | Yes | Yes | N/A | IMPLEMENTED/CI PROVEN |
-| Fabric native job/root correlation | Yes | Yes | No real native IDs | IMPLEMENTED/CI PROVEN model |
-| Fabric Warehouse target-native commit proof | No | No | No | P0 GAP |
-| Approved DEV hybrid execution | No | No | No | P0 GAP |
+| Warehouse target-side marker table contract | Yes | Yes | No real Warehouse table | IMPLEMENTED/CI PROVEN provider contract |
+| Warehouse target mutation + marker same transaction | Yes | SQLite/reference transaction proof | No real Warehouse transaction | IMPLEMENTED/CI PROVEN provider contract |
+| Existing committed marker prevents re-execution | Yes | Yes | No real Warehouse | IMPLEMENTED/CI PROVEN |
+| Marker absence defaults to `UNRESOLVED` | Yes | Yes | N/A | IMPLEMENTED/CI PROVEN |
+| Independently certified absence may yield `NOT_COMMITTED` | Yes | Yes | No approved real certifier | IMPLEMENTED contract |
+| Query Insights only secondary correlation | Yes | Yes | No real query history | IMPLEMENTED guardrail |
+| UNKNOWN journal + committed Warehouse marker -> SUCCEEDED | Yes | Yes | No real Warehouse | IMPLEMENTED/CI PROVEN integration |
+| Approved DEV end-to-end execution | No | No | No | P0 GAP |
+
+## Fabric Warehouse target commit readiness
+
+Canonical runbook: `docs/FABRIC_WAREHOUSE_TARGET_COMMIT_PROOF.md`.
+
+### Primary proof
+
+The target mutation and framework target-side marker are executed through the same target transaction:
+
+```text
+BEGIN TRAN
+  target mutation
+  operation marker
+COMMIT TRAN
+```
+
+This design is based on the current Fabric Warehouse ACID explicit transaction model. The marker repeats the stable `TargetOperationIntent` semantic identity and retains optional native statement/label evidence.
+
+The marker table is not auto-created by runtime. Its persisted columns use a Warehouse-safe logical type contract based on varchar/integer/datetime2 semantics.
+
+### Concurrency authority
+
+The target marker is not the distributed execution lock. Existing target-operation CAS in the framework control plane remains the authority for `EXECUTE` vs `RECONCILE_REQUIRED`.
+
+This is deliberate because Warehouse constraints can use `NOT ENFORCED` semantics; portable exactly-once behavior must not depend on a target uniqueness constraint that might not be enforced.
+
+### Probe rules
+
+```text
+matching committed marker -> COMMITTED
+marker absent              -> UNRESOLVED
+marker absent + certified independent no-late-commit proof -> NOT_COMMITTED
+```
+
+Marker absence alone never grants retry.
+
+### Query Insights
+
+`distributed_statement_id`, label and command history can be useful secondary diagnostics. Current product documentation warns that completed query history can lag by up to roughly 15 minutes under load, so Query Insights presence/absence is not immediate commit truth.
+
+### Journal integration
+
+CI proves:
+
+```text
+framework EXECUTE claim
+  -> target mutation + marker commit
+  -> simulated lost acknowledgement
+  -> framework UNKNOWN
+  -> FabricWarehouseTargetCommitProbe
+  -> durable SUCCEEDED
+  -> future claim SKIP_SUCCEEDED
+```
+
+Correct label: `IMPLEMENTED + CI PROVEN PROVIDER COMMIT CONTRACT`, not `FABRIC WAREHOUSE PROVEN`.
 
 ## Concrete Fabric capture readiness
 
 Canonical runbook: `docs/FABRIC_CAPTURE_REST_TRANSPORTS.md`.
 
-### Copy Job
+Copy Job and Spark Job Definition now have concrete item-specific REST transports. Provider `Completed` does not itself prove rows/landing/bounds/native checkpoint; successful capture requires post-run observation before `CaptureReceipt`.
 
-The concrete transport uses the current item-specific API shapes for on-demand execution and instance status. The transport requires `FABRIC_NATIVE` progress ownership and rejects framework lower/upper bounds and arbitrary per-run framework parameters.
+Copy Job remains provider-native progress owned; framework bounds are rejected. Current Copy Job CDC fidelity is treated as net-change constrained.
 
-Native Copy Job incremental progress is provider state. It must not be copied into framework downstream state merely because a provider run completed.
+Spark bounded capture requires an explicit resolver into the selected released SJD `executionData` contract.
 
-Current product semantics also constrain CDC claims: Copy Job CDC currently documents net-change capture rather than guaranteed preservation of every intermediate change event. Source-fidelity onboarding remains authoritative.
+Correct label: `IMPLEMENTED + CI PROVEN TRANSPORT CONTRACT`, not `FABRIC PROVEN`.
 
-### Spark Job Definition
+## Relational runtime / control plane readiness
 
-The concrete SJD transport uses the dedicated Spark on-demand endpoint. Framework-bounded capture requires an explicit resolver from framework request/bounds into the selected released SJD `executionData`; the reusable framework does not invent a universal child command-line convention.
+`SqlAlchemyControlPlaneRepository` validates released immutable config against deployed SQL `config_hash` and persists runtime/evidence state. It requires an explicitly migrated exact schema.
 
-### Post-run observation
-
-A generic Fabric job instance proves native job identity/status/timestamps but not generic rows, landing, exact framework bounds, native incremental checkpoint, snapshot completeness or schema evidence.
-
-Therefore `Completed` requires a provider/item-specific `FabricCaptureObservation` before the existing Fabric capture adapter can produce a `CaptureReceipt`.
-
-Failed/cancelled/deduped provider jobs do not run the success observer. Bounds observed after Spark completion are compared against requested framework bounds and mismatch fails closed.
-
-Correct claim: `IMPLEMENTED + CI PROVEN TRANSPORT CONTRACT`, not `FABRIC PROVEN`.
-
-## Relational runtime readiness
-
-Canonical runbook: `docs/RELATIONAL_RUNTIME_REPOSITORY.md`.
-
-`SqlAlchemyControlPlaneRepository` validates the released immutable `DatasetConfig` against deployed SQL `config_hash` and persists runtime/evidence state. Construction requires an explicitly migrated exact schema and never silently migrates.
-
-Deterministically proven paths include pipeline/dataset/step lifecycle, durable `DatasetDispatchOutcome`, capture receipt, reconciliation, quarantine, attempt lineage and reprocess state.
-
-Correct claim: `IMPLEMENTED + CI PROVEN RELATIONAL RUNTIME`, not `PRODUCTION DB PROVEN`.
-
-## Fabric Pipeline readiness
-
-Canonical runbook: `docs/FABRIC_PIPELINE_BACKEND.md`.
-
-```text
-framework planner
-  -> ready wave
-  -> FabricPipelineBackend
-  -> Fabric REST Pipeline job
-  -> terminal provider status
-  -> exact durable framework outcome
-  -> native job/root step evidence
-```
-
-`Completed` alone never means framework success.
-
-Correct claim: `IMPLEMENTED + CI PROVEN TRANSPORT/BACKEND`, not `FABRIC PROVEN`.
-
-## Control-plane readiness
-
-Current control-plane schema is v4. Production candidate profiles remain:
+Production candidates remain:
 
 ```text
 fabric_sql_database_v1
 azure_sql_database_v1
 ```
 
-The portable runtime repository and certification suite now exist. The remaining control-plane release gate is execution against a real selected SQL backend plus retained identity/IAM/network/backup/DR/monitoring/governance evidence.
-
-## Next P0: Fabric Warehouse target commit proof
-
-The provider-neutral `TargetCommitProbe` exists, but a Fabric Warehouse implementation is still missing.
-
-Current Microsoft Fabric Warehouse product semantics make the preferred proof design:
-
-```text
-BEGIN TRAN
-  target mutation
-  framework-owned target-side operation marker
-COMMIT TRAN
-```
-
-The marker uses the existing semantic `TargetOperationIntent.operation_key`. Because Warehouse explicit transactions are ACID, the target mutation and marker can be one atomic target-side unit when both statements are supported in the same explicit transaction.
-
-After an ambiguous client/network outcome, a read-only provider probe should inspect the target-side marker:
-
-```text
-marker committed and identity matches -> COMMITTED
-absence + independently certified no-open/delayed-commit boundary -> NOT_COMMITTED
-otherwise -> UNRESOLVED
-```
-
-**Absence alone must not automatically mean `NOT_COMMITTED`.** That inference requires provider/session recovery semantics to be certified for the failure boundary.
-
-Warehouse Query Insights/query labels can retain `distributed_statement_id`, label and command as secondary correlation. They cannot be the sole immediate commit truth because completed query history can take up to 15 minutes to appear.
-
-This target-side marker is provider-native proof, not a second framework control plane. The durable framework target-operation journal remains the semantic retry gate.
+Portable runtime and certification code now exist. The remaining control-plane gate is a real selected backend run plus retained backend identity/IAM/network/backup/DR/monitoring/governance evidence.
 
 ## Remaining release-significant work
 
-### P0 portable/provider integration
+### P0 approved DEV evidence harness
 
-1. implement Fabric Warehouse atomic target-operation marker contract and provider-specific commit probe;
-2. add source-position discovery where selected providers expose authoritative positions;
-3. wire real Kafka/Delta clients if those profiles remain release scope.
+1. provide a repeatable environment binding/authentication/evidence-manifest workflow that executes the already-implemented Fabric transports without embedding credentials in config or evidence;
+2. retain framework IDs, native Fabric job/root IDs, target marker references and provider error/retry evidence in one auditable run bundle;
+3. make the harness fail closed when expected evidence is missing.
 
-### P0 real evidence
+### P0 real service evidence
 
-1. run control-plane certification against the selected real Fabric SQL Database/Azure SQL Database candidate;
-2. execute approved DEV Fabric Pipeline + SQL repository flow retaining framework/native IDs;
-3. execute real Copy Job and Spark Job Definition capture paths with retained observation evidence;
-4. exercise Warehouse ambiguous target-commit failure boundaries and prove marker/query correlation behavior;
-5. run Kafka cursor and Delta retention failure drills if included in release scope;
+1. execute real Fabric Pipeline, Copy Job and Spark Job Definition paths in an approved DEV workspace;
+2. execute real Fabric Warehouse mutation + marker transactions;
+3. drill ambiguous network/client failure around Warehouse COMMIT and certify any marker-absence behavior only from the observed driver/session semantics;
+4. run control-plane certification against the selected real SQL backend;
+5. exercise live Kafka/Delta paths only if included in the `0.4.0` product promise;
 6. retain auth/network/capacity and enterprise-control evidence.
 
 ### Release decision
@@ -206,4 +192,4 @@ Capacity/SKU/throttling, tenant settings, workspace/domain provisioning, Entra/R
 
 ## Release gate
 
-Current decision: **release remains blocked. PR #26 closes the portable concrete Copy Job / Spark Job Definition REST transport gap. The next implementation gate is Fabric Warehouse target-native commit proof, followed by approved live DEV executions and production SQL backend certification.**
+Current decision: **release remains blocked. PR #28 closes the portable Fabric Warehouse target-commit proof gap. The next implementation gate is a repeatable approved-DEV evidence harness and then retained real service execution/certification.**
