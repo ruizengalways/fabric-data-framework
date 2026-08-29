@@ -7,7 +7,7 @@ process-local. Preflight never serializes environment-variable values.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import ClassVar
 from uuid import UUID
@@ -19,6 +19,7 @@ from .control_plane_certification import CONTROL_PLANE_BACKEND_PROFILES
 from .infrastructure import EnvironmentName
 from .integration_evidence import (
     IntegrationEvidenceCheckKind,
+    IntegrationEvidenceCheckSpec,
     IntegrationEvidenceSpec,
 )
 
@@ -151,9 +152,31 @@ def _require_same_release(
         raise ValueError("integration runner config and evidence spec release hash differ")
 
 
+def _selected_checks(
+    spec: IntegrationEvidenceSpec,
+    selected_check_ids: Iterable[str] | None,
+) -> tuple[IntegrationEvidenceCheckSpec, ...]:
+    if selected_check_ids is None:
+        return tuple(item for item in spec.checks if item.required)
+    requested = tuple(selected_check_ids)
+    if not requested:
+        raise ValueError("selected_check_ids cannot be empty")
+    if len(set(requested)) != len(requested):
+        raise ValueError("selected_check_ids must be unique")
+    by_id = {item.check_id: item for item in spec.checks}
+    unknown = [check_id for check_id in requested if check_id not in by_id]
+    if unknown:
+        raise ValueError(
+            "selected integration checks are not declared in evidence spec: "
+            + ", ".join(unknown)
+        )
+    return tuple(by_id[check_id] for check_id in requested)
+
+
 def _validate_bindings(
     config: ApprovedIntegrationRunnerConfig,
     spec: IntegrationEvidenceSpec,
+    checks: tuple[IntegrationEvidenceCheckSpec, ...],
 ) -> dict[str, IntegrationCheckPhysicalBinding]:
     specs = {item.check_id: item for item in spec.checks}
     bindings = {item.check_id: item for item in config.bindings}
@@ -163,7 +186,7 @@ def _validate_bindings(
             "integration runner bindings are not declared in evidence spec: "
             + ", ".join(unexpected)
         )
-    for check in spec.checks:
+    for check in checks:
         if check.kind in _FABRIC_ITEM_KINDS:
             binding = bindings.get(check.check_id)
             if binding is None:
@@ -179,18 +202,18 @@ def _validate_bindings(
 
 def _runtime_requirements(
     config: ApprovedIntegrationRunnerConfig,
-    spec: IntegrationEvidenceSpec,
+    checks: tuple[IntegrationEvidenceCheckSpec, ...],
     *,
     environ: Mapping[str, str],
 ) -> tuple[RuntimeEnvironmentRequirement, ...]:
-    kinds = {item.kind for item in spec.checks if item.required}
+    kinds = {item.kind for item in checks}
     requirements: list[tuple[str, str]] = []
     if kinds.intersection(_FABRIC_ITEM_KINDS):
         requirements.append(("Fabric REST access token", config.fabric_access_token_env_var))
     if IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION in kinds:
         if config.control_plane_database_url_env_var is None:
             raise ValueError(
-                "required CONTROL_PLANE_CERTIFICATION check needs control-plane runtime configuration"
+                "CONTROL_PLANE_CERTIFICATION check needs control-plane runtime configuration"
             )
         requirements.append(
             ("control-plane database URL", config.control_plane_database_url_env_var)
@@ -198,7 +221,7 @@ def _runtime_requirements(
     if IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_TARGET_COMMIT in kinds:
         if config.warehouse_database_url_env_var is None:
             raise ValueError(
-                "required FABRIC_WAREHOUSE_TARGET_COMMIT check needs warehouse_database_url_env_var"
+                "FABRIC_WAREHOUSE_TARGET_COMMIT check needs warehouse_database_url_env_var"
             )
         requirements.append(
             ("Warehouse SQL database URL", config.warehouse_database_url_env_var)
@@ -226,30 +249,35 @@ def build_approved_integration_run_plan(
     spec: IntegrationEvidenceSpec,
     *,
     environ: Mapping[str, str],
+    selected_check_ids: Iterable[str] | None = None,
     allow_mutating_checks: bool = False,
 ) -> ApprovedIntegrationRunPlan:
     """Validate exact-release bindings and runtime prerequisites without reading secrets.
+
+    By default all *required* evidence checks are planned. ``selected_check_ids`` can
+    stage a safer subset, for example the read-only Fabric item smoke before database
+    credentials or mutating provider checks are authorized.
 
     The environment mapping is inspected only for presence/non-empty values. Secret
     values are never copied into the returned plan.
     """
 
     _require_same_release(config, spec)
-    _validate_bindings(config, spec)
-    runtime_requirements = _runtime_requirements(config, spec, environ=environ)
-    missing = tuple(
-        item.env_var for item in runtime_requirements if not item.present
-    )
-    mutating = tuple(
-        item.check_id for item in spec.checks if item.required and item.kind in _MUTATING_KINDS
+    checks = _selected_checks(spec, selected_check_ids)
+    bindings = _validate_bindings(config, spec, checks)
+    runtime_requirements = _runtime_requirements(config, checks, environ=environ)
+    missing = tuple(item.env_var for item in runtime_requirements if not item.present)
+    mutating = tuple(item.check_id for item in checks if item.kind in _MUTATING_KINDS)
+    selected_bindings = tuple(
+        bindings[item.check_id] for item in checks if item.check_id in bindings
     )
     return ApprovedIntegrationRunPlan(
         environment=config.environment,
         domain=config.domain,
         framework_version=config.framework_version,
         release_hash=config.release_hash,
-        check_ids=tuple(item.check_id for item in spec.checks),
-        bindings=config.bindings,
+        check_ids=tuple(item.check_id for item in checks),
+        bindings=selected_bindings,
         runtime_requirements=runtime_requirements,
         missing_runtime_env_vars=missing,
         mutating_check_ids=mutating,
