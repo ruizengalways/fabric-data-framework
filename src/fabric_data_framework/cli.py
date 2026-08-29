@@ -13,6 +13,12 @@ from sqlalchemy import create_engine
 from . import __version__
 from .capture import load_capture_selections, validate_capture_selection
 from .control_plane import apply_baseline_schema, current_schema_version
+from .control_plane_certification import (
+    CONTROL_PLANE_BACKEND_PROFILES,
+    ControlPlaneExternalEvidence,
+    certify_control_plane_backend,
+    get_control_plane_backend_profile,
+)
 from .delivery import (
     build_release_manifest,
     load_dataset_configs,
@@ -46,6 +52,40 @@ def _parser() -> argparse.ArgumentParser:
     status.add_argument("--database-url", required=True)
     status.add_argument("--dataset-id")
     status.add_argument("--output")
+
+    certify = subparsers.add_parser(
+        "control-plane-certify",
+        help="Evaluate schema, CAS conformance and external production evidence",
+    )
+    certify.add_argument("--database-url", required=True)
+    certify.add_argument(
+        "--profile",
+        choices=sorted(CONTROL_PLANE_BACKEND_PROFILES),
+        required=True,
+    )
+    certify.add_argument(
+        "--run-conformance",
+        action="store_true",
+        help=(
+            "Run temporary write/rollback/CAS probes. Use only in an approved certification "
+            "database or environment."
+        ),
+    )
+    certify.add_argument(
+        "--external-evidence",
+        help="JSON file containing references to IAM/network/restore/HA/monitoring/retention evidence",
+    )
+    certify.add_argument(
+        "--require-reference-certified",
+        action="store_true",
+        help="Exit non-zero unless deterministic conformance is fully certified",
+    )
+    certify.add_argument(
+        "--require-production-certified",
+        action="store_true",
+        help="Exit non-zero unless production profile, conformance and external evidence all pass",
+    )
+    certify.add_argument("--output")
 
     onboarding = subparsers.add_parser(
         "capture-onboarding-validate",
@@ -148,6 +188,29 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 payload = list_dataset_operational_snapshots(engine)
             _write_or_print_json(payload, args.output)
+            return 0
+
+        if args.command == "control-plane-certify":
+            if args.require_production_certified and not args.run_conformance:
+                raise ValueError(
+                    "--require-production-certified requires --run-conformance"
+                )
+            evidence = (
+                ControlPlaneExternalEvidence.from_json_file(args.external_evidence)
+                if args.external_evidence
+                else None
+            )
+            report = certify_control_plane_backend(
+                create_engine(args.database_url),
+                profile=get_control_plane_backend_profile(args.profile),
+                run_conformance=args.run_conformance,
+                external_evidence=evidence,
+            )
+            _write_or_print_json(report, args.output)
+            if args.require_production_certified and not report.production_certified:
+                raise ValueError("control plane is not production-certified")
+            if args.require_reference_certified and not report.reference_certified:
+                raise ValueError("control plane is not reference-certified")
             return 0
 
         if args.command == "capture-onboarding-validate":
