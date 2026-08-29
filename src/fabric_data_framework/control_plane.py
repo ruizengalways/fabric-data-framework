@@ -21,11 +21,12 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 
 
-CONTROL_PLANE_SCHEMA_VERSION = 3
+CONTROL_PLANE_SCHEMA_VERSION = 4
 CONTROL_PLANE_MIGRATIONS = (
     (1, "phase1_initial_control_plane_schema"),
     (2, "execution_policy_ordering_capture_receipt_recovery_and_cdc"),
     (3, "append_identity_semantics"),
+    (4, "durable_target_operation_journal"),
 )
 
 NAMING_CONVENTION = {
@@ -374,6 +375,49 @@ dataset_attempt_lineage = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
+target_operation = Table(
+    "target_operation",
+    metadata,
+    Column("operation_key", String(64), primary_key=True),
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), nullable=False),
+    Column("operation_kind", String(64), nullable=False),
+    Column("target_reference", String(1024), nullable=False),
+    Column("effective_config_hash", String(64), nullable=False),
+    Column("input_fingerprint", String(64), nullable=False),
+    Column("semantic_version", Integer, nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("owner_dataset_run_id", String(36), nullable=False),
+    Column("attempt", Integer, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("outcome_reference", String(2048), nullable=True),
+    Column("error_code", String(128), nullable=True),
+    Column("error_message", Text, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=True),
+    Column("completed_at", DateTime(timezone=True), nullable=True),
+)
+
+target_operation_event = Table(
+    "target_operation_event",
+    metadata,
+    Column("event_id", String(36), primary_key=True),
+    Column(
+        "operation_key",
+        String(64),
+        ForeignKey("target_operation.operation_key"),
+        nullable=False,
+    ),
+    Column("from_status", String(32), nullable=True),
+    Column("to_status", String(32), nullable=False),
+    Column("owner_dataset_run_id", String(36), nullable=False),
+    Column("attempt", Integer, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("outcome_reference", String(2048), nullable=True),
+    Column("error_code", String(128), nullable=True),
+    Column("error_message", Text, nullable=True),
+    Column("occurred_at", DateTime(timezone=True), nullable=False),
+)
+
 deployment_history = Table(
     "deployment_history",
     metadata,
@@ -427,6 +471,8 @@ ENVIRONMENT_LOCAL_STATE_TABLES = frozenset(
         "quarantine_batch",
         "schema_change",
         "reprocess_request",
+        "target_operation",
+        "target_operation_event",
         "deployment_history",
     }
 )
@@ -502,4 +548,6 @@ __all__ = [
     "ordering_policy",
     "reprocess_request",
     "table_names",
+    "target_operation",
+    "target_operation_event",
 ]
