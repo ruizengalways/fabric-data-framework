@@ -17,26 +17,30 @@ Green Python CI proves levels 1/2 only. Adapter-contract tests do not become rea
 ## Current assessment
 
 ```text
-Portable semantic implementation     STRONG / broad core product slice
-Deterministic certification           STRONG for implemented slices
-Provider adapter contract coverage    STRONG for Fabric capture + Debezium/Kafka reference
-Read-only operator diagnostics        IMPLEMENTED reference
-Real Fabric/Kafka execution evidence  NOT YET PROVEN
-External enterprise controls          EXTERNAL / NOT PROVEN BY THIS REPO
+Portable semantic implementation       STRONG / broad core product slice
+Deterministic certification             STRONG for implemented slices
+Mainstream source onboarding model      IMPLEMENTED reference
+Provider adapter contract coverage      Fabric capture + Debezium/Kafka + Delta CDF
+Read-only operator diagnostics          IMPLEMENTED reference
+Real Fabric/Kafka/Delta execution       NOT YET PROVEN
+External enterprise controls            EXTERNAL / NOT PROVEN BY THIS REPO
 ```
 
-Latest validated implementation:
+Latest validated PR #14 implementation:
 
 ```text
-ae1eb99ab5fa9d7add5a62dda2d7448b6200d240
-GitHub Actions 33225341709
-268 tests passed
-operator snapshot + control-plane-status CLI
+78018b90c3dfb7f7ff2297aa173e9e8dfaee40e6
+GitHub Actions 33237905150
+310 tests passed
+14-pattern capture catalog + source-controlled onboarding claims + Delta CDF adapter/profile + executable examples
+```
 
-1ee22d5828a5f53a3f9050722bdb5b7f7b28de43
-GitHub Actions 33225064570
-261 tests passed
-shared temporal taxonomy wired through current-state/CDC/SCD2
+Merged hardening baseline:
+
+```text
+9b2278822ff4c566051c69180c8ca63b021866e4
+main Actions 33225627461
+SUCCESS
 ```
 
 `v0.3.0` remains the latest public release. **Do not publish v0.4.0 yet.**
@@ -46,12 +50,13 @@ shared temporal taxonomy wired through current-state/CDC/SCD2
 | Capability | Portable/adapter code | Deterministic proof | Real service | Assessment |
 |---|---:|---:|---:|---|
 | Typed metadata/effective config | Yes | Yes | N/A | IMPLEMENTED |
+| 14-pattern capture/source catalog | Yes | Yes | N/A | IMPLEMENTED reference |
+| Source-controlled history/delete/Bronze onboarding claims | Yes | Yes | N/A | IMPLEMENTED reference |
+| `capture-onboarding-validate --require-all` CI gate | Yes | Yes | N/A | IMPLEMENTED reference |
+| Executable checked-in onboarding examples | Yes | Yes | N/A | IMPLEMENTED/CI PROVEN |
 | Composite WATERMARK + overlap | Yes | Yes | No | IMPLEMENTED reference |
 | Bronze/DQ/quarantine/accounting | Yes | Yes | No prod quarantine store | IMPLEMENTED reference |
-| APPEND | Yes | Yes | No | IMPLEMENTED reference |
-| FULL -> REPLACE | Yes | Yes | No | IMPLEMENTED reference |
-| SNAPSHOT_DIFF | Yes | Yes | No | IMPLEMENTED reference |
-| UPSERT/SCD1/SCD2 | Yes | Yes | No | IMPLEMENTED reference |
+| APPEND/FULL->REPLACE/SNAPSHOT_DIFF/UPSERT/SCD1/SCD2 | Yes | Yes | No | IMPLEMENTED reference |
 | Shared source-order/event-time taxonomy | Yes | Yes | N/A | IMPLEMENTED reference |
 | Retroactive SCD2 history rewrite | No | Fail-closed behavior proven | No | INTENTIONALLY UNSUPPORTED |
 | Capture/apply executor separation | Yes | Yes | N/A | IMPLEMENTED contract |
@@ -59,22 +64,76 @@ shared temporal taxonomy wired through current-state/CDC/SCD2
 | CaptureReceipt | Yes | Yes | No real native receipt | IMPLEMENTED contract |
 | Fabric Copy/Activity/Dataflow/Spark capture adapters | Yes | Fake transport | No | ADAPTER CONTRACT ONLY |
 | Retry/attempt/unknown-commit recovery | Yes | Yes | No physical drill | IMPLEMENTED reference |
-| Quarantine REPLAY | Yes | Yes | No prod payload store | IMPLEMENTED reference |
-| FULL_REBUILD | Yes | Yes | No physical target | IMPLEMENTED reference |
+| Quarantine REPLAY / FULL_REBUILD | Yes | Yes | No production target/payload store | IMPLEMENTED reference |
 | Canonical CDC + downstream checkpoint | Yes | Yes | No | IMPLEMENTED reference |
 | Snapshot/bootstrap -> CDC | Yes | Yes | No real source fence | IMPLEMENTED reference |
 | Debezium/Kafka normalization/resume | Yes | Yes | No live broker | ADAPTER/REFERENCE |
+| Delta CDF row-change normalization | Yes | Yes | No live Lakehouse CDF read | ADAPTER CONTRACT |
+| `SPARK/delta_cdf_v1` profile/registry | Yes | Yes | No live Lakehouse CDF read | IMPLEMENTED contract |
 | Schema contract/evolution/evidence | Yes | Yes | No physical target migration | IMPLEMENTED reference |
 | Frozen file manifest | Yes | Yes | No storage client | IMPLEMENTED reference |
 | API frozen window/pagination | Yes | Yes | No API client | IMPLEMENTED reference |
 | Control-plane v2 -> v3 migration | Yes | Yes | SQLite/reference | IMPLEMENTED reference |
-| Typed operator status aggregation | Yes | Yes | SQLite/reference | IMPLEMENTED reference |
-| Operator JSON CLI | Yes | Yes | SQLite/reference | IMPLEMENTED reference |
+| Typed operator status + JSON CLI | Yes | Yes | SQLite/reference | IMPLEMENTED reference |
 | Durable target-operation idempotency journal | No | No | No | GAP |
 | Approved persistent production control plane | Reference only | SQLite tests | No | GAP |
 | Fabric Pipeline backend | Design only | No | No | P0 GAP |
-| Real Fabric/Kafka transports | Interfaces/adapters only | No live call | No | P0 GAP |
+| Real Fabric/Kafka/Delta transports | Interfaces/adapters only | No live call | No | P0 GAP |
 | Approved DEV hybrid execution | No | No | No | P0 GAP |
+
+## Source-fidelity readiness
+
+The framework now has an explicit onboarding layer for the mainstream capture cases that commonly cause production mistakes.
+
+### What is now prevented deterministically
+
+- calling a watermark feed full event history;
+- claiming hard-delete visibility from a source that exposes no delete signal;
+- calling net CDC full row-change history;
+- calling daily snapshot history event-grain;
+- merging full CDC/CDF events into Bronze while still claiming the append event history was preserved;
+- selecting a provider pattern whose coarse `CaptureStrategy` is incompatible;
+- using `WATERMARK_LOOKBACK` without an actual overlap window.
+
+### What still depends on external/source evidence
+
+The catalog cannot prove a vendor's API semantics, retention guarantee, file delivery completeness or database CDC configuration. `SOURCE_DEFINED` is deliberately used where the source contract must supply the missing truth.
+
+## Delta Change Data Feed readiness
+
+Current adapter path:
+
+```text
+Spark bounded CDF read
+  -> DeltaCDFRecord
+  -> pair unambiguous update pre/post images
+  -> canonical CDCEvent / CDCCheckpoint
+  -> framework UPSERT/SCD1/SCD2
+  -> reconcile
+  -> framework downstream checkpoint commit
+```
+
+Current deterministic guarantees:
+
+- `insert`, `delete`, `update_preimage`, `update_postimage` are typed;
+- update pre/post images for one key+commit are paired into one canonical UPDATE;
+- exact duplicate input is idempotently ignored;
+- null/missing keys fail;
+- records beyond frozen upper commit fail;
+- incomplete upper-bound evidence fails;
+- lower committed version supports overlap replay;
+- ambiguous multiple same-key logical mutations within one commit fail closed;
+- profile is `SPARK/delta_cdf_v1` with `FRAMEWORK` progress ownership.
+
+This does **not** yet prove:
+
+- a real Fabric Lakehouse CDF read;
+- CDF enablement/retention in the target workspace;
+- authentication/environment binding;
+- real version-gap recovery after retention cleanup;
+- performance/capacity behavior.
+
+Correct label: `ADAPTER CONTRACT + REFERENCE CHECKPOINT SEMANTICS`, not “Delta CDF production integrated”.
 
 ## Strong portable guarantees
 
@@ -84,11 +143,11 @@ All six canonical apply strategies have framework-owned reference semantics. APP
 
 ### Temporal correctness
 
-Source ordering and event/valid time are now separate shared clocks. `STALE/EQUAL/NEWER` source order is not conflated with `EARLIER/EQUAL/LATER/UNKNOWN` event time. Strategy code consumes the common comparator while preserving strategy-specific errors/actions.
+Source ordering and event/valid time are separate shared clocks. Strategy code consumes the common comparator while preserving strategy-specific errors/actions.
 
 ### Replay-stable source acquisition
 
-WATERMARK/CDC/FULL/SNAPSHOT plus file/API contracts freeze the source boundary/set needed for deterministic retry/replay. A changed file version/set or API logical window fails rather than silently changing replay semantics.
+WATERMARK/CDC/FULL/SNAPSHOT plus file/API/CDF contracts freeze the source boundary/set needed for deterministic retry/replay.
 
 ### Schema safety
 
@@ -96,48 +155,36 @@ Schema changes are checked against a source-controlled versioned contract. Only 
 
 ### Recovery and operability
 
-Unknown target mutation is reconciled before retry. Quarantine REPLAY and FULL_REBUILD are explicit audited flows. The operator snapshot now gives a stable read model across runs, lineage, capture correlation, progress, reconciliation, quarantine, schema and active reprocess intent.
+Unknown target mutation is reconciled before retry. Quarantine REPLAY and FULL_REBUILD are explicit audited flows. Typed operator snapshots provide a stable read model across runtime evidence.
 
 ## Remaining release-significant gaps
 
 ### P0 integration proof
 
-1. actual Fabric/Kafka transports;
+1. actual Fabric/Kafka/Delta transports;
 2. Fabric Pipeline backend;
 3. approved DEV hybrid execution retaining real native/provider IDs and framework correlation.
 
 ### P0/P1 runtime durability
 
 1. durable target-operation idempotency journal/stable operation key;
-2. remaining native/provider downstream-failure resume and real Kafka cursor coordination;
+2. remaining native/provider downstream-failure resume and live Kafka/Delta recovery evidence;
 3. selection/certification of a production control-plane store and concurrency/migration governance;
 4. authenticated operator mutation workflows if included in release scope.
 
-Additional CDC provider adapters should be added only when supported product scope requires them.
+Additional provider adapters should be added only when supported product scope requires them.
 
 ## Control-plane audit
 
-Current reference schema is v3:
-
-```text
-v1 phase1_initial_control_plane_schema
-v2 execution_policy_ordering_capture_receipt_recovery_and_cdc
-v3 append_identity_semantics
-```
-
-v3 executes a real additive `ALTER TABLE` for an existing v2 `load_policy`.
-
-The read-only operator layer is intentionally above SQLAlchemy Engine and returns typed models rather than raw table rows. That API can survive a future production repository implementation, but current SQLite tests do not certify the final production database technology.
+Current reference schema is v3. The new capture selection is deliberately a source-controlled onboarding/CI contract and does not add a control-plane v4. If runtime/operator visibility later requires materialization, that should be a deliberate schema decision with migration/evidence rather than an incidental column addition.
 
 ## Fabric/provider evidence boundary
 
-Fabric adapters prove request/evidence validation with injected fake transports. Debezium/Kafka proves provider normalization and reference resume planning. They do not prove authentication, networking, API versions, polling, Kafka rebalance/commit behavior, capacity or real run IDs.
-
-Correct label: `ADAPTER CONTRACT` / `REFERENCE PROVIDER RECOVERY`, not real Fabric/Kafka integration.
+Fabric adapters prove request/evidence validation with injected fake transports. Debezium/Kafka and Delta CDF prove provider normalization/reference checkpoint behavior. They do not prove authentication, networking, API versions, polling, Kafka rebalance/commit behavior, Delta retention behavior, capacity or real run IDs.
 
 ## External evidence this repo must not fake
 
-Fabric capacity/SKU/throttling, tenant settings, workspace/domain provisioning, Entra/workspace identity/RBAC, gateway/private networking, secret authority, source CDC enablement/retention, broker/database access, backup/restore, monitoring/on-call, privacy/retention and enterprise change controls remain external evidence.
+Fabric capacity/SKU/throttling, tenant settings, workspace/domain provisioning, Entra/workspace identity/RBAC, gateway/private networking, secret authority, source CDC/CDF enablement/retention, broker/database/API access, backup/restore, monitoring/on-call, privacy/retention and enterprise change controls remain external evidence.
 
 ## Release gate
 
@@ -149,4 +196,4 @@ code == tests == canonical docs == control-plane/release contract
 
 and its product promise must match retained real integration evidence.
 
-Current decision: **release remains blocked; PR #13 may merge as unreleased mainline hardening once final CI/docs are green.**
+Current decision: **release remains blocked; PR #14 is source-onboarding/provider hardening only, not a release trigger.**
