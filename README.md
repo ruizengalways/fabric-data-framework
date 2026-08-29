@@ -2,133 +2,133 @@
 
 Reusable, versioned Microsoft Fabric Data Engineering runtime for the Enterprise Fabric Data Engineering Platform reference implementation.
 
-The framework owns mature reusable data-engineering semantics and operational contracts. Domain repositories consume an immutable framework wheel and normally onboard datasets through source-controlled metadata, environment bindings, capability profiles and bounded logical-name extensions rather than framework edits.
+The framework owns reusable data-engineering semantics and operational contracts. Domain repositories consume an immutable framework wheel and normally onboard datasets through source-controlled metadata, environment bindings, capability profiles and bounded logical-name extensions rather than framework edits.
 
 ## Release status
 
-- Latest immutable public release: **v0.3.0**.
-- Current source version: **0.4.0 development**.
-- **Do not publish v0.4.0 yet.** Production hardening and real Fabric evidence remain in progress.
-
-## Architecture in one diagram
-
 ```text
-semantic metadata
-      |
-      v
-capability resolver + immutable ExecutionPlan
-      |
-      +--> native/external capture movement
-      |      Copy Job / Copy Activity / Dataflow / CDC / Mirroring
-      |             |
-      |             v
-      |       validated CaptureReceipt
-      |
-      +--> framework capture where appropriate
-                    |
-                    v
-              Bronze / staging
-                    |
-              DQ / transform
-                    |
-       framework apply semantics
- REPLACE | UPSERT | SCD1 | SCD2 | SNAPSHOT_DIFF
-                    |
-            reconciliation/state
-                    |
-        watermark / cdc_checkpoint / audit
+latest public release = v0.3.0
+source version        = 0.4.0 development / unreleased
+current baseline      = 014cd334105de6f867b6320509b94147a444a2fa
+latest CI             = Actions 33253817758
+full tests            = 455
 ```
 
-Core rule: **framework-first semantics with stage-level native delegation**. Fabric-native features are first-class accelerators/adapters only when their capability profile proves the requested stage contract.
+**Do not publish v0.4.0 yet.** The remaining gate is approved real-environment evidence, selected production backend certification and retained enterprise controls.
 
-## Implemented reference capabilities
+## Architecture
 
-Current unreleased hardening line includes:
+```text
+source semantic truth
+  -> immutable DatasetConfig + semantic onboarding
+  -> capability resolver + immutable ExecutionPlan
+  -> native/external capture movement
+  -> validated CaptureReceipt / native evidence
+  -> normalize / DQ / apply
+  -> target-operation commit proof / reconciliation
+  -> downstream watermark or CDC checkpoint
+  -> exact-release retained integration evidence
+```
 
-- strict immutable dataset metadata + allow-listed overrides;
+Core rules:
+
+```text
+capture fidelity <= truthful history fidelity
+provider/native cursor != framework downstream semantic checkpoint
+provider Completed != framework semantic success
+unknown target commit outcome never permits blind re-execution
+```
+
+## Current reusable capability surface
+
 - orthogonal cheatsheet-aligned source/change/read/delete/Bronze semantics;
-- exact fourteen-row cheatsheet semantic acceptance presets and semantic onboarding CI gate;
-- composite WATERMARK + overlap semantics;
-- full-baseline -> WATERMARK no-gap bootstrap evidence contract;
-- normalized Bronze lineage;
-- row DQ/quarantine/accounting;
-- guarded FULL -> REPLACE;
-- guarded SNAPSHOT -> SNAPSHOT_DIFF;
-- ordered/idempotent UPSERT and SCD1;
-- deterministic SCD2;
-- metadata-driven dispatcher/failure isolation;
-- independent capture and apply engine planning;
-- named engine capability profiles;
-- Dataflow Gen2 incremental capture -> framework SCD1/UPSERT topology;
-- typed `CaptureReceipt`;
-- fail-closed Copy Job / Copy Activity / Dataflow Gen2 / Spark capture adapter contracts;
-- conservative retry + unknown-target-commit reconciliation;
-- RETRY/BACKFILL/REPLAY/FULL_REBUILD request and attempt-lineage contracts;
-- canonical provider-neutral CDC event/order/dedupe/checkpoint contracts;
-- CDC -> UPSERT/SCD1/SCD2;
-- durable optimistic CDC downstream apply checkpoints;
-- snapshot/bootstrap -> CDC no-gap/no-double-apply handoff;
-- logical-name extension registry;
-- immutable release/config/deployment provenance and delivery CLI.
+- exact fourteen-row cheatsheet semantic presets and semantic onboarding CI gate;
+- composite WATERMARK + lookback semantics;
+- full-baseline -> WATERMARK bootstrap evidence contract;
+- snapshot -> CDC no-gap/no-double-apply bootstrap;
+- APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF;
+- normalized Bronze lineage, DQ/quarantine/accounting and reconciliation;
+- provider-neutral CDC order/dedupe/checkpoint contracts;
+- Debezium/Kafka and Delta CDF normalization/recovery contracts;
+- replay-stable file manifests and API cursor/window guardrails;
+- durable target-operation CAS journal and unknown-outcome recovery;
+- SQLAlchemy relational control-plane repository;
+- Fabric REST Job Scheduler and Data Pipeline backend;
+- concrete Copy Job and Spark Job Definition REST transports;
+- Fabric Warehouse same-transaction target-side commit marker proof;
+- approved-environment evidence spec/manifest/preflight/read-only item runner;
+- strict staged integration evidence merge with conflict/output-safety rules;
+- immutable release/config/deployment provenance.
 
-These are portable/reference guarantees. Real Fabric adapter/runtime evidence and enterprise IAM/network/governance evidence are tracked separately and are not implied by Python tests.
+These are portable/reference or adapter/backend contracts unless explicitly backed by retained real-service evidence.
 
-## Cheatsheet semantic alignment
+## Cheatsheet acceptance model
 
-The external data-engineering cheatsheet is treated as the acceptance specification for mainstream source/capture/Bronze/Silver combinations. A 2026-08-29 audit found that the original fourteen `CapturePattern` values were not the same taxonomy as the cheatsheet's fourteen semantic rows because the legacy enum mixed source semantics, read strategy, provider technology and Bronze choice.
-
-Canonical recovery/design checkpoint:
+Canonical detail:
 
 ```text
 docs/CHEATSHEET_PATTERN_ALIGNMENT.md
 ```
 
-Pre-alignment assessment was `10 supported / 2 partial / 2 gap`.
+A 2026-08-29 audit found the legacy fourteen `CapturePattern` values were not the same taxonomy as the cheatsheet's fourteen semantic rows. PR #34 introduced orthogonal semantics and exact presets; PR #35 added semantic onboarding; PR #37 added full-baseline -> WATERMARK bootstrap.
 
-Merged alignment sequence:
+At the **semantic-contract + onboarding-validation level**, all fourteen cheatsheet rows are now first-class and tested. Legacy `CapturePattern` remains supported through compatibility projection.
 
-```text
-PR #34 -> 1c7d67bedd125f5fb5e983be791085fd1eaa9b0e
-14 orthogonal cheatsheet semantic presets
+## Staged approved-environment evidence
 
-PR #35 -> bf215fcb3538f9806b4002d2f154dbd46ae19412
-semantic onboarding validation + CLI
-
-PR #37 -> d69b2ff49f984331b6753bcd9274ea9a298ce798
-full-baseline -> WATERMARK bootstrap contract
-Actions 33253581049 / 441 tests / Python 3.11 + 3.13 + static + wheel SUCCESS
-```
-
-At the **semantic-contract + onboarding-validation level**, all fourteen cheatsheet rows are now first-class expressible/tested presets. This does not mean every row is live-provider/Fabric proven. Provider/runtime evidence remains separate.
-
-The next active work is staged approved-environment evidence accumulation. The earlier partial implementation is preserved on `codex/integration-evidence-merge` at `d50769f3926e07d291c950199c1fa2e74b82c59c` and should be ported onto current `main`, tested, given a CLI, documented, and merged.
-
-## CDC and bootstrap model
-
-Canonical CDC detail: `docs/CDC_DESIGN.md`.
+Canonical runbooks:
 
 ```text
-provider LSN/binlog/Kafka/native coordinate
-    -> adapter normalization
-    -> partition + integer position tuple
-    -> CDCEvent
-    -> bounded normalize/dedupe/order
-    -> UPSERT / SCD1 / SCD2
-    -> reconcile
-    -> cdc_checkpoint
+docs/DEV_INTEGRATION_EVIDENCE.md
+docs/INTEGRATION_EVIDENCE_MERGE.md
 ```
 
-Snapshot -> CDC bootstrap uses a source fence:
+PR #39 added:
+
+```bash
+fabric-framework integration-evidence-merge \
+  --spec evidence-spec.json \
+  --input evidence/item-read.json \
+  --input evidence/control-plane.json \
+  --output evidence/merged.json
+```
+
+Merge rules are fail-closed:
 
 ```text
-retain CDC from S
-S <= snapshot checkpoint B
-complete snapshot consistent through B
-CDC <= B -> ignore as snapshot-covered overlap
-CDC > B  -> apply
+NOT_RUN = absence
+one substantive result = retain unchanged
+identical substantive duplicate = allowed
+different rerun evidence = conflict
+no latest/PASS-wins/FAIL-wins arbitration
 ```
 
-Full baseline -> WATERMARK bootstrap now similarly requires explicit evidence that the baseline is complete and consistent through exact boundary W, ordering is deterministic, and post-W changes remain visible. A generic `updated_at` column is not automatically sufficient proof.
+Merge/certification validation happens before output write, so failed or conflicting merges do not clobber retained evidence.
+
+## Current real-service gaps
+
+Still not retained/proven for the exact 0.4.0 candidate:
+
+```text
+enterprise Entra token path
+live workspace/item authorization
+live Pipeline / Copy Job / Spark runs and observations
+real Fabric Warehouse transaction + ambiguous COMMIT drill
+real Fabric SQL Database / Azure SQL Database certification
+live Kafka / Delta CDF if included in public release scope
+capacity/gateway/throttling and enterprise IAM/network/DR/monitoring/governance evidence
+complete exact-release IntegrationEvidenceManifest
+```
+
+## Next active work
+
+1. implement an environment-variable-driven approved-run control-plane certification runner;
+2. replace DEV placeholder release hash/item UUIDs with exact candidate values;
+3. run approved read-only item preflight and live item smoke;
+4. run selected real control-plane backend certification;
+5. merge retained partial evidence;
+6. only then authorize representative Pipeline/Copy/Spark/Warehouse mutation/failure drills;
+7. finish exact-release evidence and release audit before considering `0.4.0`.
 
 ## Local development
 
@@ -137,41 +137,50 @@ python -m pip install -e '.[dev]'
 pytest
 ```
 
-## Delivery CLI
+## Main CLI surfaces
 
 ```text
-fabric-framework validate-tag ...
 fabric-framework capture-semantic-onboarding-validate ...
-fabric-framework integration-evidence-validate ...
 fabric-framework integration-run-preflight ...
 fabric-framework integration-item-smoke-run ...
+fabric-framework integration-evidence-merge ...
+fabric-framework integration-evidence-validate ...
 fabric-framework control-plane-migrate ...
+fabric-framework control-plane-certify ...
 fabric-framework metadata-materialize ...
 fabric-framework release-manifest ...
 fabric-framework deployment-plan ...
 fabric-framework deployment-record ...
 ```
 
-Delivery separates immutable release definitions from environment-local bindings/runtime state. Credentials and physical Fabric IDs stay outside reusable semantic config.
+Credentials and physical environment values remain outside reusable semantic config and retained release artifacts.
 
 ## Canonical project memory
 
-Read in this order when resuming in a new conversation:
+For a new conversation, read in this order:
 
-1. `docs/ECOSYSTEM_BLUEPRINT.md`
-2. `docs/PROJECT_BLUEPRINT.md`
-3. `docs/PRODUCTION_REQUIREMENTS.md`
-4. `docs/EXECUTION_ENGINE_STRATEGY.md`
-5. `docs/FABRIC_EXECUTION_MODEL.md`
-6. `docs/CDC_DESIGN.md`
-7. `docs/CHEATSHEET_PATTERN_ALIGNMENT.md`
-8. `docs/REPOSITORY_STRUCTURE.md`
-9. `docs/CONTROL_PLANE_DESIGN.md`
-10. `docs/CICD_DESIGN.md`
-11. `docs/PRODUCTION_READINESS_AUDIT.md`
-12. `docs/GUARANTEE_COVERAGE.md`
-13. `docs/CURRENT_STATUS.md`
-14. `docs/adr/`
-15. `docs/runbooks/`
+1. `docs/CURRENT_STATUS.md`
+2. `docs/CHEATSHEET_PATTERN_ALIGNMENT.md`
+3. `docs/PRODUCTION_READINESS_AUDIT.md`
+4. `docs/DEV_INTEGRATION_EVIDENCE.md`
+5. `docs/INTEGRATION_EVIDENCE_MERGE.md`
+6. `docs/GUARANTEE_COVERAGE.md`
+7. `docs/PROJECT_BLUEPRINT.md`
+8. `docs/PRODUCTION_REQUIREMENTS.md`
+9. `docs/CAPTURE_PATTERN_CATALOG.md`
+10. `docs/TARGET_OPERATION_IDEMPOTENCY.md`
+11. `docs/PROVIDER_NATIVE_RECOVERY.md`
+12. `docs/FABRIC_WAREHOUSE_TARGET_COMMIT_PROOF.md`
+13. `docs/CONTROL_PLANE_CERTIFICATION.md`
+14. `docs/RELATIONAL_RUNTIME_REPOSITORY.md`
+15. `docs/FABRIC_PIPELINE_BACKEND.md`
+16. `docs/FABRIC_CAPTURE_REST_TRANSPORTS.md`
+17. `docs/EXECUTION_ENGINE_STRATEGY.md`
+18. `docs/FABRIC_EXECUTION_MODEL.md`
+19. `docs/CDC_DESIGN.md`
+20. `docs/CONTROL_PLANE_DESIGN.md`
+21. `docs/REPOSITORY_STRUCTURE.md`
+22. `docs/CICD_DESIGN.md`
+23. `docs/ECOSYSTEM_BLUEPRINT.md`
 
 If documentation conflicts with code/tests, inspect implementation and repair documentation before continuing.

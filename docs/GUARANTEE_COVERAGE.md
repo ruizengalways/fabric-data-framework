@@ -1,6 +1,6 @@
 # Guarantee Coverage — fabric-data-framework
 
-Status: Canonical implementation-to-evidence map
+Status: Canonical implementation-to-evidence map  
 Last updated: 2026-08-29
 
 ## Evidence vocabulary
@@ -8,143 +8,188 @@ Last updated: 2026-08-29
 - `REFERENCE` — provider-neutral semantic/contract implementation with deterministic tests.
 - `ADAPTER CONTRACT` — provider boundary/evidence conversion tested without claiming a real service run.
 - `CI PROVEN` — package/static/test/build workflow succeeded.
-- `FABRIC PROVEN` — retained real Fabric execution/run correlation. No new hardening capability currently has this level.
-- `EXTERNAL` — enterprise/platform control this repo must not invent.
+- `RELEASE PROVEN` — immutable published artifact/checksum evidence for that release.
+- `FABRIC PROVEN` / `PRODUCTION DB PROVEN` / equivalent — retained approved real-service evidence for the exact capability/release.
+- `EXTERNAL` — enterprise/platform control this repository must not invent.
 
-## Current guarantee map
-
-| Guarantee | Canonical owner | Evidence | Scope |
-|---|---|---|---|
-| Strict immutable metadata + effective-config hashing | `config.py` | config tests | REFERENCE |
-| Capture/apply semantic and physical-engine independence | config/execution plan | plan/engine tests | REFERENCE |
-| Mainstream 14-pattern source/capture catalog | `capture/patterns.py` | `test_capture_patterns.py` | REFERENCE |
-| Explicit change/delete/Bronze/history fidelity per pattern | `capture/patterns.py` | pattern tests | REFERENCE |
-| Overstated history/delete onboarding claim fails closed | `capture/onboarding.py` | onboarding tests | REFERENCE |
-| Domain CI may require every DatasetConfig to be classified | `capture-onboarding-validate` | CLI tests | REFERENCE |
-| Checked-in onboarding examples remain executable typed metadata | `docs/examples/capture-patterns/` | example certification test | CI PROVEN |
-| Unsupported engine/profile combination fails pre-mutation | `metadata/capabilities.py` | engine tests | REFERENCE |
-| Composite WATERMARK + overlap | watermark runtime | watermark tests | REFERENCE |
-| Bronze lineage + DQ/quarantine/accounting | bronze/quality/operations | execution tests | REFERENCE |
-| APPEND append-once identity/replay/conflict semantics | `apply/append.py` | append tests | REFERENCE |
-| Guarded FULL -> REPLACE | full/replace executor | full tests | REFERENCE |
-| Guarded SNAPSHOT_DIFF | snapshot executor | snapshot tests | REFERENCE |
-| Ordered/idempotent UPSERT/SCD1 | `apply/current_state.py` | current-state tests | REFERENCE |
-| Deterministic SCD2 history | `scd2.py` | SCD2 tests | REFERENCE |
-| Shared source-order taxonomy | `quality/temporal.py` | temporal + apply tests | REFERENCE |
-| Shared event/valid-time taxonomy | `quality/temporal.py` | temporal + CDC-SCD2 tests | REFERENCE |
-| Newer source + earlier valid time explicitly requires history rewrite | temporal + CDC-SCD2 | temporal/CDC-SCD2 tests | REFERENCE fail-closed |
-| CDC I/U/D order/dedupe/frozen window | `capture/cdc.py` | CDC tests | REFERENCE |
-| CDC -> UPSERT/SCD1/SCD2 | CDC apply modules | CDC apply tests | REFERENCE |
-| Durable optimistic downstream CDC checkpoint | control-plane IO | checkpoint tests | REFERENCE |
-| Snapshot/bootstrap -> CDC fenced handoff | bootstrap CDC | bootstrap tests | REFERENCE |
-| Debezium/Kafka normalization + topic/partition/offset order | CDC adapter | adapter tests | ADAPTER CONTRACT |
-| Kafka retention-aware safe resume | CDC adapter resume | resume tests | REFERENCE provider recovery |
-| Delta CDF insert/delete/update pre/post -> canonical CDC | `adapters/cdc/delta_cdf.py` | Delta CDF tests | ADAPTER CONTRACT |
-| Delta CDF update pre/post pairing and ambiguous same-key/commit failure | Delta CDF adapter | Delta CDF tests | ADAPTER CONTRACT |
-| Delta CDF commit-version bounded checkpoint | Delta CDF adapter | Delta CDF tests | REFERENCE provider recovery contract |
-| `SPARK/delta_cdf_v1` capture profile with FRAMEWORK progress | capabilities + registry | Delta CDF profile tests | REFERENCE |
-| Fabric Copy/Activity/Dataflow/Spark capture boundary | Fabric adapter package | fake-transport tests | ADAPTER CONTRACT |
-| Typed CaptureReceipt and single progress authority | contracts/capabilities | receipt/engine tests | REFERENCE |
-| Bounded retry/attempt lineage/unknown-outcome tri-state | recovery runtime | recovery tests | REFERENCE |
-| Quarantine REPLAY coordination | recovery replay | replay tests | REFERENCE |
-| Guarded FULL_REBUILD state cutover | recovery rebuild | rebuild tests | REFERENCE |
-| Typed versioned schema contract/fingerprint | `schema_contract.py` | schema tests | REFERENCE |
-| EXACT/ADDITIVE_ONLY/SAFE_EVOLUTION classification | schema evolution | schema tests | REFERENCE |
-| Versioned schema materialization + append-only observation evidence | delivery/control-plane IO | schema persistence tests | REFERENCE |
-| Replay-stable file manifest | `capture/files.py` | file tests | REFERENCE |
-| API frozen window/cursor/completeness/limit guards | `capture/api.py` | API tests | REFERENCE |
-| Metadata dispatcher/dependency/failure isolation | dispatcher/orchestration | dispatcher tests | REFERENCE |
-| Logical-name bounded extensions | extension registry | extension tests | REFERENCE |
-| Real v2 -> v3 additive APPEND migration | `control_plane.py` | migration tests | REFERENCE |
-| Typed read-only dataset operational snapshot | `operator.py` | operator tests | REFERENCE |
-| Latest run + lineage/capture/progress/reconciliation/quarantine/schema/reprocess aggregation | `operator.py` | operator tests | REFERENCE |
-| `control-plane-status` JSON CLI | `cli.py` | CLI tests | REFERENCE |
-| Immutable v0.3.0 wheel/checksum release | release workflow | historical release evidence | RELEASE PROVEN for v0.3.0 |
-
-## Latest CI evidence
+## Latest coherent CI baseline
 
 ```text
-4b20300c822e16a398342e0cc97da90ee51b035a
-main Actions 33238779139
-310 passed
-capture catalog + onboarding CI + Delta CDF adapter/profile + executable examples
-
-9b2278822ff4c566051c69180c8ca63b021866e4
-main Actions 33225627461
-SUCCESS
-PR #13 production-hardening merge
-
-ae1eb99ab5fa9d7add5a62dda2d7448b6200d240
-Actions 33225341709
-268 passed
-operator status API/CLI
+main baseline = 014cd334105de6f867b6320509b94147a444a2fa
+PR #39
+Actions 33253817758
+455 tests
+Python 3.11 + 3.13 + static + wheel SUCCESS
 ```
+
+Latest semantic/evidence milestones:
+
+```text
+PR #34 / Actions 33253215030 / 419 tests
+  exact 14 cheatsheet semantic presets
+
+PR #35 / Actions 33253394201 / 430 tests
+  semantic onboarding + CI gate
+
+PR #37 / Actions 33253581049 / 441 tests
+  full-baseline -> watermark bootstrap
+
+PR #39 / Actions 33253817758 / 455 tests
+  staged integration evidence merge
+```
+
+## Core guarantee map
+
+| Guarantee | Canonical owner | Current evidence |
+|---|---|---|
+| Immutable DatasetConfig/effective config hashing | `config.py` | REFERENCE + CI PROVEN |
+| Capture/apply/physical-engine independence | config + ExecutionPlan | REFERENCE + CI PROVEN |
+| Exact 14 cheatsheet semantic combinations | `capture/semantic_contracts.py` | REFERENCE + CI PROVEN |
+| Legacy `CapturePattern` compatibility projection | semantic contracts | REFERENCE + CI PROVEN |
+| Semantic onboarding overclaim guardrails | `capture/onboarding.py` | REFERENCE + CI PROVEN |
+| `capture-semantic-onboarding-validate --require-all` | CLI | REFERENCE + CI PROVEN |
+| Composite WATERMARK + overlap | `watermark.py` | REFERENCE + CI PROVEN |
+| Full-baseline -> WATERMARK fenced bootstrap | `capture/bootstrap_watermark.py` | REFERENCE + CI PROVEN |
+| Snapshot -> CDC fenced bootstrap | `capture/bootstrap_cdc.py` | REFERENCE + CI PROVEN |
+| APPEND append-once identity/replay/conflict | apply append | REFERENCE + CI PROVEN |
+| FULL -> REPLACE | full/replace | REFERENCE + CI PROVEN |
+| SNAPSHOT_DIFF | snapshot/apply | REFERENCE + CI PROVEN |
+| Ordered/idempotent UPSERT/SCD1 | current-state apply | REFERENCE + CI PROVEN |
+| Deterministic SCD2 | SCD2 runtime | REFERENCE + CI PROVEN |
+| Source-order vs valid-time taxonomy | temporal quality | REFERENCE + CI PROVEN |
+| Retroactive history rewrite requirement fails closed | temporal/SCD2 | REFERENCE fail-closed |
+| CDC I/U/D order/dedupe/frozen bounds | `capture/cdc.py` | REFERENCE + CI PROVEN |
+| CDC -> UPSERT/SCD1/SCD2 | CDC apply modules | REFERENCE + CI PROVEN |
+| Durable downstream CDC checkpoint | control-plane IO | REFERENCE + CI PROVEN |
+| Replay-stable file manifest | `capture/files.py` | REFERENCE + CI PROVEN |
+| API frozen window/cursor/completeness guards | `capture/api.py` | REFERENCE + CI PROVEN |
+| Debezium/Kafka normalization/order | CDC adapter | ADAPTER CONTRACT + CI PROVEN |
+| Kafka retention-aware resume planning | CDC provider recovery | REFERENCE + CI PROVEN |
+| Delta CDF pre/post normalization | Delta adapter | ADAPTER CONTRACT + CI PROVEN |
+| Delta CDF bounded commit-version recovery | Delta adapter | REFERENCE + CI PROVEN |
+| Typed CaptureReceipt / single progress authority | contracts/capabilities | REFERENCE + CI PROVEN |
+| Fabric capture request/evidence boundary | Fabric adapters | ADAPTER CONTRACT + CI PROVEN |
+| Copy Job REST transport | Fabric Copy adapter | IMPLEMENTED + CI PROVEN TRANSPORT CONTRACT |
+| Spark Job Definition REST transport | Fabric Spark adapter | IMPLEMENTED + CI PROVEN TRANSPORT CONTRACT |
+| Fabric Data Pipeline backend | Pipeline backend | IMPLEMENTED + CI PROVEN BACKEND |
+| Provider `Completed` insufficient for semantic success | adapters/backend | REFERENCE + CI PROVEN |
+| Target-operation durable CAS journal | target operations + IO | IMPLEMENTED + CI PROVEN REFERENCE |
+| UNKNOWN target outcome tri-state reconciliation | recovery | IMPLEMENTED + CI PROVEN REFERENCE |
+| Fabric Warehouse same-transaction marker proof | Warehouse recovery | IMPLEMENTED + CI PROVEN PROVIDER COMMIT CONTRACT |
+| SQLAlchemy relational runtime repository | relational repository | IMPLEMENTED + CI PROVEN RELATIONAL RUNTIME |
+| Control-plane backend conformance certification | certification module | IMPLEMENTED + CI PROVEN CONTRACT |
+| Approved DEV evidence spec/manifest/hash | integration evidence | IMPLEMENTED + CI PROVEN EVIDENCE HARNESS CONTRACT |
+| Secret-bearing retained evidence rejection | integration evidence | IMPLEMENTED + CI PROVEN GUARDRAIL |
+| Exact-release approved-run preflight | integration runner | IMPLEMENTED + CI PROVEN APPROVED-RUN PREFLIGHT CONTRACT |
+| Read-only Fabric item smoke runner | integration checks/runner | IMPLEMENTED + CI PROVEN READ-ONLY RUNNER CONTRACT |
+| Staged partial manifest merge | `integration_evidence_merge.py` | IMPLEMENTED + CI PROVEN EVIDENCE MERGE CONTRACT |
+| Merge conflict does not silently arbitrate reruns | evidence merge | REFERENCE + CI PROVEN |
+| Failed/conflicting merge does not clobber output | CLI router | REFERENCE + CI PROVEN |
+| v0.3.0 immutable wheel/checksum | historical release | RELEASE PROVEN for v0.3.0 |
 
 ## Capture/history truth guarantees
 
-The catalog explicitly prevents several common overclaims:
-
 ```text
-WATERMARK_INCREMENTAL / LOOKBACK
+Current-state watermark / lookback
   history <= OBSERVED_CHANGES
-  hard delete visibility = NONE unless another source signal exists
+  hard delete visibility = NONE unless another delete signal exists
 
-CDC_NET_CURRENT / CDC_NET_OBSERVATION
+Watermark + soft delete
+  delete correctness depends on tombstone retention/extraction reliability
+
+Net CDC
   history <= BATCH_GRAIN
-  intermediate changes collapsed upstream cannot be reconstructed
+  collapsed intermediate changes cannot be reconstructed
 
-FULL_SNAPSHOT / SNAPSHOT_DIFF
-  history <= SNAPSHOT_GRAIN when comparing recurring snapshots
+Recurring complete snapshots
+  history <= SNAPSHOT_GRAIN
+  changes between snapshots remain unknowable
 
-CDC_FULL / TRANSACTION_LOG_CDC / DEBEZIUM_KAFKA / DELTA_CDF
-  FULL_EVENT is claimable for captured changes only when ordering/completeness/retention evidence is satisfied
+Full ordered CDC / log / Debezium / Delta CDF
+  FULL_EVENT may be claimed only for captured changes under proven ordering/completeness/retention
 
-API_CURSOR_INCREMENTAL / FILE_INCREMENTAL
-  history/delete = SOURCE_DEFINED until the source contract proves stronger semantics
+API / file delivery
+  history/delete remain SOURCE_DEFINED until the payload contract proves stronger semantics
 ```
 
-An SCD2 target is not evidence that capture was full-fidelity.
+An SCD2 target never upgrades source fidelity.
 
-## Required guarantees not yet complete
-
-| Required guarantee | Current state | Next proof |
-|---|---|---|
-| Durable target-operation idempotency journal | executor conventions + unknown-outcome reconciliation | stable operation key + persistent lifecycle/CAS proof |
-| Real Copy/Activity/Dataflow/Spark invocation | adapter contracts only | approved DEV Fabric run + retained native run ID |
-| Real Delta CDF bounded read + retention recovery | deterministic adapter/profile only | approved DEV Lakehouse CDF read across versions + retention-gap drill |
-| Fabric Pipeline backend | design only | real DEV orchestration |
-| Live Kafka consumer seek/commit/source cursor coordination | reference adapter/resume only | live Kafka transport proof |
-| Remaining native/provider downstream-failure recovery | partial | strategy-specific recovery tests + real provider evidence |
-| Retroactive SCD2 history reconstruction | intentionally unsupported | explicit rewrite policy only if product scope requires it |
-| Approved persistent production control-plane store | SQLAlchemy/SQLite reference | chosen store + transaction/concurrency certification |
-| Operator mutation/approval workflows | read-only status exists | authenticated retry/backfill/replay/rebuild surface if required |
-| Additional provider adapters | Debezium/Kafka + Delta CDF built in | add only as supported scope requires |
-| Enterprise IAM/network/secrets/RBAC/capacity | EXTERNAL | platform evidence |
-
-## Ownership invariants
+## Progress and commit invariants
 
 ```text
 provider/native source cursor
         !=
-framework downstream semantic application checkpoint
+framework downstream semantic checkpoint
 ```
 
 ```text
-source fidelity
-    -> truthful history/delete ceiling
-    -> Bronze policy
-    -> independently selected apply semantics
-    -> physical engine/profile
+provider success
+        !=
+framework target commit + reconciliation + state success
 ```
 
 ```text
-semantic contract
-    -> framework portable implementation
-    -> optional provider delegation only when capability/equivalence is certified
+unknown target commit
+  -> reconcile
+  -> COMMITTED / NOT_COMMITTED / UNRESOLVED
+  -> never blind retry from ambiguity
 ```
 
-Provider success alone never proves full dataset semantic success.
+## Evidence accumulation invariants
+
+```text
+exact spec/environment/domain/framework/release required
+NOT_RUN = no evidence for that stage
+substantive PASS/FAIL/EXTERNAL_REQUIRED is retained unchanged
+identical substantive duplicate may collapse
+different rerun evidence = conflict
+no timestamp/status precedence
+source partial manifests remain retained
+```
+
+## Required guarantees/evidence not yet complete
+
+| Required proof | Current state | Next proof |
+|---|---|---|
+| Real enterprise Fabric identity/token path | runner contract only | approved DEV identity run |
+| Real workspace/item authorization | read-only runner ready | retained live item smoke |
+| Real Data Pipeline execution | backend CI only | retained DEV run + framework/native correlation |
+| Real Copy Job capture | transport CI only | retained DEV job + post-run observation |
+| Real Spark Job Definition capture | transport CI only | retained DEV job + observation |
+| Real Fabric Warehouse commit/ambiguous failure | provider contract only | real transaction + lost-ack/network drill |
+| Production-approved marker absence proof | absent | provider/session-specific certifier evidence |
+| Real Fabric SQL DB / Azure SQL runtime | repository/certification contract only | approved backend conformance + IAM/network evidence |
+| Environment-variable-driven approved control-plane certification runner | not yet implemented | next code slice |
+| Live Kafka consumer coordination | reference adapter/resume only | live broker proof if release scope includes Kafka |
+| Live Delta CDF bounded read/retention | adapter contract only | live Lakehouse proof if release scope includes Delta |
+| Retroactive SCD2 rewrite | intentionally unsupported | explicit rewrite policy only if product scope requires it |
+| Capacity/gateway/throttling/IAM/DR/monitoring/governance | EXTERNAL | retained enterprise controls |
+| Complete exact-release DEV evidence bundle | not yet retained | staged real checks + merge + `--require-certified` |
+
+## Release rule
+
+`0.4.0` remains blocked until:
+
+```text
+exact candidate code/tests/docs agree
+approved real DEV item/auth evidence is retained
+selected real control-plane backend is certified
+representative Fabric provider paths are retained with correlation
+Warehouse ambiguous-commit drill is complete
+required external enterprise controls are referenced
+final merged IntegrationEvidenceManifest passes --require-certified
+```
+
+Never upgrade CI/reference evidence to a real-service evidence label without retained approved execution evidence for that exact capability and release hash.
 
 ## Update rule
 
-Every new guarantee requires a canonical implementation owner, executable proof, explicit evidence level, gap update here and synchronization with `CURRENT_STATUS.md`, `PRODUCTION_REQUIREMENTS.md`, `PRODUCTION_READINESS_AUDIT.md`, `CAPTURE_PATTERN_CATALOG.md` where relevant, and the owning design docs.
+Every new guarantee must have:
+
+```text
+canonical implementation owner
+executable test/proof
+explicit evidence level
+updated gap statement
+synchronized CURRENT_STATUS / readiness / owning runbook docs
+```
