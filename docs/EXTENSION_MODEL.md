@@ -11,7 +11,7 @@ Custom logic belongs in the domain solution/package and plugs into stable framew
 
 ## Stable logical extension names
 
-Source-controlled dataset metadata references a logical extension name, not an arbitrary Python import path.
+Source-controlled metadata/run configuration references a logical extension name, not an arbitrary Python import path.
 
 Example:
 
@@ -35,11 +35,9 @@ metadata logical name
   -> domain release plugin implementation
 ```
 
-The domain release identity therefore versions both ordinary metadata and any exceptional custom implementation.
-
 ## Bounded extension contracts
 
-Initial extension families include:
+Extension families include:
 
 - capture adapter — unusual source protocol or custom micro-batch acquisition;
 - parser/normalizer — irregular binary/text/semi-structured format;
@@ -47,20 +45,21 @@ Initial extension families include:
 - DQ rule provider — domain/business validation rules;
 - specialized apply adapter — only when no standard APPEND/REPLACE/UPSERT/SCD strategy is sufficient;
 - capture observer — item-specific post-run facts required to turn provider completion into framework capture evidence;
-- Spark execution-data resolver — translation of already-frozen framework bounds/parameters into one Spark Job Definition `executionData` contract.
+- Spark execution-data resolver — translation of already-frozen framework bounds/parameters into one Spark Job Definition `executionData` contract;
+- Warehouse mutation extension — one bounded representative target mutation executed inside the framework-owned same transaction as the commit marker.
 
-Each extension receives typed immutable framework/provider inputs and returns typed data/evidence. It does not control the entire run lifecycle.
+Each extension receives typed immutable/framework-owned inputs and returns typed data/evidence. It does not control the entire run lifecycle.
 
 ## Approved capture evidence extensions
 
-Two dedicated entry-point groups are stable framework contracts:
+Stable entry-point groups:
 
 ```text
 fabric_data_framework.capture_observers
 fabric_data_framework.spark_execution_data
 ```
 
-A customer package can register implementations such as:
+A customer package can register:
 
 ```toml
 [project.entry-points."fabric_data_framework.capture_observers"]
@@ -71,43 +70,81 @@ A customer package can register implementations such as:
 "crm.customer.spark-execution-data" = "fabric_customer.spark:customer_execution_data"
 ```
 
-The capture observer contract is:
+Contracts:
 
 ```python
 (request: FabricCaptureRequest, job: FabricJobInstance) -> FabricCaptureObservation
 ```
-
-The Spark execution-data contract is:
 
 ```python
 (request: FabricCaptureRequest, binding: FabricSparkJobDefinitionBinding)
     -> Mapping[str, object] | None
 ```
 
-These extensions fill provider/item-specific gaps only. The framework still owns:
+These extensions fill provider/item-specific gaps only. The framework still owns exact-release/prerequisite validation, physical binding, explicit authorization, provider invocation, one-shot execution, native evidence validation, `CaptureReceipt`, provider correlation, retained evidence safety and PASS/FAIL.
+
+Canonical runbook: `docs/APPROVED_CAPTURE_EVIDENCE.md`.
+
+## Approved Warehouse mutation extension
+
+Stable entry-point group:
 
 ```text
-exact-release/prerequisite validation
-physical item binding
-explicit mutation authorization
-REST invocation semantics
-one-shot capture execution
-FabricNativeRunEvidence validation
-CaptureReceipt construction
-provider/native correlation validation
-retained evidence safety
-PASS/FAIL decision
+fabric_data_framework.warehouse_mutations
 ```
 
-For approved evidence, the customer extension wheel or source artifact used by the run must be fingerprinted in `ReleaseManifest.artifact_sha256`. A logical extension name without exact artifact provenance is insufficient.
+Customer registration:
 
-Canonical runbook:
+```toml
+[project.entry-points."fabric_data_framework.warehouse_mutations"]
+"sales.order.evidence-mutation" = "fabric_customer.warehouse:mutate_sales_order"
+```
+
+Contract:
+
+```python
+(
+    connection: sqlalchemy.engine.Connection,
+    intent: TargetOperationIntent,
+    payload: Mapping[str, object],
+) -> FabricWarehouseMutationEvidence | None
+```
+
+The framework owns:
 
 ```text
-docs/APPROVED_CAPTURE_EVIDENCE.md
+control-plane target-operation claim/CAS
+Warehouse transaction begin/commit
+same-transaction marker write
+UNKNOWN transition
+marker probe
+COMMITTED/UNRESOLVED resolution
+SUCCEEDED transition
+re-entry decision
+retained evidence PASS/FAIL
 ```
 
-## Framework-owned boundaries that extensions cannot bypass
+The customer extension owns only the representative target mutation performed with the
+already-open framework `Connection`. It must not call `commit()`, replace the marker,
+change journal state or certify the run.
+
+This is deliberately narrower than handing arbitrary target SQL/lifecycle ownership to
+the customer package.
+
+Canonical runbook: `docs/APPROVED_WAREHOUSE_EVIDENCE.md`.
+
+## Exact extension artifact provenance
+
+For approved evidence, the customer extension wheel or source artifact used by the run must be fingerprinted in `ReleaseManifest.artifact_sha256`.
+
+```text
+logical extension name alone          -> insufficient
+logical name + exact artifact digest  -> intended artifact provenance
+```
+
+The release digest does not itself attest what is installed in the live Fabric Environment. Deployment/environment evidence remains a separate real-service proof.
+
+## Framework-owned boundaries extensions cannot bypass
 
 Custom code may not directly own or override:
 
@@ -120,17 +157,23 @@ Custom code may not directly own or override:
 - production secret resolution;
 - undeclared target publication;
 - semantic strategy changes at runtime;
-- approved evidence status or certification level.
+- approved evidence status or certification level;
+- target-operation CAS/retry authority;
+- Warehouse transaction commit or same-transaction marker semantics.
 
-Where custom code performs a physical write, it must do so through a declared extension contract that returns publication evidence to the framework and participates in the same recovery/idempotency model.
+Where custom code performs a physical write, it must do so through a declared extension contract and participate in the same recovery/idempotency model.
 
-A capture observer is specifically **not** allowed to claim success independently. Its output still passes through the concrete transport and `FabricCaptureAdapter` validation before a `CaptureReceipt` exists.
+A capture observer cannot claim success independently; its output must pass through `FabricCaptureAdapter` validation before a `CaptureReceipt` exists.
+
+A Warehouse mutation extension cannot claim commit independently; the framework marker and durable target-operation reconciliation remain authoritative evidence.
 
 ## Failure behavior
 
-Extensions must fail explicitly. They must not silently skip malformed records or mutate target/state before the framework can determine whether the operation is retryable or recoverable.
+Extensions must fail explicitly. They must not silently skip malformed records or mutate framework state before the framework can determine recovery behavior.
 
-For approved capture evidence, observer exceptions after provider `Completed` are retained as correlated FAIL evidence when the native job identity is available. They are never promoted to PASS.
+For approved capture evidence, observer exceptions after provider `Completed` become correlated FAIL evidence when native identity is available.
+
+For approved Warehouse evidence, a mutation/provider exception around transaction execution is treated conservatively as an ambiguous target outcome. The journal becomes `UNKNOWN` and the framework probes the marker. Marker absence remains `UNRESOLVED`; it does not authorize retry.
 
 ## Why this is preferred over framework edits
 
@@ -144,10 +187,13 @@ standard dataset + business rules
   -> metadata + domain DQ/mapping
 
 provider/item-specific observation
-  -> metadata/run config + registered customer observer extension
+  -> run config + registered customer observer
+
+representative Warehouse mutation evidence
+  -> run config + registered customer Warehouse mutation
 
 true exception
-  -> metadata + registered domain extension
+  -> metadata + registered bounded domain extension
 
 new reusable industry-wide pattern
   -> framework feature through normal framework release process
@@ -155,7 +201,7 @@ new reusable industry-wide pattern
 
 Only the last case changes `fabric-data-framework` itself.
 
-The development model is therefore:
+The development model is:
 
 ```text
 fabric-data-framework
@@ -168,5 +214,5 @@ fabric-customer
   -> customer extension wheel/source artifact
 
 exact release manifest
-  -> fingerprints both artifacts used by approved execution
+  -> fingerprints framework/domain artifacts used by approved execution
 ```
