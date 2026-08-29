@@ -155,6 +155,47 @@ def _typed_parameter(name: str, value: object) -> dict[str, object]:
     return {"name": name, "value": encoded, "type": parameter_type}
 
 
+def _parse_job_instance_payload(
+    payload: object | None,
+    headers: Mapping[str, str] | Any,
+    *,
+    expected_job_instance_id: UUID,
+    expected_item_id: UUID,
+) -> FabricJobInstance:
+    if not isinstance(payload, dict):
+        raise FabricRestError("Fabric job-instance response must be a JSON object")
+    try:
+        status = FabricJobStatus(str(payload["status"]))
+        observed_id = UUID(str(payload["id"]))
+        observed_item = UUID(str(payload["itemId"]))
+        job_type = str(payload["jobType"])
+    except (KeyError, ValueError) as exc:
+        raise FabricRestError(
+            "Fabric job-instance response has an unsupported/malformed identity or "
+            f"status: {payload!r}"
+        ) from exc
+    if observed_id != expected_job_instance_id:
+        raise FabricRestError(
+            f"Fabric returned job id {observed_id}, expected {expected_job_instance_id}"
+        )
+    if observed_item != expected_item_id:
+        raise FabricRestError(
+            f"Fabric returned item id {observed_item}, expected {expected_item_id}"
+        )
+    root = payload.get("rootActivityId")
+    return FabricJobInstance(
+        job_instance_id=observed_id,
+        item_id=observed_item,
+        job_type=job_type,
+        status=status,
+        root_activity_id=UUID(str(root)) if root else None,
+        start_time_utc=_parse_datetime(payload.get("startTimeUtc")),
+        end_time_utc=_parse_datetime(payload.get("endTimeUtc")),
+        failure_reason=payload.get("failureReason"),
+        retry_after_seconds=_retry_after(headers),
+    )
+
+
 class FabricRestClient:
     """Minimal v1 REST client for on-demand Fabric item jobs and polling."""
 
@@ -249,6 +290,17 @@ class FabricRestClient:
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise FabricRestError("Fabric REST returned invalid JSON") from exc
 
+    @staticmethod
+    def _start_from_headers(headers: Any) -> FabricJobStart:
+        location = _header(headers, "Location")
+        if not location:
+            raise FabricRestError("Fabric on-demand job response did not include Location")
+        return FabricJobStart(
+            job_instance_id=_job_id_from_location(location),
+            location=location,
+            retry_after_seconds=_retry_after(headers),
+        )
+
     def run_item_job(
         self,
         *,
@@ -282,14 +334,47 @@ class FabricRestClient:
             expected_statuses=frozenset({202}),
         )
         del body
-        location = _header(headers, "Location")
-        if not location:
-            raise FabricRestError("Fabric on-demand job response did not include Location")
-        return FabricJobStart(
-            job_instance_id=_job_id_from_location(location),
-            location=location,
-            retry_after_seconds=_retry_after(headers),
+        return self._start_from_headers(headers)
+
+    def run_copy_job(
+        self,
+        *,
+        workspace_id: UUID,
+        copy_job_id: UUID,
+    ) -> FabricJobStart:
+        """Start one preconfigured Copy Job using its documented Execute invocation."""
+
+        body, headers = self._request(
+            "POST",
+            f"workspaces/{workspace_id}/items/{copy_job_id}/jobs/instances?jobType=Execute",
+            expected_statuses=frozenset({202}),
         )
+        del body
+        return self._start_from_headers(headers)
+
+    def run_spark_job_definition(
+        self,
+        *,
+        workspace_id: UUID,
+        spark_job_definition_id: UUID,
+        execution_data: Mapping[str, object] | None = None,
+    ) -> FabricJobStart:
+        """Start one Spark Job Definition through the dedicated sparkjob endpoint."""
+
+        payload = (
+            {"executionData": dict(execution_data)}
+            if execution_data is not None
+            else None
+        )
+        body, headers = self._request(
+            "POST",
+            f"workspaces/{workspace_id}/sparkJobDefinitions/"
+            f"{spark_job_definition_id}/jobs/sparkjob/instances",
+            payload=payload,
+            expected_statuses=frozenset({202}),
+        )
+        del body
+        return self._start_from_headers(headers)
 
     def get_item_job_instance(
         self,
@@ -303,58 +388,47 @@ class FabricRestClient:
             f"workspaces/{workspace_id}/items/{item_id}/jobs/instances/{job_instance_id}",
             expected_statuses=frozenset({200}),
         )
-        if not isinstance(payload, dict):
-            raise FabricRestError("Fabric job-instance response must be a JSON object")
-        try:
-            status = FabricJobStatus(str(payload["status"]))
-            observed_id = UUID(str(payload["id"]))
-            observed_item = UUID(str(payload["itemId"]))
-            job_type = str(payload["jobType"])
-        except (KeyError, ValueError) as exc:
-            raise FabricRestError(
-                f"Fabric job-instance response has an unsupported/malformed identity or status: {payload!r}"
-            ) from exc
-        if observed_id != job_instance_id:
-            raise FabricRestError(
-                f"Fabric returned job id {observed_id}, expected {job_instance_id}"
-            )
-        if observed_item != item_id:
-            raise FabricRestError(f"Fabric returned item id {observed_item}, expected {item_id}")
-        root = payload.get("rootActivityId")
-        return FabricJobInstance(
-            job_instance_id=observed_id,
-            item_id=observed_item,
-            job_type=job_type,
-            status=status,
-            root_activity_id=UUID(str(root)) if root else None,
-            start_time_utc=_parse_datetime(payload.get("startTimeUtc")),
-            end_time_utc=_parse_datetime(payload.get("endTimeUtc")),
-            failure_reason=payload.get("failureReason"),
-            retry_after_seconds=_retry_after(headers),
+        return _parse_job_instance_payload(
+            payload,
+            headers,
+            expected_job_instance_id=job_instance_id,
+            expected_item_id=item_id,
         )
 
-    def run_and_wait_item_job(
+    def get_copy_job_instance(
+        self,
+        *,
+        workspace_id: UUID,
+        copy_job_id: UUID,
+        job_instance_id: UUID,
+    ) -> FabricJobInstance:
+        payload, headers = self._request(
+            "GET",
+            f"workspaces/{workspace_id}/copyJobs/{copy_job_id}/jobs/instances/"
+            f"{job_instance_id}",
+            expected_statuses=frozenset({200}),
+        )
+        return _parse_job_instance_payload(
+            payload,
+            headers,
+            expected_job_instance_id=job_instance_id,
+            expected_item_id=copy_job_id,
+        )
+
+    def _wait_for_item_job(
         self,
         *,
         workspace_id: UUID,
         item_id: UUID,
-        job_type: str,
-        parameters: Mapping[str, object] | None = None,
-        execution_data: Mapping[str, object] | None = None,
-        timeout_seconds: float = 3600.0,
-        default_poll_seconds: float = 5.0,
+        started: FabricJobStart,
+        timeout_seconds: float,
+        default_poll_seconds: float,
+        copy_job: bool,
     ) -> FabricJobInstance:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         if default_poll_seconds < 0:
             raise ValueError("default_poll_seconds must be >= 0")
-        started = self.run_item_job(
-            workspace_id=workspace_id,
-            item_id=item_id,
-            job_type=job_type,
-            parameters=parameters,
-            execution_data=execution_data,
-        )
         deadline = self._clock() + timeout_seconds
         delay = (
             float(started.retry_after_seconds)
@@ -369,11 +443,18 @@ class FabricRestClient:
                 )
             if delay > 0:
                 self._sleeper(min(delay, remaining))
-            instance = self.get_item_job_instance(
-                workspace_id=workspace_id,
-                item_id=item_id,
-                job_instance_id=started.job_instance_id,
-            )
+            if copy_job:
+                instance = self.get_copy_job_instance(
+                    workspace_id=workspace_id,
+                    copy_job_id=item_id,
+                    job_instance_id=started.job_instance_id,
+                )
+            else:
+                instance = self.get_item_job_instance(
+                    workspace_id=workspace_id,
+                    item_id=item_id,
+                    job_instance_id=started.job_instance_id,
+                )
             if instance.status.terminal:
                 return instance
             delay = (
@@ -381,6 +462,77 @@ class FabricRestClient:
                 if instance.retry_after_seconds is not None
                 else default_poll_seconds
             )
+
+    def run_and_wait_item_job(
+        self,
+        *,
+        workspace_id: UUID,
+        item_id: UUID,
+        job_type: str,
+        parameters: Mapping[str, object] | None = None,
+        execution_data: Mapping[str, object] | None = None,
+        timeout_seconds: float = 3600.0,
+        default_poll_seconds: float = 5.0,
+    ) -> FabricJobInstance:
+        started = self.run_item_job(
+            workspace_id=workspace_id,
+            item_id=item_id,
+            job_type=job_type,
+            parameters=parameters,
+            execution_data=execution_data,
+        )
+        return self._wait_for_item_job(
+            workspace_id=workspace_id,
+            item_id=item_id,
+            started=started,
+            timeout_seconds=timeout_seconds,
+            default_poll_seconds=default_poll_seconds,
+            copy_job=False,
+        )
+
+    def run_and_wait_copy_job(
+        self,
+        *,
+        workspace_id: UUID,
+        copy_job_id: UUID,
+        timeout_seconds: float = 3600.0,
+        default_poll_seconds: float = 5.0,
+    ) -> FabricJobInstance:
+        started = self.run_copy_job(
+            workspace_id=workspace_id,
+            copy_job_id=copy_job_id,
+        )
+        return self._wait_for_item_job(
+            workspace_id=workspace_id,
+            item_id=copy_job_id,
+            started=started,
+            timeout_seconds=timeout_seconds,
+            default_poll_seconds=default_poll_seconds,
+            copy_job=True,
+        )
+
+    def run_and_wait_spark_job_definition(
+        self,
+        *,
+        workspace_id: UUID,
+        spark_job_definition_id: UUID,
+        execution_data: Mapping[str, object] | None = None,
+        timeout_seconds: float = 3600.0,
+        default_poll_seconds: float = 5.0,
+    ) -> FabricJobInstance:
+        started = self.run_spark_job_definition(
+            workspace_id=workspace_id,
+            spark_job_definition_id=spark_job_definition_id,
+            execution_data=execution_data,
+        )
+        return self._wait_for_item_job(
+            workspace_id=workspace_id,
+            item_id=spark_job_definition_id,
+            started=started,
+            timeout_seconds=timeout_seconds,
+            default_poll_seconds=default_poll_seconds,
+            copy_job=False,
+        )
 
 
 __all__ = [
