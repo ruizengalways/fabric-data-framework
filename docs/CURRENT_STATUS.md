@@ -24,22 +24,27 @@ PR #13
 architecture/production-framework-blueprint
 ```
 
-The product target is a wheel that an enterprise domain installs and normally uses through source-controlled metadata, environment bindings, capability profiles and bounded logical-name extensions. Routine onboarding must not require framework edits.
+The product target is a wheel an enterprise domain installs and normally uses through source-controlled metadata, environment bindings, capability profiles and bounded logical-name extensions. Routine onboarding must not require framework edits.
 
 ## Latest coherent implementation evidence
 
 Latest validated code baseline:
 
 ```text
-c326f062ad4e6be5185f17b9e6830946967361ab
-GitHub Actions 33224558393
-252 tests passed
-replay-stable file manifest + API frozen-window/pagination guardrails
+1ee22d5828a5f53a3f9050722bdb5b7f7b28de43
+GitHub Actions 33225064570
+261 tests passed
+shared source-order/event-time taxonomy wired through batch current-state, CDC current-state and CDC-SCD2
 ```
 
-Immediately preceding hardening evidence:
+Recent hardening sequence:
 
 ```text
+c326f062ad4e6be5185f17b9e6830946967361ab
+Actions 33224558393
+252 tests passed
+replay-stable file manifest + API frozen-window/pagination guardrails
+
 6eb4ff275ed1aad9092f60f098d2a9272fd06779
 Actions 33223276476
 231 tests passed
@@ -64,11 +69,6 @@ ecdca38099a4f21c6f40701dc14889b464c20608
 Actions 33219783325
 183 tests passed
 Debezium/Kafka capability profile + provider registry
-
-1087ab9231b9cb638a87bc2f78ef0c1b1fe32beb
-Actions 33219601375
-179 tests passed
-Debezium/Kafka envelope + retention-aware resume
 ```
 
 All new hardening evidence remains `REFERENCE`, `CI PROVEN` or `ADAPTER CONTRACT`. No hardening capability is yet `FABRIC PROVEN` through retained real workspace execution.
@@ -101,6 +101,9 @@ The branch now provides:
 - schema fingerprint/version materialization plus append-only runtime schema-change evidence;
 - immutable file-manifest readiness/completeness/version evidence;
 - API frozen-window, cursor-chain, completeness, page/record-limit and replay-drift guards;
+- shared temporal taxonomy separating source order from event/valid time;
+- shared source-order comparison wired into batch UPSERT/SCD1 and CDC current-state;
+- shared event-time comparison wired into CDC-SCD2 while preserving fail-closed retroactive-history behavior;
 - metadata-driven dispatcher/dependency/failure isolation;
 - bounded logical-name domain extensions;
 - immutable release/delivery contracts and CLI foundations.
@@ -116,55 +119,38 @@ SCD2            IMPLEMENTED reference
 SNAPSHOT_DIFF   IMPLEMENTED reference
 ```
 
-APPEND uses `load.append_identity`, not `merge_key`. The framework writes reserved identity/payload hashes so an exact business-event replay is a no-op even when run lineage changes; the same identity with changed business payload fails closed.
+APPEND uses `load.append_identity`, not `merge_key`. Exact business-event replay is a no-op even when run lineage changes; the same identity with changed business payload fails closed.
+
+## Temporal correctness
+
+The framework now has one provider-neutral taxonomy for the two independent clocks:
+
+```text
+source order: STALE | EQUAL | NEWER
+event time:   EARLIER | EQUAL | LATER | UNKNOWN
+```
+
+Shared conditions include `STALE_SOURCE_POSITION`, `EQUAL_SOURCE_POSITION`, `LATE_EVENT_TIME`, `SAME_EVENT_TIME` and `IN_ORDER`.
+
+A newer source position with earlier valid/event time is explicitly classified as requiring history rewrite. Current CDC-SCD2 still refuses that rewrite with `CDCSCD2LateArrivingError`; the shared taxonomy does not pretend retroactive-history reconstruction is implemented. Equal event time with a newer source position remains legal.
 
 ## Schema evolution
 
-Source-controlled `SchemaContract` supports:
-
-```text
-EXACT
-ADDITIVE_ONLY
-SAFE_EVOLUTION
-```
-
-`SAFE_EVOLUTION` currently certifies only explicit widening/relaxation rules such as INT32 -> INT64, FLOAT32 -> FLOAT64, compatible STRING widening, DECIMAL precision widening at stable scale, and required -> nullable. Removal, narrowing, nullable -> required, scale change and uncertified cross-family conversions fail closed.
+Source-controlled `SchemaContract` supports `EXACT`, `ADDITIVE_ONLY` and conservative `SAFE_EVOLUTION`. Certified widening/relaxation includes INT32 -> INT64, FLOAT32 -> FLOAT64, compatible STRING widening, DECIMAL precision widening at stable scale and required -> nullable. Removal, narrowing, nullable -> required, scale change and uncertified cross-family conversions fail closed.
 
 Deployment materializes versioned rows in `dataset_contract`; runtime observations append to environment-local `schema_change` evidence.
 
 ## File/API capture guardrails
 
-File capture contracts freeze:
+File capture freezes source listing/snapshot reference plus object URI/version/readiness metadata into a deterministic manifest fingerprint. Retry/replay must resolve to the same manifest.
 
-```text
-source snapshot/listing reference
-file URI + stable version token
-size + timezone-aware last_modified
-readiness
-complete-discovery evidence
-manifest fingerprint
-```
+API capture freezes logical bounds + predicate identity before page 1 and validates contiguous cursor chain, completion, terminal cursor, page/record limits, row accounting, cycles and retry/replay window drift.
 
-Retry/replay must resolve to the same frozen manifest. Duplicate paths, path/version ambiguity, incomplete discovery, non-ready files and policy-limit breaches fail closed.
-
-API capture contracts freeze logical source bounds + predicate identity before page 1 and then validate a contiguous cursor chain. Completion, terminal cursor, page/record limits, row accounting, cursor cycles and retry/replay window drift are explicit guards.
-
-These are provider-neutral guardrails; actual storage/API clients remain adapter/domain integration work.
+These are provider-neutral guardrails; actual storage/API clients remain integration work.
 
 ## Recovery status
 
-Reference recovery core now includes:
-
-```text
-RETRYABLE       -> bounded retry
-NON_RETRYABLE   -> stop
-UNKNOWN_OUTCOME -> reconcile first
-  COMMITTED     -> converge SUCCESS without rewrite
-  NOT_COMMITTED -> retry may proceed
-  UNRESOLVED    -> stop
-```
-
-Quarantine REPLAY and FULL_REBUILD coordination are implemented reference capabilities. Remaining recovery work is mainly physical/provider specific: native Fabric downstream-failure resume, real Kafka source cursor commit coordination, durable physical-target idempotency and operator integration.
+Reference recovery includes bounded retry, attempt lineage, unknown-outcome reconciliation, quarantine REPLAY and guarded FULL_REBUILD. Remaining recovery work is primarily physical/provider-specific: native Fabric downstream-failure resume, real Kafka source-cursor commit coordination, durable physical-target idempotency and operator integration.
 
 ## Control-plane ownership
 
@@ -177,7 +163,7 @@ v2 execution_policy_ordering_capture_receipt_recovery_and_cdc
 v3 append_identity_semantics
 ```
 
-v3 contains a real additive migration for existing v2 `load_policy` tables; it does not merely record a version row.
+v3 contains a real additive migration for existing v2 `load_policy` tables.
 
 Promotable definitions:
 
@@ -193,45 +179,23 @@ data_quality_policy
 reconciliation_policy
 ```
 
-Environment-local runtime/evidence includes:
-
-```text
-schema_migration_history
-runtime_override
-watermark
-cdc_checkpoint
-dataset_state
-dataset_lease
-pipeline_run
-dataset_run
-dataset_attempt_lineage
-capture_receipt
-step_run
-reconciliation_result
-quarantine_batch
-schema_change
-reprocess_request
-deployment_history
-```
-
-None of that runtime state is promoted DEV -> UAT -> PROD.
+Environment-local runtime/evidence includes migrations, overrides, watermarks, CDC checkpoints, leases/state, pipeline/dataset/step runs, attempt lineage, capture receipts, reconciliation/quarantine/schema-change/reprocess/deployment evidence. None is promoted DEV -> UAT -> PROD.
 
 ## Fabric/provider boundary
 
-Current Fabric adapters are adapter contracts with injected transports and fake-transport certification. Debezium/Kafka is a provider adapter/reference recovery contract. Missing real proof includes actual REST/SDK/CLI/Kafka clients, authentication/environment binding, live polling/seek/commit, retained provider run IDs and a real Fabric Pipeline backend.
+Current Fabric adapters are adapter contracts with injected transports and fake-transport certification. Debezium/Kafka is provider-adapter/reference recovery evidence. Missing real proof includes actual REST/SDK/CLI/Kafka clients, authentication/environment binding, live polling/seek/commit, retained provider run IDs and a real Fabric Pipeline backend.
 
 Do not describe current adapter-contract evidence as real Fabric/Kafka integration.
 
 ## Exact next implementation sequence
 
-1. Add a shared cross-strategy late/out-of-order taxonomy and wire it into current-state/CDC history decisions without inventing retroactive rewrite semantics.
+1. Add a supported control-plane read/query/operator surface so on-call workflows do not require hand-written table joins.
 2. Complete remaining native/provider progress recovery and durable physical-target idempotency proofs.
-3. Add a supported persistent control-plane repository/query/operator surface.
-4. Implement actual Fabric/Kafka transports and Fabric Pipeline backend.
-5. Prove at least one approved DEV hybrid execution retaining Fabric/provider correlation.
-6. Add additional provider CDC adapters only when supported product scope requires them.
-7. Re-run production readiness/guarantee/docs audit against the exact release-candidate head.
-8. Decide the next immutable release scope/version only after those gates are explicit.
+3. Implement actual Fabric/Kafka transports and Fabric Pipeline backend.
+4. Prove at least one approved DEV hybrid execution retaining Fabric/provider correlation.
+5. Add additional provider CDC adapters only when supported product scope requires them.
+6. Re-run production readiness/guarantee/docs audit against the exact release-candidate head.
+7. Decide the next immutable release scope/version only after those gates are explicit.
 
 ## Durable project memory
 
