@@ -136,21 +136,13 @@ def reserve_target_operation(
         _assert_identity(winner, spec)
         return winner
 
-    return TargetOperationJournalEntry(
-        operation_key=spec.operation_key,
-        dataset_id=spec.dataset_id,
-        run_mode=spec.run_mode,
-        apply_strategy=spec.apply_strategy,
-        target_reference=spec.target_reference,
-        effective_config_hash=spec.effective_config_hash,
-        mutation_scope_hash=spec.mutation_scope_hash,
-        first_dataset_run_id=dataset_run_id,
-        last_dataset_run_id=dataset_run_id,
-        status=TargetOperationStatus.PREPARED,
-        attempts_started=0,
-        version=1,
-        created_at=now,
-    )
+    inserted = read_target_operation(engine, spec.operation_key)
+    if inserted is None:
+        raise RuntimeError(
+            f"target operation {spec.operation_key} disappeared after reservation"
+        )
+    _assert_identity(inserted, spec)
+    return inserted
 
 
 def transition_target_operation(
