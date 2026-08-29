@@ -108,6 +108,16 @@ class StepRunAudit(FrozenModel):
     status: StepStatus
     started_at: datetime = Field(default_factory=_utcnow)
     completed_at: datetime | None = None
+    details: dict[str, object] | None = None
+
+    @model_validator(mode="after")
+    def validate_times(self) -> "StepRunAudit":
+        _require_aware(self.started_at, "started_at")
+        if self.completed_at is not None:
+            _require_aware(self.completed_at, "completed_at")
+            if self.completed_at < self.started_at:
+                raise ValueError("completed_at cannot be before started_at")
+        return self
 
 
 class ReconciliationMetric(FrozenModel):
