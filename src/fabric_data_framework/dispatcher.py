@@ -1,17 +1,25 @@
 """Compatibility facade for metadata-driven dataset orchestration.
 
 Planning/dependency decisions live in ``orchestration.planner`` while concrete
-execution lives behind an execution backend. This module keeps the established
-``dispatch_datasets`` public surface during the compatibility-conscious restructure.
+execution lives behind a ready-wave backend. The established ``dispatch_datasets``
+API remains the in-process compatibility surface; ``dispatch_datasets_with_backend``
+lets Fabric/native backends consume the same dependency and criticality semantics.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Iterable
+from typing import Iterable, Protocol
 from uuid import UUID, uuid4
 
-from .config import Criticality, DatasetStatus, PipelineStatus, RunMode, RuntimeOverride
+from .config import (
+    Criticality,
+    DatasetStatus,
+    EffectiveDatasetConfig,
+    PipelineStatus,
+    RunMode,
+    RuntimeOverride,
+)
 from .contracts.dispatch import (
     DatasetDispatchOutcome,
     DatasetDispatchRequest,
@@ -34,6 +42,46 @@ from .repository import ControlPlaneRepository
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class ReadyWaveBackend(Protocol):
+    """Physical executor for one dependency-ready dataset wave."""
+
+    def execute_ready_wave(
+        self,
+        *,
+        repository: ControlPlaneRepository,
+        pipeline_run_id: UUID,
+        effective_by_id: dict[str, EffectiveDatasetConfig],
+        dataset_ids: Iterable[str],
+        run_mode: RunMode,
+        max_concurrency: int,
+    ) -> dict[str, DatasetDispatchOutcome]: ...
+
+
+class _InProcessBackend:
+    def __init__(self, resolver: ExecutorResolver) -> None:
+        self._resolver = resolver
+
+    def execute_ready_wave(
+        self,
+        *,
+        repository: ControlPlaneRepository,
+        pipeline_run_id: UUID,
+        effective_by_id: dict[str, EffectiveDatasetConfig],
+        dataset_ids: Iterable[str],
+        run_mode: RunMode,
+        max_concurrency: int,
+    ) -> dict[str, DatasetDispatchOutcome]:
+        return execute_ready_wave(
+            repository=repository,
+            resolver=self._resolver,
+            pipeline_run_id=pipeline_run_id,
+            effective_by_id=effective_by_id,
+            dataset_ids=dataset_ids,
+            run_mode=run_mode,
+            max_concurrency=max_concurrency,
+        )
 
 
 def _record_blocked_dataset(
@@ -120,10 +168,10 @@ def _record_failed_pipeline(
     )
 
 
-def dispatch_datasets(
+def dispatch_datasets_with_backend(
     *,
     repository: ControlPlaneRepository,
-    executor_resolver: ExecutorResolver,
+    backend: ReadyWaveBackend,
     environment: str,
     domain: str,
     domain_git_sha: str,
@@ -138,12 +186,7 @@ def dispatch_datasets(
     pipeline_run_id: UUID | None = None,
     as_of: datetime | None = None,
 ) -> PipelineDispatchResult:
-    """Plan and execute a metadata-selected graph using the in-process backend.
-
-    The public function remains intentionally compatible with the Phase 4 API while
-    orchestration decisions and physical execution are now separate. A future Fabric
-    backend can consume the same provider-neutral dispatch/execution-plan contracts.
-    """
+    """Plan once and execute dependency-ready waves through a physical backend."""
 
     started_at = _utcnow()
     pipeline_run_id = pipeline_run_id or uuid4()
@@ -223,15 +266,31 @@ def dispatch_datasets(
                 )
             break
 
-        wave_outcomes = execute_ready_wave(
+        wave_outcomes = backend.execute_ready_wave(
             repository=repository,
-            resolver=executor_resolver,
             pipeline_run_id=pipeline_run_id,
             effective_by_id=effective_by_id,
             dataset_ids=ready,
             run_mode=run_mode,
             max_concurrency=plan.max_concurrency,
         )
+        unexpected = sorted(set(wave_outcomes) - set(ready))
+        missing = sorted(set(ready) - set(wave_outcomes))
+        if unexpected or missing:
+            _record_failed_pipeline(
+                repository,
+                pipeline_run_id=pipeline_run_id,
+                environment=environment,
+                domain=domain,
+                started_at=started_at,
+                domain_git_sha=domain_git_sha,
+                framework_version=framework_version,
+                config_bundle_hash=config_bundle_hash,
+            )
+            raise OrchestrationIntegrityError(
+                "execution backend returned an invalid ready-wave result: "
+                f"missing={missing}, unexpected={unexpected}"
+            )
         outcomes.update(wave_outcomes)
         remaining.difference_update(wave_outcomes)
 
@@ -265,6 +324,45 @@ def dispatch_datasets(
     )
 
 
+def dispatch_datasets(
+    *,
+    repository: ControlPlaneRepository,
+    executor_resolver: ExecutorResolver,
+    environment: str,
+    domain: str,
+    domain_git_sha: str,
+    framework_version: str,
+    config_bundle_hash: str,
+    run_mode: RunMode = RunMode.NORMAL,
+    execution_group: str | None = None,
+    requested_dataset_ids: Iterable[str] | None = None,
+    overrides: Iterable[RuntimeOverride] = (),
+    max_concurrency: int = 4,
+    required_criticalities: frozenset[Criticality] = DEFAULT_REQUIRED_CRITICALITIES,
+    pipeline_run_id: UUID | None = None,
+    as_of: datetime | None = None,
+) -> PipelineDispatchResult:
+    """Backward-compatible in-process dispatcher."""
+
+    return dispatch_datasets_with_backend(
+        repository=repository,
+        backend=_InProcessBackend(executor_resolver),
+        environment=environment,
+        domain=domain,
+        domain_git_sha=domain_git_sha,
+        framework_version=framework_version,
+        config_bundle_hash=config_bundle_hash,
+        run_mode=run_mode,
+        execution_group=execution_group,
+        requested_dataset_ids=requested_dataset_ids,
+        overrides=overrides,
+        max_concurrency=max_concurrency,
+        required_criticalities=required_criticalities,
+        pipeline_run_id=pipeline_run_id,
+        as_of=as_of,
+    )
+
+
 __all__ = [
     "DatasetDispatchOutcome",
     "DatasetDispatchRequest",
@@ -272,5 +370,7 @@ __all__ = [
     "ExecutorResolver",
     "OrchestrationIntegrityError",
     "PipelineDispatchResult",
+    "ReadyWaveBackend",
     "dispatch_datasets",
+    "dispatch_datasets_with_backend",
 ]
