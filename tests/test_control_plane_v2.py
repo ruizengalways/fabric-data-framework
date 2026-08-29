@@ -20,8 +20,8 @@ from fabric_data_framework.config import (
 )
 from fabric_data_framework.control_plane import (
     CONTROL_PLANE_SCHEMA_VERSION,
-    PROMOTABLE_DEFINITION_TABLES,
     ENVIRONMENT_LOCAL_STATE_TABLES,
+    PROMOTABLE_DEFINITION_TABLES,
     capture_receipt,
     current_schema_version,
     execution_policy,
@@ -58,7 +58,7 @@ def _config() -> DatasetConfig:
     )
 
 
-def test_schema_v2_records_additive_migration_history_and_new_ownership_tables(tmp_path):
+def test_schema_v2_guarantees_survive_later_additive_migrations(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'control.db'}")
     materialize_semantic_metadata(
         engine,
@@ -68,12 +68,15 @@ def test_schema_v2_records_additive_migration_history_and_new_ownership_tables(t
         framework_version="0.4.0",
     )
 
-    assert current_schema_version(engine) == CONTROL_PLANE_SCHEMA_VERSION == 2
+    assert current_schema_version(engine) == CONTROL_PLANE_SCHEMA_VERSION
+    assert CONTROL_PLANE_SCHEMA_VERSION >= 2
     with engine.connect() as connection:
         migrations = connection.execute(
             select(schema_migration_history).order_by(schema_migration_history.c.version)
         ).mappings().all()
-    assert [item["version"] for item in migrations] == [1, 2]
+    versions = [item["version"] for item in migrations]
+    assert versions[:2] == [1, 2]
+    assert versions == list(range(1, CONTROL_PLANE_SCHEMA_VERSION + 1))
     assert "execution_policy" in PROMOTABLE_DEFINITION_TABLES
     assert "ordering_policy" in PROMOTABLE_DEFINITION_TABLES
     assert "capture_receipt" in ENVIRONMENT_LOCAL_STATE_TABLES
