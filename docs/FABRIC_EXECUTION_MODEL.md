@@ -94,13 +94,15 @@ Pipeline owns coarse operational control:
 - failure routing/correlation;
 - coarse capacity/concurrency boundaries.
 
-Framework planner owns dataset eligibility/dependencies/criticality semantics. Fabric backend translates provider-neutral plans rather than reimplementing them in dozens of expressions.
+Framework planner owns dataset eligibility/dependencies/criticality semantics. The implemented Fabric backend translates provider-neutral ready waves rather than reimplementing them in pipeline expressions.
+
+A physical backend must return exactly the planner-selected ready wave. Missing or unexpected dataset results are orchestration-integrity failures.
 
 ## 5. Spark Job Definition vs Notebook
 
 ### Spark Job Definition
 
-Preferred generic headless Spark application entrypoint once the real Fabric backend is implemented.
+Preferred generic headless Spark application entrypoint once the real Fabric child runtime is integrated.
 
 A SJD should be thin:
 
@@ -286,14 +288,69 @@ Planner can split native capture/staging from framework processing/apply/state, 
 
 Do not silently switch to a weaker physical plan during a production run.
 
-## 15. Recommended Pipeline hierarchy
+## 15. Implemented Fabric Pipeline backend
+
+`dispatcher.py` now exposes a provider-neutral `ReadyWaveBackend` contract and `dispatch_datasets_with_backend(...)`. The existing `dispatch_datasets(...)` remains the in-process compatibility entrypoint.
+
+The Fabric implementation is:
+
+```text
+framework ready wave
+  -> FabricPipelineBackend
+  -> compile ExecutionPlan per dataset
+  -> resolve environment-local FabricPipelineBinding
+  -> FabricRestPipelineTransport
+  -> POST Fabric on-demand item job
+  -> poll job instance to terminal state
+  -> verify exact durable framework dataset outcome
+  -> return semantic DatasetDispatchOutcome
+```
+
+The REST transport uses injected token acquisition, validates the `Location` job-instance identity, emits explicit Job Scheduler parameter types and respects `Retry-After` evidence.
+
+Stable child-pipeline correlation parameters are:
+
+```text
+framework_pipeline_run_id
+framework_dataset_run_id
+dataset_id
+run_mode
+attempt
+effective_config_hash
+execution_plan_hash
+```
+
+Critical invariant:
+
+> Fabric `Completed` is not equal to framework success.
+
+The exact `framework_dataset_run_id` must have a durable terminal framework outcome. Missing, mismatched or non-terminal framework evidence fails closed.
+
+Fabric `Deduped` also is not treated as success for the requested framework dataset attempt.
+
+Native correlation is retained in `StepRunAudit.details`:
+
+```text
+workspace_id
+pipeline_item_id
+job_instance_id
+root_activity_id
+job_type
+remote_status
+failure_reason
+execution_plan_hash
+```
+
+Canonical runbook: `FABRIC_PIPELINE_BACKEND.md`.
+
+## 16. Recommended Pipeline hierarchy
 
 ```text
 pl_domain_or_source_batch
   -> initialize/correlate run
-  -> resolve metadata execution groups
-  -> bounded fan-out
-       -> pl_dataset_or_stage_execute
+  -> framework resolves metadata/dependency waves
+  -> bounded remote fan-out
+       -> pl_dataset_execute
             -> planned native/Spark/Notebook activity
             -> framework state/audit correlation
 ```
@@ -302,31 +359,41 @@ Separate pipelines/execution groups when there is a real operational reason: sou
 
 Do not create separate pipelines merely because tables use SCD1 vs SCD2; those are apply semantics.
 
-## 16. Current proof boundary
+## 17. Current proof boundary
 
-Reference/adapter-contract proof currently includes:
+Reference/adapter/transport-contract proof includes:
 
 - immutable execution planning;
 - capture/apply engine separation;
 - Copy Job/Copy Activity/Dataflow/Spark capture adapter validation;
 - CaptureReceipt conversion;
 - canonical CDC semantics + bootstrap;
-- downstream CDC checkpoint persistence.
+- downstream CDC checkpoint persistence;
+- provider-native Kafka/Delta resume contracts;
+- Fabric REST on-demand job request/poll/error mechanics;
+- explicit typed Job Scheduler parameters;
+- pluggable planner-ready wave execution;
+- Fabric Pipeline backend and exact framework-outcome handoff;
+- native Fabric job/root correlation model.
 
 Not yet real-Fabric proven:
 
-- Fabric REST/SDK/CLI transport;
-- Pipeline backend;
-- authentication/workspace binding;
-- actual native run polling/correlation;
-- provider CDC envelope adapters against real services;
-- capacity/throttling/gateway behavior.
+- approved Fabric workspace authentication/authorization;
+- selected Data Pipeline item's real per-run parameter acceptance;
+- live POST/poll run and retained job instance/root activity evidence;
+- actual child SJD/Notebook/native activity execution;
+- production SQL control-plane repository wiring for the child/parent handoff;
+- Copy Job/Copy Activity/Dataflow/Spark live transports;
+- capacity/throttling/gateway behavior;
+- approved DEV end-to-end hybrid execution and failure drills.
 
-## 17. Near-term Fabric work
+The correct label for the implemented Pipeline slice after CI is `IMPLEMENTED + CI PROVEN TRANSPORT/BACKEND`, not `FABRIC PROVEN`.
 
-1. selected provider CDC envelope mappings/capability profiles;
-2. provider native/external offset resume/commit recovery;
-3. actual Fabric transports and run polling;
-4. Pipeline backend translating ExecutionPlan groups/stages;
-5. approved DEV hybrid execution with retained native run evidence;
-6. only after real evidence, promote the same immutable artifact through later environments.
+## 18. Near-term Fabric work
+
+1. wire a production SQL control-plane repository/read model into the child/parent Pipeline handoff;
+2. implement live capture transports for selected Copy/Spark/provider paths rather than fake injected transports;
+3. implement provider-specific target commit probes/source-position discovery;
+4. execute an approved DEV hybrid run retaining framework/provider/native IDs and failure-drill evidence;
+5. certify the selected production control-plane backend instance;
+6. only after retained real evidence, promote the same immutable artifact through later environments.
