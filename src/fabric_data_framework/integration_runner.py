@@ -210,14 +210,20 @@ def _runtime_requirements(
     requirements: list[tuple[str, str]] = []
     if kinds.intersection(_FABRIC_ITEM_KINDS):
         requirements.append(("Fabric REST access token", config.fabric_access_token_env_var))
-    if IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION in kinds:
+    if (
+        IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION in kinds
+        or IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN in kinds
+    ):
         if config.control_plane_database_url_env_var is None:
             raise ValueError(
-                "CONTROL_PLANE_CERTIFICATION check needs control-plane runtime configuration"
+                "CONTROL_PLANE_CERTIFICATION/FABRIC_PIPELINE_RUN check needs control-plane runtime configuration"
             )
-        requirements.append(
-            ("control-plane database URL", config.control_plane_database_url_env_var)
+        purpose = (
+            "control-plane database URL"
+            if IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION in kinds
+            else "Pipeline durable-outcome control-plane database URL"
         )
+        requirements.append((purpose, config.control_plane_database_url_env_var))
     if IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_TARGET_COMMIT in kinds:
         if config.warehouse_database_url_env_var is None:
             raise ValueError(
