@@ -7,6 +7,7 @@ from .adapter import (
     FabricAdapterExecutionError,
     FabricAdapterRegistry,
     FabricCaptureAdapter,
+    FabricCaptureExecutionResult,
     SparkJobCaptureAdapter,
 )
 from .capture_transports import (
@@ -49,6 +50,7 @@ __all__ = [
     "FabricAdapterExecutionError",
     "FabricAdapterRegistry",
     "FabricCaptureAdapter",
+    "FabricCaptureExecutionResult",
     "FabricCaptureObservation",
     "FabricCaptureObservationResolver",
     "FabricCaptureRequest",
