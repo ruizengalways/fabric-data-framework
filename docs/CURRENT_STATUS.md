@@ -4,7 +4,7 @@ Last updated: 2026-08-29
 
 ## Current phase and release gate
 
-`v0.3.0` remains the latest immutable public release. Source version `0.4.0` is an unreleased development line. **Do not publish v0.4.0 yet.**
+`v0.3.0` remains the latest immutable public framework release. Source version `0.4.0` is an unreleased development line. **Do not publish v0.4.0 yet.**
 
 Latest release-significant merged baselines:
 
@@ -27,26 +27,30 @@ production control-plane backend certification contract
 
 PR #22 -> 650b7d30b2e31e21d01c56465e8871b91aae4779
 Fabric REST Job Scheduler transport + Data Pipeline execution backend
-GitHub Actions 33246151126
 344 tests
+
+PR #24 -> 2fa8e2c4bc6875b529a4968694722d4108a635ff
+SQLAlchemy production runtime repository + relational Fabric child/parent handoff
+GitHub Actions 33246594883
+350 tests
 Python 3.11 + 3.13 + static + wheel SUCCESS
 ```
 
-The portable/reference operation journal, provider recovery, control-plane certification contract and first executable Fabric orchestration transport/backend are now implemented. Release remains blocked because real production SQL repository wiring, live Fabric/Kafka/Delta transports/provider probes, approved DEV executions and external enterprise evidence are not yet retained.
+The portable/reference operation journal, provider recovery contracts, control-plane certification contract, Fabric REST/Pipeline backend and production-oriented SQLAlchemy runtime repository are now implemented. Release remains blocked because real Fabric/Kafka/Delta service execution, real production SQL backend certification, selected live capture transports/provider probes, approved DEV failure drills and external enterprise evidence are not yet retained.
 
 ## Current product model
 
-Routine datasets should onboard through source-controlled metadata and bounded extension points rather than framework edits:
+Routine datasets onboard through source-controlled metadata and bounded extension points rather than framework edits:
 
 ```text
 source/capture classification
-    -> source fidelity + delete visibility
     -> DatasetConfig + capture selection
     -> capability profile / execution engines
     -> immutable ExecutionPlan
     -> environment-local physical bindings
     -> execution backend
-    -> durable target/reconciliation/state evidence
+    -> durable relational runtime evidence
+    -> target/reconciliation/state gates
 ```
 
 Capture fidelity remains an upper bound on history fidelity.
@@ -74,7 +78,7 @@ API_CURSOR_INCREMENTAL
 FILE_INCREMENTAL
 ```
 
-Domain CI can require classification for every dataset:
+Domain CI can require a source-fidelity selection for every dataset:
 
 ```bash
 fabric-framework capture-onboarding-validate \
@@ -83,29 +87,16 @@ fabric-framework capture-onboarding-validate \
   --require-all
 ```
 
-Checked-in examples under `docs/examples/capture-patterns/` are loaded by tests.
-
 ## Durable target-operation model
 
-A target mutation has attempt-independent semantic identity over:
-
-```text
-dataset_id
-operation_kind
-target_reference
-effective_config_hash
-input_fingerprint
-semantic_version
-```
-
-Control-plane v4 persists:
+Control-plane v4 persists attempt-independent target mutation state:
 
 ```text
 target_operation        expected-version CAS current state
 target_operation_event  append-only lifecycle evidence
 ```
 
-Fail-closed claim behavior:
+Fail-closed behavior:
 
 ```text
 new               -> EXECUTE
@@ -115,7 +106,7 @@ UNKNOWN retry     -> RECONCILE_REQUIRED
 NOT_COMMITTED     -> CAS reopen -> EXECUTE
 ```
 
-Provider commit probes map only retained evidence to `COMMITTED`, `NOT_COMMITTED` or `UNRESOLVED`; probe failure remains `UNKNOWN`.
+Provider commit probes map retained evidence only to `COMMITTED`, `NOT_COMMITTED` or `UNRESOLVED`.
 
 Canonical runbook: `TARGET_OPERATION_IDEMPOTENCY.md`.
 
@@ -123,15 +114,15 @@ Canonical runbook: `TARGET_OPERATION_IDEMPOTENCY.md`.
 
 Framework downstream state remains semantic truth.
 
-Kafka consumer-group offsets are transport cursors only. The framework explicitly classifies provider cursor state as `MISSING`, `BEHIND`, `ALIGNED` or `AHEAD`, derives seek plans from the framework checkpoint and fails closed on retention gaps.
+Kafka consumer-group offsets are transport cursors. Cursor `MISSING`, `BEHIND`, `ALIGNED` and `AHEAD` states are handled relative to the framework checkpoint; retention gaps fail closed.
 
-Delta CDF resume planning checks the next required version against provider earliest/latest availability and fails closed when retained history no longer contains the next unapplied version.
+Delta CDF resume planning requires the next unapplied commit version to remain inside the provider's retained earliest/latest version range.
 
 Canonical runbook: `PROVIDER_NATIVE_RECOVERY.md`.
 
-## Production control-plane certification contract
+## Production control-plane certification
 
-PR #21 added explicit profiles:
+Built-in profiles:
 
 ```text
 sqlite_reference_v1       reference-only forever
@@ -139,80 +130,94 @@ fabric_sql_database_v1    production candidate
 azure_sql_database_v1     production candidate
 ```
 
-Certification is separate from migration and validates:
-
-```text
-exact schema v4
-required tables/migration history
-transaction rollback
-target-operation CAS
-CDC checkpoint CAS
-backend service identity evidence
-IAM/access
-network security
-backup/restore
-availability/recovery
-monitoring/alerting
-retention/governance
-```
-
-Passing SQLite tests never makes SQLite production-certified. A real Fabric SQL Database or Azure SQL Database instance still must run the certification suite and retain the external evidence bundle.
+Certification is separate from migration and requires schema/migration checks, rollback, target-operation CAS, CDC checkpoint CAS and retained enterprise evidence for backend identity, IAM, networking, backup/restore, availability/recovery, monitoring and retention/governance.
 
 Canonical runbook: `CONTROL_PLANE_CERTIFICATION.md`.
 
 ## Fabric Pipeline backend
 
-PR #22 implemented the first real HTTP/runtime orchestration path behind the provider-neutral planner.
-
-Implemented flow:
+PR #22 implemented:
 
 ```text
-framework dependency-ready wave
+framework ready wave
   -> FabricPipelineBackend
-  -> compile ExecutionPlan
-  -> FabricPipelineBinding
-  -> FabricRestPipelineTransport
-  -> Fabric v1 on-demand item job
+  -> ExecutionPlan
+  -> environment-local FabricPipelineBinding
+  -> Fabric REST on-demand item job
   -> Location/job-instance correlation
   -> Retry-After aware polling
-  -> terminal remote status
-  -> exact durable framework dataset outcome check
-```
-
-Stable child correlation parameters:
-
-```text
-framework_pipeline_run_id   Guid
-framework_dataset_run_id    Guid
-dataset_id                  Text
-run_mode                    Text
-attempt                     Integer
-effective_config_hash       Text
-execution_plan_hash         Text
+  -> terminal remote provider status
+  -> exact durable framework dataset outcome
 ```
 
 Critical invariant:
 
 > **Fabric `Completed` is not framework success.**
 
-A matching terminal framework outcome for the exact `dataset_run_id` must exist. Missing, mismatched or non-terminal outcome evidence fails closed. Fabric `Deduped` is currently blocked/retryable rather than treated as success.
+A matching terminal framework outcome for the exact `dataset_run_id` must exist. Missing, mismatched or non-terminal evidence fails closed. Fabric `Deduped` is not treated as success for the requested framework attempt.
 
-Native provider evidence is retained in `StepRunAudit.details`:
-
-```text
-workspace_id
-pipeline_item_id
-job_instance_id
-root_activity_id
-job_type
-remote_status
-failure_reason
-execution_plan_hash
-```
-
-The dispatcher remains authoritative for dependencies/criticality. A physical backend must return exactly the selected ready wave.
+Native provider correlation is stored in `StepRunAudit.details`.
 
 Canonical runbook: `FABRIC_PIPELINE_BACKEND.md`.
+
+## SQLAlchemy relational runtime repository
+
+PR #24 closes the portable runtime-store wiring gap.
+
+`SqlAlchemyControlPlaneRepository` now implements the runtime repository contract over the certified relational schema and is exported as a public framework API.
+
+Configuration truth remains deliberately split by responsibility:
+
+```text
+immutable released domain artifact
+    -> complete DatasetConfig
+
+relational control plane
+    -> deployed normalized metadata + config_hash
+    -> runtime/evidence state
+```
+
+On every dataset read the repository requires:
+
+```text
+dataset deployed in SQL
+released runtime catalog contains dataset_id
+SQL config_hash == released DatasetConfig.config_hash
+SQL domain == runtime domain
+```
+
+The repository does not pretend to reconstruct a complete config from normalized SQL rows that historically did not persist every field such as `SourceConfig.connection_ref`.
+
+Runtime construction also requires an already-migrated exact control-plane schema. It never silently migrates the store.
+
+Durable SQL paths now include:
+
+```text
+pipeline_run lifecycle
+dataset_run lifecycle + DatasetDispatchOutcome read
+step_run + provider details
+capture_receipt
+reconciliation_result
+quarantine_batch
+dataset_attempt_lineage
+reprocess_request
+```
+
+The existing stronger specialized CAS/state modules remain authoritative for CDC checkpoints, target-operation state and gated recovery. The generic legacy watermark method is compatibility-only and is not a replacement for gated/CAS production state transitions.
+
+A deterministic test now proves this handoff:
+
+```text
+Fabric child simulation
+    -> SQL terminal DatasetRunAudit
+Fabric provider -> Completed
+parent -> SQL get_dataset_outcome(exact run id)
+parent -> native Fabric job/root step evidence
+```
+
+Non-NORMAL dispatcher run modes are also persisted in `pipeline_run.run_mode` rather than silently becoming NORMAL.
+
+Canonical runbook: `RELATIONAL_RUNTIME_REPOSITORY.md`.
 
 ## Implemented development runtime
 
@@ -236,20 +241,21 @@ Current `main` includes:
 - Fabric REST Job Scheduler client;
 - pluggable ready-wave dispatcher;
 - Fabric Data Pipeline execution backend;
+- SQLAlchemy relational runtime repository + durable Fabric child/parent outcome handoff;
 - immutable release/delivery contracts.
 
 ## Evidence boundary
 
-Do not describe CI-proven transport/backend code as a live Fabric integration.
+Do not describe CI-proven transport/repository code as a live Fabric or production SQL integration.
 
 Still unproven in a retained approved environment:
 
 ```text
 real token acquisition and workspace/item authorization
 real Data Pipeline per-run parameter acceptance
-live POST/poll execution with native IDs
+live Pipeline POST/poll execution with native IDs
 real child SJD/Notebook/native activity
-production SQL repository implementation/wiring
+real Fabric SQL Database/Azure SQL Database driver/auth/network/concurrency behavior
 real Fabric Copy/Spark/Dataflow capture transports
 live Kafka seek/commit/rebalance behavior
 live Delta CDF bounded reads/retention drill
@@ -258,22 +264,30 @@ capacity/throttling/gateway behavior
 approved DEV end-to-end execution + failure drills
 ```
 
-Correct current label for PR #22: `IMPLEMENTED + CI PROVEN TRANSPORT/BACKEND`, not `FABRIC PROVEN`.
+Correct current labels:
+
+```text
+PR #22  IMPLEMENTED + CI PROVEN TRANSPORT/BACKEND
+PR #24  IMPLEMENTED + CI PROVEN RELATIONAL RUNTIME
+```
+
+Neither is `FABRIC PROVEN` or `PRODUCTION DB PROVEN` yet.
 
 ## Exact next implementation sequence
 
-1. implement/wire a production SQLAlchemy `ControlPlaneRepository` so Fabric child/parent execution uses the certified relational store rather than reference in-memory abstractions;
-2. add relational dataset-outcome read/write and native step-evidence paths required by the Pipeline handoff;
-3. implement selected live Fabric capture transports and provider-specific target commit/source-position probes;
-4. run approved DEV end-to-end executions retaining framework + native Fabric/Kafka/Delta correlation and failure drills;
-5. run control-plane certification against the selected real SQL backend and retain external evidence;
-6. exact-candidate audit/docs/CI and only then make the next immutable release decision.
+1. implement concrete Fabric Copy Job and Spark Job Definition capture transports on the documented Fabric v1 APIs, reusing the existing REST/job evidence model;
+2. map native Copy Job/Spark job evidence into the existing `FabricNativeRunEvidence` / `CaptureReceipt` contracts without creating a second progress truth;
+3. add provider-specific target commit/source-position probes where documented evidence exists;
+4. wire real Kafka/Delta clients if those provider profiles are in the release scope;
+5. run approved DEV end-to-end executions retaining framework + native provider IDs and failure drills;
+6. run control-plane certification against the selected real SQL backend and retain enterprise evidence;
+7. exact-candidate audit/docs/CI and only then make the next immutable release decision.
 
 ## Repository boundary
 
 - `fabric-data-framework`: reusable semantics/runtime/transports/package; current hardening work lives here.
 - `fabric-customer`: business metadata/config/bounded extensions; do not force it to consume unreleased `0.4.0` yet.
-- `fabric-infra`: optional infrastructure/capacity/workspace lifecycle automation; independent from data-framework development.
+- `fabric-infra`: optional infrastructure/capacity/workspace lifecycle automation; independent from framework development.
 
 ## Durable project memory
 
@@ -290,6 +304,7 @@ docs/TARGET_OPERATION_IDEMPOTENCY.md
 docs/PROVIDER_NATIVE_RECOVERY.md
 docs/CONTROL_PLANE_CERTIFICATION.md
 docs/FABRIC_PIPELINE_BACKEND.md
+docs/RELATIONAL_RUNTIME_REPOSITORY.md
 docs/EXECUTION_ENGINE_STRATEGY.md
 docs/FABRIC_EXECUTION_MODEL.md
 docs/CDC_DESIGN.md
