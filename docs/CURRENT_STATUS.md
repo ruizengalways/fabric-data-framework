@@ -6,7 +6,7 @@ Last updated: 2026-08-29
 
 `v0.3.0` remains the latest immutable public framework release. Source version `0.4.0` is an unreleased development line. **Do not publish v0.4.0 yet.**
 
-The current `main` now includes three release-significant hardening slices:
+Current release-significant merged baselines:
 
 ```text
 PR #13 -> 9b2278822ff4c566051c69180c8ca63b021866e4
@@ -25,9 +25,15 @@ durable target-operation idempotency / operation journal
 PR Actions 33240559434
 315 tests passed
 Python 3.11 + 3.13 + wheel/static checks SUCCESS
+
+PR #19 -> fd6d5039a5852e32d823b178970816ff292472a2
+provider-native downstream recovery contracts
+PR Actions 33240884208
+322 tests passed
+Python 3.11 + 3.13 + wheel/static checks SUCCESS
 ```
 
-The portable/reference target-operation journal gap is now closed. `v0.4.0` remains unreleased because real Fabric/provider commit-outcome reconciliation, remaining downstream-failure recovery, production control-plane selection and real Fabric/Kafka transports are not yet proven.
+The portable/reference operation-journal and provider-recovery contract gaps are now closed. `v0.4.0` remains unreleased because production control-plane certification, actual Fabric/Kafka transports, Fabric Pipeline execution and retained real DEV provider evidence are still missing.
 
 The product target remains: after an enterprise installs the released wheel, routine datasets onboard through source-controlled metadata, source-fidelity classification, environment bindings, capability profiles and bounded logical-name extensions rather than edits to the framework.
 
@@ -36,34 +42,38 @@ The product target remains: after an enterprise installs the released wheel, rou
 Current merged main baseline:
 
 ```text
-83a27d9350a6018abc272e9afebdef5d660de519
-PR #17 validation: GitHub Actions 33240559434
-315 tests passed
+fd6d5039a5852e32d823b178970816ff292472a2
+PR #19 validation: GitHub Actions 33240884208
+322 tests passed
 Python 3.11 + 3.13 + wheel/static checks green
 ```
 
-This baseline includes all prior capture/onboarding hardening plus:
+This baseline includes all prior capture/onboarding and target-operation durability work plus:
 
-- stable semantic `TargetOperationIntent` identities independent of physical retry IDs;
-- deterministic SHA-256 operation keys over dataset + apply meaning + target + effective config + frozen input fingerprint;
-- control-plane schema v4;
-- `target_operation` current compare-and-swap state;
-- append-only `target_operation_event` lifecycle evidence;
-- fail-closed retry semantics for re-entered `IN_PROGRESS` and `UNKNOWN` operations;
-- retry reopening only after durable `NOT_COMMITTED` evidence;
-- terminal `SUCCEEDED` / skip semantics;
-- integration with the existing `UnknownOutcomeResolution` recovery contract;
-- deterministic migration proof preserving the v2 -> v3 `append_identity` migration while adding v4 journal tables.
+- Kafka/Debezium consumer-group cursor coordination around framework downstream checkpoints;
+- explicit `MISSING`, `BEHIND`, `ALIGNED`, `AHEAD` external-cursor classification;
+- deterministic seek/rewind plans derived from framework semantic progress, never from external group position;
+- Kafka next-to-consume offsets calculated for provider commit only after downstream/framework checkpoint success;
+- fail-closed Kafka retention-gap detection;
+- Delta CDF bounded resume planning using provider earliest/latest available versions;
+- fail-closed Delta CDF retention-gap detection when the next unapplied version is no longer available;
+- provider-neutral `TargetCommitProbe` evidence contract;
+- durable persistence of `COMMITTED`, `NOT_COMMITTED`, and `UNRESOLVED` target-probe results through the operation journal;
+- provider probe exceptions converted to durable `UNRESOLVED/UNKNOWN`, never permission to retry blindly.
 
-Canonical operation-journal runbook: `docs/TARGET_OPERATION_IDEMPOTENCY.md`.
+Canonical runbooks:
+
+```text
+docs/CAPTURE_PATTERN_CATALOG.md
+docs/TARGET_OPERATION_IDEMPOTENCY.md
+docs/PROVIDER_NATIVE_RECOVERY.md
+```
 
 All current hardening evidence remains `REFERENCE`, `CI PROVEN` or `ADAPTER CONTRACT`. No current hardening capability is yet `FABRIC PROVEN` through a retained approved real workspace/provider execution.
 
-## Mainstream capture/onboarding model
+## Mainstream source/capture model
 
-Canonical guide: `docs/CAPTURE_PATTERN_CATALOG.md`.
-
-A new source is classified along independent axes before choosing a target apply strategy or physical Fabric tool:
+A new source is classified before choosing target apply semantics or a physical Fabric tool:
 
 ```text
 source/capture pattern
@@ -82,7 +92,7 @@ Silver apply
     -> APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF
 ```
 
-Executable `CapturePattern` values cover fourteen common mainstream Data Engineering families:
+Executable `CapturePattern` values cover fourteen common Data Engineering families:
 
 ```text
 FULL_SNAPSHOT
@@ -105,31 +115,7 @@ Key invariant:
 
 > **Capture fidelity is an upper bound on history fidelity.**
 
-Examples:
-
-- watermark SCD2 is `OBSERVED_CHANGES`, not guaranteed full source history;
-- net CDC SCD2 is `BATCH_GRAIN` because intermediate source changes were already collapsed;
-- snapshot diff is `SNAPSHOT_GRAIN`;
-- full ordered CDC/Debezium/Delta CDF can support `FULL_EVENT` captured history;
-- API/file history is `SOURCE_DEFINED` until the source contract proves more.
-
-## Source-controlled onboarding claim
-
-`DatasetCaptureSelection` records reviewable source truth separately from runtime `DatasetConfig`:
-
-```text
-dataset_id
-capture_pattern
-Bronze write mode
-history claim
-delete claim
-rationale
-known limitations
-```
-
-`validate_capture_selection()` refuses claims that contradict the canonical pattern. For example a `WATERMARK_LOOKBACK` source cannot claim `FULL_EVENT` history or `EXPLICIT_EVENT` delete visibility.
-
-Domain CI can run:
+`DatasetCaptureSelection` records reviewable source truth separately from runtime `DatasetConfig`. Domain CI can enforce complete classification with:
 
 ```bash
 fabric-framework capture-onboarding-validate \
@@ -138,53 +124,13 @@ fabric-framework capture-onboarding-validate \
   --require-all
 ```
 
-`--require-all` makes missing source classification a CI failure.
-
-The onboarding selection remains a source-controlled companion contract rather than a control-plane table. Control-plane v4 was introduced specifically for runtime target-operation durability, not for capture-selection materialization.
-
-## Executable examples
-
-Canonical examples live under:
-
-```text
-docs/examples/capture-patterns/
-```
-
-Included complete examples:
-
-```text
-crm.customer             WATERMARK_LOOKBACK + SCD1
-commerce.order_cdc       DEBEZIUM_KAFKA + SCD2
-lakehouse.customer_cdf   DELTA_CDF + SCD2
-partner.customer_api     API_CURSOR_INCREMENTAL + SCD1
-vendor.account_files     FILE_INCREMENTAL + SNAPSHOT_DIFF
-```
-
-The test suite loads these exact files through `DatasetConfig`, `DatasetCaptureSelection` and `CapabilityRegistry`, so examples cannot silently drift from the code contract.
-
-## Delta Change Data Feed status
-
-`DELTA_CDF` is a built-in provider/reference path rather than CUSTOM-only guidance:
-
-```text
-capture strategy: CDC
-capture engine: SPARK
-capability profile: delta_cdf_v1
-progress owner: FRAMEWORK
-apply engine: independently selected; SPARK/framework by default
-```
-
-`DeltaCDFRecord` maps Delta CDF `insert`, `delete`, `update_preimage`, `update_postimage` into canonical `CDCEvent` values. Update pre/post images for one key/commit are paired into one UPDATE. Source progress is bounded by Delta commit version and only advances after downstream target/reconciliation success.
-
-Because Delta CDF does not expose a universal row sequence for arbitrary multiple logical changes of the same key inside one commit, the adapter fails closed when that order cannot be proven. Different keys in one commit receive a deterministic key-sorted row sequence for framework processing; metadata explicitly states that this is deterministic processing order, not invented business temporal order.
-
-This is deterministic adapter/profile evidence only. Real Fabric Lakehouse CDF execution, authentication/environment binding and retention-gap drill are still integration work.
+Checked-in executable examples live under `docs/examples/capture-patterns/` and are loaded by tests so documentation cannot silently drift from the typed contracts.
 
 ## Durable target-operation model
 
-The framework now distinguishes a logical target mutation from a physical `dataset_run_id` attempt.
+The framework separates a logical target mutation from a physical `dataset_run_id` attempt.
 
-A semantic operation key is derived from:
+Semantic operation identity:
 
 ```text
 dataset_id
@@ -195,31 +141,83 @@ input_fingerprint
 semantic_version
 ```
 
-Runtime attempt IDs and timestamps are intentionally excluded so a retry of the same logical mutation converges on the same operation key.
+Runtime attempt IDs and timestamps are excluded.
 
-The durable state machine is:
-
-```text
-new -> IN_PROGRESS
-IN_PROGRESS -> SUCCEEDED | UNKNOWN | NOT_COMMITTED
-UNKNOWN -> SUCCEEDED | UNKNOWN | NOT_COMMITTED
-NOT_COMMITTED -> IN_PROGRESS
-SUCCEEDED -> terminal
-```
-
-Claim behavior is fail-closed:
+Control-plane v4 persists:
 
 ```text
-no record       -> EXECUTE
-SUCCEEDED       -> SKIP_SUCCEEDED
-IN_PROGRESS     -> RECONCILE_REQUIRED
-UNKNOWN         -> RECONCILE_REQUIRED
-NOT_COMMITTED   -> EXECUTE after CAS transition back to IN_PROGRESS
+target_operation        current expected-version CAS state
+target_operation_event  append-only lifecycle evidence
 ```
 
-This prevents the classic ambiguous-commit failure where the physical target write succeeds but the framework times out before recording success. A re-entered `IN_PROGRESS` is treated as uncertain rather than automatically stolen/retried.
+State/claim behavior:
 
-The journal complements, rather than replaces, the existing `StateCommitGate`: watermark/checkpoint advancement still requires target commit + required reconciliation/data-quality proof.
+```text
+new               -> IN_PROGRESS / EXECUTE
+IN_PROGRESS retry -> RECONCILE_REQUIRED
+UNKNOWN retry     -> RECONCILE_REQUIRED
+NOT_COMMITTED     -> CAS to IN_PROGRESS / EXECUTE
+SUCCEEDED         -> terminal / SKIP_SUCCEEDED
+```
+
+This prevents blind re-execution after an ambiguous physical commit. The journal complements the existing `StateCommitGate`; watermark/checkpoint advancement still requires target commit and required reconciliation/data-quality proof.
+
+## Provider-native downstream recovery model
+
+### Kafka / Debezium
+
+Framework `CDCCheckpoint` is the semantic source of truth. Kafka consumer-group committed offsets are transport cursors only.
+
+If framework progress says offset `100` is applied, next required is `101` regardless of the group cursor:
+
+```text
+group next offset 110 -> AHEAD  -> seek back to 101
+group next offset 95  -> BEHIND -> seek forward to 101
+group next offset 101 -> ALIGNED -> no seek
+missing group offset   -> MISSING -> initialize/seek to 101
+```
+
+Correct ordering:
+
+```text
+framework checkpoint
+  -> provider earliest/latest + group cursor
+  -> deterministic seek/read plan
+  -> bounded consume
+  -> target operation + reconciliation
+  -> framework CDC checkpoint commit
+  -> optional Kafka group cursor commit
+```
+
+A group-cursor commit failure cannot cause semantic loss because the next run realigns from framework state again.
+
+If Kafka earliest available offset is beyond the next unapplied record, `DebeziumKafkaResumeGapError` fails closed and requires a governed rebuild/bootstrap recovery.
+
+### Delta CDF
+
+If framework commit version `100` is fully applied, next required is `101`. Provider earliest/latest availability evidence is checked before the bounded read.
+
+```text
+lower committed 100
+earliest available 101 -> safe bounded resume
+
+earliest available 102 -> retention gap -> fail closed
+```
+
+Empty row-change results alone do not prove a retention gap; provider version availability evidence determines whether the boundary is still readable.
+
+### Target-native commit probe
+
+`TargetCommitProbe` standardizes read-only provider evidence for an ambiguous target operation:
+
+```text
+COMMITTED     -> durable SUCCEEDED; never execute again
+NOT_COMMITTED -> durable NOT_COMMITTED; next CAS claim may execute
+UNRESOLVED    -> durable UNKNOWN; execution remains blocked
+probe error   -> durable UNKNOWN; execution remains blocked
+```
+
+A resolved probe must retain a native operation ID or evidence reference. Real provider implementations still need to prove that their native statement/transaction/Delta marker can distinguish these outcomes.
 
 ## Implemented development runtime
 
@@ -234,11 +232,12 @@ Current `main` provides:
 - APPEND, REPLACE, UPSERT, SCD1, SCD2 and SNAPSHOT_DIFF;
 - canonical CDC I/U/D ordering/dedupe/checkpoints;
 - CDC -> UPSERT/SCD1/SCD2 and snapshot/bootstrap -> CDC handoff;
-- Debezium/Kafka and Delta CDF provider adapters;
+- Debezium/Kafka and Delta CDF provider adapters/reference semantics;
 - Fabric capture adapter contracts;
 - replay-stable file manifests and API frozen windows;
 - retry/attempt/unknown-outcome recovery, quarantine REPLAY and FULL_REBUILD;
 - durable semantic target-operation idempotency + CAS operation journal;
+- Kafka cursor coordination, Delta CDF retention-gap resume planning and target commit-probe contracts;
 - schema contracts/evolution/evidence;
 - shared source-order/event-time taxonomy;
 - control-plane v4 + typed read-only operator API/CLI;
@@ -246,23 +245,34 @@ Current `main` provides:
 
 ## Evidence boundary
 
-Do not describe deterministic operation-journal behavior as real provider commit proof. Missing real proof still includes Fabric/Kafka transports, authentication/network bindings, Fabric Pipeline orchestration, live Kafka seek/commit, live Delta CDF bounded reads/retention-gap behavior, native/provider run IDs, real target commit probes and a retained approved DEV hybrid execution.
+Do not describe reference recovery contracts as live provider integration.
 
-If a provider/target adapter cannot distinguish committed from not committed after an ambiguous response, it must return/retain `UNRESOLVED`; the framework remains blocked rather than blindly retrying.
+Still unproven in a real approved environment:
+
+- live Kafka seek/commit and rebalance behavior;
+- live Fabric Lakehouse CDF bounded reads and retention-gap drill;
+- real Fabric Warehouse/Delta/Spark target commit probes;
+- authentication/network/environment bindings;
+- real native/provider run IDs and correlation;
+- Fabric Pipeline orchestration backend;
+- production control-plane persistence/concurrency behavior;
+- retained approved DEV hybrid execution.
+
+If provider evidence cannot distinguish committed from not committed, the result remains `UNRESOLVED`; the framework blocks rather than guesses.
 
 ## Exact next implementation sequence
 
-1. remaining native/provider downstream-failure recovery, including real Kafka cursor coordination, Delta CDF retention-gap recovery semantics/evidence and target-native ambiguous-commit reconciliation hooks;
-2. select/certify a production control-plane repository while preserving current operator and CAS contracts;
-3. implement actual Fabric/Kafka transports and Fabric Pipeline backend;
-4. prove approved DEV hybrid executions retaining provider/native correlation;
+1. define and certify the production control-plane repository contract while preserving current CAS, migration and operator semantics;
+2. implement actual Fabric/Kafka transports and Fabric Pipeline backend behind existing adapter/execution contracts;
+3. add provider-specific target commit probes and source-position discovery to the real transports;
+4. prove approved DEV hybrid executions retaining framework/provider/native correlation and failure drills;
 5. add further provider adapters only when supported product scope requires them;
 6. exact-candidate audit/docs/CI and next immutable release decision.
 
 ## Repository boundary
 
-- `fabric-data-framework`: reusable data-engineering semantics/runtime/package; this is where PR #17 landed.
-- `fabric-customer`: business-domain metadata/config and bounded extensions; it should not be forced to consume unreleased `0.4.0` APIs yet.
+- `fabric-data-framework`: reusable data-engineering semantics/runtime/package; current hardening work lives here.
+- `fabric-customer`: business-domain metadata/config and bounded extensions; do not force it to consume unreleased `0.4.0` APIs.
 - `fabric-infra`: optional infrastructure/capacity/workspace lifecycle automation; it remains independent and is not required to continue framework development in an existing enterprise Fabric environment.
 
 ## Durable project memory
@@ -277,6 +287,7 @@ docs/PROJECT_BLUEPRINT.md
 docs/PRODUCTION_REQUIREMENTS.md
 docs/CAPTURE_PATTERN_CATALOG.md
 docs/TARGET_OPERATION_IDEMPOTENCY.md
+docs/PROVIDER_NATIVE_RECOVERY.md
 docs/EXECUTION_ENGINE_STRATEGY.md
 docs/FABRIC_EXECUTION_MODEL.md
 docs/CDC_DESIGN.md
