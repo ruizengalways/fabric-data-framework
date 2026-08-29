@@ -46,6 +46,12 @@ from .full import (
     FullSnapshotEvidenceError,
     capture_full_snapshot,
 )
+from .onboarding import (
+    CaptureOnboardingReport,
+    DatasetCaptureSelection,
+    load_capture_selections,
+    validate_capture_selection,
+)
 from .patterns import (
     BronzeContent,
     BronzeWriteMode,
@@ -87,10 +93,12 @@ __all__ = [
     "CDCOperation",
     "CDCOrderingError",
     "CDCSourcePosition",
+    "CaptureOnboardingReport",
     "CapturePattern",
     "CapturePatternAssessment",
     "CapturePatternSpec",
     "ChangeFidelity",
+    "DatasetCaptureSelection",
     "DeleteVisibility",
     "FileManifestError",
     "FileManifestPolicy",
@@ -114,8 +122,10 @@ __all__ = [
     "capture_snapshot",
     "freeze_api_window",
     "freeze_file_manifest",
+    "load_capture_selections",
     "normalize_bootstrap_cdc_batch",
     "normalize_cdc_batch",
     "plan_cdc_bootstrap",
     "validate_api_capture",
+    "validate_capture_selection",
 ]
