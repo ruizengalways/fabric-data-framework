@@ -32,11 +32,11 @@ class FabricPipelineInvocation(FrozenModel):
 
     @property
     def framework_parameters(self) -> dict[str, object]:
-        """Stable correlation payload expected by a thin reusable Fabric child pipeline."""
+        """Stable typed correlation payload expected by a reusable child pipeline."""
 
         return {
-            "framework_pipeline_run_id": str(self.pipeline_run_id),
-            "framework_dataset_run_id": str(self.dataset_run_id),
+            "framework_pipeline_run_id": self.pipeline_run_id,
+            "framework_dataset_run_id": self.dataset_run_id,
             "dataset_id": self.dataset_id,
             "run_mode": self.run_mode.value,
             "attempt": self.attempt,
@@ -64,7 +64,9 @@ class FabricRestPipelineTransport:
         self._default_poll_seconds = default_poll_seconds
 
     def invoke(self, invocation: FabricPipelineInvocation) -> FabricJobInstance:
-        timeout_seconds = float(sum(unit.timeout_seconds for unit in invocation.execution_plan.units))
+        timeout_seconds = float(
+            sum(unit.timeout_seconds for unit in invocation.execution_plan.units)
+        )
         return self._client.run_and_wait_item_job(
             workspace_id=invocation.binding.workspace_id,
             item_id=invocation.binding.pipeline_item_id,
