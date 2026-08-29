@@ -43,10 +43,13 @@ Core rule: **framework-first semantics with stage-level native delegation**. Fab
 
 ## Implemented reference capabilities
 
-Current unreleased hardening branch includes:
+Current unreleased hardening line includes:
 
 - strict immutable dataset metadata + allow-listed overrides;
+- orthogonal cheatsheet-aligned source/change/read/delete/Bronze semantics;
+- exact fourteen-row cheatsheet semantic acceptance presets and semantic onboarding CI gate;
 - composite WATERMARK + overlap semantics;
+- full-baseline -> WATERMARK no-gap bootstrap evidence contract;
 - normalized Bronze lineage;
 - row DQ/quarantine/accounting;
 - guarded FULL -> REPLACE;
@@ -62,19 +65,17 @@ Current unreleased hardening branch includes:
 - conservative retry + unknown-target-commit reconciliation;
 - RETRY/BACKFILL/REPLAY/FULL_REBUILD request and attempt-lineage contracts;
 - canonical provider-neutral CDC event/order/dedupe/checkpoint contracts;
-- CDC -> UPSERT/SCD1;
-- CDC -> SCD2 with independent source-order and valid-time clocks;
+- CDC -> UPSERT/SCD1/SCD2;
 - durable optimistic CDC downstream apply checkpoints;
 - snapshot/bootstrap -> CDC no-gap/no-double-apply handoff;
 - logical-name extension registry;
-- additive control-plane schema v2;
 - immutable release/config/deployment provenance and delivery CLI.
 
 These are portable/reference guarantees. Real Fabric adapter/runtime evidence and enterprise IAM/network/governance evidence are tracked separately and are not implied by Python tests.
 
 ## Cheatsheet semantic alignment
 
-The external data-engineering cheatsheet is treated as the acceptance specification for mainstream source/capture/Bronze/Silver combinations. A 2026-08-29 audit found that the framework's original fourteen `CapturePattern` values were **not the same taxonomy** as the cheatsheet's fourteen semantic rows because the legacy enum mixes source semantics, read strategy, provider technology and Bronze choice.
+The external data-engineering cheatsheet is treated as the acceptance specification for mainstream source/capture/Bronze/Silver combinations. A 2026-08-29 audit found that the original fourteen `CapturePattern` values were not the same taxonomy as the cheatsheet's fourteen semantic rows because the legacy enum mixed source semantics, read strategy, provider technology and Bronze choice.
 
 Canonical recovery/design checkpoint:
 
@@ -82,23 +83,29 @@ Canonical recovery/design checkpoint:
 docs/CHEATSHEET_PATTERN_ALIGNMENT.md
 ```
 
-Pre-alignment assessment was:
+Pre-alignment assessment was `10 supported / 2 partial / 2 gap`.
+
+Merged alignment sequence:
 
 ```text
-10 SUPPORTED
-2 PARTIAL
-2 GAP
+PR #34 -> 1c7d67bedd125f5fb5e983be791085fd1eaa9b0e
+14 orthogonal cheatsheet semantic presets
+
+PR #35 -> bf215fcb3538f9806b4002d2f154dbd46ae19412
+semantic onboarding validation + CLI
+
+PR #37 -> d69b2ff49f984331b6753bcd9274ea9a298ce798
+full-baseline -> WATERMARK bootstrap contract
+Actions 33253581049 / 441 tests / Python 3.11 + 3.13 + static + wheel SUCCESS
 ```
 
-PR #34 (`1c7d67bedd125f5fb5e983be791085fd1eaa9b0e`) added orthogonal semantic dimensions, all fourteen cheatsheet presets, and legacy `CapturePattern` projection into semantics + provider family. PR #35 (`bf215fcb3538f9806b4002d2f154dbd46ae19412`) added source-controlled semantic onboarding validation and the `capture-semantic-onboarding-validate` CLI.
+At the **semantic-contract + onboarding-validation level**, all fourteen cheatsheet rows are now first-class expressible/tested presets. This does not mean every row is live-provider/Fabric proven. Provider/runtime evidence remains separate.
 
-At the **semantic-contract + onboarding-validation level**, all fourteen cheatsheet rows are now first-class expressible/tested presets. This does **not** mean every row is live-provider/Fabric proven. Provider/runtime evidence remains separate.
+The next active work is staged approved-environment evidence accumulation. The earlier partial implementation is preserved on `codex/integration-evidence-merge` at `d50769f3926e07d291c950199c1fa2e74b82c59c` and should be ported onto current `main`, tested, given a CLI, documented, and merged.
 
-The next reusable semantic gap is full-baseline -> watermark bootstrap with explicit no-gap boundary evidence. The separate partial integration-evidence merge work remains on `codex/integration-evidence-merge` and must not be lost.
+## CDC and bootstrap model
 
-## CDC model
-
-Canonical detail: `docs/CDC_DESIGN.md`.
+Canonical CDC detail: `docs/CDC_DESIGN.md`.
 
 ```text
 provider LSN/binlog/Kafka/native coordinate
@@ -111,17 +118,17 @@ provider LSN/binlog/Kafka/native coordinate
     -> cdc_checkpoint
 ```
 
-The framework fails closed when a provider has not supplied enough sequence information to prove deterministic order.
-
-Snapshot bootstrap uses a source fence:
+Snapshot -> CDC bootstrap uses a source fence:
 
 ```text
 retain CDC from S
 S <= snapshot checkpoint B
 complete snapshot consistent through B
 CDC <= B -> ignore as snapshot-covered overlap
-CDC >  B -> apply
+CDC > B  -> apply
 ```
+
+Full baseline -> WATERMARK bootstrap now similarly requires explicit evidence that the baseline is complete and consistent through exact boundary W, ordering is deterministic, and post-W changes remain visible. A generic `updated_at` column is not automatically sufficient proof.
 
 ## Local development
 
@@ -130,20 +137,14 @@ python -m pip install -e '.[dev]'
 pytest
 ```
 
-Latest coherent CDC proof before the docs-audit commit:
-
-```text
-465a2c1e9ddf25b0ace2293f578c2c5bb3a653ae
-GitHub Actions 33216281126
-Python 3.11 / 3.13 + wheel SUCCESS
-171 tests passed
-```
-
 ## Delivery CLI
 
 ```text
 fabric-framework validate-tag ...
 fabric-framework capture-semantic-onboarding-validate ...
+fabric-framework integration-evidence-validate ...
+fabric-framework integration-run-preflight ...
+fabric-framework integration-item-smoke-run ...
 fabric-framework control-plane-migrate ...
 fabric-framework metadata-materialize ...
 fabric-framework release-manifest ...
