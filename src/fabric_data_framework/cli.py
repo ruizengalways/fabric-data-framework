@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -35,6 +36,10 @@ from .integration_evidence import (
     load_integration_evidence_manifest,
     load_integration_evidence_spec,
     validate_integration_evidence_manifest,
+)
+from .integration_runner import (
+    build_approved_integration_run_plan,
+    load_approved_integration_runner_config,
 )
 from .operator import get_dataset_operational_snapshot, list_dataset_operational_snapshots
 
@@ -103,6 +108,30 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Exit non-zero unless every required integration check is PASS",
     )
+
+    preflight = subparsers.add_parser(
+        "integration-run-preflight",
+        help=(
+            "Validate exact-release physical bindings and runtime prerequisite presence "
+            "without persisting secret values"
+        ),
+    )
+    preflight.add_argument("--config", required=True)
+    preflight.add_argument("--spec", required=True)
+    preflight.add_argument(
+        "--allow-mutating-checks",
+        action="store_true",
+        help=(
+            "Explicitly authorize a preflight plan containing remote execution/write checks. "
+            "This flag does not itself execute those checks."
+        ),
+    )
+    preflight.add_argument(
+        "--require-ready",
+        action="store_true",
+        help="Exit non-zero unless all runtime prerequisites exist and mutation is authorized",
+    )
+    preflight.add_argument("--output")
 
     onboarding = subparsers.add_parser(
         "capture-onboarding-validate",
@@ -243,6 +272,27 @@ def main(argv: list[str] | None = None) -> int:
                 f"manifest_hash={manifest.manifest_hash} "
                 f"certified={str(manifest.certified).lower()}"
             )
+            return 0
+
+        if args.command == "integration-run-preflight":
+            config = load_approved_integration_runner_config(args.config)
+            spec = load_integration_evidence_spec(args.spec)
+            plan = build_approved_integration_run_plan(
+                config,
+                spec,
+                environ=os.environ,
+                allow_mutating_checks=args.allow_mutating_checks,
+            )
+            _write_or_print_json(plan, args.output)
+            if args.require_ready and not plan.ready:
+                reasons = []
+                if plan.missing_runtime_env_vars:
+                    reasons.append(
+                        "missing runtime env vars=" + ",".join(plan.missing_runtime_env_vars)
+                    )
+                if plan.mutating_check_ids and not plan.mutating_checks_authorized:
+                    reasons.append("mutating checks not explicitly authorized")
+                raise ValueError("integration run preflight is not ready: " + "; ".join(reasons))
             return 0
 
         if args.command == "capture-onboarding-validate":
