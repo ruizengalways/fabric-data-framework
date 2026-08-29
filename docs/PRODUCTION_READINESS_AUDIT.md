@@ -3,9 +3,9 @@
 Status: Canonical evidence audit  
 Last updated: 2026-08-29
 
-## 1. Evidence model
+## Evidence model
 
-This audit keeps four levels separate:
+Keep these levels separate:
 
 ```text
 1. portable semantic/runtime implementation
@@ -16,19 +16,19 @@ This audit keeps four levels separate:
 
 Green CI proves levels 1/2 only. Executable HTTP/SQL/evidence code is not live provider evidence until approved service runs are retained for the exact environment and release hash.
 
-## 2. Current release state
+## Current release state
 
 ```text
 latest public release = v0.3.0
 source version        = 0.4.0 development / unreleased
-current main          = ad856d864eb5dec35f3c97ec66ca9e920cfa5e28
-latest CI             = Actions 33254804867
-full test baseline    = 466
+current main          = 395736a3a400480da5876a43591961c478426314
+latest CI             = Actions 33255472348
+full test baseline    = 477
 ```
 
 **Release decision: blocked.** The blocker is now real approved DEV execution/certification and retained enterprise controls, not another broad provider-neutral abstraction.
 
-## 3. Current assessment
+## Current assessment
 
 ```text
 Portable semantic implementation                  STRONG / broad reusable slice
@@ -46,128 +46,131 @@ Fabric Data Pipeline backend                      IMPLEMENTED + CI PROVEN backen
 Copy Job REST transport                           IMPLEMENTED + CI PROVEN transport contract
 Spark Job Definition REST transport               IMPLEMENTED + CI PROVEN transport contract
 Fabric Warehouse commit proof                     IMPLEMENTED + CI PROVEN provider contract
-Approved-environment evidence harness             IMPLEMENTED + CI PROVEN contract
-Approved-run preflight/read-only item runner      IMPLEMENTED + CI PROVEN contract
-Staged integration evidence merge                 IMPLEMENTED + CI PROVEN evidence merge contract
+Approved evidence harness/preflight               IMPLEMENTED + CI PROVEN contract
+Read-only Fabric item smoke runner                IMPLEMENTED + CI PROVEN runner contract
+Staged integration evidence merge                 IMPLEMENTED + CI PROVEN merge contract
 Approved control-plane certification runner       IMPLEMENTED + CI PROVEN runner contract
+Approved Fabric Pipeline evidence runner          IMPLEMENTED + CI PROVEN runner contract
 Real approved DEV Fabric execution                NOT YET PROVEN
 Real production SQL backend                       NOT YET PROVEN
 External enterprise controls                      EXTERNAL / NOT YET RETAINED
 ```
 
-## 4. Latest hardening milestones
+## Latest hardening milestones
 
 ```text
-PR #32 -> e42dee86db3d4102c7264bc0d1f01f83fb8aade2
-Actions 33251177339 / 407 tests
-approved-run preflight + read-only Fabric item smoke runner
+PR #32  Actions 33251177339 / 407 tests
+  approved-run preflight + read-only item smoke
 
-PR #34 -> 1c7d67bedd125f5fb5e983be791085fd1eaa9b0e
-Actions 33253215030 / 419 tests
-orthogonal cheatsheet semantics + exact 14 presets
+PR #34  Actions 33253215030 / 419 tests
+  orthogonal cheatsheet semantics + exact 14 presets
 
-PR #35 -> bf215fcb3538f9806b4002d2f154dbd46ae19412
-Actions 33253394201 / 430 tests
-semantic onboarding validation + CLI
+PR #35  Actions 33253394201 / 430 tests
+  semantic onboarding + CLI
 
-PR #37 -> d69b2ff49f984331b6753bcd9274ea9a298ce798
-Actions 33253581049 / 441 tests
-full-baseline -> WATERMARK bootstrap
+PR #37  Actions 33253581049 / 441 tests
+  full-baseline -> WATERMARK bootstrap
 
-PR #39 -> 014cd334105de6f867b6320509b94147a444a2fa
-Actions 33253817758 / 455 tests
-strict staged integration evidence merge + CLI/runbook
+PR #39  Actions 33253817758 / 455 tests
+  strict staged integration evidence merge
 
-PR #41 -> ad856d864eb5dec35f3c97ec66ca9e920cfa5e28
-Actions 33254804867 / 466 tests
-approved production control-plane certification runner + CLI/runbook
+PR #41  Actions 33254804867 / 466 tests
+  approved production control-plane certification runner
+
+PR #43  Actions 33255472348 / 477 tests
+  approved Fabric Pipeline evidence runner + provider-exception audit redaction
 ```
 
-Earlier provider/runtime baselines remain:
+Earlier provider/runtime baselines remain PR #17/#19/#21/#22/#24/#26/#28/#30.
+
+## Capture/history truth
+
+The framework separates source semantics, change granularity, read strategy, delete semantics, Bronze meaning and provider family. All fourteen cheatsheet semantic rows are first-class at semantic/onboarding level.
 
 ```text
-PR #17 target-operation journal
-PR #19 provider-native recovery
-PR #21 control-plane certification contract
-PR #22 Fabric Pipeline backend
-PR #24 SQLAlchemy runtime repository
-PR #26 Copy Job + Spark Job Definition transports
-PR #28 Fabric Warehouse same-transaction marker proof
-PR #30 approved DEV evidence harness
+watermark/current state -> observed-change history ceiling
+watermark + soft delete -> delete correctness depends on tombstone retention/extraction
+net CDC -> batch/window grain; collapsed intermediate changes cannot be reconstructed
+snapshot history/diff -> snapshot grain
+full ordered CDC/log/Debezium/CDF -> full captured event fidelity only under proven order/completeness/retention
+API/files -> SOURCE_DEFINED until payload contract proves stronger semantics
 ```
 
-## 5. Capture semantics and history truth
+SCD2 never upgrades source fidelity.
 
-The framework separates source semantics, change granularity, read strategy, delete semantics, Bronze meaning and provider family.
+## Bootstrap readiness
 
-At semantic/onboarding level all fourteen cheatsheet rows are first-class. The framework explicitly prevents common history overclaims:
+Provider-neutral deterministic contracts exist for:
 
 ```text
-watermark/current state
-  -> observed-change history only
-  -> physical deletes absent unless another signal exists
-
-watermark + soft delete
-  -> delete correctness depends on tombstone retention/extraction reliability
-
-net CDC
-  -> batch/window-grain history
-  -> intermediate changes already collapsed cannot be reconstructed
-
-snapshot history/diff
-  -> snapshot-grain history only
-
-full ordered CDC/log/Debezium/CDF
-  -> full captured event history only when order/completeness/retention are proven
-
-API/files
-  -> SOURCE_DEFINED until payload contract proves stronger semantics
+snapshot -> CDC
+full baseline -> WATERMARK
 ```
 
-SCD2 does not improve capture fidelity.
+Watermark bootstrap requires complete baseline, exact boundary consistency, deterministic ordering and post-boundary visibility proof. A generic timestamp is not automatically safe.
 
-## 6. Bootstrap readiness
+## Fabric Pipeline readiness
 
-### Snapshot -> CDC
-
-Provider-neutral fenced handoff exists and is deterministic CI proven.
-
-### Full baseline -> WATERMARK
-
-PR #37 requires explicit evidence that:
+The established `FabricPipelineBackend` enforces:
 
 ```text
-baseline is complete
-baseline is consistent through exact boundary W
-watermark ordering is deterministic
-post-W changes remain visible after W is committed
+remote Fabric terminal state
+  + exact generated dataset_run_id
+  + durable framework DatasetDispatchOutcome
+  -> semantic handoff
 ```
 
-Strict mode uses a deterministic composite boundary. Lookback mode intentionally rereads overlap and requires idempotent downstream handling.
+Fabric `Completed` alone is insufficient.
 
-A generic timestamp column is not automatically certified as a safe bootstrap source contract.
+PR #43 adds the approved exact-release execution bridge:
 
-## 7. Fabric capture/orchestration readiness
+```bash
+fabric-framework integration-pipeline-run \
+  --config dev-integration-runner.json \
+  --spec evidence-spec.json \
+  --prerequisite-manifest evidence/prerequisites-merged.json \
+  --release-manifest release-manifest.json \
+  --config-dir config/datasets \
+  --check-id fabric.pipeline \
+  --dataset-id crm.customer \
+  --evidence-reference artifact:pipeline-run \
+  --output evidence/pipeline-partial.json \
+  --allow-pipeline-execution
+```
 
-### Pipeline backend
-
-Implemented REST execution backend requires provider terminal state plus exact durable framework dataset outcome. Fabric `Completed` alone is not semantic success.
-
-### Copy Job / Spark Job Definition
-
-Concrete item-specific REST transports exist. Successful framework capture requires provider-specific post-run observation to prove rows/landing/bounds/native progress before `CaptureReceipt`.
-
-Correct current label:
+The runner requires the same exact-spec prerequisite manifest to already contain:
 
 ```text
-IMPLEMENTED + CI PROVEN TRANSPORT/BACKEND CONTRACT
+FABRIC_ITEM_READ PASS
+CONTROL_PLANE_CERTIFICATION PASS
+selected FABRIC_PIPELINE_RUN NOT_RUN
 ```
 
-No live exact-release Pipeline/Copy/Spark run is retained yet.
+It refuses automatic rerun once the selected Pipeline check is substantive. It validates release manifest identity/config bundle hash, physical binding, production-eligible relational profile, runtime token/DB prerequisites and explicit mutation authorization before retrieving the DB URL value.
 
-## 8. Fabric Warehouse target commit readiness
+It creates the parent `PipelineRunAudit` before remote execution so the real relational child `dataset_run` FK path is valid. PASS requires provider `Completed` plus the exact durable child outcome with `SUCCEEDED` status and matching native correlation.
 
-Preferred target transaction:
+Credential-like unexpected provider exception text is redacted before persistence into dataset-run audit state.
+
+Correct label:
+
+```text
+IMPLEMENTED + CI PROVEN APPROVED PIPELINE RUNNER CONTRACT
+```
+
+No live exact-release Fabric Pipeline run is retained yet.
+
+Microsoft currently documents both Data Factory `jobType=Pipeline` on-demand execution and newer DataPipeline-specific execute-job endpoints. PR #43 deliberately reuses the already tested transport rather than silently combining an API migration with the evidence-runner semantic change.
+
+## Copy Job / Spark readiness
+
+Concrete item-specific REST transports and `FabricCaptureAdapter.execute_with_evidence()` already exist. Provider `Completed` does not prove rows/landing/bounds/native checkpoint; successful capture requires the provider-specific post-run observation resolver and a verified `CaptureReceipt` + native evidence pair.
+
+The next reusable runner must preserve those requirements and add the same staged prerequisite/rerun/authorization discipline used by Pipeline.
+
+## Fabric Warehouse target commit readiness
+
+Preferred transaction:
 
 ```text
 BEGIN TRAN
@@ -176,107 +179,45 @@ BEGIN TRAN
 COMMIT TRAN
 ```
 
-The control-plane CAS journal remains execution/retry authority. The marker is independent commit proof, not a distributed lock.
+The control-plane target-operation CAS remains execution/retry authority. Matching marker proves COMMITTED; marker absence remains UNRESOLVED unless an independently certified no-late-commit proof exists. Real transaction and ambiguous COMMIT/network drill remain unproven.
 
-Probe rules:
+## Relational control-plane readiness
 
-```text
-matching marker -> COMMITTED
-marker absent -> UNRESOLVED
-marker absent + independently certified no-late-commit proof -> NOT_COMMITTED
-```
-
-Marker absence alone never authorizes retry. Real Warehouse transaction and ambiguous COMMIT/network failure drill remain unproven.
-
-## 9. Relational control-plane readiness
-
-`SqlAlchemyControlPlaneRepository` and deterministic backend certification code exist.
-
-Production candidates:
+Production candidates remain:
 
 ```text
 fabric_sql_database_v1
 azure_sql_database_v1
 ```
 
-PR #41 now provides the approved exact-release execution bridge:
+PR #41 provides the approved execution bridge. Real selected-backend service/driver/auth/network execution and retained production-certified PASS remain missing.
 
-```bash
-fabric-framework integration-control-plane-certify-run \
-  --config dev-integration-runner.json \
-  --spec evidence-spec.json \
-  --check-id control-plane.certify \
-  --external-evidence evidence/control-plane-external.json \
-  --evidence-reference artifact:control-plane-certification \
-  --report-output evidence/control-plane-certification-report.json \
-  --output evidence/control-plane-partial.json \
-  --allow-conformance-writes
-```
+## Approved evidence sequencing
 
-The source-controlled config stores only the DB URL environment-variable **name**. The actual URL is runtime-only. The runner requires a production-eligible profile, complete enterprise evidence references and explicit conformance-write authorization, then reuses `certify_control_plane_backend(run_conformance=True)` without migrating schema.
-
-Database/driver exceptions are captured by the integration evidence harness and retained only as exception-type failures. Credential-like external/report text is rejected before retention.
-
-Correct label:
+Implemented stages:
 
 ```text
-IMPLEMENTED + CI PROVEN APPROVED CONTROL-PLANE CERTIFICATION RUNNER CONTRACT
+integration-run-preflight
+integration-item-smoke-run
+integration-control-plane-certify-run
+integration-evidence-merge
+integration-pipeline-run
+integration-evidence-validate
 ```
 
-Remaining proof is no longer a missing generic runner. It is the actual selected service/driver/auth/network execution and retained PASS.
-
-## 10. Approved DEV evidence readiness
-
-Canonical runbooks:
+Safe intended order:
 
 ```text
-DEV_INTEGRATION_EVIDENCE.md
-APPROVED_CONTROL_PLANE_CERTIFICATION.md
-INTEGRATION_EVIDENCE_MERGE.md
+item read PASS
+  -> control-plane certification PASS
+  -> strict prerequisite evidence merge
+  -> approved Pipeline run
+  -> Copy/Spark capture stages
+  -> Warehouse target/commit failure drills
+  -> complete exact-release manifest
 ```
 
-Implemented:
-
-```text
-IntegrationEvidenceSpec / Manifest / deterministic manifest_hash
-secret-material rejection
-ApprovedIntegrationRunnerConfig
-runtime-secret presence-only preflight
-explicit mutating-check authorization gate
-read-only Fabric item smoke runner
-approved production control-plane certification runner
-provider-specific evidence result builders
-exact-release validation
-staged partial-manifest merge
-```
-
-### Staged merge
-
-PR #39 allows independent real checks to be retained without rerunning prior successful stages.
-
-```text
-NOT_RUN -> absence
-one substantive result -> retain
-identical substantive duplicate -> accept
-contradictory rerun evidence -> conflict
-```
-
-No status/timestamp precedence is used. Conflict or failed `--require-certified` does not overwrite the selected output file.
-
-The merged manifest is not a replacement for retaining source partial manifests and evidence references.
-
-### Safe sequencing
-
-The intended first two real stages are now fully represented by CLI contracts:
-
-```text
-1. integration-item-smoke-run
-2. integration-control-plane-certify-run
-```
-
-Only after both are retained successfully should representative mutating Fabric execution commands be authorized.
-
-## 11. Real approved-environment gaps
+## Real approved-environment gaps
 
 Still missing retained evidence for the exact candidate:
 
@@ -284,57 +225,43 @@ Still missing retained evidence for the exact candidate:
 enterprise Entra token acquisition
 real workspace/item authorization
 real Fabric SQL Database or Azure SQL Database certification PASS
-real Pipeline execution
-real Copy Job execution + observation
+real approved Pipeline execution
+real Copy Job execution + post-run observation
 real bounded Spark execution + observation
 real Fabric Warehouse target+marker transaction
 ambiguous Warehouse COMMIT/network drill
 production-approved marker-absence certifier
-live Kafka consumer coordination if in release scope
-live Delta CDF bounded read/retention drill if in release scope
+live Kafka consumer coordination if release scope includes Kafka
+live Delta CDF bounded read/retention if release scope includes Delta
 capacity/SKU/throttling/gateway behavior
 backup/restore/HA/DR/monitoring/retention/governance controls
 complete certified exact-release evidence bundle
 ```
 
-## 12. Next execution / implementation order
+## Next order
 
-Preferred real-evidence order when approved environment inputs are available:
+When approved real inputs are available:
 
-1. set exact DEV candidate release hash and real item UUID bindings;
-2. run `integration-run-preflight` for the read-only item check;
-3. run live `integration-item-smoke-run` under approved enterprise identity;
-4. run live `integration-control-plane-certify-run` against the selected approved DB;
-5. merge item + control-plane partial evidence;
-6. only after both prerequisites pass, explicitly authorize representative Pipeline/Copy/Spark checks;
-7. execute real Warehouse target+marker transaction plus ambiguous COMMIT drill;
-8. merge all required evidence and pass `integration-evidence-validate --require-certified`;
-9. prove live Kafka/Delta only if part of the `0.4.0` public promise;
+1. set exact DEV candidate release hash and real item UUIDs;
+2. run real item smoke;
+3. run real production control-plane certification;
+4. merge prerequisites;
+5. run approved Pipeline stage;
+6. run approved Copy Job and Spark capture stages;
+7. execute Warehouse target+marker and ambiguous COMMIT drill;
+8. merge all required evidence and pass `--require-certified`;
+9. prove Kafka/Delta only if part of `0.4.0` public scope;
 10. run exact-candidate release audit.
 
-When real enterprise credentials/tenant/database are unavailable to the current execution context, the next reusable code slice is an explicitly-authorized approved Pipeline execution runner. It must reuse the existing Pipeline backend and retained durable framework dataset outcome; provider `Completed` alone must never produce PASS.
+If live inputs are unavailable to the current execution context, the next implementation slice is the approved Copy Job + Spark capture runner based on `execute_with_evidence()`.
 
-## 13. External controls this repo must not fake
+## External controls this repo must not fake
 
-```text
-capacity/SKU/throttling
-tenant settings
-workspace/domain provisioning
-Entra/RBAC
-private networking/gateway
-authorized secret store
-source CDC/CDF retention configuration
-broker/database/API access
-backup/restore + DR
-monitoring/on-call
-privacy/retention/governance/change controls
-```
+Capacity/SKU/throttling, tenant/workspace provisioning, Entra/RBAC, private networking/gateway, secret authority, source CDC/CDF retention configuration, broker/database/API access, backup/restore/DR, monitoring/on-call, privacy/retention/governance and enterprise change controls remain external evidence.
 
-These must be retained as enterprise/platform evidence rather than synthesized by unit tests.
+## Release gate
 
-## 14. Release gate
-
-`0.4.0` may be considered only when exact candidate code/tests/docs and retained approved evidence agree. Until then:
+`0.4.0` may be considered only when exact candidate code/tests/docs and retained approved evidence agree.
 
 ```text
 CI PROVEN != FABRIC PROVEN
