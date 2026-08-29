@@ -19,7 +19,7 @@ from uuid import UUID
 
 from sqlalchemy import Engine, select
 
-from .config import DatasetConfig, DatasetStatus, PipelineStatus, RunMode
+from .config import DatasetConfig, DatasetStatus
 from .contracts.capture_receipt import CaptureReceipt
 from .contracts.dispatch import DatasetDispatchOutcome
 from .contracts.recovery import DatasetAttemptLineage, ReprocessRequest
@@ -172,8 +172,8 @@ class SqlAlchemyControlPlaneRepository:
         )
 
     def commit_watermark(self, dataset_id: str, position: WatermarkPosition) -> None:
-        # This compatibility method preserves the older repository Protocol. New
-        # stateful execution should prefer the dedicated gated/CAS state primitives.
+        # Compatibility method for the older repository Protocol. Stateful execution
+        # should use the dedicated gated/CAS state primitives for commit decisions.
         self._deployed_dataset_row(dataset_id)
         now = _utcnow()
         with self.engine.begin() as connection:
