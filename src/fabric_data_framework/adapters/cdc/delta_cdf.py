@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime
 from enum import Enum
-from typing import Any, Mapping, Sequence
+from typing import Any, Sequence
 
 from pydantic import Field, model_validator
 
@@ -131,7 +131,6 @@ def _logical_event_for_group(
             f"key={key}, commit={commit_version}, types={sorted(item.value for item in present)}"
         )
 
-    representative = records[0]
     key_payload = _key_payload(key_columns, key)
     position = CDCSourcePosition(
         partition=f"{_DELTA_PARTITION_PREFIX}{table_reference}",
@@ -245,7 +244,9 @@ def normalize_delta_cdf_batch(
 
     events: list[CDCEvent] = []
     update_pairs = 0
-    groups_by_commit: dict[int, list[tuple[tuple[Any, ...], tuple[DeltaCDFRecord, ...]]]] = defaultdict(list)
+    groups_by_commit: dict[
+        int, list[tuple[tuple[Any, ...], tuple[DeltaCDFRecord, ...]]]
+    ] = defaultdict(list)
     for (commit_version, key), items in grouped.items():
         groups_by_commit[commit_version].append((key, tuple(items)))
 
