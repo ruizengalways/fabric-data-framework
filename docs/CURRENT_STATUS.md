@@ -6,88 +6,53 @@ Last updated: 2026-08-29
 
 `v0.3.0` remains the latest immutable public framework release. Source version `0.4.0` is an unreleased development line. **Do not publish v0.4.0 yet.**
 
-The production-hardening and mainstream capture/onboarding slices are both merged to `main`:
+Merged mainline baselines:
 
 ```text
 PR #13 -> 9b2278822ff4c566051c69180c8ca63b021866e4
-main Actions 33225627461
-SUCCESS
+production-hardening product slice
 
 PR #14 -> 4b20300c822e16a398342e0cc97da90ee51b035a
 main Actions 33238779139
 310 tests passed
-Python 3.11 + 3.13 + wheel/static checks SUCCESS
+mainstream capture/onboarding + Delta CDF
+
+PR #15 -> 07923edfa30fe0e5957d98a68a224579816c6b50
+post-merge durable docs checkpoint
 ```
 
-The next implementation slice is durable target-operation idempotency / operation-journal semantics. `v0.4.0` remains unreleased while real Fabric/provider integration and remaining durability work are incomplete.
+Active work is PR #16 on `feature/target-operation-journal`. The durable target-operation idempotency slice is now implemented at REFERENCE/CI level and is being exact-head audited before merge.
 
-The product target remains: after an enterprise installs the released wheel, routine datasets onboard through source-controlled metadata, source-fidelity classification, environment bindings, capability profiles and bounded logical-name extensions rather than edits to the framework.
-
-## Latest validated implementation evidence
-
-Current main baseline:
+Latest coherent implementation evidence before the final docs audit:
 
 ```text
-4b20300c822e16a398342e0cc97da90ee51b035a
-GitHub Actions 33238779139
-310 tests passed
-Python 3.11 + 3.13 + wheel/static checks green
+dd148a0c8e329c19809986fa9a32ed7edbe5dbfb
+GitHub Actions 33239441546
+323 tests passed
+Python 3.11 + 3.13 + static + wheel SUCCESS
 ```
 
-This baseline includes:
+No current hardening capability is yet `FABRIC PROVEN` through a retained real workspace/provider target execution.
 
-- executable 14-pattern mainstream capture catalog;
-- source-controlled `DatasetCaptureSelection` truth claims;
-- `capture-onboarding-validate` CLI/CI gate;
-- five complete executable onboarding examples;
-- Delta Change Data Feed canonical CDC adapter;
-- `SPARK/delta_cdf_v1` capability profile and provider registry integration.
+## Product target
 
-Earlier merged hardening evidence includes:
+After an enterprise installs a released framework wheel, routine datasets should onboard through:
 
 ```text
-ae1eb99ab5fa9d7add5a62dda2d7448b6200d240
-Actions 33225341709
-268 tests passed
-operator status API/CLI
-
-1ee22d5828a5f53a3f9050722bdb5b7f7b28de43
-Actions 33225064570
-261 tests passed
-shared source-order/event-time taxonomy
-
-c326f062ad4e6be5185f17b9e6830946967361ab
-Actions 33224558393
-252 tests passed
-replay-stable file/API capture guardrails
+source-controlled DatasetConfig
++ source/capture truth classification
++ environment bindings
++ capability profiles
++ bounded logical-name extensions
 ```
 
-All new hardening evidence remains `REFERENCE`, `CI PROVEN` or `ADAPTER CONTRACT`. No current hardening capability is yet `FABRIC PROVEN` through a retained real workspace/provider execution.
+rather than edits to `fabric-data-framework` per dataset.
 
-## Mainstream capture/onboarding model
+## Mainstream source/capture model
 
 Canonical guide: `docs/CAPTURE_PATTERN_CATALOG.md`.
 
-A new source is classified along independent axes before choosing a target apply strategy or physical Fabric tool:
-
-```text
-source/capture pattern
-    -> what facts are actually available
-
-change fidelity
-    -> CURRENT_STATE / NET_CHANGE / FULL_CHANGE / FULL_EVENT / SOURCE_DEFINED
-
-delete visibility
-    -> NONE / SNAPSHOT_INFERRED / TOMBSTONE / EXPLICIT_EVENT / SOURCE_DEFINED
-
-Bronze storage
-    -> OVERWRITE / MERGE / APPEND
-
-Silver apply
-    -> APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF
-```
-
-Executable `CapturePattern` values cover fourteen common mainstream Data Engineering families:
+Fourteen executable patterns cover the common source families:
 
 ```text
 FULL_SNAPSHOT
@@ -108,117 +73,138 @@ FILE_INCREMENTAL
 
 Key invariant:
 
-> **Capture fidelity is an upper bound on history fidelity.**
+> **Capture fidelity is an upper bound on truthful history fidelity.**
 
-Examples:
+`DatasetCaptureSelection` and `capture-onboarding-validate --require-all` let domain CI reject overstated history/delete claims.
 
-- watermark SCD2 is `OBSERVED_CHANGES`, not guaranteed full source history;
-- net CDC SCD2 is `BATCH_GRAIN` because intermediate source changes were already collapsed;
-- snapshot diff is `SNAPSHOT_GRAIN`;
-- full ordered CDC/Debezium/Delta CDF can support `FULL_EVENT` captured history;
-- API/file history is `SOURCE_DEFINED` until the source contract proves more.
+Executable examples live in `docs/examples/capture-patterns/`.
 
-## Source-controlled onboarding claim
+## Durable target-operation idempotency
 
-`DatasetCaptureSelection` records reviewable source truth separately from the runtime DatasetConfig:
+Canonical guide: `docs/TARGET_OPERATION_IDEMPOTENCY.md`.
+
+A dataset retry attempt is not the same identity as the target mutation it is retrying:
 
 ```text
-dataset_id
-capture_pattern
-Bronze write mode
-history claim
-delete claim
-rationale
-known limitations
+dataset_run_id
+  = one execution attempt
+
+TargetOperation.operation_key
+  = one frozen semantic target mutation across attempts/restarts
 ```
 
-`validate_capture_selection()` refuses claims that contradict the canonical pattern. For example a `WATERMARK_LOOKBACK` source cannot claim `FULL_EVENT` history or `EXPLICIT_EVENT` delete visibility.
-
-Domain CI can run:
-
-```bash
-fabric-framework capture-onboarding-validate \
-  --config-dir <dataset-config-dir> \
-  --selections <capture-selections.json> \
-  --require-all
-```
-
-`--require-all` makes missing source classification a CI failure.
-
-The onboarding selection is currently a source-controlled companion contract, not a new control-plane table. Control-plane schema therefore remains v3 after PR #14.
-
-## Executable examples
-
-Canonical examples live under:
+The stable operation key is derived from:
 
 ```text
-docs/examples/capture-patterns/
+target-operation-v1
++ dataset_id
++ run_mode
++ apply_strategy
++ target_reference
++ effective_config_hash
++ mutation_scope_hash
 ```
 
-Included complete examples:
+`mutation_scope_hash` must represent the exact frozen input/candidate being applied. It deliberately excludes attempt IDs and current timestamps.
+
+Implemented lifecycle:
 
 ```text
-crm.customer             WATERMARK_LOOKBACK + SCD1
-commerce.order_cdc       DEBEZIUM_KAFKA + SCD2
-lakehouse.customer_cdf   DELTA_CDF + SCD2
-partner.customer_api     API_CURSOR_INCREMENTAL + SCD1
-vendor.account_files     FILE_INCREMENTAL + SNAPSHOT_DIFF
+PREPARED -> IN_PROGRESS
+IN_PROGRESS -> COMMITTED | COMMIT_UNKNOWN | NOT_COMMITTED | FAILED
+COMMIT_UNKNOWN -> COMMITTED | NOT_COMMITTED
+NOT_COMMITTED -> IN_PROGRESS | FAILED
+COMMITTED / FAILED terminal
 ```
 
-The test suite loads these exact files through `DatasetConfig`, `DatasetCaptureSelection` and `CapabilityRegistry`, so examples cannot silently drift from the code contract.
+Core safety rule:
 
-## Delta Change Data Feed status
+> **Only `NOT_COMMITTED` is eligible for target re-execution.**
 
-`DELTA_CDF` is a built-in provider/reference path rather than CUSTOM-only guidance:
+Existing `COMMITTED` converges without another target write. Persisted `IN_PROGRESS` or `COMMIT_UNKNOWN` must be reconciled before retry. A generic exception after target mutation begins is conservatively classified as unknown outcome rather than assumed rollback.
+
+The retry wrapper creates a new `dataset_run_id` per attempt while retaining the same `operation_key` for the same frozen mutation.
+
+## Control plane v4
+
+Current development schema:
 
 ```text
-capture strategy: CDC
-capture engine: SPARK
-capability profile: delta_cdf_v1
-progress owner: FRAMEWORK
-apply engine: independently selected; SPARK/framework by default
+CONTROL_PLANE_SCHEMA_VERSION = 4
+v1 phase1_initial_control_plane_schema
+v2 execution_policy_ordering_capture_receipt_recovery_and_cdc
+v3 append_identity_semantics
+v4 target_operation_idempotency_journal
 ```
 
-`DeltaCDFRecord` maps Delta CDF `insert`, `delete`, `update_preimage`, `update_postimage` into canonical `CDCEvent` values. Update pre/post images for one key/commit are paired into one UPDATE. Source progress is bounded by Delta commit version and only advances after downstream target/reconciliation success.
+v4 adds environment-local runtime state:
 
-Because Delta CDF does not expose a universal row sequence for arbitrary multiple logical changes of the same key inside one commit, the adapter fails closed when that order cannot be proven. Different keys in one commit receive a deterministic key-sorted row sequence for framework processing; metadata explicitly states that this is deterministic processing order, not invented business temporal order.
+```text
+target_operation
+```
 
-This is deterministic adapter/profile evidence only. Real Fabric Lakehouse CDF execution, authentication/environment binding and retention-gap drill are still integration work.
+It records the stable operation identity, first/last dataset attempt, lifecycle status, attempts started, outcome evidence, last error, optimistic concurrency `version` and commit timestamp.
+
+`target_operation` is never promoted between DEV/UAT/PROD.
+
+`DatasetCaptureSelection` remains a Git/CI onboarding companion and is still not a control-plane table.
+
+## Operator surface
+
+`get_dataset_operational_snapshot()` / `control-plane-status` now include:
+
+```text
+latest dataset run + attempt lineage
+latest CaptureReceipt/native-provider correlation
+latest target operation/idempotency outcome
+watermark / CDC downstream progress
+latest reconciliation
+quarantine backlog
+latest schema observation
+active reprocess requests
+```
+
+`latest_target_operation` exposes operation key/status/apply/target/attempt count/outcome reference/error/version so on-call can see `COMMIT_UNKNOWN` without raw SQL.
+
+This remains a typed reference operator surface over the current relational contract; it does not certify SQLite as the production control-plane technology.
 
 ## Implemented development runtime
 
-Current `main` provides:
+Current unreleased codebase provides:
 
-- strict immutable metadata/effective config and allow-listed runtime overrides;
-- independent capture semantics, apply semantics, capture engine, apply engine and progress owner;
-- immutable provider-neutral `ExecutionPlan` and named capability profiles;
+- immutable metadata/effective config + allow-listed overrides;
 - 14-pattern source-fidelity onboarding catalog + CI truth claims;
+- independent capture/apply semantics, engines and progress ownership;
 - composite WATERMARK + overlap;
 - Bronze lineage, DQ/quarantine and no-silent-loss accounting;
-- APPEND, REPLACE, UPSERT, SCD1, SCD2 and SNAPSHOT_DIFF;
-- canonical CDC I/U/D ordering/dedupe/checkpoints;
-- CDC -> UPSERT/SCD1/SCD2 and snapshot/bootstrap -> CDC handoff;
+- APPEND, REPLACE, UPSERT, SCD1, SCD2, SNAPSHOT_DIFF;
+- canonical CDC + downstream checkpoints + snapshot/bootstrap handoff;
 - Debezium/Kafka and Delta CDF provider adapters;
 - Fabric capture adapter contracts;
 - replay-stable file manifests and API frozen windows;
-- retry/attempt/unknown-outcome recovery, quarantine REPLAY and FULL_REBUILD;
+- bounded retry, attempt lineage, quarantine REPLAY and FULL_REBUILD;
+- durable target-operation idempotency journal + unknown-outcome convergence;
 - schema contracts/evolution/evidence;
 - shared source-order/event-time taxonomy;
-- control-plane v3 + typed read-only operator API/CLI;
+- control-plane v4 + typed read-only operator API/CLI;
 - immutable release/delivery contracts.
 
 ## Evidence boundary
 
-Do not describe any of these as real provider integration merely because deterministic tests are green. Missing real proof still includes Fabric/Kafka transports, authentication/network bindings, Fabric Pipeline orchestration, live Kafka seek/commit, live Delta CDF bounded reads, native/provider run IDs and a retained approved DEV hybrid execution.
+Reference/CI proof does not equal real provider proof. Still missing are real Fabric/Kafka/Delta transports, authentication/network bindings, Fabric Pipeline orchestration, live Kafka seek/commit, real Delta CDF bounded reads/retention drills, real target transaction/commit reconciliation and an approved DEV hybrid execution retaining provider/native/target correlation.
+
+The current `target_operation` lifecycle is durable in the relational reference implementation and CAS-tested, but final production-database isolation/failover behavior is not yet certified.
 
 ## Exact next implementation sequence
 
-1. durable target-operation idempotency/operation journal with stable semantic operation key and persistent lifecycle/CAS evidence;
-2. remaining native/provider downstream-failure recovery, including real Kafka cursor coordination and Delta CDF retention-gap recovery proof;
-3. select/certify a production control-plane repository while preserving current operator contracts;
-4. implement actual Fabric/Kafka transports and Fabric Pipeline backend;
-5. prove approved DEV hybrid executions retaining provider/native correlation;
-6. add further provider adapters only when supported product scope requires them;
+After PR #16 is merged:
+
+1. complete remaining native/provider downstream-failure recovery, including real Kafka cursor coordination and Delta CDF retention-gap recovery;
+2. select/certify the production control-plane repository and re-prove target-operation CAS/transaction behavior there;
+3. implement real Fabric/Kafka/Delta transports and Fabric Pipeline backend;
+4. integrate real target adapters with mutation-scope generation and COMMITTED/NOT_COMMITTED reconciliation evidence;
+5. prove approved DEV hybrid executions retaining source/native/target correlation;
+6. add provider adapters only when supported scope requires them;
 7. exact-candidate audit/docs/CI and next immutable release decision.
 
 ## Durable project memory
@@ -232,6 +218,7 @@ docs/GUARANTEE_COVERAGE.md
 docs/PROJECT_BLUEPRINT.md
 docs/PRODUCTION_REQUIREMENTS.md
 docs/CAPTURE_PATTERN_CATALOG.md
+docs/TARGET_OPERATION_IDEMPOTENCY.md
 docs/EXECUTION_ENGINE_STRATEGY.md
 docs/FABRIC_EXECUTION_MODEL.md
 docs/CDC_DESIGN.md

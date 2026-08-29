@@ -21,11 +21,12 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 
 
-CONTROL_PLANE_SCHEMA_VERSION = 3
+CONTROL_PLANE_SCHEMA_VERSION = 4
 CONTROL_PLANE_MIGRATIONS = (
     (1, "phase1_initial_control_plane_schema"),
     (2, "execution_policy_ordering_capture_receipt_recovery_and_cdc"),
     (3, "append_identity_semantics"),
+    (4, "target_operation_idempotency_journal"),
 )
 
 NAMING_CONVENTION = {
@@ -374,6 +375,28 @@ dataset_attempt_lineage = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
+target_operation = Table(
+    "target_operation",
+    metadata,
+    Column("operation_key", String(64), primary_key=True),
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), nullable=False),
+    Column("run_mode", String(32), nullable=False),
+    Column("apply_strategy", String(32), nullable=False),
+    Column("target_reference", String(1024), nullable=False),
+    Column("effective_config_hash", String(64), nullable=False),
+    Column("mutation_scope_hash", String(64), nullable=False),
+    Column("first_dataset_run_id", String(36), nullable=False),
+    Column("last_dataset_run_id", String(36), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("attempts_started", Integer, nullable=False),
+    Column("outcome_reference", String(2048), nullable=True),
+    Column("last_error_code", String(128), nullable=True),
+    Column("last_error_message", Text, nullable=True),
+    Column("version", Integer, nullable=False),
+    Column("committed_at", DateTime(timezone=True), nullable=True),
+    *_audit_columns(),
+)
+
 deployment_history = Table(
     "deployment_history",
     metadata,
@@ -421,6 +444,7 @@ ENVIRONMENT_LOCAL_STATE_TABLES = frozenset(
         "pipeline_run",
         "dataset_run",
         "dataset_attempt_lineage",
+        "target_operation",
         "capture_receipt",
         "step_run",
         "reconciliation_result",
@@ -448,21 +472,23 @@ def current_schema_version(engine: Engine) -> int:
 
 
 def _apply_migration(connection, version: int) -> None:
-    if version != 3:
+    if version == 3:
+        columns = {item["name"] for item in inspect(connection).get_columns(load_policy.name)}
+        if "append_identity" in columns:
+            return
+
+        preparer = connection.dialect.identifier_preparer
+        table_name = preparer.quote(load_policy.name)
+        column_name = preparer.quote("append_identity")
+        type_sql = load_policy.c.append_identity.type.compile(dialect=connection.dialect)
+        connection.exec_driver_sql(
+            f"ALTER TABLE {table_name} ADD COLUMN {column_name} {type_sql} "
+            "DEFAULT '[]' NOT NULL"
+        )
         return
 
-    columns = {item["name"] for item in inspect(connection).get_columns(load_policy.name)}
-    if "append_identity" in columns:
-        return
-
-    preparer = connection.dialect.identifier_preparer
-    table_name = preparer.quote(load_policy.name)
-    column_name = preparer.quote("append_identity")
-    type_sql = load_policy.c.append_identity.type.compile(dialect=connection.dialect)
-    connection.exec_driver_sql(
-        f"ALTER TABLE {table_name} ADD COLUMN {column_name} {type_sql} "
-        "DEFAULT '[]' NOT NULL"
-    )
+    if version == 4:
+        target_operation.create(bind=connection, checkfirst=True)
 
 
 def apply_baseline_schema(engine: Engine) -> int:
@@ -501,5 +527,6 @@ __all__ = [
     "metadata",
     "ordering_policy",
     "reprocess_request",
+    "target_operation",
     "table_names",
 ]

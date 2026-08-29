@@ -35,6 +35,14 @@ from .runtime import (
     classify_failure,
     execute_with_retry,
 )
+from .target_operation import (
+    TargetOperationExecutionResult,
+    TargetOperationJournal,
+    TargetOperationTerminalError,
+    TargetOperationUnresolvedError,
+    execute_target_operation_once,
+    execute_target_operation_with_retry,
+)
 
 __all__ = [
     "AttemptContext",
@@ -58,11 +66,17 @@ __all__ = [
     "RecoveryRunResult",
     "RetryPolicy",
     "RetryableExecutionError",
+    "TargetOperationExecutionResult",
+    "TargetOperationJournal",
+    "TargetOperationTerminalError",
+    "TargetOperationUnresolvedError",
     "UnknownCommitOutcomeError",
     "UnknownOutcomeUnresolvedError",
     "classify_failure",
     "execute_full_rebuild",
     "execute_quarantine_replay",
+    "execute_target_operation_once",
+    "execute_target_operation_with_retry",
     "execute_with_retry",
     "prepare_full_rebuild",
     "prepare_quarantine_replay",
