@@ -17,6 +17,14 @@ from .bootstrap_cdc import (
     normalize_bootstrap_cdc_batch,
     plan_cdc_bootstrap,
 )
+from .bootstrap_watermark import (
+    WatermarkBootstrapEvidence,
+    WatermarkBootstrapEvidenceError,
+    WatermarkBootstrapPlan,
+    assert_same_watermark_bootstrap,
+    plan_first_watermark_batch,
+    plan_watermark_bootstrap,
+)
 from .cdc import (
     CDCCheckpoint,
     CDCCheckpointTransition,
@@ -141,8 +149,12 @@ __all__ = [
     "SnapshotEvidence",
     "SnapshotEvidenceError",
     "SourceSemantics",
+    "WatermarkBootstrapEvidence",
+    "WatermarkBootstrapEvidenceError",
+    "WatermarkBootstrapPlan",
     "assert_same_api_window",
     "assert_same_file_manifest",
+    "assert_same_watermark_bootstrap",
     "assess_dataset_capture_pattern",
     "build_cdc_checkpoint",
     "capture_full_snapshot",
@@ -158,6 +170,8 @@ __all__ = [
     "normalize_bootstrap_cdc_batch",
     "normalize_cdc_batch",
     "plan_cdc_bootstrap",
+    "plan_first_watermark_batch",
+    "plan_watermark_bootstrap",
     "project_legacy_capture_pattern",
     "validate_api_capture",
     "validate_capture_selection",
