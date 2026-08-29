@@ -47,6 +47,14 @@ _MUTATING_KINDS = frozenset(
     }
 )
 
+_CONTROL_PLANE_RUNTIME_KINDS = frozenset(
+    {
+        IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION,
+        IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN,
+        IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_TARGET_COMMIT,
+    }
+)
+
 
 class IntegrationCheckPhysicalBinding(FrozenModel):
     """Environment-local physical IDs for one evidence check.
@@ -210,19 +218,18 @@ def _runtime_requirements(
     requirements: list[tuple[str, str]] = []
     if kinds.intersection(_FABRIC_ITEM_KINDS):
         requirements.append(("Fabric REST access token", config.fabric_access_token_env_var))
-    if (
-        IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION in kinds
-        or IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN in kinds
-    ):
+    if kinds.intersection(_CONTROL_PLANE_RUNTIME_KINDS):
         if config.control_plane_database_url_env_var is None:
             raise ValueError(
-                "CONTROL_PLANE_CERTIFICATION/FABRIC_PIPELINE_RUN check needs control-plane runtime configuration"
+                "CONTROL_PLANE_CERTIFICATION/FABRIC_PIPELINE_RUN/"
+                "FABRIC_WAREHOUSE_TARGET_COMMIT check needs control-plane runtime configuration"
             )
-        purpose = (
-            "control-plane database URL"
-            if IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION in kinds
-            else "Pipeline durable-outcome control-plane database URL"
-        )
+        if IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION in kinds:
+            purpose = "control-plane database URL"
+        elif IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN in kinds:
+            purpose = "Pipeline durable-outcome control-plane database URL"
+        else:
+            purpose = "Warehouse target-operation journal control-plane database URL"
         requirements.append((purpose, config.control_plane_database_url_env_var))
     if IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_TARGET_COMMIT in kinds:
         if config.warehouse_database_url_env_var is None:

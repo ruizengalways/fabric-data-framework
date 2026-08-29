@@ -1,0 +1,13 @@
+{
+  "check_id": "warehouse.commit",
+  "dataset_id": "sales.order",
+  "operation_kind": "EVIDENCE_MERGE",
+  "target_reference": "warehouse.dbo.sales_order",
+  "mutation_extension": "sales.order.evidence-mutation",
+  "extension_artifact_name": "fabric-customer-0.4.0.dev1-py3-none-any.whl",
+  "mutation_payload": {
+    "evidence_key": "candidate-0.4.0-sales-order"
+  },
+  "marker_table_name": "fabric_framework_operation_commit",
+  "marker_schema": "dbo"
+}
