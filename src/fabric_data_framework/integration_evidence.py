@@ -14,8 +14,8 @@ from datetime import datetime, timezone
 from enum import Enum
 import hashlib
 import json
+from pathlib import Path
 import re
-from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import Field, field_validator, model_validator
@@ -139,7 +139,6 @@ class IntegrationEvidenceCheckResult(FrozenModel):
         _aware(self.completed_at, "completed_at")
         if self.completed_at < self.started_at:
             raise ValueError("completed_at cannot be before started_at")
-
         if self.status is IntegrationEvidenceStatus.PASS:
             self._validate_pass_evidence()
         return self
@@ -154,9 +153,10 @@ class IntegrationEvidenceCheckResult(FrozenModel):
                 or self.workspace_id is None
                 or self.item_id is None
                 or self.native_job_instance_id is None
+                or self.root_activity_id is None
             ):
                 raise ValueError(
-                    "FABRIC_PIPELINE_RUN PASS requires framework pipeline, workspace, item and native job IDs"
+                    "FABRIC_PIPELINE_RUN PASS requires framework pipeline, workspace, item, native job and root activity IDs"
                 )
         elif self.kind in {
             IntegrationEvidenceCheckKind.FABRIC_COPY_JOB_CAPTURE,
@@ -167,9 +167,10 @@ class IntegrationEvidenceCheckResult(FrozenModel):
                 or self.workspace_id is None
                 or self.item_id is None
                 or self.native_job_instance_id is None
+                or self.root_activity_id is None
             ):
                 raise ValueError(
-                    f"{self.kind.value} PASS requires dataset, workspace, item and native job IDs"
+                    f"{self.kind.value} PASS requires dataset, workspace, item, native job and root activity IDs"
                 )
         elif self.kind is IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_TARGET_COMMIT:
             if self.operation_key is None:
@@ -283,8 +284,17 @@ def run_integration_evidence(
 
     Missing runners become NOT_RUN. Exceptions become FAIL without copying exception
     text into the retained manifest. A runner must return the exact check_id/kind it
-    was registered for; mismatches fail closed.
+    was registered for; mismatches fail closed. Runner IDs not present in the spec are
+    rejected rather than silently ignored.
     """
+
+    expected_ids = {item.check_id for item in spec.checks}
+    unexpected_runner_ids = sorted(set(runners) - expected_ids)
+    if unexpected_runner_ids:
+        raise ValueError(
+            "integration runners are not declared in evidence spec: "
+            + ", ".join(unexpected_runner_ids)
+        )
 
     started_at = now()
     _aware(started_at, "started_at")
@@ -346,17 +356,39 @@ def validate_integration_evidence_manifest(
     if manifest.checks != spec.checks:
         raise ValueError("retained evidence check specification does not match requested spec")
     if require_certified and not manifest.certified:
+        by_id = {item.check_id: item for item in manifest.results}
         failed = [
             item.check_id
             for item in manifest.checks
             if item.required
-            and next(result for result in manifest.results if result.check_id == item.check_id).status
-            is not IntegrationEvidenceStatus.PASS
+            and by_id[item.check_id].status is not IntegrationEvidenceStatus.PASS
         ]
         raise ValueError(
             "integration evidence is not certified; required checks not PASS: "
             + ", ".join(failed)
         )
+
+
+def load_integration_evidence_spec(path: str | Path) -> IntegrationEvidenceSpec:
+    return IntegrationEvidenceSpec.model_validate_json(Path(path).read_text(encoding="utf-8"))
+
+
+def load_integration_evidence_manifest(path: str | Path) -> IntegrationEvidenceManifest:
+    return IntegrationEvidenceManifest.model_validate_json(
+        Path(path).read_text(encoding="utf-8")
+    )
+
+
+def write_integration_evidence_manifest(
+    manifest: IntegrationEvidenceManifest,
+    path: str | Path,
+) -> None:
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 __all__ = [
@@ -368,6 +400,9 @@ __all__ = [
     "IntegrationEvidenceManifest",
     "IntegrationEvidenceSpec",
     "IntegrationEvidenceStatus",
+    "load_integration_evidence_manifest",
+    "load_integration_evidence_spec",
     "run_integration_evidence",
     "validate_integration_evidence_manifest",
+    "write_integration_evidence_manifest",
 ]
