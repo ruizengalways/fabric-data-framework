@@ -172,12 +172,20 @@ def test_secret_like_material_is_rejected_from_retained_references_and_detail():
             detail="Authorization: Bearer abc.def",
         )
 
-    with pytest.raises(ValidationError, match="user-info"):
+    with pytest.raises(ValidationError, match="credential material"):
         IntegrationEvidenceCheckResult(
             check_id="fabric.item.read",
             kind=IntegrationEvidenceCheckKind.FABRIC_ITEM_READ,
             status=IntegrationEvidenceStatus.FAIL,
             evidence_references=("postgresql://user:password@example.test/db",),
+        )
+
+    with pytest.raises(ValidationError, match="user-info"):
+        IntegrationEvidenceCheckResult(
+            check_id="fabric.item.read",
+            kind=IntegrationEvidenceCheckKind.FABRIC_ITEM_READ,
+            status=IntegrationEvidenceStatus.FAIL,
+            evidence_references=("postgresql://alice:s3cr3t@example.test/db",),
         )
 
 
