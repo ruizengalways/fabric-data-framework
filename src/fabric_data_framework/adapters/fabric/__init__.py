@@ -9,6 +9,17 @@ from .adapter import (
     FabricCaptureAdapter,
     SparkJobCaptureAdapter,
 )
+from .capture_transports import (
+    FabricCaptureObservation,
+    FabricCaptureObservationResolver,
+    FabricCopyJobBinding,
+    FabricCopyJobBindingResolver,
+    FabricCopyJobCaptureTransport,
+    FabricSparkExecutionDataResolver,
+    FabricSparkJobDefinitionBinding,
+    FabricSparkJobDefinitionBindingResolver,
+    FabricSparkJobDefinitionCaptureTransport,
+)
 from .contracts import (
     FabricCaptureRequest,
     FabricCaptureTransport,
@@ -38,8 +49,13 @@ __all__ = [
     "FabricAdapterExecutionError",
     "FabricAdapterRegistry",
     "FabricCaptureAdapter",
+    "FabricCaptureObservation",
+    "FabricCaptureObservationResolver",
     "FabricCaptureRequest",
     "FabricCaptureTransport",
+    "FabricCopyJobBinding",
+    "FabricCopyJobBindingResolver",
+    "FabricCopyJobCaptureTransport",
     "FabricJobInstance",
     "FabricJobStart",
     "FabricJobStatus",
@@ -51,5 +67,9 @@ __all__ = [
     "FabricRestClient",
     "FabricRestError",
     "FabricRestPipelineTransport",
+    "FabricSparkExecutionDataResolver",
+    "FabricSparkJobDefinitionBinding",
+    "FabricSparkJobDefinitionBindingResolver",
+    "FabricSparkJobDefinitionCaptureTransport",
     "SparkJobCaptureAdapter",
 ]

@@ -133,6 +133,21 @@ def test_run_and_wait_item_job_uses_typed_parameters_and_polling():
     assert parameters["enabled"]["type"] == "Boolean"
 
 
+def test_invalid_wait_settings_fail_before_remote_job_is_started():
+    opener = _QueueOpener([])
+    client = FabricRestClient(token_provider=lambda: "token", opener=opener)
+
+    with pytest.raises(ValueError, match="timeout_seconds"):
+        client.run_and_wait_item_job(
+            workspace_id=uuid4(),
+            item_id=uuid4(),
+            job_type="Pipeline",
+            timeout_seconds=0,
+        )
+
+    assert opener.requests == []
+
+
 def test_http_error_preserves_fabric_retry_evidence():
     payload = json.dumps(
         {
