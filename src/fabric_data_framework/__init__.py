@@ -81,7 +81,9 @@ from .dispatcher import (
     DatasetDispatchRequest,
     OrchestrationIntegrityError,
     PipelineDispatchResult,
+    ReadyWaveBackend,
     dispatch_datasets,
+    dispatch_datasets_with_backend,
 )
 from .execution import execute_append_batch, execute_full_replace, execute_snapshot_diff
 from .extensions import ExtensionKind, ExtensionRegistry
@@ -101,6 +103,7 @@ from .quality import (
     compare_source_order,
     require_compatible_schema,
 )
+from .relational_repository import SqlAlchemyControlPlaneRepository
 from .schema_contract import (
     LogicalType,
     SchemaCompatibilityPolicy,
@@ -177,6 +180,7 @@ __all__ = [
     "PipelineDispatchResult",
     "PipelineStatus",
     "ProgressOwner",
+    "ReadyWaveBackend",
     "ReconciliationPolicy",
     "ReplaceGuardPolicy",
     "RunMode",
@@ -196,6 +200,7 @@ __all__ = [
     "SnapshotEvidence",
     "SourceConfig",
     "SourceOrderRelation",
+    "SqlAlchemyControlPlaneRepository",
     "StaleRecordAction",
     "TargetConfig",
     "TargetOperationAction",
@@ -228,6 +233,7 @@ __all__ = [
     "compare_source_order",
     "compile_execution_plan",
     "dispatch_datasets",
+    "dispatch_datasets_with_backend",
     "execute_append_batch",
     "execute_full_replace",
     "execute_snapshot_diff",
