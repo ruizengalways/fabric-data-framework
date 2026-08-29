@@ -5,12 +5,14 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sys
 
 from sqlalchemy import create_engine
 
 from . import __version__
+from .adapters.fabric.rest import FabricRestClient
 from .capture import load_capture_selections, validate_capture_selection
 from .control_plane import apply_baseline_schema, current_schema_version
 from .control_plane_certification import (
@@ -31,10 +33,20 @@ from .delivery import (
     write_json_model,
 )
 from .deployment import CIProvider, DeploymentMechanism, DeploymentProvenance
+from .fabric_auth import EnvironmentAccessTokenProvider
+from .integration_checks import run_fabric_item_read_check
 from .integration_evidence import (
+    IntegrationEvidenceCheckKind,
+    IntegrationEvidenceStatus,
     load_integration_evidence_manifest,
     load_integration_evidence_spec,
+    run_integration_evidence,
     validate_integration_evidence_manifest,
+    write_integration_evidence_manifest,
+)
+from .integration_runner import (
+    build_approved_integration_run_plan,
+    load_approved_integration_runner_config,
 )
 from .operator import get_dataset_operational_snapshot, list_dataset_operational_snapshots
 
@@ -103,6 +115,49 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Exit non-zero unless every required integration check is PASS",
     )
+
+    preflight = subparsers.add_parser(
+        "integration-run-preflight",
+        help=(
+            "Validate exact-release physical bindings and runtime prerequisite presence "
+            "without persisting secret values"
+        ),
+    )
+    preflight.add_argument("--config", required=True)
+    preflight.add_argument("--spec", required=True)
+    preflight.add_argument(
+        "--check-id",
+        action="append",
+        default=None,
+        help=(
+            "Plan only this evidence check; repeat for a staged subset. "
+            "Default plans all required checks."
+        ),
+    )
+    preflight.add_argument(
+        "--allow-mutating-checks",
+        action="store_true",
+        help=(
+            "Explicitly authorize a preflight plan containing remote execution/write checks. "
+            "This flag does not itself execute those checks."
+        ),
+    )
+    preflight.add_argument(
+        "--require-ready",
+        action="store_true",
+        help="Exit non-zero unless all runtime prerequisites exist and mutation is authorized",
+    )
+    preflight.add_argument("--output")
+
+    item_smoke = subparsers.add_parser(
+        "integration-item-smoke-run",
+        help="Execute one read-only Fabric item identity/authorization smoke and retain a partial manifest",
+    )
+    item_smoke.add_argument("--config", required=True)
+    item_smoke.add_argument("--spec", required=True)
+    item_smoke.add_argument("--check-id", required=True)
+    item_smoke.add_argument("--evidence-reference", required=True)
+    item_smoke.add_argument("--output", required=True)
 
     onboarding = subparsers.add_parser(
         "capture-onboarding-validate",
@@ -243,6 +298,80 @@ def main(argv: list[str] | None = None) -> int:
                 f"manifest_hash={manifest.manifest_hash} "
                 f"certified={str(manifest.certified).lower()}"
             )
+            return 0
+
+        if args.command == "integration-run-preflight":
+            config = load_approved_integration_runner_config(args.config)
+            spec = load_integration_evidence_spec(args.spec)
+            plan = build_approved_integration_run_plan(
+                config,
+                spec,
+                environ=os.environ,
+                selected_check_ids=args.check_id,
+                allow_mutating_checks=args.allow_mutating_checks,
+            )
+            _write_or_print_json(plan, args.output)
+            if args.require_ready and not plan.ready:
+                reasons = []
+                if plan.missing_runtime_env_vars:
+                    reasons.append(
+                        "missing runtime env vars=" + ",".join(plan.missing_runtime_env_vars)
+                    )
+                if plan.mutating_check_ids and not plan.mutating_checks_authorized:
+                    reasons.append("mutating checks not explicitly authorized")
+                raise ValueError("integration run preflight is not ready: " + "; ".join(reasons))
+            return 0
+
+        if args.command == "integration-item-smoke-run":
+            config = load_approved_integration_runner_config(args.config)
+            spec = load_integration_evidence_spec(args.spec)
+            plan = build_approved_integration_run_plan(
+                config,
+                spec,
+                environ=os.environ,
+                selected_check_ids=(args.check_id,),
+                allow_mutating_checks=False,
+            )
+            if not plan.ready:
+                raise ValueError(
+                    "read-only item smoke preflight is not ready; missing runtime env vars="
+                    + ",".join(plan.missing_runtime_env_vars)
+                )
+            check_by_id = {item.check_id: item for item in spec.checks}
+            check = check_by_id[args.check_id]
+            if check.kind is not IntegrationEvidenceCheckKind.FABRIC_ITEM_READ:
+                raise ValueError("integration-item-smoke-run requires FABRIC_ITEM_READ check kind")
+            if len(plan.bindings) != 1:
+                raise ValueError("read-only item smoke requires exactly one physical binding")
+            binding = plan.bindings[0]
+            if binding.workspace_id is None or binding.item_id is None:
+                raise ValueError("read-only item smoke binding is incomplete")
+            client = FabricRestClient(
+                token_provider=EnvironmentAccessTokenProvider(
+                    env_var=config.fabric_access_token_env_var
+                )
+            )
+            manifest = run_integration_evidence(
+                spec,
+                runners={
+                    args.check_id: lambda: run_fabric_item_read_check(
+                        client=client,
+                        check_id=args.check_id,
+                        workspace_id=binding.workspace_id,
+                        item_id=binding.item_id,
+                        evidence_references=(args.evidence_reference,),
+                    )
+                },
+            )
+            write_integration_evidence_manifest(manifest, args.output)
+            result = next(item for item in manifest.results if item.check_id == args.check_id)
+            print(
+                f"integration_evidence_id={manifest.evidence_id} "
+                f"check_id={result.check_id} status={result.status.value} "
+                f"manifest_hash={manifest.manifest_hash}"
+            )
+            if result.status is not IntegrationEvidenceStatus.PASS:
+                raise ValueError("read-only Fabric item smoke did not PASS")
             return 0
 
         if args.command == "capture-onboarding-validate":
