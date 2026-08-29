@@ -286,7 +286,7 @@ def test_copy_job_failed_remote_status_never_calls_success_observer_or_returns_r
     transport = FabricCopyJobCaptureTransport(
         client=client,
         binding_resolver=lambda _: binding,
-        observation_resolver=lambda request, job: observed.append((request, job)),
+        observation_resolver=lambda capture_request, job: observed.append((capture_request, job)),
     )
 
     with pytest.raises(FabricAdapterExecutionError, match="FAILED"):
@@ -296,14 +296,14 @@ def test_copy_job_failed_remote_status_never_calls_success_observer_or_returns_r
 
 
 @pytest.mark.parametrize(
-    "request",
+    "capture_request",
     [
         _copy_request(progress_owner=ProgressOwner.FRAMEWORK),
         _copy_request(source_lower_bound=100),
         _copy_request(parameters={"lower": 100}),
     ],
 )
-def test_copy_job_rejects_framework_owned_runtime_progress_inputs(request):
+def test_copy_job_rejects_framework_owned_runtime_progress_inputs(capture_request):
     binding = FabricCopyJobBinding(workspace_id=uuid4(), copy_job_id=uuid4())
     client = _StubClient(_job(item_id=binding.copy_job_id))
     transport = FabricCopyJobCaptureTransport(
@@ -317,7 +317,7 @@ def test_copy_job_rejects_framework_owned_runtime_progress_inputs(request):
     )
 
     with pytest.raises(ValueError):
-        transport.invoke_capture(request)
+        transport.invoke_capture(capture_request)
 
     assert client.copy_calls == []
 
