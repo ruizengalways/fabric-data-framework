@@ -1,7 +1,7 @@
 # Domain Extension Model — fabric-data-framework
 
-Status: Canonical design
-Last updated: 2026-08-28
+Status: Canonical design  
+Last updated: 2026-08-30
 
 ## Purpose
 
@@ -39,15 +39,73 @@ The domain release identity therefore versions both ordinary metadata and any ex
 
 ## Bounded extension contracts
 
-Initial extension families may include:
+Initial extension families include:
 
 - capture adapter — unusual source protocol or custom micro-batch acquisition;
 - parser/normalizer — irregular binary/text/semi-structured format;
 - batch transform — domain-specific transformation before standard apply;
 - DQ rule provider — domain/business validation rules;
-- specialized apply adapter — only when no standard APPEND/REPLACE/UPSERT/SCD strategy is sufficient.
+- specialized apply adapter — only when no standard APPEND/REPLACE/UPSERT/SCD strategy is sufficient;
+- capture observer — item-specific post-run facts required to turn provider completion into framework capture evidence;
+- Spark execution-data resolver — translation of already-frozen framework bounds/parameters into one Spark Job Definition `executionData` contract.
 
-Each extension receives a typed immutable execution context and typed landing/batch reference. It returns typed data/evidence rather than controlling the entire run lifecycle.
+Each extension receives typed immutable framework/provider inputs and returns typed data/evidence. It does not control the entire run lifecycle.
+
+## Approved capture evidence extensions
+
+Two dedicated entry-point groups are stable framework contracts:
+
+```text
+fabric_data_framework.capture_observers
+fabric_data_framework.spark_execution_data
+```
+
+A customer package can register implementations such as:
+
+```toml
+[project.entry-points."fabric_data_framework.capture_observers"]
+"crm.customer.copy-observer" = "fabric_customer.observers:observe_customer_copy"
+"crm.customer.spark-observer" = "fabric_customer.observers:observe_customer_spark"
+
+[project.entry-points."fabric_data_framework.spark_execution_data"]
+"crm.customer.spark-execution-data" = "fabric_customer.spark:customer_execution_data"
+```
+
+The capture observer contract is:
+
+```python
+(request: FabricCaptureRequest, job: FabricJobInstance) -> FabricCaptureObservation
+```
+
+The Spark execution-data contract is:
+
+```python
+(request: FabricCaptureRequest, binding: FabricSparkJobDefinitionBinding)
+    -> Mapping[str, object] | None
+```
+
+These extensions fill provider/item-specific gaps only. The framework still owns:
+
+```text
+exact-release/prerequisite validation
+physical item binding
+explicit mutation authorization
+REST invocation semantics
+one-shot capture execution
+FabricNativeRunEvidence validation
+CaptureReceipt construction
+provider/native correlation validation
+retained evidence safety
+PASS/FAIL decision
+```
+
+For approved evidence, the customer extension wheel or source artifact used by the run must be fingerprinted in `ReleaseManifest.artifact_sha256`. A logical extension name without exact artifact provenance is insufficient.
+
+Canonical runbook:
+
+```text
+docs/APPROVED_CAPTURE_EVIDENCE.md
+```
 
 ## Framework-owned boundaries that extensions cannot bypass
 
@@ -61,13 +119,18 @@ Custom code may not directly own or override:
 - release/config provenance;
 - production secret resolution;
 - undeclared target publication;
-- semantic strategy changes at runtime.
+- semantic strategy changes at runtime;
+- approved evidence status or certification level.
 
 Where custom code performs a physical write, it must do so through a declared extension contract that returns publication evidence to the framework and participates in the same recovery/idempotency model.
 
+A capture observer is specifically **not** allowed to claim success independently. Its output still passes through the concrete transport and `FabricCaptureAdapter` validation before a `CaptureReceipt` exists.
+
 ## Failure behavior
 
-Extensions must fail explicitly with categorized framework exceptions/evidence. They must not silently skip malformed records or mutate target/state before the framework can determine whether the operation is retryable or recoverable.
+Extensions must fail explicitly. They must not silently skip malformed records or mutate target/state before the framework can determine whether the operation is retryable or recoverable.
+
+For approved capture evidence, observer exceptions after provider `Completed` are retained as correlated FAIL evidence when the native job identity is available. They are never promoted to PASS.
 
 ## Why this is preferred over framework edits
 
@@ -80,6 +143,9 @@ standard dataset
 standard dataset + business rules
   -> metadata + domain DQ/mapping
 
+provider/item-specific observation
+  -> metadata/run config + registered customer observer extension
+
 true exception
   -> metadata + registered domain extension
 
@@ -88,3 +154,19 @@ new reusable industry-wide pattern
 ```
 
 Only the last case changes `fabric-data-framework` itself.
+
+The development model is therefore:
+
+```text
+fabric-data-framework
+  -> immutable framework wheel
+
+fabric-customer
+  -> editable source
+  -> metadata/config
+  -> bounded extension implementation
+  -> customer extension wheel/source artifact
+
+exact release manifest
+  -> fingerprints both artifacts used by approved execution
+```
