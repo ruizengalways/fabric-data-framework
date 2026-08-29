@@ -12,13 +12,17 @@ import os
 import sys
 
 from . import cli as legacy_cli
+from .approved_capture_runner import (
+    execute_approved_capture,
+    load_approved_capture_run_config,
+)
 from .approved_control_plane_runner import (
     execute_approved_control_plane_certification,
     write_control_plane_certification_report,
 )
 from .approved_pipeline_runner import execute_approved_pipeline
 from .control_plane_certification import ControlPlaneExternalEvidence
-from .delivery import load_dataset_configs, load_release_manifest
+from .delivery import load_dataset_configs, load_release_manifest, write_json_model
 from .integration_evidence import (
     IntegrationEvidenceStatus,
     load_integration_evidence_manifest,
@@ -114,6 +118,47 @@ def _pipeline_parser() -> argparse.ArgumentParser:
         "--allow-pipeline-execution",
         action="store_true",
         help="Explicitly authorize the remote Pipeline execution mutation.",
+    )
+    return parser
+
+
+def _capture_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="fabric-framework integration-capture-run"
+    )
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--spec", required=True)
+    parser.add_argument(
+        "--prerequisite-manifest",
+        required=True,
+        help=(
+            "Exact-spec merged manifest containing PASS read-only item and control-plane "
+            "certification prerequisites while the selected capture check remains NOT_RUN."
+        ),
+    )
+    parser.add_argument("--release-manifest", required=True)
+    parser.add_argument("--config-dir", required=True)
+    parser.add_argument(
+        "--capture-config",
+        required=True,
+        help=(
+            "Credential-free exact-run recipe containing dataset, landing, bounded source "
+            "position and logical observer/execution-data extension names."
+        ),
+    )
+    parser.add_argument(
+        "--evidence-reference",
+        action="append",
+        required=True,
+        dest="evidence_references",
+        help="Durable retained capture/provider evidence reference; repeat if needed.",
+    )
+    parser.add_argument("--report-output", required=True)
+    parser.add_argument("--output", required=True, help="Partial integration manifest output.")
+    parser.add_argument(
+        "--allow-capture-execution",
+        action="store_true",
+        help="Explicitly authorize the remote Copy Job or Spark capture mutation.",
     )
     return parser
 
@@ -221,6 +266,51 @@ def _run_pipeline(argv: list[str]) -> int:
         return 2
 
 
+def _run_capture(argv: list[str]) -> int:
+    args = _capture_parser().parse_args(argv)
+    try:
+        config = load_approved_integration_runner_config(args.config)
+        spec = load_integration_evidence_spec(args.spec)
+        prerequisite_manifest = load_integration_evidence_manifest(
+            args.prerequisite_manifest
+        )
+        release_manifest = load_release_manifest(args.release_manifest)
+        configs = load_dataset_configs(args.config_dir)
+        capture_config = load_approved_capture_run_config(args.capture_config)
+        execution = execute_approved_capture(
+            config=config,
+            spec=spec,
+            prerequisite_manifest=prerequisite_manifest,
+            release_manifest=release_manifest,
+            configs=configs,
+            capture_config=capture_config,
+            environ=os.environ,
+            evidence_references=tuple(args.evidence_references),
+            allow_capture_execution=args.allow_capture_execution,
+        )
+        if execution.report is not None:
+            write_json_model(execution.report, args.report_output)
+        write_integration_evidence_manifest(execution.manifest, args.output)
+        result = next(
+            item
+            for item in execution.manifest.results
+            if item.check_id == capture_config.check_id
+        )
+        print(
+            f"integration_evidence_id={execution.manifest.evidence_id} "
+            f"check_id={result.check_id} status={result.status.value} "
+            f"manifest_hash={execution.manifest.manifest_hash}"
+        )
+        if result.status is not IntegrationEvidenceStatus.PASS:
+            raise ValueError("approved capture execution check did not PASS")
+        if execution.report is None:
+            raise ValueError("approved capture PASS did not produce a retained safe report")
+        return 0
+    except (KeyError, ValueError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     effective_argv = list(sys.argv[1:] if argv is None else argv)
     if effective_argv and effective_argv[0] == "integration-evidence-merge":
@@ -229,6 +319,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_control_plane_certification(effective_argv[1:])
     if effective_argv and effective_argv[0] == "integration-pipeline-run":
         return _run_pipeline(effective_argv[1:])
+    if effective_argv and effective_argv[0] == "integration-capture-run":
+        return _run_capture(effective_argv[1:])
     return legacy_cli.main(effective_argv)
 
 
