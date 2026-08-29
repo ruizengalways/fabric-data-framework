@@ -301,6 +301,16 @@ class FabricRestClient:
             retry_after_seconds=_retry_after(headers),
         )
 
+    @staticmethod
+    def _validate_wait_settings(
+        timeout_seconds: float,
+        default_poll_seconds: float,
+    ) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        if default_poll_seconds < 0:
+            raise ValueError("default_poll_seconds must be >= 0")
+
     def run_item_job(
         self,
         *,
@@ -425,10 +435,7 @@ class FabricRestClient:
         default_poll_seconds: float,
         copy_job: bool,
     ) -> FabricJobInstance:
-        if timeout_seconds <= 0:
-            raise ValueError("timeout_seconds must be positive")
-        if default_poll_seconds < 0:
-            raise ValueError("default_poll_seconds must be >= 0")
+        self._validate_wait_settings(timeout_seconds, default_poll_seconds)
         deadline = self._clock() + timeout_seconds
         delay = (
             float(started.retry_after_seconds)
@@ -474,6 +481,7 @@ class FabricRestClient:
         timeout_seconds: float = 3600.0,
         default_poll_seconds: float = 5.0,
     ) -> FabricJobInstance:
+        self._validate_wait_settings(timeout_seconds, default_poll_seconds)
         started = self.run_item_job(
             workspace_id=workspace_id,
             item_id=item_id,
@@ -498,6 +506,7 @@ class FabricRestClient:
         timeout_seconds: float = 3600.0,
         default_poll_seconds: float = 5.0,
     ) -> FabricJobInstance:
+        self._validate_wait_settings(timeout_seconds, default_poll_seconds)
         started = self.run_copy_job(
             workspace_id=workspace_id,
             copy_job_id=copy_job_id,
@@ -520,6 +529,7 @@ class FabricRestClient:
         timeout_seconds: float = 3600.0,
         default_poll_seconds: float = 5.0,
     ) -> FabricJobInstance:
+        self._validate_wait_settings(timeout_seconds, default_poll_seconds)
         started = self.run_spark_job_definition(
             workspace_id=workspace_id,
             spark_job_definition_id=spark_job_definition_id,
