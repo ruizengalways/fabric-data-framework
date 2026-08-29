@@ -29,6 +29,8 @@ Copy Job REST capture transport               IMPLEMENTED / CI PROVEN transport 
 Spark Job Definition capture transport        IMPLEMENTED / CI PROVEN transport contract
 Fabric Warehouse target commit proof          IMPLEMENTED / CI PROVEN provider contract
 Approved-environment evidence harness         IMPLEMENTED / CI PROVEN contract
+Approved-run preflight                        IMPLEMENTED / CI PROVEN contract
+Read-only Fabric item smoke runner            IMPLEMENTED / CI PROVEN runner contract
 Real approved DEV Fabric execution            NOT YET PROVEN
 Real production SQL backend                   NOT YET PROVEN
 External enterprise controls                  EXTERNAL / NOT PROVEN BY THIS REPO
@@ -37,16 +39,20 @@ External enterprise controls                  EXTERNAL / NOT PROVEN BY THIS REPO
 Latest validated merged implementation:
 
 ```text
-732920e214ccdead20c632f7e70c0eb8f1267f0d
-PR #30 validation: GitHub Actions 33250676068
-395 tests
+e42dee86db3d4102c7264bc0d1f01f83fb8aade2
+PR #32 validation: GitHub Actions 33251177339
+407 tests
 Python 3.11 + 3.13 + wheel/static checks green
-Approved DEV integration evidence harness + native capture evidence retention
+Approved DEV exact-release preflight + staged read-only Fabric item smoke runner
 ```
 
-Previous provider/runtime baselines:
+Previous evidence/provider baselines:
 
 ```text
+PR #30 -> 732920e214ccdead20c632f7e70c0eb8f1267f0d
+395 tests
+approved DEV integration evidence harness + native capture evidence retention
+
 PR #28 -> 67562e4312dc9c37e8b7fb8d79535bb621bd573f
 372 tests
 Fabric Warehouse target mutation + atomic marker proof + durable journal reconciliation
@@ -85,57 +91,84 @@ SQLAlchemy runtime repository + durable Fabric child/parent outcome handoff
 | Warehouse target mutation + marker same transaction | Yes | Reference transaction proof | No real Warehouse transaction | IMPLEMENTED/CI PROVEN provider contract |
 | UNKNOWN journal + committed Warehouse marker -> SUCCEEDED | Yes | Yes | No real Warehouse | IMPLEMENTED/CI PROVEN integration |
 | Ephemeral Fabric token-provider boundary | Yes | Yes | No approved tenant identity run | IMPLEMENTED/CI PROVEN contract |
-| Read-only Fabric item identity smoke | Yes | Deterministic HTTP contract | No live workspace/item | IMPLEMENTED/CI PROVEN contract |
 | Integration evidence spec/manifest/hash | Yes | Yes | No retained real bundle | IMPLEMENTED/CI PROVEN contract |
 | Secret-bearing retained evidence rejection | Yes | Yes | N/A | IMPLEMENTED/CI PROVEN guardrail |
 | Exact release/env/check evidence validation | Yes | Yes | No real bundle | IMPLEMENTED/CI PROVEN contract |
+| Exact-release approved runner config | Yes | Yes | No real tenant config exercised | IMPLEMENTED/CI PROVEN contract |
+| Runtime-secret presence-only preflight | Yes | Yes | No real env run | IMPLEMENTED/CI PROVEN guardrail |
+| Mutating-check explicit authorization gate | Yes | Yes | N/A | IMPLEMENTED/CI PROVEN guardrail |
+| Staged read-only item preflight | Yes | Yes | No live workspace/item | IMPLEMENTED/CI PROVEN contract |
+| Read-only item smoke CLI + partial manifest | Yes | Fake HTTP provider proof | No live workspace/item | IMPLEMENTED/CI PROVEN runner contract |
 | CLI `--require-certified` evidence gate | Yes | Yes | No real bundle | IMPLEMENTED/CI PROVEN contract |
-| Approved DEV end-to-end execution | Harness ready | No provider execution | No | P0 REAL-EVIDENCE GAP |
+| Approved DEV end-to-end execution | Runner/harness ready | No provider execution | No | P0 REAL-EVIDENCE GAP |
 
-## Approved DEV evidence readiness
+## Approved DEV runner readiness
 
 Canonical runbook: `docs/DEV_INTEGRATION_EVIDENCE.md`.
 
-PR #30 closes the portable evidence-harness gap. A real evidence run is bound to the exact:
+PR #32 adds `ApprovedIntegrationRunnerConfig` and `ApprovedIntegrationRunPlan` so source control contains only exact release identity, check IDs, workspace/item UUIDs, profile names and **environment-variable names**. Runtime token/database values are inspected only for presence and are never serialized into the plan.
+
+Preflight enforces:
 
 ```text
-evidence schema version
-environment
-domain
-framework version
-release_hash
-required/optional check specification
+config/spec environment match
+config/spec domain match
+config/spec framework version match
+config/spec release_hash match
+selected check IDs declared in spec
+Fabric checks have explicit workspace/item bindings
+bindings do not reference undeclared checks
+required runtime values exist
+mutating checks explicitly authorized
 ```
 
-Required checks certify only on `PASS`. Missing runners become `NOT_RUN`; runner exceptions become sanitized `FAIL`; undeclared runner IDs fail closed.
-
-Retained result types can carry only sanitized correlation/reference evidence. The framework rejects obvious bearer/authorization/token/password/client-secret/signed-URL/URI-user-info material.
-
-The intended real DEV order is:
+The runner supports staged subsets. Therefore the first enterprise step can be only:
 
 ```text
-read-only Fabric item authorization smoke
+fabric.item.read
+```
+
+without requiring control-plane/Warehouse DB credentials and without authorizing mutating checks.
+
+PR #32 also adds the first live-capable CLI path:
+
+```text
+integration-item-smoke-run
+```
+
+It performs the current read-only Fabric item GET, verifies returned item identity, and writes a partial `IntegrationEvidenceManifest`. Other required checks remain `NOT_RUN`, so one successful item read cannot accidentally certify the release.
+
+Provider/identity errors are retained only as sanitized FAIL evidence. The runtime access token is not written to the plan or manifest.
+
+Correct label: `IMPLEMENTED + CI PROVEN APPROVED-RUN PREFLIGHT / READ-ONLY RUNNER CONTRACT`, not `FABRIC PROVEN`.
+
+## Approved DEV evidence readiness
+
+PR #30 provides the exact-release evidence spec/result/manifest layer. Required checks certify only on `PASS`; missing runners become `NOT_RUN`, runner exceptions become sanitized `FAIL`, and undeclared runner IDs fail closed.
+
+The intended real DEV order is now:
+
+```text
+exact-release runner config + evidence spec
+  -> staged read-only preflight
+  -> live item authorization smoke
   -> real control-plane certification
   -> real Pipeline handoff
   -> real Copy Job capture
   -> real bounded Spark capture
   -> real Warehouse target + marker
   -> required failure drills
-  -> IntegrationEvidenceManifest
+  -> complete IntegrationEvidenceManifest
   -> integration-evidence-validate --require-certified
 ```
 
-The read-only smoke validates the returned item identity; HTTP 200 alone is insufficient.
+Pipeline evidence requires framework run/dataset IDs and native workspace/item/job/root correlation and does not replace the Pipeline backend's semantic outcome requirement.
 
-Pipeline evidence requires framework run/dataset IDs and native workspace/item/job/root correlation. It does not replace the Pipeline backend's semantic outcome requirement.
-
-Copy/Spark use `execute_with_evidence()` so the same provider invocation yields both verified `CaptureReceipt` and native diagnostics; the evidence builder requires successful native evidence, receipt/native identity agreement, remote `Completed` and root activity correlation.
+Copy/Spark use `execute_with_evidence()` so one provider invocation yields both verified `CaptureReceipt` and native diagnostics.
 
 Warehouse evidence is based on the same-transaction operation marker, not Query Insights history.
 
 Control-plane evidence reuses the existing certification report rather than inventing a second database certification path.
-
-Correct label: `IMPLEMENTED + CI PROVEN EVIDENCE HARNESS CONTRACT`, not `FABRIC PROVEN`.
 
 ## Fabric Warehouse target commit readiness
 
@@ -193,13 +226,15 @@ Portable runtime and certification code now exist. The remaining control-plane g
 
 ### P0 real approved DEV execution
 
-1. bind the exact release hash to real DEV workspace/item IDs and the chosen control-plane backend through environment-local runtime configuration;
-2. authenticate using the enterprise-approved user/service-principal/managed-identity path without persisting credentials;
-3. pass the read-only Fabric item identity smoke;
-4. execute representative real Pipeline, Copy Job and bounded Spark paths and retain framework/native correlation;
-5. execute real Warehouse mutation + marker transaction;
-6. run the approved failure drills and retain provider errors/retry/ambiguous-outcome evidence;
-7. assemble a sanitized `IntegrationEvidenceManifest` and pass the exact `--require-certified` gate.
+1. replace placeholder release hash and UUIDs in a DEV runner config with the exact candidate release and real DEV items;
+2. authenticate through the enterprise-approved identity path without persisting credentials;
+3. run staged read-only preflight and pass the real Fabric item identity smoke;
+4. accumulate the resulting partial evidence without rerunning already-proven checks;
+5. run real control-plane certification through runtime-only database credentials;
+6. execute representative real Pipeline, Copy Job and bounded Spark paths and retain framework/native correlation;
+7. execute real Warehouse mutation + marker transaction;
+8. run the approved failure drills and retain provider errors/retry/ambiguous-outcome evidence;
+9. assemble a sanitized complete `IntegrationEvidenceManifest` and pass the exact `--require-certified` gate.
 
 ### P0 real control-plane / enterprise evidence
 
@@ -223,4 +258,4 @@ Capacity/SKU/throttling, tenant settings, workspace/domain provisioning, Entra/R
 
 ## Release gate
 
-Current decision: **release remains blocked. PR #30 closes the portable approved-environment evidence-harness gap. The next gate is no longer another generic framework abstraction: it is exact-release approved DEV service execution, failure drills, real SQL backend certification and retained enterprise evidence.**
+Current decision: **release remains blocked. PR #32 closes the environment-facing preflight and safe first-call runner gap. The next gate is actual exact-release DEV evidence: live item authorization first, then real SQL certification and explicitly authorized provider executions/failure drills.**

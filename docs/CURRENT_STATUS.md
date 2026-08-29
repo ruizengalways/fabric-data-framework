@@ -39,12 +39,16 @@ Fabric Warehouse target-native atomic commit proof
 
 PR #30 -> 732920e214ccdead20c632f7e70c0eb8f1267f0d
 approved DEV integration evidence harness
-GitHub Actions 33250676068
 395 tests
+
+PR #32 -> e42dee86db3d4102c7264bc0d1f01f83fb8aade2
+approved DEV runner preflight + read-only Fabric item smoke runner
+GitHub Actions 33251177339
+407 tests
 Python 3.11 + 3.13 + static + wheel SUCCESS
 ```
 
-The reusable portable implementation now covers the full execution/recovery chain and the evidence machinery needed to prove it in an approved environment. The main release blocker has therefore shifted from missing framework abstractions to **real approved DEV execution, failure drills, real SQL backend certification and retained external enterprise evidence**.
+The reusable portable implementation now covers the execution/recovery chain, concrete Fabric transports, target-side commit proof, retained evidence contracts, and a safe first live-call path for an enterprise DEV tenant. The main release blocker is now **real approved DEV execution, failure drills, real SQL backend certification and retained external enterprise evidence**, not another generic framework abstraction.
 
 ## Core framework flow
 
@@ -64,22 +68,22 @@ source fidelity classification
 
 **Capture fidelity is an upper bound on history fidelity.** Provider-native progress never silently becomes framework downstream state.
 
-## Approved DEV evidence harness
-
-PR #30 implements a credential-free, fail-closed evidence layer for running the already-implemented provider/runtime contracts in a real approved environment.
+## Approved DEV evidence harness and runner
 
 Canonical runbook: `DEV_INTEGRATION_EVIDENCE.md`.
 
+PR #30 implements the credential-free evidence spec/result/manifest layer. PR #32 adds the environment-facing preflight and the first actual provider-call command that is safe to run before mutating checks.
+
 ### Authentication boundary
 
-The framework now provides:
+The framework provides:
 
 ```text
 EnvironmentAccessTokenProvider
 AzureIdentityTokenProvider
 ```
 
-Both are adapters into the existing `FabricRestClient` token-provider boundary. Tokens are acquired at call time and are not serialized into framework artifacts. The core framework does not hard-depend on or configure `azure-identity`; the deployment environment chooses the approved credential mechanism.
+Both adapt into the existing `FabricRestClient` token-provider boundary. Tokens are acquired at call time and are not serialized into framework artifacts. The core package does not hard-depend on or configure `azure-identity`; the deployment environment chooses the approved credential mechanism.
 
 ### Evidence spec and manifest
 
@@ -105,9 +109,88 @@ NOT_RUN           -> blocks certification when required
 EXTERNAL_REQUIRED -> blocks certification when required
 ```
 
-Missing runners become `NOT_RUN`. Runner exceptions become sanitized `FAIL` records without copying raw provider/driver exception messages, because such messages can contain credentials or signed URLs. Runner IDs not declared in the spec are rejected instead of silently ignored.
+Missing runners become `NOT_RUN`. Runner exceptions become sanitized `FAIL` records without copying raw provider/driver exception messages. Runner IDs not declared in the spec are rejected rather than silently ignored.
 
-The evidence validator rejects obvious credential-bearing material including bearer/authorization text, token/password/client-secret fields, signed URL query parameters and URI user-info credentials.
+The retained-evidence validator rejects obvious credential-bearing material including bearer/authorization text, token/password/client-secret fields, signed URL query parameters and URI user-info credentials.
+
+### ApprovedIntegrationRunnerConfig
+
+PR #32 adds a source-controlled, credential-free runner configuration containing only:
+
+```text
+environment
+domain
+framework_version
+exact release_hash
+names of runtime environment variables
+control-plane profile name
+workspace/item UUID bindings by evidence check_id
+```
+
+Example:
+
+```text
+examples/dev_integration_runner_config.json
+```
+
+The actual token and database URLs remain runtime-only environment values. Preflight checks only whether those values are present/non-empty; it never copies the values into its retained plan.
+
+### Credential-free preflight
+
+CLI:
+
+```bash
+fabric-framework integration-run-preflight \
+  --config dev-integration-runner.json \
+  --spec evidence-spec.json \
+  --require-ready \
+  --output evidence/preflight.json
+```
+
+By default all required checks are planned. Mutating checks are not authorized by default. The preflight classifies Pipeline/Copy/Spark/Warehouse/control-plane conformance/Kafka/Delta checks as mutating and requires an explicit `--allow-mutating-checks` before such a plan can be ready.
+
+Preflight supports a staged subset with repeatable `--check-id`. This makes the safe first stage:
+
+```bash
+fabric-framework integration-run-preflight \
+  --config dev-integration-runner.json \
+  --spec evidence-spec.json \
+  --check-id fabric.item.read \
+  --require-ready \
+  --output evidence/preflight-item-read.json
+```
+
+That stage needs only the configured Fabric token env var and the selected workspace/item binding. It does not require control-plane or Warehouse credentials.
+
+### Read-only first live call
+
+PR #32 adds:
+
+```bash
+fabric-framework integration-item-smoke-run \
+  --config dev-integration-runner.json \
+  --spec evidence-spec.json \
+  --check-id fabric.item.read \
+  --evidence-reference <retained-artifact-key> \
+  --output evidence/item-read-manifest.json
+```
+
+Execution contract:
+
+```text
+exact config/spec environment/domain/framework/release validation
+  -> staged read-only preflight
+  -> runtime-only token lookup
+  -> GET /v1/workspaces/{workspaceId}/items/{itemId}
+  -> returned item ID must equal configured item ID
+  -> selected check PASS or sanitized FAIL
+  -> every other spec check remains NOT_RUN
+  -> partial IntegrationEvidenceManifest retained
+```
+
+A successful item smoke is intentionally **not** a fully certified manifest while other required checks remain `NOT_RUN`.
+
+CI uses deterministic fake HTTP responses, so this runner is `IMPLEMENTED + CI PROVEN READ-ONLY RUNNER CONTRACT`, not live Fabric evidence.
 
 ### Concrete DEV evidence builders
 
@@ -122,11 +205,9 @@ FABRIC_WAREHOUSE_TARGET_COMMIT
 CONTROL_PLANE_CERTIFICATION
 ```
 
-Optional evidence kinds also exist for Kafka and Delta CDF when those providers are in release scope.
+Optional evidence kinds exist for Kafka and Delta CDF when those providers are in release scope.
 
-The minimum Fabric identity smoke is a read-only item GET. PASS verifies the returned item identity; HTTP 200 alone is insufficient.
-
-Pipeline PASS requires provider `Completed`, matching item/job type, framework pipeline/dataset IDs, native job ID, root activity ID and retained evidence reference. It does **not** weaken the existing rule that Fabric `Completed` is not framework semantic success; the exact durable framework dataset outcome remains required by the Pipeline backend.
+Pipeline PASS requires provider `Completed`, matching item/job type, framework pipeline/dataset IDs, native job ID, root activity ID and retained evidence reference. It does not weaken the existing rule that Fabric `Completed` is not framework semantic success; the exact durable framework dataset outcome remains required by the Pipeline backend.
 
 Copy/Spark approved evidence uses:
 
@@ -134,23 +215,13 @@ Copy/Spark approved evidence uses:
 adapter.execute_with_evidence(request)
 ```
 
-which invokes the provider exactly once and returns both:
-
-```text
-FabricCaptureExecutionResult
-  receipt          -> verified CaptureReceipt
-  native_evidence  -> workspace/item/job/root/status diagnostics
-```
-
-The evidence builder verifies native success, execution-kind/receipt-engine consistency, job identity consistency, provider `Completed` and root correlation before it can produce PASS.
+which invokes the provider exactly once and returns both the verified `CaptureReceipt` and native workspace/item/job/root/status evidence.
 
 Warehouse evidence uses the same-transaction target operation marker from PR #28 as primary commit proof.
 
 Control-plane evidence projects the existing `ControlPlaneCertificationReport`; the harness does not duplicate transaction rollback/CAS certification logic.
 
 ### Retained evidence gate
-
-The CLI now supports:
 
 ```bash
 fabric-framework integration-evidence-validate \
@@ -161,21 +232,14 @@ fabric-framework integration-evidence-validate \
 
 The command fails unless schema/environment/domain/framework/release hash/check specification match exactly and every required check is PASS.
 
-A schema-valid example is retained at:
+Correct current labels:
 
 ```text
-examples/dev_integration_evidence_spec.json
+PR #30  IMPLEMENTED + CI PROVEN EVIDENCE HARNESS CONTRACT
+PR #32  IMPLEMENTED + CI PROVEN APPROVED-RUN PREFLIGHT / READ-ONLY RUNNER CONTRACT
 ```
 
-Its placeholder release hash must be replaced by the real immutable release hash for a real run.
-
-Correct evidence label for PR #30:
-
-```text
-IMPLEMENTED + CI PROVEN EVIDENCE HARNESS CONTRACT
-```
-
-not `FABRIC PROVEN`.
+Neither is `FABRIC PROVEN` yet.
 
 ## Target-operation / exactly-once recovery model
 
@@ -229,7 +293,7 @@ marker absent              -> UNRESOLVED
 marker absent + independently certified no-late-commit proof -> NOT_COMMITTED
 ```
 
-Warehouse Query Insights / query labels remain secondary diagnostics only because historical visibility can lag.
+Warehouse Query Insights / query labels remain secondary diagnostics because historical visibility can lag.
 
 CI proves the complete journal handoff:
 
@@ -317,6 +381,8 @@ Current `main` includes:
 - concrete Copy Job and Spark Job Definition capture transports;
 - Fabric Warehouse atomic target mutation/marker proof contract;
 - credential-safe approved-environment evidence spec/runner/manifest/gate;
+- exact-release approved-run preflight with runtime-only secret names;
+- staged read-only Fabric item smoke runner producing a partial sanitized manifest;
 - immutable release/delivery contracts.
 
 ## Evidence boundary
@@ -343,16 +409,16 @@ Never upgrade CI/reference evidence to `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN
 
 ## Exact next implementation / execution sequence
 
-The portable framework is now sufficiently broad that the next P0 should be evidence-driven rather than another abstraction layer:
-
-1. create an environment-facing DEV runner/configuration entry point that binds the exact release hash to DEV workspace/item IDs and runtime-only credential/database inputs without putting secrets in source-controlled artifacts;
-2. run the read-only Fabric item authorization smoke under the approved enterprise identity;
-3. run control-plane certification against the chosen real Fabric SQL Database or Azure SQL Database instance and retain the report plus required external control references;
-4. execute representative real Pipeline, Copy Job and bounded Spark paths while retaining framework run IDs, native job/root IDs and verified capture observations;
-5. execute real Warehouse target mutation + marker transaction and an ambiguous COMMIT/network failure drill; do not approve marker-absence retry unless observed driver/session evidence supports it;
-6. assemble the exact-release DEV `IntegrationEvidenceManifest` and pass `integration-evidence-validate --require-certified`;
-7. prove Kafka/Delta only if those profiles are part of the `0.4.0` product promise;
-8. run exact-candidate code/docs/evidence audit and only then decide whether to publish `0.4.0`.
+1. run the new `integration-run-preflight --check-id fabric.item.read --require-ready` against the real exact-release DEV config;
+2. run `integration-item-smoke-run` under the approved enterprise identity and retain the partial manifest;
+3. add staged evidence accumulation/merge semantics so independently retained partial manifests can be combined for the same exact spec/release without rerunning successful real checks;
+4. add an environment-variable-driven control-plane certification runner that does not expose a database URL on CLI arguments, with explicit conformance/mutation authorization;
+5. run control-plane certification against the chosen real Fabric SQL Database or Azure SQL Database instance and retain the report plus required external control references;
+6. only after read-only and DB prerequisites pass, execute representative real Pipeline, Copy Job and bounded Spark paths while retaining framework/native correlation;
+7. execute real Warehouse target mutation + marker transaction and an ambiguous COMMIT/network failure drill; do not approve marker-absence retry unless observed driver/session evidence supports it;
+8. assemble the exact-release DEV `IntegrationEvidenceManifest` and pass `integration-evidence-validate --require-certified`;
+9. prove Kafka/Delta only if those profiles are part of the `0.4.0` product promise;
+10. run exact-candidate code/docs/evidence audit and only then decide whether to publish `0.4.0`.
 
 ## Repository boundary
 
