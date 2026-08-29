@@ -8,9 +8,9 @@ Last updated: 2026-08-29
 ```text
 latest public release = v0.3.0
 source version        = 0.4.0 development / unreleased
-latest main baseline  = 014cd334105de6f867b6320509b94147a444a2fa
-latest full CI        = Actions 33253817758
-full test baseline    = 455
+latest main baseline  = ad856d864eb5dec35f3c97ec66ca9e920cfa5e28
+latest full CI        = Actions 33254804867
+full test baseline    = 466
 ```
 
 **Do not publish `0.4.0` yet.** Portable semantics and deterministic CI are broad; the remaining release gate is retained approved real-environment evidence for the exact candidate release plus production backend/external controls.
@@ -61,9 +61,13 @@ PR #37 -> d69b2ff49f984331b6753bcd9274ea9a298ce798
 PR #39 -> 014cd334105de6f867b6320509b94147a444a2fa
   strict staged integration evidence merge + CLI/runbook
   Actions 33253817758 / 455 tests
+
+PR #41 -> ad856d864eb5dec35f3c97ec66ca9e920cfa5e28
+  approved production control-plane certification runner + CLI/runbook
+  Actions 33254804867 / 466 tests
 ```
 
-Docs checkpoints #33/#36/#38 keep recovery context synchronized between code slices.
+Docs checkpoints #33/#36/#38/#40 keep recovery context synchronized between code slices.
 
 ## 3. Governing architecture
 
@@ -249,6 +253,7 @@ Canonical runbooks:
 
 ```text
 DEV_INTEGRATION_EVIDENCE.md
+APPROVED_CONTROL_PLANE_CERTIFICATION.md
 INTEGRATION_EVIDENCE_MERGE.md
 ```
 
@@ -317,18 +322,60 @@ Correct label:
 IMPLEMENTED + CI PROVEN EVIDENCE MERGE CONTRACT
 ```
 
+### Approved control-plane certification runner
+
+PR #41 adds:
+
+```bash
+fabric-framework integration-control-plane-certify-run \
+  --config dev-integration-runner.json \
+  --spec evidence-spec.json \
+  --check-id control-plane.certify \
+  --external-evidence evidence/control-plane-external.json \
+  --evidence-reference artifact:control-plane-certification \
+  --report-output evidence/control-plane-certification-report.json \
+  --output evidence/control-plane-partial.json \
+  --allow-conformance-writes
+```
+
+Execution contract:
+
+```text
+exact config/spec environment/domain/framework/release match
+  -> selected check must be CONTROL_PLANE_CERTIFICATION
+  -> runtime DB env-var presence preflight
+  -> explicit conformance-write authorization
+  -> production-eligible backend profile
+  -> complete external control references
+  -> read runtime DB URL value from configured env var
+  -> existing certify_control_plane_backend(run_conformance=True)
+  -> reject credential-like report text before retention
+  -> project report through existing integration evidence builder
+  -> partial IntegrationEvidenceManifest
+```
+
+The runner does not migrate schema. Database/driver exceptions occur inside `run_integration_evidence`, so raw provider exception text is replaced by a sanitized exception-type failure. A report is retained only after safety validation.
+
+Correct current label:
+
+```text
+IMPLEMENTED + CI PROVEN APPROVED CONTROL-PLANE CERTIFICATION RUNNER CONTRACT
+```
+
+It is not `PRODUCTION DB PROVEN` until the selected real Fabric SQL Database/Azure SQL Database has a retained exact-release PASS plus enterprise evidence.
+
 ## 11. Still unproven in retained approved infrastructure
 
 ```text
 real enterprise Entra token acquisition
 real workspace/item authorization smoke
+real Fabric SQL Database / Azure SQL Database certification PASS
 live Data Pipeline run
 live Copy Job capture + post-run observation
 live Spark Job Definition capture + post-run observation
 real Fabric Warehouse target + marker transaction
 ambiguous Warehouse COMMIT/network failure drill
 production-approved marker-absence certifier
-real Fabric SQL Database / Azure SQL Database certification
 live Kafka consumer seek/commit/rebalance if in release scope
 live Delta CDF bounded read/retention drill if in release scope
 capacity/throttling/gateway behavior
@@ -340,22 +387,19 @@ Never promote deterministic CI/reference evidence to `FABRIC PROVEN`, `FABRIC WA
 
 ## 12. Exact next implementation/execution sequence
 
-1. add an environment-variable-driven approved-run **control-plane certification runner**:
-   - selected check must come from exact runner config/spec;
-   - database URL read only from configured runtime env var;
-   - explicit conformance/mutation authorization;
-   - reuse `certify_control_plane_backend`;
-   - retain safe certification report;
-   - project result into a partial integration manifest;
-2. replace placeholder DEV release hash/item UUIDs with the exact candidate values;
-3. run staged read-only preflight and real `integration-item-smoke-run` under approved identity;
-4. run real control-plane certification against the selected Fabric SQL Database/Azure SQL Database candidate;
-5. merge retained partial manifests with `integration-evidence-merge`;
-6. only after read-only + DB prerequisites pass, explicitly authorize representative Pipeline/Copy/Spark checks;
-7. execute real Warehouse target+marker transaction and ambiguous COMMIT failure drill;
-8. assemble exact-release evidence and pass `integration-evidence-validate --require-certified`;
-9. prove Kafka/Delta live only if included in the `0.4.0` public product promise;
-10. run exact-candidate code/docs/evidence audit and only then decide whether to release `0.4.0`.
+Preferred real-evidence path when approved enterprise runtime inputs are available:
+
+1. replace placeholder DEV release hash/item UUIDs with the exact candidate values;
+2. run staged read-only preflight and real `integration-item-smoke-run` under approved identity;
+3. run real `integration-control-plane-certify-run` against the selected Fabric SQL Database/Azure SQL Database candidate;
+4. merge retained item + control-plane partial manifests with `integration-evidence-merge`;
+5. only after read-only + DB prerequisites pass, explicitly authorize representative Pipeline/Copy/Spark checks;
+6. execute real Warehouse target+marker transaction and ambiguous COMMIT failure drill;
+7. assemble exact-release evidence and pass `integration-evidence-validate --require-certified`;
+8. prove Kafka/Delta live only if included in the `0.4.0` public product promise;
+9. run exact-candidate code/docs/evidence audit and only then decide whether to release `0.4.0`.
+
+If real enterprise credentials/tenant/database are not available in the current execution context, the next reusable implementation slice is an explicitly-authorized **approved Pipeline execution runner**. It must reuse the existing Pipeline backend and durable framework dataset outcome; Fabric provider `Completed` alone must remain insufficient for PASS.
 
 ## 13. Repository boundaries
 
@@ -382,6 +426,7 @@ CURRENT_STATUS.md
 CHEATSHEET_PATTERN_ALIGNMENT.md
 PRODUCTION_READINESS_AUDIT.md
 DEV_INTEGRATION_EVIDENCE.md
+APPROVED_CONTROL_PLANE_CERTIFICATION.md
 INTEGRATION_EVIDENCE_MERGE.md
 GUARANTEE_COVERAGE.md
 PROJECT_BLUEPRINT.md
