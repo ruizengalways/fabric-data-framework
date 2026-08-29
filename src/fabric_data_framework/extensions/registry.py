@@ -17,9 +17,15 @@ class ExtensionKind(str, Enum):
     TRANSFORM = "transform"
     QUALITY = "quality"
     APPLY = "apply"
+    CAPTURE_OBSERVER = "capture_observer"
+    SPARK_EXECUTION_DATA = "spark_execution_data"
 
     @property
     def entry_point_group(self) -> str:
+        if self is ExtensionKind.CAPTURE_OBSERVER:
+            return "fabric_data_framework.capture_observers"
+        if self is ExtensionKind.SPARK_EXECUTION_DATA:
+            return "fabric_data_framework.spark_execution_data"
         return f"fabric_data_framework.{self.value}s"
 
 
