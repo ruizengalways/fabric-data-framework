@@ -1,13 +1,14 @@
 """Fail-closed Microsoft Fabric capture adapter boundary.
 
-The adapter owns provider evidence validation and CaptureReceipt creation.  The
-injected transport owns API/SDK/CLI mechanics.  A transport result is never treated
-as a successful capture merely because the remote invocation returned normally.
+The adapter owns provider evidence validation and CaptureReceipt creation. The injected
+transport owns API/SDK/CLI mechanics. A transport result is never treated as a
+successful capture merely because the remote invocation returned normally.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 from ...config import ExecutionEngine, ProgressOwner
 from ...contracts.capture_receipt import CaptureReceipt
@@ -31,6 +32,20 @@ class FabricAdapterExecutionError(RuntimeError):
     ) -> None:
         super().__init__(message)
         self.evidence = evidence
+
+
+@dataclass(frozen=True)
+class FabricCaptureExecutionResult:
+    """Verified framework receipt plus the native evidence used to create it.
+
+    ``execute()`` remains the compatibility API returning only ``CaptureReceipt``.
+    Approved integration/evidence workflows should use ``execute_with_evidence()`` so
+    native job/root/provider diagnostics are retained without invoking the transport a
+    second time.
+    """
+
+    receipt: CaptureReceipt
+    native_evidence: FabricNativeRunEvidence
 
 
 _FORBIDDEN_CAPTURE_ROLES = frozenset(
@@ -131,7 +146,7 @@ class FabricCaptureAdapter:
             )
 
         # Framework-owned bounded movement must prove that the requested physical
-        # source range is the range that actually ran.  Native-progress engines may
+        # source range is the range that actually ran. Native-progress engines may
         # instead report their own checkpoint/boundary in the receipt.
         if request.progress_owner is ProgressOwner.FRAMEWORK:
             for field_name in ("source_lower_bound", "source_upper_bound"):
@@ -146,13 +161,11 @@ class FabricCaptureAdapter:
                         evidence=evidence,
                     )
 
-    def execute(self, request: FabricCaptureRequest) -> CaptureReceipt:
-        """Invoke the transport and return a receipt only for verified success."""
-
-        self._validate_request(request)
-        evidence = self.transport.invoke_capture(request)
-        self._validate_success_evidence(request, evidence)
-
+    @staticmethod
+    def _receipt_from_evidence(
+        request: FabricCaptureRequest,
+        evidence: FabricNativeRunEvidence,
+    ) -> CaptureReceipt:
         return CaptureReceipt(
             dataset_run_id=request.dataset_run_id,
             dataset_id=request.dataset_id,
@@ -181,6 +194,25 @@ class FabricCaptureAdapter:
             started_at=evidence.started_at,
             completed_at=evidence.completed_at,
         )
+
+    def execute_with_evidence(
+        self,
+        request: FabricCaptureRequest,
+    ) -> FabricCaptureExecutionResult:
+        """Invoke once and retain both verified framework and native evidence."""
+
+        self._validate_request(request)
+        evidence = self.transport.invoke_capture(request)
+        self._validate_success_evidence(request, evidence)
+        return FabricCaptureExecutionResult(
+            receipt=self._receipt_from_evidence(request, evidence),
+            native_evidence=evidence,
+        )
+
+    def execute(self, request: FabricCaptureRequest) -> CaptureReceipt:
+        """Compatibility API returning a receipt only for verified success."""
+
+        return self.execute_with_evidence(request).receipt
 
 
 class CopyJobCaptureAdapter(FabricCaptureAdapter):
@@ -245,8 +277,14 @@ class FabricAdapterRegistry:
         except KeyError as exc:
             raise KeyError(f"no Fabric capture adapter registered for {engine.value}") from exc
 
+    def execute_with_evidence(
+        self,
+        request: FabricCaptureRequest,
+    ) -> FabricCaptureExecutionResult:
+        return self.resolve(request.execution_engine).execute_with_evidence(request)
+
     def execute(self, request: FabricCaptureRequest) -> CaptureReceipt:
-        return self.resolve(request.execution_engine).execute(request)
+        return self.execute_with_evidence(request).receipt
 
 
 __all__ = [
@@ -256,5 +294,6 @@ __all__ = [
     "FabricAdapterExecutionError",
     "FabricAdapterRegistry",
     "FabricCaptureAdapter",
+    "FabricCaptureExecutionResult",
     "SparkJobCaptureAdapter",
 ]

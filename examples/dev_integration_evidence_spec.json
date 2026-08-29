@@ -1,0 +1,57 @@
+{
+  "evidence_schema_version": 1,
+  "environment": "DEV",
+  "domain": "customer",
+  "framework_version": "0.4.0",
+  "release_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "checks": [
+    {
+      "check_id": "fabric.item.read",
+      "kind": "FABRIC_ITEM_READ",
+      "required": true,
+      "description": "Read-only workspace/item authorization smoke before remote execution."
+    },
+    {
+      "check_id": "control.cert",
+      "kind": "CONTROL_PLANE_CERTIFICATION",
+      "required": true,
+      "description": "Real selected SQL backend certification evidence."
+    },
+    {
+      "check_id": "fabric.pipeline",
+      "kind": "FABRIC_PIPELINE_RUN",
+      "required": true,
+      "description": "Pipeline Completed plus exact framework outcome and native correlation."
+    },
+    {
+      "check_id": "fabric.copy",
+      "kind": "FABRIC_COPY_JOB_CAPTURE",
+      "required": true,
+      "description": "Copy Job verified CaptureReceipt plus workspace/item/job/root evidence."
+    },
+    {
+      "check_id": "fabric.spark",
+      "kind": "FABRIC_SPARK_CAPTURE",
+      "required": true,
+      "description": "Bounded Spark verified CaptureReceipt plus workspace/item/job/root evidence."
+    },
+    {
+      "check_id": "warehouse.commit",
+      "kind": "FABRIC_WAREHOUSE_TARGET_COMMIT",
+      "required": true,
+      "description": "Target mutation and operation marker committed in one Warehouse transaction."
+    },
+    {
+      "check_id": "kafka.live",
+      "kind": "KAFKA_PROVIDER",
+      "required": false,
+      "description": "Enable when Kafka/Debezium is part of the release scope."
+    },
+    {
+      "check_id": "delta.live",
+      "kind": "DELTA_CDF_PROVIDER",
+      "required": false,
+      "description": "Enable when Delta CDF is part of the release scope."
+    }
+  ]
+}
