@@ -9,9 +9,9 @@ The framework owns reusable data-engineering semantics and operational contracts
 ```text
 latest public release = v0.3.0
 source version        = 0.4.0 development / unreleased
-current baseline      = ad856d864eb5dec35f3c97ec66ca9e920cfa5e28
-latest CI             = Actions 33254804867
-full tests            = 466
+current baseline      = 395736a3a400480da5876a43591961c478426314
+latest CI             = Actions 33255472348
+full tests            = 477
 ```
 
 **Do not publish v0.4.0 yet.** The remaining gate is approved real-environment evidence, selected production backend certification and retained enterprise controls.
@@ -59,6 +59,8 @@ unknown target commit outcome never permits blind re-execution
 - approved-environment evidence spec/manifest/preflight/read-only item runner;
 - strict staged integration evidence merge with conflict/output-safety rules;
 - approved production control-plane certification runner using runtime-only DB URL values;
+- approved Fabric Pipeline evidence runner requiring prerequisite PASS evidence and exact durable child outcome;
+- credential-like Pipeline provider exception redaction before persistent audit;
 - immutable release/config/deployment provenance.
 
 These are portable/reference or adapter/backend contracts unless explicitly backed by retained real-service evidence.
@@ -83,51 +85,51 @@ Canonical runbooks:
 docs/DEV_INTEGRATION_EVIDENCE.md
 docs/INTEGRATION_EVIDENCE_MERGE.md
 docs/APPROVED_CONTROL_PLANE_CERTIFICATION.md
+docs/APPROVED_PIPELINE_EVIDENCE.md
 ```
 
-PR #39 added strict staged evidence merge:
+PR #39 added strict staged evidence merge. Contradictory reruns are never silently resolved by latest/PASS/FAIL precedence.
+
+PR #41 added the exact-release approved control-plane certification runner. The runtime database URL value never enters source-controlled config or retained evidence. Real `PRODUCTION DB PROVEN` still requires a retained PASS against the selected real backend.
+
+PR #43 added the approved Pipeline runner:
 
 ```bash
-fabric-framework integration-evidence-merge \
-  --spec evidence-spec.json \
-  --input evidence/item-read.json \
-  --input evidence/control-plane.json \
-  --output evidence/merged.json
-```
-
-Merge rules are fail-closed:
-
-```text
-NOT_RUN = absence
-one substantive result = retain unchanged
-identical substantive duplicate = allowed
-different rerun evidence = conflict
-no latest/PASS-wins/FAIL-wins arbitration
-```
-
-PR #41 added the exact-release approved control-plane execution path:
-
-```bash
-fabric-framework integration-control-plane-certify-run \
+fabric-framework integration-pipeline-run \
   --config dev-integration-runner.json \
   --spec evidence-spec.json \
-  --check-id control-plane.certify \
-  --external-evidence evidence/control-plane-external.json \
-  --evidence-reference artifact:control-plane-certification \
-  --report-output evidence/control-plane-certification-report.json \
-  --output evidence/control-plane-partial.json \
-  --allow-conformance-writes
+  --prerequisite-manifest evidence/prerequisites-merged.json \
+  --release-manifest release-manifest.json \
+  --config-dir config/datasets \
+  --check-id fabric.pipeline \
+  --dataset-id crm.customer \
+  --evidence-reference artifact:pipeline-run \
+  --output evidence/pipeline-partial.json \
+  --allow-pipeline-execution
 ```
 
-The runner requires a production-eligible profile, complete external control references and explicit write authorization. The actual database URL exists only in the environment variable whose **name** is stored in source control. Database/driver exceptions are converted to sanitized evidence failures; credential-like report text is rejected before retention.
-
-Correct evidence label for this runner is:
+The Pipeline runner requires:
 
 ```text
-IMPLEMENTED + CI PROVEN APPROVED CONTROL-PLANE CERTIFICATION RUNNER CONTRACT
+same exact evidence spec/release
+FABRIC_ITEM_READ PASS prerequisite
+CONTROL_PLANE_CERTIFICATION PASS prerequisite
+selected Pipeline check still NOT_RUN
+exact release manifest + config bundle hash
+production-eligible relational control-plane profile
+runtime Fabric token + control-plane DB URL
+explicit remote execution authorization
 ```
 
-It is not `PRODUCTION DB PROVEN` until a retained run succeeds against the selected real approved backend for the exact release hash.
+Before remote invocation it creates the parent `PipelineRunAudit`. The existing `FabricPipelineBackend` then generates the exact child `dataset_run_id`. Fabric `Completed` becomes PASS only when the exact durable framework `DatasetDispatchOutcome` for that ID exists and is `SUCCEEDED`. Provider `Completed` without that outcome is retained as FAIL.
+
+Correct label:
+
+```text
+IMPLEMENTED + CI PROVEN APPROVED PIPELINE RUNNER CONTRACT
+```
+
+It is not `FABRIC PIPELINE PROVEN` until a retained exact-release approved tenant run exists.
 
 ## Current real-service gaps
 
@@ -136,8 +138,9 @@ Still not retained/proven for the exact 0.4.0 candidate:
 ```text
 enterprise Entra token path
 live workspace/item authorization
-real Fabric SQL Database / Azure SQL Database certification run
-live Pipeline / Copy Job / Spark runs and observations
+real Fabric SQL Database / Azure SQL Database certification PASS
+live Pipeline run through the approved runner
+live Copy Job / Spark runs and verified observations
 real Fabric Warehouse transaction + ambiguous COMMIT drill
 live Kafka / Delta CDF if included in public release scope
 capacity/gateway/throttling and enterprise IAM/network/DR/monitoring/governance evidence
@@ -146,15 +149,18 @@ complete exact-release IntegrationEvidenceManifest
 
 ## Next active work
 
-1. replace DEV placeholder release hash/item UUIDs with exact candidate values;
-2. run approved read-only item preflight and live item smoke;
-3. run `integration-control-plane-certify-run` against the selected real approved DB;
-4. merge retained item + control-plane partial evidence;
-5. only after those prerequisites pass, add/authorize representative Pipeline/Copy/Spark approved-run commands;
-6. execute real Warehouse target+marker and ambiguous COMMIT failure drills;
-7. finish exact-release evidence and release audit before considering `0.4.0`.
+Preferred real sequence when approved runtime inputs are available:
 
-If no real enterprise credentials/environment are available in the current execution context, the next reusable code slice is the explicitly-authorized approved Pipeline execution runner; it must not weaken the existing durable framework outcome requirement.
+1. replace DEV placeholder release hash/item UUIDs with exact candidate values;
+2. run read-only item smoke;
+3. run production control-plane certification;
+4. merge prerequisite evidence;
+5. run the approved Pipeline evidence stage;
+6. add/run approved Copy Job and Spark capture evidence stages using `FabricCaptureAdapter.execute_with_evidence()`;
+7. execute real Warehouse target+marker and ambiguous COMMIT failure drills;
+8. finish exact-release evidence and release audit before considering `0.4.0`.
+
+If real enterprise credentials/environment are unavailable in the current execution context, the next reusable code slice is the approved **Copy Job + Spark capture runner**. It must require verified `CaptureReceipt` + native evidence and must not treat provider `Completed` alone as capture success.
 
 ## Local development
 
@@ -170,6 +176,7 @@ fabric-framework capture-semantic-onboarding-validate ...
 fabric-framework integration-run-preflight ...
 fabric-framework integration-item-smoke-run ...
 fabric-framework integration-control-plane-certify-run ...
+fabric-framework integration-pipeline-run ...
 fabric-framework integration-evidence-merge ...
 fabric-framework integration-evidence-validate ...
 fabric-framework control-plane-migrate ...
@@ -191,24 +198,25 @@ For a new conversation, read in this order:
 3. `docs/PRODUCTION_READINESS_AUDIT.md`
 4. `docs/DEV_INTEGRATION_EVIDENCE.md`
 5. `docs/APPROVED_CONTROL_PLANE_CERTIFICATION.md`
-6. `docs/INTEGRATION_EVIDENCE_MERGE.md`
-7. `docs/GUARANTEE_COVERAGE.md`
-8. `docs/PROJECT_BLUEPRINT.md`
-9. `docs/PRODUCTION_REQUIREMENTS.md`
-10. `docs/CAPTURE_PATTERN_CATALOG.md`
-11. `docs/TARGET_OPERATION_IDEMPOTENCY.md`
-12. `docs/PROVIDER_NATIVE_RECOVERY.md`
-13. `docs/FABRIC_WAREHOUSE_TARGET_COMMIT_PROOF.md`
-14. `docs/CONTROL_PLANE_CERTIFICATION.md`
-15. `docs/RELATIONAL_RUNTIME_REPOSITORY.md`
-16. `docs/FABRIC_PIPELINE_BACKEND.md`
-17. `docs/FABRIC_CAPTURE_REST_TRANSPORTS.md`
-18. `docs/EXECUTION_ENGINE_STRATEGY.md`
-19. `docs/FABRIC_EXECUTION_MODEL.md`
-20. `docs/CDC_DESIGN.md`
-21. `docs/CONTROL_PLANE_DESIGN.md`
-22. `docs/REPOSITORY_STRUCTURE.md`
-23. `docs/CICD_DESIGN.md`
-24. `docs/ECOSYSTEM_BLUEPRINT.md`
+6. `docs/APPROVED_PIPELINE_EVIDENCE.md`
+7. `docs/INTEGRATION_EVIDENCE_MERGE.md`
+8. `docs/GUARANTEE_COVERAGE.md`
+9. `docs/PROJECT_BLUEPRINT.md`
+10. `docs/PRODUCTION_REQUIREMENTS.md`
+11. `docs/CAPTURE_PATTERN_CATALOG.md`
+12. `docs/TARGET_OPERATION_IDEMPOTENCY.md`
+13. `docs/PROVIDER_NATIVE_RECOVERY.md`
+14. `docs/FABRIC_WAREHOUSE_TARGET_COMMIT_PROOF.md`
+15. `docs/CONTROL_PLANE_CERTIFICATION.md`
+16. `docs/RELATIONAL_RUNTIME_REPOSITORY.md`
+17. `docs/FABRIC_PIPELINE_BACKEND.md`
+18. `docs/FABRIC_CAPTURE_REST_TRANSPORTS.md`
+19. `docs/EXECUTION_ENGINE_STRATEGY.md`
+20. `docs/FABRIC_EXECUTION_MODEL.md`
+21. `docs/CDC_DESIGN.md`
+22. `docs/CONTROL_PLANE_DESIGN.md`
+23. `docs/REPOSITORY_STRUCTURE.md`
+24. `docs/CICD_DESIGN.md`
+25. `docs/ECOSYSTEM_BLUEPRINT.md`
 
 If documentation conflicts with code/tests, inspect implementation and repair documentation before continuing.
