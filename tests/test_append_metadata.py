@@ -151,7 +151,7 @@ def test_control_plane_v3_migration_adds_append_identity_to_existing_v2_load_pol
         )
 
     assert current_schema_version(engine) == 2
-    assert apply_baseline_schema(engine) == CONTROL_PLANE_SCHEMA_VERSION == 3
+    assert apply_baseline_schema(engine) == CONTROL_PLANE_SCHEMA_VERSION == 4
 
     columns = {column["name"] for column in inspect(engine).get_columns("load_policy")}
     assert "append_identity" in columns
