@@ -348,7 +348,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("read-only item smoke binding is incomplete")
             client = FabricRestClient(
                 token_provider=EnvironmentAccessTokenProvider(
-                    config.fabric_access_token_env_var
+                    env_var=config.fabric_access_token_env_var
                 )
             )
             manifest = run_integration_evidence(
