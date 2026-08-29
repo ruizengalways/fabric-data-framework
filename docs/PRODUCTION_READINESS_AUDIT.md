@@ -5,264 +5,220 @@ Last updated: 2026-08-29
 
 ## Evidence model
 
-This audit separates four evidence classes:
+This audit separates:
 
 1. portable semantic implementation;
-2. deterministic CI/reference certification;
-3. real provider/Fabric integration evidence;
+2. deterministic CI/reference proof;
+3. real provider/Fabric execution evidence;
 4. external enterprise controls.
 
-Green Python CI proves levels 1/2 only. Adapter/reference tests do not become real service evidence until an approved provider execution is retained.
+Green Python CI proves levels 1/2 only. Executable HTTP code and fake-transport tests are not equivalent to an approved real Fabric run.
 
 ## Current assessment
 
 ```text
-Portable semantic implementation       STRONG / broad core product slice
-Deterministic certification             STRONG for implemented slices
-Mainstream source onboarding model      IMPLEMENTED reference
-Provider adapter contract coverage      Fabric capture + Debezium/Kafka + Delta CDF
-Durable target-operation journal        IMPLEMENTED / CI PROVEN reference
-Provider-native recovery contracts      IMPLEMENTED / CI PROVEN reference
-Read-only operator diagnostics          IMPLEMENTED reference
-Production control-plane certification  NOT YET PROVEN
-Real Fabric/Kafka/Delta execution       NOT YET PROVEN
-External enterprise controls            EXTERNAL / NOT PROVEN BY THIS REPO
+Portable semantic implementation        STRONG / broad core product slice
+Deterministic certification              STRONG for implemented slices
+Mainstream source onboarding             IMPLEMENTED / CI PROVEN reference
+Target-operation journal                 IMPLEMENTED / CI PROVEN reference
+Provider-native recovery contracts       IMPLEMENTED / CI PROVEN reference
+Control-plane certification framework    IMPLEMENTED / CI PROVEN contract
+Fabric REST Job Scheduler transport      IMPLEMENTED / CI PROVEN transport
+Fabric Data Pipeline backend             IMPLEMENTED / CI PROVEN backend
+Production SQL repository wiring         NOT YET IMPLEMENTED/PROVEN
+Real Fabric/Kafka/Delta execution        NOT YET PROVEN
+External enterprise controls             EXTERNAL / NOT PROVEN BY THIS REPO
 ```
 
 Latest validated merged implementation:
 
 ```text
-fd6d5039a5852e32d823b178970816ff292472a2
-PR #19 validation: GitHub Actions 33240884208
-322 tests passed
+650b7d30b2e31e21d01c56465e8871b91aae4779
+PR #22 validation: GitHub Actions 33246151126
+344 tests
 Python 3.11 + 3.13 + wheel/static checks green
-Kafka cursor coordination + Delta CDF retention-safe resume + target commit-probe contract
+Fabric REST + Data Pipeline backend + fail-closed framework outcome handoff
 ```
 
-Earlier durability baseline:
+Previous merged production-control-plane contract:
 
 ```text
-83a27d9350a6018abc272e9afebdef5d660de519
-PR #17 validation: GitHub Actions 33240559434
-315 tests passed
-stable target-operation identity + control-plane v4 CAS journal
-```
-
-Earlier capture/onboarding baseline:
-
-```text
-4b20300c822e16a398342e0cc97da90ee51b035a
-GitHub Actions 33238779139
-310 tests passed
-14-pattern capture catalog + onboarding claims + Delta CDF adapter/profile
+6377eafd4875c3cfe1d7bf21a982f6c11d47aea1
+PR #21 validation: GitHub Actions 33241251160
+332 tests
+production backend profiles + transaction/CAS certification + external evidence gates
 ```
 
 `v0.3.0` remains the latest public release. **Do not publish v0.4.0 yet.**
 
 ## Capability assessment
 
-| Capability | Portable/adapter code | Deterministic proof | Real service | Assessment |
+| Capability | Code | CI/reference proof | Real service | Assessment |
 |---|---:|---:|---:|---|
 | Typed metadata/effective config | Yes | Yes | N/A | IMPLEMENTED |
-| 14-pattern capture/source catalog | Yes | Yes | N/A | IMPLEMENTED reference |
-| Source-controlled history/delete/Bronze onboarding claims | Yes | Yes | N/A | IMPLEMENTED reference |
-| `capture-onboarding-validate --require-all` CI gate | Yes | Yes | N/A | IMPLEMENTED reference |
-| Executable checked-in onboarding examples | Yes | Yes | N/A | IMPLEMENTED/CI PROVEN |
-| Composite WATERMARK + overlap | Yes | Yes | No | IMPLEMENTED reference |
-| Bronze/DQ/quarantine/accounting | Yes | Yes | No prod quarantine store | IMPLEMENTED reference |
+| 14-pattern source-fidelity catalog | Yes | Yes | N/A | IMPLEMENTED reference |
+| Capture onboarding CI claims/examples | Yes | Yes | N/A | IMPLEMENTED/CI PROVEN |
+| WATERMARK + overlap | Yes | Yes | No | IMPLEMENTED reference |
 | APPEND/REPLACE/UPSERT/SCD1/SCD2/SNAPSHOT_DIFF | Yes | Yes | No | IMPLEMENTED reference |
-| Shared source-order/event-time taxonomy | Yes | Yes | N/A | IMPLEMENTED reference |
-| Retroactive SCD2 history rewrite | No | Fail-closed behavior proven | No | INTENTIONALLY UNSUPPORTED |
-| Capture/apply executor separation | Yes | Yes | N/A | IMPLEMENTED contract |
-| Capability profiles + progress ownership | Yes | Yes | Real profile proof pending | IMPLEMENTED contract |
-| CaptureReceipt | Yes | Yes | No real native receipt | IMPLEMENTED contract |
-| Fabric Copy/Activity/Dataflow/Spark capture adapters | Yes | Fake transport | No | ADAPTER CONTRACT ONLY |
-| Retry/attempt/unknown-commit recovery | Yes | Yes | No physical drill | IMPLEMENTED reference |
-| Quarantine REPLAY / FULL_REBUILD | Yes | Yes | No production target/payload store | IMPLEMENTED reference |
+| Bronze/DQ/quarantine/accounting | Yes | Yes | No production payload store | IMPLEMENTED reference |
 | Canonical CDC + downstream checkpoint | Yes | Yes | No | IMPLEMENTED reference |
-| Snapshot/bootstrap -> CDC | Yes | Yes | No real source fence | IMPLEMENTED reference |
-| Debezium/Kafka normalization/resume | Yes | Yes | No live broker | ADAPTER/REFERENCE |
-| Kafka consumer-group cursor coordination | Yes | Yes | No live broker seek/commit | IMPLEMENTED/CI PROVEN reference |
-| Kafka retention-gap detection | Yes | Yes | No live retention drill | IMPLEMENTED/CI PROVEN reference |
-| Delta CDF row-change normalization | Yes | Yes | No live Lakehouse CDF read | ADAPTER CONTRACT |
-| Delta CDF retention-safe resume planning | Yes | Yes | No live retention drill | IMPLEMENTED/CI PROVEN reference |
-| `SPARK/delta_cdf_v1` profile/registry | Yes | Yes | No live Lakehouse CDF read | IMPLEMENTED contract |
-| Frozen file manifest | Yes | Yes | No storage client | IMPLEMENTED reference |
-| API frozen window/pagination | Yes | Yes | No API client | IMPLEMENTED reference |
-| Schema contract/evolution/evidence | Yes | Yes | No physical target migration | IMPLEMENTED reference |
+| Debezium/Kafka normalization | Yes | Yes | No live broker | ADAPTER/REFERENCE |
+| Kafka cursor coordination/retention safety | Yes | Yes | No live broker drill | IMPLEMENTED/CI PROVEN reference |
+| Delta CDF normalization/resume safety | Yes | Yes | No live Lakehouse CDF | IMPLEMENTED/CI PROVEN reference |
+| Fabric capture adapters | Yes | Fake transport | No | ADAPTER CONTRACT |
+| Durable target-operation identity/CAS | Yes | Yes | No live target | IMPLEMENTED/CI PROVEN reference |
+| Target commit-probe contract | Yes | Yes | No native provider lookup | IMPLEMENTED/CI PROVEN reference |
 | Control-plane v4 schema/migrations | Yes | Yes | SQLite/reference | IMPLEMENTED reference |
-| Typed operator status + JSON CLI | Yes | Yes | SQLite/reference | IMPLEMENTED reference |
-| Durable target-operation semantic key | Yes | Yes | No target-native proof | IMPLEMENTED/CI PROVEN reference |
-| Durable target-operation CAS current state | Yes | Yes | SQLite/reference only | IMPLEMENTED/CI PROVEN reference |
-| Append-only target-operation event journal | Yes | Yes | SQLite/reference only | IMPLEMENTED/CI PROVEN reference |
-| Unknown target outcome blocks blind retry | Yes | Yes | No real provider drill | IMPLEMENTED/CI PROVEN reference |
-| Provider-neutral target commit-probe contract | Yes | Yes | No real provider lookup | IMPLEMENTED/CI PROVEN reference |
-| Provider probe failure remains `UNRESOLVED` | Yes | Yes | No live failure drill | IMPLEMENTED/CI PROVEN reference |
-| Retry only after durable `NOT_COMMITTED` proof | Yes | Yes | No real provider probe | IMPLEMENTED/CI PROVEN reference |
-| Approved persistent production control plane | Reference only | SQLite tests | No | P0/P1 GAP |
-| Fabric Pipeline backend | Design only | No | No | P0 GAP |
-| Real Fabric/Kafka/Delta transports | Interfaces/adapters only | No live call | No | P0 GAP |
+| Typed operator status/CLI | Yes | Yes | SQLite/reference | IMPLEMENTED reference |
+| Backend certification profiles | Yes | Yes | No real mssql candidate run | IMPLEMENTED/CI PROVEN contract |
+| Transaction + target-operation + CDC CAS certification probes | Yes | Yes | No real mssql candidate run | IMPLEMENTED/CI PROVEN contract |
+| Fabric REST on-demand job client | Yes | Yes | No live Fabric call | IMPLEMENTED/CI PROVEN transport |
+| Typed Job Scheduler parameters | Yes | Yes | Tenant/item support not proven | IMPLEMENTED/CI PROVEN transport |
+| Retry-After/provider retry evidence | Yes | Yes | No live throttle drill | IMPLEMENTED/CI PROVEN transport |
+| Pluggable ready-wave dispatcher | Yes | Yes | N/A | IMPLEMENTED/CI PROVEN |
+| Fabric Data Pipeline backend | Yes | Yes | No live Pipeline job | IMPLEMENTED/CI PROVEN backend |
+| Remote Completed requires framework outcome | Yes | Yes | No live child handoff | IMPLEMENTED/CI PROVEN |
+| Fabric native job/root correlation model | Yes | Yes | No real native IDs | IMPLEMENTED/CI PROVEN model |
+| Production SQL `ControlPlaneRepository` | Partial relational primitives only | Reference helpers | No | P0 GAP |
+| Live Copy/Spark/Dataflow transports | Contracts only | Fake transport | No | P0 GAP |
+| Provider-specific target commit probes | Interface only | Reference probe flow | No | P0 GAP |
 | Approved DEV hybrid execution | No | No | No | P0 GAP |
 
-## Source-fidelity readiness
+## Fabric Pipeline readiness
 
-The framework prevents deterministic metadata/semantic overclaims such as:
+Canonical runbook: `docs/FABRIC_PIPELINE_BACKEND.md`.
 
-- calling a watermark feed full event history;
-- claiming hard-delete visibility without a delete signal;
-- calling net CDC full row-change history;
-- calling daily snapshot history event-grain;
-- merging full CDC/CDF events into Bronze while still claiming append event history is preserved;
-- selecting a provider pattern incompatible with the coarse capture strategy;
-- using `WATERMARK_LOOKBACK` without an overlap window.
-
-It cannot prove a vendor API's semantics, file completeness, source CDC configuration or retention guarantee. `SOURCE_DEFINED` remains explicit where external evidence is required.
-
-## Delta CDF readiness
-
-Current reference path:
+Implemented execution shape:
 
 ```text
-framework lower version
-  -> provider earliest/latest availability evidence
-  -> retention-safe bounded resume plan
-  -> Spark bounded CDF read
-  -> DeltaCDFRecord
-  -> canonical CDCEvent / CDCCheckpoint
-  -> framework UPSERT/SCD1/SCD2
-  -> target-operation journal + reconciliation
-  -> framework downstream checkpoint commit
+framework planner
+  -> exact ready wave
+  -> FabricPipelineBackend
+  -> immutable ExecutionPlan
+  -> environment-local FabricPipelineBinding
+  -> FabricRestPipelineTransport
+  -> POST on-demand item job
+  -> require Location / job_instance_id
+  -> Retry-After aware polling
+  -> terminal provider status
+  -> exact durable framework dataset outcome
+  -> provider correlation StepRunAudit
 ```
 
-Deterministic guarantees now include:
+Deterministically proven:
 
-- typed CDF I/D/update-pre/update-post normalization;
-- exact duplicate input idempotency;
-- frozen upper version enforcement;
-- complete-through-upper requirement;
-- fail-closed ambiguous within-commit same-key ordering;
-- `lower + 1` next-required version semantics;
-- `earliest_available > next_required` retention-gap failure;
-- empty CDF rows are not misclassified as retention loss without provider availability evidence.
+- bearer-token acquisition is injected rather than hard-coded;
+- empty token fails;
+- POST path/job identity are typed;
+- Job Scheduler parameters include explicit type (`Guid`, `Text`, `Integer`, `Boolean`, etc.);
+- provider 429/error payload can retain `errorCode`, `isRetriable` and `Retry-After`;
+- malformed `Location` fails;
+- unknown future provider status fails;
+- `Deduped` is not treated as successful execution of the requested framework attempt;
+- `Completed` requires an exact matching terminal framework `dataset_run_id` outcome;
+- native job/root/workspace/item/plan correlation is represented in step evidence;
+- provider-side parent failure is recorded before step evidence to respect relational FK ordering;
+- backend result membership must exactly match the planner ready wave.
 
-Still not proven: live Fabric Lakehouse CDF reads, actual CDF enablement/retention, authentication/environment binding, provider availability-discovery API, real retention cleanup drill and capacity/performance.
+Still not proven:
 
-Correct label: `ADAPTER CONTRACT + CI-PROVEN REFERENCE RECOVERY`, not production integrated Delta CDF.
+- actual Entra token acquisition in the target tenant;
+- workspace/item authorization;
+- Data Pipeline per-run parameter support for the selected item/job type;
+- live REST POST/poll behavior;
+- real `job_instance_id` and `rootActivityId` retention;
+- child SJD/Notebook/native activity using released wheels;
+- child/parent handoff through a production SQL repository;
+- Fabric throttling/capacity/gateway behavior.
 
-## Kafka / Debezium recovery readiness
+Correct label: `IMPLEMENTED + CI PROVEN TRANSPORT/BACKEND`, not `FABRIC PROVEN`.
 
-Framework checkpoint remains the semantic source of truth; consumer-group offset is transport state only.
+## Control-plane readiness
 
-Deterministically proven behavior:
-
-```text
-framework next required > group cursor  -> group BEHIND -> explicit seek forward
-framework next required < group cursor  -> group AHEAD  -> explicit rewind
-same                                  -> ALIGNED -> no seek
-no group cursor                       -> MISSING -> explicit initialization/seek
-```
-
-Provider group commit offsets use Kafka next-to-consume semantics and are exposed separately as values that may be committed **after** target/reconciliation/framework checkpoint success.
-
-Retention safety remains fail closed: if Kafka's earliest available offset is beyond the next unapplied offset, recovery refuses to skip the missing event.
-
-Still not proven: live broker calls, group ownership, rebalance handling, transactional/consumer configuration, authentication/networking and real retention drill.
-
-Correct label: `REFERENCE CURSOR COORDINATION`, not live Kafka integration.
-
-## Target-operation / commit-probe readiness
-
-Canonical runbooks:
+Current schema is v4:
 
 ```text
-docs/TARGET_OPERATION_IDEMPOTENCY.md
-docs/PROVIDER_NATIVE_RECOVERY.md
-```
-
-The operation journal remains the durable semantic gate. PR #19 adds a provider-neutral read-only `TargetCommitProbe` layer above it.
-
-Probe resolution mapping:
-
-```text
-COMMITTED     -> SUCCEEDED
-NOT_COMMITTED -> NOT_COMMITTED
-UNRESOLVED    -> UNKNOWN
-probe raises  -> UNKNOWN + retained error detail
-```
-
-Only the next CAS claim after durable `NOT_COMMITTED` may reopen target execution. Provider lookup failure cannot be interpreted as non-commit.
-
-Still not proven: Fabric Warehouse statement/transaction lookup, Delta atomic marker, Spark/native correlation or another real provider mechanism that can prove the exact operation outcome.
-
-Correct label: `IMPLEMENTED + CI PROVEN REFERENCE`, not exactly-once Fabric writes.
-
-## Strong portable guarantees
-
-### Apply and temporal semantics
-
-All six canonical apply strategies have framework-owned reference behavior. APPEND is append-once by explicit identity. Source ordering and event/valid time are separate shared clocks.
-
-### Replay-stable acquisition
-
-WATERMARK/CDC/FULL/SNAPSHOT plus file/API/CDF contracts freeze the source boundary/set needed for deterministic retry/replay.
-
-### Schema safety
-
-Schema changes are checked against source-controlled versioned contracts. Only explicitly certified widening/relaxation is compatible; removal/narrowing/unproven conversion fails closed.
-
-### Recovery and operability
-
-Unknown target mutation is reconciled before retry. The durable operation journal persists semantic identity/outcome state. Kafka/Delta resume contracts prevent external provider progress from silently skipping framework-unapplied data. Quarantine REPLAY and FULL_REBUILD remain explicit audited flows. Typed operator snapshots provide a stable read model.
-
-## Remaining release-significant gaps
-
-### P0/P1 control plane
-
-1. define/select a production control-plane repository implementation;
-2. certify its transaction, compare-and-swap, migration and operator-read semantics against the existing reference contracts;
-3. retain concurrency/failover evidence; SQLite remains reference-only.
-
-### P0 integration proof
-
-1. actual Fabric/Kafka/Delta transports;
-2. Fabric Pipeline backend;
-3. provider-specific position discovery and target commit probes wired to live services;
-4. approved DEV hybrid execution retaining real native/provider IDs and framework correlation;
-5. failure drills for ambiguous target outcome, Kafka cursor drift/retention and Delta CDF retention gap.
-
-Authenticated operator mutation workflows remain optional release-scope work unless required by the product promise.
-
-## Control-plane audit
-
-Current reference schema is v4:
-
-```text
-v1 initial control-plane schema
-v2 execution policy / ordering / capture receipt / recovery / CDC
-v3 append identity semantics
+v1 initial control plane
+v2 execution/order/capture/recovery/CDC
+v3 append identity
 v4 durable target-operation journal
 ```
 
-Capture selection remains source-controlled onboarding/CI truth rather than runtime state.
+PR #21 defines three backend profiles:
 
-Before production release, a persistent control-plane repository must be certified against the same CAS, migration, transaction and operator contracts. SQLite remains the deterministic reference store, not a production deployment claim.
+```text
+sqlite_reference_v1       reference-only
+fabric_sql_database_v1    production candidate
+azure_sql_database_v1     production candidate
+```
 
-## Fabric/provider evidence boundary
+A production candidate must pass exact-schema/table/migration checks plus rollback, target-operation CAS and CDC checkpoint CAS probes, then retain backend-service identity, IAM/access, network, backup/restore, availability/recovery, monitoring/alerting and retention/governance evidence.
 
-Fabric adapters currently prove request/evidence validation with fake transports. Debezium/Kafka and Delta CDF prove normalization/reference resume semantics. Provider recovery contracts prove safe planning/reconciliation behavior. None prove authentication, networking, API versions, live Kafka rebalance/commit behavior, live Delta retention behavior, capacity, real native run IDs or target-native ambiguous-commit resolution.
+What remains is no longer the certification vocabulary; it is the **actual production repository implementation/wiring and real candidate execution**.
+
+The old `ControlPlaneRepository` Protocol/InMemory adapter and later SQLAlchemy relational primitives must be consolidated behind one production runtime surface. Do not create a third state system.
+
+## Recovery readiness
+
+### Target operation
+
+Ambiguous target mutation remains blocked until evidence resolves to:
+
+```text
+COMMITTED     -> SUCCEEDED
+NOT_COMMITTED -> retry may reopen through CAS
+UNRESOLVED    -> UNKNOWN / blocked
+probe error   -> UNKNOWN / blocked
+```
+
+### Kafka
+
+Framework CDC checkpoint is semantic truth; consumer-group offset is a transport cursor. Ahead/behind/missing cursors are explicitly realigned. Retention gaps fail closed.
+
+### Delta CDF
+
+The next unapplied commit version must remain within provider earliest/latest availability. Missing retained history fails closed rather than silently skipping.
+
+These remain reference/provider-contract evidence until live services are exercised.
+
+## Source-fidelity readiness
+
+The framework deterministically blocks source-history overclaims, including:
+
+- watermark feed called full event history;
+- delete visibility claimed without delete signal;
+- net CDC called full event history;
+- snapshot history called event-grain;
+- full CDC/CDF Bronze merge while claiming append-preserved events;
+- lookback watermark without an actual overlap window.
+
+Vendor/source configuration, retention and completeness still require external evidence.
+
+## Remaining release-significant work
+
+### P0 runtime integration
+
+1. implement a production SQLAlchemy `ControlPlaneRepository` over the already-certified relational schema/primitives;
+2. provide durable relational dataset-outcome read/write and step/native-evidence paths for Fabric child/parent handoff;
+3. implement the selected live Fabric capture transports and provider-specific source/commit probes;
+4. wire real Kafka/Delta client calls where those profiles are release scope.
+
+### P0 real evidence
+
+1. run control-plane certification against the chosen real Fabric SQL Database or Azure SQL Database instance;
+2. execute approved DEV Fabric Pipeline runs retaining framework + native IDs;
+3. retain a successful hybrid capture/apply/reconcile/state path;
+4. run failure drills for 429/retry, Pipeline failure/cancel, missing framework outcome, ambiguous target outcome, Kafka cursor drift/retention and Delta CDF retention gaps;
+5. retain auth/network/capacity and enterprise control evidence.
+
+### Release decision
+
+Only after exact-candidate code/tests/docs and retained real evidence agree may `0.4.0` be considered for public release.
 
 ## External evidence this repo must not fake
 
-Fabric capacity/SKU/throttling, tenant settings, workspace/domain provisioning, Entra/workspace identity/RBAC, gateway/private networking, secret authority, source CDC/CDF enablement/retention, broker/database/API access, backup/restore, monitoring/on-call, privacy/retention and enterprise change controls remain external evidence.
+Capacity/SKU/throttling, tenant settings, workspace/domain provisioning, Entra/RBAC, gateway/private networking, secret authority, source CDC/CDF enablement/retention, broker/database/API access, backup/restore, monitoring/on-call, privacy/retention and enterprise change controls remain external evidence.
 
 ## Release gate
 
-Before the next public release, the exact candidate must satisfy:
-
-```text
-code == tests == canonical docs == control-plane/release contract
-```
-
-and its product promise must match retained real integration evidence.
-
-Current decision: **release remains blocked. PR #19 closes the portable/reference provider-recovery contract gap. The next implementation slice is production control-plane repository certification, followed by actual transports/Pipeline backend and retained DEV provider evidence.**
+Current decision: **release remains blocked. PR #22 closes the portable/CI Fabric REST + Pipeline backend gap. The next implementation gate is a real relational production runtime repository/handoff, followed by live transports/provider probes and approved DEV evidence.**
