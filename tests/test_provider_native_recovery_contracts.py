@@ -47,9 +47,9 @@ def test_kafka_cursor_is_rewound_or_advanced_to_framework_checkpoint_not_trusted
         earliest_offsets={0: 90, 1: 40, 2: 0},
         latest_offsets={0: 120, 1: 70, 2: 10},
         consumer_group_next_offsets={
-            0: 110,  # ahead because provider cursor moved before downstream apply succeeded
-            1: 45,   # behind
-            2: 8,    # aligned: last downstream-applied offset was 7
+            0: 110,
+            1: 45,
+            2: 8,
         },
     )
 
@@ -194,7 +194,7 @@ class _NotCommittedProbe:
 
 class _BrokenProbe:
     def probe(self, request):
-        raise TimeoutError("provider history API unavailable")
+        raise TimeoutError("provider history API unavailable password=should-not-persist")
 
 
 def test_target_native_probe_committed_converges_operation_to_success():
@@ -240,7 +240,7 @@ def test_target_native_probe_not_committed_reopens_only_next_claim():
     assert next_claim.record.status is TargetOperationStatus.IN_PROGRESS
 
 
-def test_target_native_probe_exception_is_persisted_as_unresolved_and_blocks_retry():
+def test_target_native_probe_exception_is_secret_safe_unresolved_and_blocks_retry():
     engine = _operation_engine()
     intent, _ = _claim_ambiguous_operation(engine)
     retry_run = uuid4()
@@ -255,7 +255,11 @@ def test_target_native_probe_exception_is_persisted_as_unresolved_and_blocks_ret
 
     assert result.evidence.resolution is UnknownOutcomeResolution.UNRESOLVED
     assert result.record.status is TargetOperationStatus.UNKNOWN
-    assert "provider history API unavailable" in (result.record.error_message or "")
+    message = result.record.error_message or ""
+    assert message == "target commit probe raised TimeoutError"
+    assert "provider history API unavailable" not in message
+    assert "should-not-persist" not in message
+    assert "password=" not in message.lower()
 
     blocked = claim_target_operation(
         engine,
