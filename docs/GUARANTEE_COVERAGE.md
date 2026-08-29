@@ -15,10 +15,10 @@ Last updated: 2026-08-29
 ## Latest coherent CI baseline
 
 ```text
-main baseline = 014cd334105de6f867b6320509b94147a444a2fa
-PR #39
-Actions 33253817758
-455 tests
+main baseline = ad856d864eb5dec35f3c97ec66ca9e920cfa5e28
+PR #41
+Actions 33254804867
+466 tests
 Python 3.11 + 3.13 + static + wheel SUCCESS
 ```
 
@@ -36,6 +36,9 @@ PR #37 / Actions 33253581049 / 441 tests
 
 PR #39 / Actions 33253817758 / 455 tests
   staged integration evidence merge
+
+PR #41 / Actions 33254804867 / 466 tests
+  approved production control-plane certification runner
 ```
 
 ## Core guarantee map
@@ -85,6 +88,10 @@ PR #39 / Actions 33253817758 / 455 tests
 | Staged partial manifest merge | `integration_evidence_merge.py` | IMPLEMENTED + CI PROVEN EVIDENCE MERGE CONTRACT |
 | Merge conflict does not silently arbitrate reruns | evidence merge | REFERENCE + CI PROVEN |
 | Failed/conflicting merge does not clobber output | CLI router | REFERENCE + CI PROVEN |
+| Approved production control-plane runner | `approved_control_plane_runner.py` | IMPLEMENTED + CI PROVEN APPROVED CONTROL-PLANE CERTIFICATION RUNNER CONTRACT |
+| Runtime DB URL remains outside retained config/report/manifest | approved control-plane runner | REFERENCE + CI PROVEN GUARDRAIL |
+| Explicit control-plane conformance-write authorization | approved control-plane runner/CLI | REFERENCE + CI PROVEN GUARDRAIL |
+| Unsafe driver/report text cannot enter retained control-plane evidence | retained evidence safety + runner | REFERENCE + CI PROVEN GUARDRAIL |
 | v0.3.0 immutable wheel/checksum | historical release | RELEASE PROVEN for v0.3.0 |
 
 ## Capture/history truth guarantees
@@ -147,19 +154,31 @@ no timestamp/status precedence
 source partial manifests remain retained
 ```
 
+Approved control-plane execution adds:
+
+```text
+source control stores env-var NAME, not DB URL value
+selected evidence check must be CONTROL_PLANE_CERTIFICATION
+production-eligible profile required
+complete external control references required
+conformance writes require explicit authorization
+runner never silently migrates schema
+raw DB/driver exception text is not retained
+report text is safety-checked before write
+```
+
 ## Required guarantees/evidence not yet complete
 
 | Required proof | Current state | Next proof |
 |---|---|---|
 | Real enterprise Fabric identity/token path | runner contract only | approved DEV identity run |
 | Real workspace/item authorization | read-only runner ready | retained live item smoke |
+| Real Fabric SQL DB / Azure SQL runtime | approved runner ready | exact-release production-certified PASS + enterprise refs |
 | Real Data Pipeline execution | backend CI only | retained DEV run + framework/native correlation |
 | Real Copy Job capture | transport CI only | retained DEV job + post-run observation |
 | Real Spark Job Definition capture | transport CI only | retained DEV job + observation |
 | Real Fabric Warehouse commit/ambiguous failure | provider contract only | real transaction + lost-ack/network drill |
 | Production-approved marker absence proof | absent | provider/session-specific certifier evidence |
-| Real Fabric SQL DB / Azure SQL runtime | repository/certification contract only | approved backend conformance + IAM/network evidence |
-| Environment-variable-driven approved control-plane certification runner | not yet implemented | next code slice |
 | Live Kafka consumer coordination | reference adapter/resume only | live broker proof if release scope includes Kafka |
 | Live Delta CDF bounded read/retention | adapter contract only | live Lakehouse proof if release scope includes Delta |
 | Retroactive SCD2 rewrite | intentionally unsupported | explicit rewrite policy only if product scope requires it |
