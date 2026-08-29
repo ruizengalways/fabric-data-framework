@@ -147,10 +147,12 @@ def test_pipeline_dataset_and_step_lifecycle_are_durable_and_updatable(tmp_path)
             completed_at=datetime.now(timezone.utc),
         )
     )
+    step_started = datetime.now(timezone.utc)
     step = StepRunAudit(
         dataset_run_id=dataset_run_id,
         step_name="provider_job",
         status=StepStatus.SUCCEEDED,
+        started_at=step_started,
         completed_at=datetime.now(timezone.utc),
         details={"native_run_id": "fabric-123"},
     )
@@ -214,6 +216,7 @@ def test_fabric_pipeline_child_parent_handoff_uses_relational_outcome_and_step_e
         def invoke(self, invocation):
             # Simulate the released child runtime durably writing its semantic outcome
             # before the provider reports Completed to the parent.
+            child_started = datetime.now(timezone.utc)
             repository.record_dataset_run(
                 DatasetRunAudit(
                     dataset_run_id=invocation.dataset_run_id,
@@ -222,6 +225,7 @@ def test_fabric_pipeline_child_parent_handoff_uses_relational_outcome_and_step_e
                     run_mode=invocation.run_mode,
                     status=DatasetStatus.SUCCEEDED,
                     effective_config_hash=invocation.effective_config_hash,
+                    started_at=child_started,
                     completed_at=datetime.now(timezone.utc),
                 )
             )
@@ -231,8 +235,8 @@ def test_fabric_pipeline_child_parent_handoff_uses_relational_outcome_and_step_e
                 job_type="Pipeline",
                 status=FabricJobStatus.COMPLETED,
                 root_activity_id=root_id,
-                start_time_utc=None,
-                end_time_utc=None,
+                start_time_utc=child_started,
+                end_time_utc=datetime.now(timezone.utc),
                 failure_reason=None,
             )
 
