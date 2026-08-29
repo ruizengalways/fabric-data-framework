@@ -1,10 +1,15 @@
-"""Delta Change Data Feed -> canonical CDC adapter.
+"""Delta Change Data Feed -> canonical CDC adapter and retention-safe resume planning.
 
 Delta CDF exposes commit-grain ordering and row change types. The adapter pairs one
 update_preimage/update_postimage for the same key+commit into one canonical UPDATE.
 Because CDF does not expose a universal row sequence inside a commit, the adapter
 assigns a deterministic key-sorted sequence for different keys and fails closed when
 one key contains more than one logical mutation in the same commit.
+
+Resume planning treats the framework downstream checkpoint as the semantic source of
+truth. Provider retention evidence must still cover the next unapplied commit; if it
+does not, the framework raises a retention-gap error rather than silently starting at
+the earliest surviving CDF version.
 """
 
 from __future__ import annotations
@@ -37,6 +42,45 @@ class DeltaCDFAdapterError(ValueError):
     pass
 
 
+class DeltaCDFRetentionGapError(DeltaCDFAdapterError):
+    """Raised when the next unapplied Delta commit is no longer readable via CDF."""
+
+
+class DeltaCDFResumePlan(FrozenModel):
+    """Bounded Delta CDF version range derived from framework downstream state."""
+
+    table_reference: str = Field(min_length=1)
+    lower_committed_version: int | None = Field(default=None, ge=0)
+    earliest_available_version: int = Field(ge=0)
+    latest_available_version: int = Field(ge=0)
+    start_version: int = Field(ge=0)
+    upper_version: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "DeltaCDFResumePlan":
+        if self.earliest_available_version > self.latest_available_version:
+            raise ValueError("Delta CDF earliest available version cannot exceed latest")
+        if self.upper_version > self.latest_available_version:
+            raise ValueError("Delta CDF upper version cannot exceed provider latest")
+        if self.start_version > self.upper_version + 1:
+            raise ValueError("Delta CDF start cannot skip beyond upper + 1")
+        return self
+
+    @property
+    def has_work(self) -> bool:
+        return self.start_version <= self.upper_version
+
+    @property
+    def lower_checkpoint(self) -> CDCCheckpoint | None:
+        if self.lower_committed_version is None:
+            return None
+        return delta_cdf_checkpoint(self.table_reference, self.lower_committed_version)
+
+    @property
+    def upper_checkpoint(self) -> CDCCheckpoint:
+        return delta_cdf_checkpoint(self.table_reference, self.upper_version)
+
+
 class DeltaCDFChangeType(str, Enum):
     INSERT = "insert"
     DELETE = "delete"
@@ -67,6 +111,72 @@ class DeltaCDFBatchResult(FrozenModel):
     duplicate_records_ignored: int = Field(ge=0)
     logical_events: int = Field(ge=0)
     update_pairs: int = Field(ge=0)
+
+
+def plan_delta_cdf_resume(
+    *,
+    table_reference: str,
+    lower_committed_version: int | None,
+    earliest_available_version: int,
+    latest_available_version: int,
+    requested_upper_version: int | None = None,
+) -> DeltaCDFResumePlan:
+    """Plan a bounded CDF read and fail closed when provider retention has a gap.
+
+    Version semantics are inclusive. ``lower_committed_version`` means the entire
+    version was already applied downstream. Therefore the next required provider
+    version is ``lower + 1``. Empty CDF result sets for an available version are not a
+    gap; provider retention evidence is what decides whether the version boundary is
+    still readable.
+    """
+
+    if not table_reference:
+        raise DeltaCDFAdapterError("table_reference is required")
+    for label, value in (
+        ("earliest_available_version", earliest_available_version),
+        ("latest_available_version", latest_available_version),
+    ):
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise DeltaCDFAdapterError(f"{label} must be a non-negative integer")
+    if earliest_available_version > latest_available_version:
+        raise DeltaCDFAdapterError(
+            "Delta CDF earliest available version cannot exceed latest available version"
+        )
+
+    upper = latest_available_version if requested_upper_version is None else requested_upper_version
+    if not isinstance(upper, int) or isinstance(upper, bool) or upper < 0:
+        raise DeltaCDFAdapterError("requested_upper_version must be a non-negative integer")
+    if upper > latest_available_version:
+        raise DeltaCDFAdapterError("requested Delta CDF upper version exceeds provider latest")
+
+    if lower_committed_version is None:
+        start = earliest_available_version
+    else:
+        if (
+            not isinstance(lower_committed_version, int)
+            or isinstance(lower_committed_version, bool)
+            or lower_committed_version < 0
+        ):
+            raise DeltaCDFAdapterError("lower_committed_version must be a non-negative integer")
+        if upper < lower_committed_version:
+            raise DeltaCDFAdapterError("requested Delta CDF upper version regresses committed state")
+        next_required = lower_committed_version + 1
+        if earliest_available_version > next_required:
+            raise DeltaCDFRetentionGapError(
+                "Delta CDF retention gap: "
+                f"earliest_available={earliest_available_version}, "
+                f"next_required={next_required}, table={table_reference}"
+            )
+        start = max(earliest_available_version, next_required)
+
+    return DeltaCDFResumePlan(
+        table_reference=table_reference,
+        lower_committed_version=lower_committed_version,
+        earliest_available_version=earliest_available_version,
+        latest_available_version=latest_available_version,
+        start_version=start,
+        upper_version=upper,
+    )
 
 
 def _key_for_record(record: DeltaCDFRecord, key_columns: tuple[str, ...]) -> tuple[Any, ...]:
@@ -291,6 +401,9 @@ __all__ = [
     "DeltaCDFBatchResult",
     "DeltaCDFChangeType",
     "DeltaCDFRecord",
+    "DeltaCDFResumePlan",
+    "DeltaCDFRetentionGapError",
     "delta_cdf_checkpoint",
     "normalize_delta_cdf_batch",
+    "plan_delta_cdf_resume",
 ]
