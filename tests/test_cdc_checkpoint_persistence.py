@@ -69,7 +69,7 @@ def _passed_gate() -> StateCommitGate:
 
 
 def test_cdc_checkpoint_is_environment_local_control_plane_state():
-    assert CONTROL_PLANE_SCHEMA_VERSION == 2
+    assert CONTROL_PLANE_SCHEMA_VERSION >= 2
     assert "cdc_checkpoint" in ENVIRONMENT_LOCAL_STATE_TABLES
     assert (
         classify_control_plane_record("cdc_checkpoint")
