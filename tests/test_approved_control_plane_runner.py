@@ -36,10 +36,15 @@ class TrackingEnvironment(Mapping[str, str]):
     def __init__(self, values: dict[str, str]):
         self.values = values
         self.getitem_calls: list[str] = []
+        self.presence_checks: list[str] = []
 
     def __getitem__(self, key: str) -> str:
         self.getitem_calls.append(key)
         return self.values[key]
+
+    def get(self, key: str, default=None):
+        self.presence_checks.append(key)
+        return "present" if key in self.values and self.values[key].strip() else default
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.values)
@@ -150,6 +155,7 @@ def test_authorization_gate_prevents_reading_database_url_value():
             allow_conformance_writes=False,
         )
 
+    assert environ.presence_checks == ["CONTROL_PLANE_DATABASE_URL"]
     assert environ.getitem_calls == []
 
 
