@@ -11,6 +11,11 @@ from pydantic import Field
 from ..capture.cdc import CDCNormalizedBatch, CDCOperation, CDCOrderingError
 from ..config import ApplyStrategy, FrozenModel
 from ..operations import MutationCounts
+from ..quality.temporal import (
+    SourceOrderRelation,
+    TemporalOrderingError,
+    compare_source_order,
+)
 
 
 CDC_PARTITION = "_framework_cdc_partition"
@@ -100,7 +105,13 @@ def _assert_event_newer_than_target(
                 f"CDC target row {key} has no source-position metadata and the batch has "
                 "no committed lower checkpoint proving the event is newer"
             )
-        if event_position <= lower_position:
+        try:
+            relation = compare_source_order(event_position, lower_position)
+        except TemporalOrderingError as exc:
+            raise CDCOrderingError(
+                f"CDC event for target row {key} cannot be compared with committed lower checkpoint"
+            ) from exc
+        if relation is not SourceOrderRelation.NEWER:
             raise CDCOrderingError(
                 f"CDC event for target row {key} is not above the committed lower checkpoint"
             )
@@ -119,9 +130,15 @@ def _assert_event_newer_than_target(
     ):
         raise CDCOrderingError(f"CDC target row {key} has invalid source-position metadata")
     target_position = tuple(current_position)
-    if event_position < target_position:
+    try:
+        relation = compare_source_order(event_position, target_position)
+    except TemporalOrderingError as exc:
+        raise CDCOrderingError(
+            f"CDC target row {key} has non-comparable source-position metadata"
+        ) from exc
+    if relation is SourceOrderRelation.STALE:
         return -1
-    if event_position > target_position:
+    if relation is SourceOrderRelation.NEWER:
         return 1
     return 0
 

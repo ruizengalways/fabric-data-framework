@@ -15,6 +15,11 @@ from pydantic import Field
 
 from ..config import FrozenModel
 from ..operations import MutationCounts
+from ..quality.temporal import (
+    SourceOrderRelation,
+    TemporalOrderingError,
+    compare_source_order,
+)
 
 
 class CurrentStateConflictError(ValueError):
@@ -84,15 +89,16 @@ def _compare_positions(
     strategy_name: str,
 ) -> int:
     try:
-        if left < right:
-            return -1
-        if left > right:
-            return 1
-        return 0
-    except TypeError as exc:
+        relation = compare_source_order(left, right)
+    except TemporalOrderingError as exc:
         raise CurrentStateOrderingError(
             f"{strategy_name} ordering values are not mutually comparable"
         ) from exc
+    if relation is SourceOrderRelation.STALE:
+        return -1
+    if relation is SourceOrderRelation.NEWER:
+        return 1
+    return 0
 
 
 def _select_latest_incoming(

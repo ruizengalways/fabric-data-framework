@@ -14,6 +14,11 @@ from pydantic import Field
 from ..capture.cdc import CDCNormalizedBatch, CDCOperation
 from ..config import FrozenModel
 from ..operations import MutationCounts
+from ..quality.temporal import (
+    EventTimeRelation,
+    TemporalOrderingError,
+    compare_event_time,
+)
 from ..scd2 import (
     IS_CURRENT,
     RECORD_HASH,
@@ -102,7 +107,11 @@ def _close_current(
     current_from = current.get(VALID_FROM)
     if not isinstance(current_from, datetime):
         raise CDCSCD2Error("existing SCD2 current row missing datetime valid_from")
-    if effective_at < current_from:
+    try:
+        relation = compare_event_time(effective_at, current_from)
+    except TemporalOrderingError as exc:
+        raise CDCSCD2Error("SCD2 valid-time values cannot be compared safely") from exc
+    if relation is EventTimeRelation.EARLIER:
         raise CDCSCD2LateArrivingError(
             "CDC source order is newer but event valid-time predates the current SCD2 version; "
             "retroactive history correction is not yet certified"
