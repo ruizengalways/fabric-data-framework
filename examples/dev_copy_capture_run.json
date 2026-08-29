@@ -1,0 +1,7 @@
+{
+  "check_id": "fabric.copy",
+  "dataset_id": "crm.customer_copy",
+  "landing_reference": "bronze.crm_customer_copy",
+  "observation_extension": "crm.customer.copy-observer",
+  "extension_artifact_name": "fabric-customer-0.4.0.dev1-py3-none-any.whl"
+}
