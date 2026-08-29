@@ -111,7 +111,8 @@ def probe_and_reconcile_target_operation(
 
     Only ``IN_PROGRESS`` and ``UNKNOWN`` are probeable. A provider exception is
     converted to durable ``UNRESOLVED`` evidence so a process crash or flaky provider
-    lookup cannot accidentally reopen execution.
+    lookup cannot accidentally reopen execution. Raw provider exception messages are
+    deliberately not persisted because driver errors may contain connection material.
     """
 
     current = read_target_operation(engine, operation_key)
@@ -133,7 +134,7 @@ def probe_and_reconcile_target_operation(
         evidence = TargetCommitProbeEvidence(
             provider=type(probe).__name__,
             resolution=UnknownOutcomeResolution.UNRESOLVED,
-            detail=f"target commit probe raised {type(exc).__name__}: {exc}",
+            detail=f"target commit probe raised {type(exc).__name__}",
         )
 
     updated = reconcile_target_operation(
