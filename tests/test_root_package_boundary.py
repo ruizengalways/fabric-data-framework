@@ -14,6 +14,7 @@ def test_root_package_is_namespace_only():
     tree = ast.parse((PACKAGE_ROOT / "__init__.py").read_text(encoding="utf-8"))
     assert not any(isinstance(node, (ast.Import, ast.ImportFrom)) for node in tree.body)
     for legacy_name in (
+        "__version__",
         "DatasetConfig",
         "CaptureReceipt",
         "SchemaContract",
