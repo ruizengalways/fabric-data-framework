@@ -76,11 +76,12 @@ jobs:
             --output build/release-readiness.json
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
 
           report = json.loads(Path("build/release-readiness.json").read_text())
           assert report["framework_version"] == "0.4.0"
-          assert report["candidate_git_sha"] == "${GITHUB_SHA}"
+          assert report["candidate_git_sha"] == os.environ["GITHUB_SHA"]
           assert report["release_ready"] is False
           assert report["blockers"]
           required = [item for item in report["results"] if item["required"]]
