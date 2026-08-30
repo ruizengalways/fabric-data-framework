@@ -157,7 +157,7 @@ Only then does it create the immutable tag at the exact candidate SHA and publis
 
 ## Current state
 
-The exact-byte candidate and release-promotion contracts already exist. The candidate-certification aggregator/workflow is the current release-blocking slice and still requires PR CI/merge before it can be called proven.
+PR #84 validation run `33314693131` passed Python 3.11/3.13, exact wheel build and ordinary readiness checks; Python 3.13 reported **651 passed**. The candidate-certification aggregator/workflow is therefore **PR CI proven and pending merge/main checkpoint**. That is implementation proof only, not Fabric certification.
 
 The next producer work is intentionally separate:
 
