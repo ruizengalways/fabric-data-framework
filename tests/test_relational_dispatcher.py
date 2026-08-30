@@ -51,7 +51,7 @@ class _Backend:
         del effective_by_id, max_concurrency
         outcomes = {}
         for dataset_id in dataset_ids:
-            from fabric_data_framework.operations import DatasetRunAudit
+            from fabric_data_framework.contracts.audit import DatasetRunAudit
             from uuid import uuid4
 
             run_id = uuid4()
