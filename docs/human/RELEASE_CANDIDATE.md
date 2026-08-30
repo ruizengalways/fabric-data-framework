@@ -13,6 +13,8 @@ main CI builds exact candidate bytes
         ↓
 approved exact-candidate evidence producers retain proof
         ↓
+strict proof merge combines compatible partial evidence
+        ↓
 candidate-certification validates all retained evidence
         ↓
 framework-release promotes the exact certified bytes
@@ -85,9 +87,29 @@ CANDIDATE.json
 
 Do not use GitHub's uploaded ZIP/archive digest as wheel identity. Certification and release use the inner wheel SHA256 from `CANDIDATE.json` / `SHA256SUMS`.
 
+## Merge partial release proof safely
+
+`ReleaseReadinessProofBundle` contains two different classes of proof: portable/static evidence and representative live business-path evidence. They should be produced independently and merged only after both are bound to the same exact candidate.
+
+```bash
+fabric-framework release-proofs-merge \
+  --spec release/0.4.0/readiness-spec.json \
+  --input evidence/static-release-proofs.json \
+  --input evidence/live-business-path-proofs.json \
+  --output evidence/release-proofs.json
+```
+
+Every partial input must bind the exact candidate source SHA and exact inner wheel SHA256. Omitted or `NOT_RUN` gates mean “no evidence”. A substantive `PASS`, `FAIL`, or `OUT_OF_SCOPE` result is retained unchanged.
+
+If two partial bundles contain different substantive results for the same gate, merge fails. This includes two different PASS records with different retained evidence references. There is no “latest wins”, “PASS wins”, or timestamp precedence. For a real rerun, explicitly choose the retained result you intend to certify before merging.
+
+The merge also rejects unknown gates, kind drift, wheel/source identity mismatch, and attempts to put integration-backed gates into generic release proofs.
+
+A successful merge means only that the retained partial proof is compatible. It does not turn missing gates into PASS and does not make 0.4 releasable.
+
 ## Candidate certification
 
-After both retained evidence producers complete for the same exact candidate:
+After both retained evidence channels complete for the same exact candidate:
 
 ```bash
 fabric-framework candidate-certify \
@@ -153,7 +175,7 @@ Only then does it tag the exact candidate SHA and publish the already-certified 
 
 ## Current state
 
-Candidate certification is now merged and CI proven:
+Candidate certification is merged and CI proven:
 
 ```text
 PR                 #84
@@ -167,6 +189,8 @@ candidate frozen   no
 
 This is implementation proof only, not Fabric certification.
 
+The strict partial release-proof merge is implemented on the current feature branch and still needs CI/merge before becoming the merged baseline.
+
 The two actual evidence producers are still intentionally missing:
 
 ```text
@@ -176,8 +200,6 @@ candidate-release-proofs.yml
 candidate-integration-evidence.yml
   -> Fabric identity/control-plane/Pipeline/Copy/Spark/Warehouse/ambiguous-COMMIT evidence
 ```
-
-Because release proofs mix portable/static checks and live business-path checks, the next framework change should first add strict partial proof merge. That lets independent producers contribute evidence without choosing “latest wins” or inventing a PASS.
 
 Therefore today:
 
