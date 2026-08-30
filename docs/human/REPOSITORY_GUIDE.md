@@ -45,7 +45,7 @@ src/fabric_data_framework/README.md
 3. planning / execution
 4. provider adapters
 5. recovery / control plane
-6. approved evidence / delivery
+6. evidence / delivery
 7. CLI presentation
 ```
 
@@ -113,21 +113,62 @@ marker absent -> UNRESOLVED
 只有独立 no-late-commit 证明 -> NOT_COMMITTED
 ```
 
-### 6. Approved evidence / delivery
+### 6. `evidence/` / delivery
+
+Approved evidence 的实际 implementation 现在集中在：
+
+```text
+src/fabric_data_framework/evidence/
+├─ README.md
+├─ __init__.py
+├─ integration_evidence.py
+├─ integration_checks.py
+├─ integration_evidence_merge.py
+├─ integration_runner.py
+├─ approved_control_plane_runner.py
+├─ approved_pipeline_runner.py
+├─ approved_capture_runner.py
+├─ approved_warehouse_runner.py
+└─ approved_warehouse_fault_runner.py
+```
+
+阅读顺序建议：
+
+```text
+integration_evidence.py
+  ↓
+integration_checks.py
+  ↓
+integration_evidence_merge.py / integration_runner.py
+  ↓
+approved_*_runner.py
+```
 
 | 文件 | 职责 |
 |---|---|
-| `integration_evidence.py` | exact-release evidence spec、check kind、manifest、PASS/FAIL/NOT_RUN contract |
-| `integration_runner.py` | credential-free approved-run preflight；config 只保存 env-var name |
-| `integration_evidence_merge.py` | staged evidence 的严格 merge，冲突 rerun 不做 latest-wins |
-| `approved_control_plane_runner.py` | approved control-plane certification |
-| `approved_pipeline_runner.py` | approved Pipeline execution evidence |
-| `approved_capture_runner.py` | approved Copy Job / Spark capture evidence |
-| `approved_warehouse_runner.py` | approved Warehouse target+marker commit/recovery |
-| `approved_warehouse_fault_runner.py` | real ambiguous-COMMIT drill + optional session-termination recovery |
+| `evidence/integration_evidence.py` | exact-release evidence spec、check kind、manifest、PASS/FAIL/NOT_RUN contract |
+| `evidence/integration_checks.py` | 把已有 provider/runtime 结果安全投影为 evidence result |
+| `evidence/integration_runner.py` | credential-free approved-run preflight；config 只保存 env-var name |
+| `evidence/integration_evidence_merge.py` | staged evidence 的严格 merge，冲突 rerun 不做 latest-wins |
+| `evidence/approved_control_plane_runner.py` | approved control-plane certification |
+| `evidence/approved_pipeline_runner.py` | approved Pipeline execution evidence |
+| `evidence/approved_capture_runner.py` | approved Copy Job / Spark capture evidence |
+| `evidence/approved_warehouse_runner.py` | approved Warehouse target+marker commit/recovery |
+| `evidence/approved_warehouse_fault_runner.py` | real ambiguous-COMMIT drill + optional session-termination recovery |
 | `delivery.py` / deployment 相关模块 | config bundle、release manifest、deployment provenance |
 
-这些是可复用的 library/runtime contract，不属于 CLI。CLI 只是调用它们。
+Evidence 的职责是**证明已有 contract**，不是重新定义 dataset semantics、capture fidelity、target commit truth 或 recovery semantics。
+
+根目录仍然保留例如：
+
+```text
+integration_evidence.py
+integration_runner.py
+approved_capture_runner.py
+approved_warehouse_runner.py
+```
+
+这些现在只是 deprecated compatibility alias。它们和 `evidence/` 中的 canonical module 指向同一个 module object，确保已有 import/monkeypatch 不因为整理目录而突然失效。**不要再往这些根目录 shim 里新增 implementation。**
 
 ### 7. `cli/` — 可以单独忽略的 presentation layer
 
@@ -150,17 +191,22 @@ src/fabric_data_framework/cli/
 | `cli/__main__.py` | 支持 `python -m fabric_data_framework.cli` |
 | `cli/README.md` | CLI 代码边界说明 |
 
-依赖方向必须是：
+依赖方向保持：
 
 ```text
-cli/ ---> framework core
+semantic/runtime/provider/recovery core
+                 ↑
+             evidence
+                 ↑
+                cli
 
-framework core -X-> cli/
+core -X-> cli
+evidence -X-> cli
 ```
 
-因此如果你只是想理解 framework 的核心数据处理能力，可以直接跳过整个 `cli/`。
+因此如果你只是想理解 framework 的核心数据处理能力，可以直接跳过整个 `cli/`；如果只想理解业务数据语义，也可以先跳过 `evidence/`。
 
-更强的约束是：**把 `src/fabric_data_framework/cli/` 物理删除后，核心 library import、capture/apply/execution/recovery/runtime 仍必须可用。** CI 有专门的 isolation test 钉住这个边界。
+更强的 CLI 约束是：**把 `src/fabric_data_framework/cli/` 物理删除后，核心 library import、capture/apply/execution/recovery/runtime 仍必须可用。** CI 有专门的 isolation test 钉住这个边界。
 
 `cli_router.py` 只保留为旧 import 的 deprecated compatibility shim；实际 CLI implementation 不再放在顶层。
 
@@ -211,6 +257,7 @@ provider Completed + missing framework outcome -> FAIL
 marker absent -> UNRESOLVED
 fault injection permission != Admin KILL permission
 core library must not depend on CLI
+legacy evidence import == canonical evidence module
 ```
 
 对应测试应该明确钉住这个行为。
@@ -222,10 +269,10 @@ core library must not depend on CLI
 如果你的任务只是接一张新表，正常不应该去改：
 
 ```text
-approved_*_runner.py
+evidence/approved_*_runner.py
+evidence/integration_*.py
 recovery/*
 target_operation_*.py
-integration_evidence*.py
 provider REST transports
 control-plane repository
 cli/*
