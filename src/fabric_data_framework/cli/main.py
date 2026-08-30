@@ -11,6 +11,7 @@ import sys
 from .approved import run_if_matched as run_approved_if_matched
 from .base import main as run_base
 from .project import run_if_matched as run_project_if_matched
+from .release import run_if_matched as run_release_if_matched
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -18,6 +19,9 @@ def main(argv: list[str] | None = None) -> int:
     project_result = run_project_if_matched(effective_argv)
     if project_result is not None:
         return project_result
+    release_result = run_release_if_matched(effective_argv)
+    if release_result is not None:
+        return release_result
     approved_result = run_approved_if_matched(effective_argv)
     if approved_result is not None:
         return approved_result
