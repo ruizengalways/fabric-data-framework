@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-fabric-framework = "fabric_data_framework.cli_router:main"
+fabric-framework = "fabric_data_framework.cli:main"
 
 [project.optional-dependencies]
 dev = [
