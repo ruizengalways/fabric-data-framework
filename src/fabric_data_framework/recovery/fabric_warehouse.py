@@ -198,10 +198,7 @@ class FabricWarehouseMarkerStore:
         )
 
     def marker_reference(self, operation_key: str) -> str:
-        return (
-            f"fabric-warehouse-marker:{self.qualified_table_name}:"
-            f"{operation_key}"
-        )
+        return f"fabric-warehouse-marker:{self.qualified_table_name}:{operation_key}"
 
     @staticmethod
     def _from_row(row: dict[str, object]) -> FabricWarehouseOperationMarker:
@@ -221,7 +218,9 @@ class FabricWarehouseMarkerStore:
                 if row["native_operation_id"] is not None
                 else None
             ),
-            query_label=str(row["query_label"]) if row["query_label"] is not None else None,
+            query_label=(
+                str(row["query_label"]) if row["query_label"] is not None else None
+            ),
             detail=str(row["detail"]) if row["detail"] is not None else None,
             recorded_at=_aware_utc(row["recorded_at"]),
         )
@@ -423,7 +422,9 @@ class FabricWarehouseTargetCommitProbe:
         try:
             return self._secondary_reader.lookup(request), None
         except Exception as exc:
-            return (), f"secondary correlation lookup failed: {type(exc).__name__}: {exc}"
+            # Provider/driver diagnostic text may embed connection/user-info material.
+            # Retain only the exception type in framework evidence.
+            return (), f"secondary correlation lookup failed: {type(exc).__name__}"
 
     @staticmethod
     def _secondary_detail(
@@ -517,21 +518,3 @@ class FabricWarehouseTargetCommitProbe:
             native_operation_id=absence.native_operation_id or secondary_native_id,
             detail="; ".join(detail_parts),
         )
-
-
-__all__ = [
-    "FABRIC_WAREHOUSE_DEFAULT_MARKER_TABLE",
-    "FABRIC_WAREHOUSE_MARKER_VERSION",
-    "FabricWarehouseAbsenceCertifier",
-    "FabricWarehouseAbsenceEvidence",
-    "FabricWarehouseAtomicMutationResult",
-    "FabricWarehouseMarkerConflict",
-    "FabricWarehouseMarkerStore",
-    "FabricWarehouseMutation",
-    "FabricWarehouseMutationEvidence",
-    "FabricWarehouseOperationMarker",
-    "FabricWarehouseSecondaryCorrelation",
-    "FabricWarehouseSecondaryCorrelationReader",
-    "FabricWarehouseTargetCommitProbe",
-    "build_fabric_warehouse_operation_marker_table",
-]
