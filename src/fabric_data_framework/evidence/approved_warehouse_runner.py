@@ -61,7 +61,7 @@ from ..recovery.target_probe import (
     probe_and_reconcile_target_operation,
 )
 from ..control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
-from ..retained_evidence_safety import assert_safe_retained_text
+from .safety import assert_safe_retained_text
 from ..control_plane.target_operation_journal import (
     claim_target_operation,
     mark_target_operation_unknown,

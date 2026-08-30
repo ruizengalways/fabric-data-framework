@@ -72,7 +72,7 @@ from .integration_runner import (
     IntegrationCheckPhysicalBinding,
     build_approved_integration_run_plan,
 )
-from ..retained_evidence_safety import assert_safe_retained_text
+from .safety import assert_safe_retained_text
 
 
 _EXTENSION_PATTERN = r"^[a-z][a-z0-9_.-]*$"

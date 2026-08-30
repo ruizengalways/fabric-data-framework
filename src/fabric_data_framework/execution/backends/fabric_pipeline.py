@@ -24,7 +24,7 @@ from ...contracts.dispatch import DatasetDispatchOutcome
 from ...contracts.execution_plan import compile_execution_plan
 from ...operations import DatasetRunAudit, StepRunAudit, StepStatus
 from ...control_plane.repository import ControlPlaneRepository
-from ...retained_evidence_safety import assert_safe_retained_text
+from ...evidence.safety import assert_safe_retained_text
 
 
 FabricPipelineBindingResolver = Callable[[EffectiveDatasetConfig], FabricPipelineBinding]

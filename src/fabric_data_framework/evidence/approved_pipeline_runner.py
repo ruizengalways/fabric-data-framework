@@ -52,7 +52,7 @@ from .integration_runner import (
 )
 from ..operations import PipelineRunAudit
 from ..control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
-from ..retained_evidence_safety import assert_safe_retained_text
+from .safety import assert_safe_retained_text
 
 
 EngineFactory = Callable[[str], Engine]
