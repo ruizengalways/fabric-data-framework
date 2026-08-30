@@ -8,14 +8,21 @@ from uuid import UUID
 from pydantic import Field
 from sqlalchemy import Engine, select
 
-from ..capture.cdc import CDCCheckpoint, CDCCheckpointTransitionfrom ..config import FrozenModelfrom .schema import (    apply_baseline_schema,
+from ..capture.cdc import CDCCheckpoint, CDCCheckpointTransition
+from ..config import FrozenModel
+from .schema import (
+    apply_baseline_schema,
     capture_receipt,
     cdc_checkpoint,
     dataset_attempt_lineage,
     quarantine_batch,
     reprocess_request,
 )
-from ..contracts.capture_receipt import CaptureReceiptfrom ..contracts.recovery import DatasetAttemptLineage, ReprocessRequestfrom ..contracts.replay import QuarantineBatchEvidencefrom ..runtime import StateCommitGate
+from ..contracts.capture_receipt import CaptureReceipt
+from ..contracts.recovery import DatasetAttemptLineage, ReprocessRequest
+from ..contracts.replay import QuarantineBatchEvidence
+from ..runtime import StateCommitGate
+
 
 class CDCCheckpointVersionConflict(RuntimeError):
     """Raised when a stale writer attempts to replace newer CDC state."""

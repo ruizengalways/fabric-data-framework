@@ -7,7 +7,9 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import Engine, select
 
-from .schema import apply_baseline_schema, schema_changefrom ..quality.schema_evolution import SchemaEvolutionDecision
+from .schema import apply_baseline_schema, schema_change
+from ..quality.schema_evolution import SchemaEvolutionDecision
+
 
 def record_schema_change(
     engine: Engine,
