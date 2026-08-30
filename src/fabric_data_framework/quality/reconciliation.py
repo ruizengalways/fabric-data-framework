@@ -11,7 +11,7 @@ from fabric_data_framework.contracts.reconciliation import (
     ReconciliationResult,
     ReconciliationStatus,
 )
-from .scd2 import assert_one_current_row
+from fabric_data_framework.apply.scd2 import assert_one_current_row
 
 
 def reconcile_scd2_batch(

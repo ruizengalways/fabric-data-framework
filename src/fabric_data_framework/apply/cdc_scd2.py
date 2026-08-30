@@ -19,7 +19,7 @@ from ..quality.temporal import (
     TemporalOrderingError,
     compare_event_time,
 )
-from ..scd2 import (
+from fabric_data_framework.apply.scd2 import (
     IS_CURRENT,
     RECORD_HASH,
     SOURCE_DATASET_RUN_ID,

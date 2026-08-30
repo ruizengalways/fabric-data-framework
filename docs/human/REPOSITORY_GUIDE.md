@@ -65,7 +65,7 @@ src/fabric_data_framework/README.md
 | 文件/目录 | 职责 |
 |---|---|
 | `capture/` | snapshot、watermark、lookback、CDC、API/file 等 capture semantics 与 bootstrap contracts |
-| `bronze.py` | Bronze lineage/record contract |
+| `data_plane/bronze.py` | Bronze lineage/record contract |
 | `apply/` | APPEND、REPLACE、UPSERT、SCD1、SCD2、SNAPSHOT_DIFF 等目标应用语义 |
 | CDC 相关模块 | ordering、dedupe、checkpoint、Debezium/Kafka、Delta CDF 的 normalize/recovery contract |
 

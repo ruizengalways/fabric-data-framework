@@ -17,7 +17,7 @@ from fabric_data_framework.capture.cdc import (
     build_cdc_checkpoint,
     normalize_cdc_batch,
 )
-from fabric_data_framework.scd2 import (
+from fabric_data_framework.apply.scd2 import (
     IS_CURRENT,
     RECORD_HASH,
     SOURCE_DATASET_RUN_ID,

@@ -7,7 +7,7 @@ from typing import Callable
 
 from pydantic import BaseModel, ConfigDict
 
-from ..bronze import BronzeRecord
+from fabric_data_framework.data_plane.bronze import BronzeRecord
 
 
 class FrozenModel(BaseModel):

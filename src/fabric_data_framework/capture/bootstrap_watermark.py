@@ -10,7 +10,7 @@ from pydantic import Field
 from fabric_data_framework.config import WatermarkConfig
 from fabric_data_framework.contracts.base import FrozenModel
 from ..runtime import WatermarkPosition
-from ..watermark import WatermarkBatch, plan_watermark_batch
+from fabric_data_framework.capture.watermark import WatermarkBatch, plan_watermark_batch
 
 
 class WatermarkBootstrapEvidenceError(ValueError):

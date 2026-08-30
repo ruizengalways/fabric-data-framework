@@ -55,7 +55,7 @@ from ..contracts.execution_plan import (
 from ..deployment.delivery import config_bundle_hash
 from ..deployment.contracts import ReleaseManifest
 from ..extensions import ExtensionKind, ExtensionRegistry
-from ..fabric_auth import EnvironmentAccessTokenProvider
+from fabric_data_framework.adapters.fabric.auth import EnvironmentAccessTokenProvider
 from .integration_checks import build_fabric_capture_check_result
 from .integration_evidence import (
     IntegrationEvidenceCheckKind,

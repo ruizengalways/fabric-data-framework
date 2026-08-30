@@ -13,7 +13,7 @@ from ..apply.append import (
     InMemoryAppendTarget,
     apply_append,
 )
-from ..bronze import BronzeRecord, normalize_bronze
+from fabric_data_framework.data_plane.bronze import BronzeRecord, normalize_bronze
 from ..config import ApplyStrategy, DatasetStatus, RunMode
 from ..data_plane.staging import StagedBatch, stage_rows
 from fabric_data_framework.contracts.audit import (
