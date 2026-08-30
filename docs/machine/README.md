@@ -7,9 +7,10 @@ Purpose: restore exact framework engineering context without forcing human-facin
 1. `STATE.md` — exact current baseline, release status, CI/test baseline, real-service gaps, next work.
 2. `CONTEXT.md` — non-negotiable semantic/recovery/evidence invariants.
 3. `APPROVED_EVIDENCE.md` — exact approved-run prerequisite, PASS/FAIL, authorization, and merge contracts.
-4. `CAPABILITIES.md` — capability -> implementation owner -> evidence level.
-5. `IMPLEMENTATION_MAP.md` — code/module ownership and where to change what.
-6. `HISTORY.md` — merged milestone history; read only when historical provenance matters.
+4. `RELEASE_READINESS.md` — exact candidate identity, release gate aggregation and fail-closed release rules.
+5. `CAPABILITIES.md` — capability -> implementation owner -> evidence level.
+6. `IMPLEMENTATION_MAP.md` — code/module ownership and where to change what.
+7. `HISTORY.md` — merged milestone history; read only when historical provenance matters.
 
 ## File purpose
 
@@ -18,6 +19,7 @@ Purpose: restore exact framework engineering context without forcing human-facin
 | `STATE.md` | answer “where are we now and what is next?” |
 | `CONTEXT.md` | prevent semantic/recovery regressions after context reset |
 | `APPROVED_EVIDENCE.md` | restore exact runner/evidence/authorization rules |
+| `RELEASE_READINESS.md` | prevent candidate/artifact evidence mismatch and release overclaim |
 | `CAPABILITIES.md` | prevent CI/reference/live evidence overclaim |
 | `IMPLEMENTATION_MAP.md` | find the correct module before editing code |
 | `HISTORY.md` | recover why/when a capability entered the framework |
@@ -41,6 +43,7 @@ After a meaningful framework slice:
 - update `STATE.md` if baseline/gap/next-work changed;
 - update `CONTEXT.md` if a new invariant or fail-closed boundary was introduced;
 - update `APPROVED_EVIDENCE.md` if an approved-run prerequisite/PASS/authorization contract changed;
+- update `RELEASE_READINESS.md` if candidate identity, gate aggregation or exact-artifact rules changed;
 - update `CAPABILITIES.md` if a guarantee/evidence level changed;
 - update `IMPLEMENTATION_MAP.md` if module ownership/surface changed;
 - append `HISTORY.md` only for release-significant merged milestones.
