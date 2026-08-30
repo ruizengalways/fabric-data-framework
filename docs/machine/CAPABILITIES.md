@@ -97,15 +97,26 @@ Boundary: project init/validation operates on source-controlled structure and me
 | `release-readiness` report CLI | `cli/release.py` | PRESENTATION + CI PROVEN |
 | `--require-ready` hard non-zero gate | `cli/release.py` | PRESENTATION + CI PROVEN |
 | CI-retained blocked readiness report | `.github/workflows/ci.yml` | CI PROVEN; current main has 15 blockers |
-| Candidate wheel manifest binds source/run/attempt/inner SHA256 | `deployment/candidate_artifact.py` | IMPLEMENTED CONTRACT; PR CI REQUIRED |
-| Candidate manifest rejects wheel-byte/version/provenance mismatch | `deployment/candidate_artifact.py` | IMPLEMENTED fail-closed; PR CI REQUIRED |
-| Main CI candidate artifact contains wheel + SHA256SUMS + CANDIDATE.json | `.github/workflows/ci.yml` | IMPLEMENTED WORKFLOW CONTRACT; PR CI REQUIRED |
-| Main candidate artifact longer retention than PR artifact | `.github/workflows/ci.yml` | IMPLEMENTED WORKFLOW POLICY; PR CI REQUIRED |
-| Exact certified wheel promotion without rebuild | `.github/workflows/release.yml` | IMPLEMENTED RELEASE CONTRACT; PR CI REQUIRED |
-| Release requires certified readiness artifact bound to exact wheel | `.github/workflows/release.yml` | IMPLEMENTED fail-closed RELEASE CONTRACT; PR CI REQUIRED |
+| Candidate wheel manifest binds source/run/attempt/inner SHA256 | `deployment/candidate_artifact.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| Candidate manifest rejects wheel-byte/version/provenance mismatch | `deployment/candidate_artifact.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| Main CI candidate artifact contains wheel + SHA256SUMS + CANDIDATE.json | `.github/workflows/ci.yml` | IMPLEMENTED + CI PROVEN WORKFLOW CONTRACT |
+| Main candidate artifact longer retention than PR artifact | `.github/workflows/ci.yml` | IMPLEMENTED + CI PROVEN WORKFLOW POLICY |
+| Exact certified wheel promotion without rebuild | `.github/workflows/release.yml` | IMPLEMENTED + CI PROVEN RELEASE CONTRACT |
+| Release requires certified readiness artifact bound to exact wheel | `.github/workflows/release.yml` | IMPLEMENTED + CI PROVEN fail-closed RELEASE CONTRACT |
 | Candidate-certification workflow that produces certified readiness artifact | future `.github/workflows/candidate-certification.yml` | NOT YET IMPLEMENTED / NEXT RELEASE BLOCKER |
 
-Boundary: ordinary readiness CI proves that the aggregator fails closed; candidate-artifact CI proves candidate identity; neither certifies Fabric or makes 0.4 releasable. The candidate source SHA and exact inner wheel SHA256 have not yet been frozen for live certification, and no `release-readiness-certified-<candidate SHA>` artifact exists yet.
+Verified main candidate-capable artifact from run `33310363412`:
+
+```text
+source SHA       7f7849b9319df43ef382574747bfe27ee6378403
+wheel            fabric_data_framework-0.4.0-py3-none-any.whl
+inner SHA256     b62ec28ddeff0cd07cc955537e82523d40706a756f4e3d458d89b51d11390d6f
+artifact ID      9731784760
+retention        90 days / expires 2026-11-28T12:01:00Z
+selected/frozen  false
+```
+
+Boundary: ordinary readiness CI proves that the aggregator fails closed; candidate-artifact CI proves candidate identity; neither certifies Fabric or makes 0.4 releasable. The current main artifact is candidate-capable but has not been selected/frozen for live certification, and no `release-readiness-certified-<candidate SHA>` artifact exists yet.
 
 ## Warehouse ambiguity / session recovery
 
@@ -114,7 +125,7 @@ Boundary: ordinary readiness CI proves that the aggregator fails closed; candida
 | Matching same-transaction marker -> COMMITTED | REFERENCE + CI PROVEN |
 | Marker absence alone -> UNRESOLVED | REFERENCE + CI PROVEN fail-closed |
 | Unknown target outcome never blind retries | REFERENCE + CI PROVEN fail-closed |
-| Simulated framework ACK loss is not real network/driver proof | EXPLICIT EVIDENCE BOUNDARY |
+| Simulated framework ACK loss is not real network/driver fault proof | EXPLICIT EVIDENCE BOUNDARY |
 | Real-fault drill requires actual observed execution exception | IMPLEMENTED + CI PROVEN runner contract |
 | Normal transaction return cannot PASS real-fault drill | REFERENCE + CI PROVEN false-positive guard |
 | Fault arm/verification identity must match | REFERENCE + CI PROVEN fail-closed |
@@ -149,7 +160,7 @@ Boundary: ordinary readiness CI proves that the aggregator fails closed; candida
 
 | Proof | State |
 |---|---|
-| Frozen exact 0.4 candidate source SHA + inner wheel SHA256 | NOT YET FROZEN |
+| Frozen exact 0.4 candidate source SHA + inner wheel SHA256 | NOT YET FROZEN; candidate-capable main artifact exists |
 | Candidate-certification workflow / certified readiness artifact | NOT YET IMPLEMENTED / NOT YET PRODUCED |
 | Enterprise Fabric identity/token | NOT YET RETAINED |
 | Workspace/item authorization | NOT YET RETAINED |
