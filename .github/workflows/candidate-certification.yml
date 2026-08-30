@@ -1,0 +1,254 @@
+name: candidate-certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: "Successful main framework-ci run that built the exact candidate wheel"
+        required: true
+        type: string
+      candidate_git_sha:
+        description: "Exact 40-character candidate source SHA"
+        required: true
+        type: string
+      candidate_wheel_sha256:
+        description: "Exact inner wheel SHA256 from CANDIDATE.json/SHA256SUMS"
+        required: true
+        type: string
+      release_proofs_run_id:
+        description: "Successful candidate-release-proofs workflow run for this exact candidate"
+        required: true
+        type: string
+      integration_evidence_run_id:
+        description: "Successful candidate-integration-evidence workflow run for this exact candidate"
+        required: true
+        type: string
+      environment:
+        description: "Environment in which the retained integration evidence was collected"
+        required: true
+        default: DEV
+        type: choice
+        options:
+          - DEV
+          - UAT
+          - PROD
+      domain:
+        description: "Exact domain recorded in the retained integration evidence"
+        required: true
+        default: customer
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: candidate-certification-${{ inputs.candidate_git_sha }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      CANDIDATE_SHA: ${{ inputs.candidate_git_sha }}
+      CANDIDATE_WHEEL_SHA256: ${{ inputs.candidate_wheel_sha256 }}
+      RELEASE_PROOFS_RUN_ID: ${{ inputs.release_proofs_run_id }}
+      INTEGRATION_EVIDENCE_RUN_ID: ${{ inputs.integration_evidence_run_id }}
+      CERTIFICATION_ENVIRONMENT: ${{ inputs.environment }}
+      CERTIFICATION_DOMAIN: ${{ inputs.domain }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate certification inputs
+        run: |
+          python - <<'PY'
+          import os
+          import re
+
+          if re.fullmatch(r"[0-9a-f]{40}", os.environ["CANDIDATE_SHA"]) is None:
+              raise SystemExit("candidate_git_sha must be a 40-character lowercase git SHA")
+          if re.fullmatch(r"[0-9a-f]{64}", os.environ["CANDIDATE_WHEEL_SHA256"]) is None:
+              raise SystemExit("candidate_wheel_sha256 must be a 64-character lowercase SHA256")
+          for name in (
+              "CANDIDATE_RUN_ID",
+              "RELEASE_PROOFS_RUN_ID",
+              "INTEGRATION_EVIDENCE_RUN_ID",
+          ):
+              value = os.environ[name]
+              if not value.isdigit() or int(value) < 1:
+                  raise SystemExit(f"{name} must be a positive GitHub Actions run ID")
+          domain = os.environ["CERTIFICATION_DOMAIN"]
+          if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", domain) is None:
+              raise SystemExit("domain must contain only safe identifier characters")
+          PY
+
+      - name: Checkout exact candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.candidate_git_sha }}
+          fetch-depth: 0
+
+      - name: Verify candidate source policy exists
+        id: candidate
+        run: |
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          if [ "${ACTUAL_SHA}" != "${CANDIDATE_SHA}" ]; then
+            echo "Checked out ${ACTUAL_SHA}, expected ${CANDIDATE_SHA}." >&2
+            exit 1
+          fi
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "${CANDIDATE_SHA}" origin/main; then
+            echo "Candidate ${CANDIDATE_SHA} is not reachable from main." >&2
+            exit 1
+          fi
+          VERSION="$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+          print(tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])
+          PY
+          )"
+          test -f "release/${VERSION}/readiness-spec.json"
+          test -f "release/${VERSION}/integration-evidence-template.json"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify candidate CI provenance
+        id: candidate_run
+        run: |
+          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}")"
+          RUN_HEAD="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["head_sha"])')"
+          RUN_BRANCH="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["head_branch"])')"
+          RUN_EVENT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["event"])')"
+          RUN_CONCLUSION="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["conclusion"])')"
+          RUN_PATH="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["path"])')"
+          RUN_ATTEMPT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["run_attempt"])')"
+          if [ "${RUN_HEAD}" != "${CANDIDATE_SHA}" ]; then
+            echo "Candidate CI head ${RUN_HEAD} does not match ${CANDIDATE_SHA}." >&2
+            exit 1
+          fi
+          if [ "${RUN_BRANCH}" != "main" ] || [ "${RUN_EVENT}" != "push" ]; then
+            echo "Candidate must come from a main push CI run." >&2
+            exit 1
+          fi
+          if [ "${RUN_CONCLUSION}" != "success" ]; then
+            echo "Candidate CI run is not successful." >&2
+            exit 1
+          fi
+          if [ "${RUN_PATH}" != ".github/workflows/ci.yml" ]; then
+            echo "Candidate run used unexpected workflow ${RUN_PATH}." >&2
+            exit 1
+          fi
+          echo "run_attempt=${RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download and verify exact candidate wheel
+        env:
+          CANDIDATE_RUN_ATTEMPT: ${{ steps.candidate_run.outputs.run_attempt }}
+          EXPECTED_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          rm -rf candidate-dist
+          gh run download "${CANDIDATE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "framework-wheel-${CANDIDATE_SHA}" \
+            --dir candidate-dist
+          test -f candidate-dist/CANDIDATE.json
+          test -f candidate-dist/SHA256SUMS
+          python src/fabric_data_framework/deployment/candidate_artifact.py verify \
+            --dist-dir candidate-dist \
+            --manifest candidate-dist/CANDIDATE.json \
+            --candidate-sha "${CANDIDATE_SHA}" \
+            --workflow-run-id "${CANDIDATE_RUN_ID}" \
+            --workflow-run-attempt "${CANDIDATE_RUN_ATTEMPT}" \
+            --expected-version "${EXPECTED_VERSION}" \
+            --expected-wheel-sha256 "${CANDIDATE_WHEEL_SHA256}"
+          (cd candidate-dist && sha256sum -c SHA256SUMS)
+
+      - name: Verify retained evidence workflow provenance
+        run: |
+          verify_run() {
+            run_id="$1"
+            expected_path="$2"
+            run_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+            run_head="$(printf '%s' "${run_json}" | python -c 'import json,sys; print(json.load(sys.stdin)["head_sha"])')"
+            run_event="$(printf '%s' "${run_json}" | python -c 'import json,sys; print(json.load(sys.stdin)["event"])')"
+            run_conclusion="$(printf '%s' "${run_json}" | python -c 'import json,sys; print(json.load(sys.stdin)["conclusion"])')"
+            run_path="$(printf '%s' "${run_json}" | python -c 'import json,sys; print(json.load(sys.stdin)["path"])')"
+            if [ "${run_head}" != "${CANDIDATE_SHA}" ]; then
+              echo "Evidence run ${run_id} head ${run_head} does not match candidate ${CANDIDATE_SHA}." >&2
+              exit 1
+            fi
+            if [ "${run_event}" != "workflow_dispatch" ] || [ "${run_conclusion}" != "success" ]; then
+              echo "Evidence run ${run_id} must be a successful workflow_dispatch run." >&2
+              exit 1
+            fi
+            if [ "${run_path}" != "${expected_path}" ]; then
+              echo "Evidence run ${run_id} used ${run_path}; expected ${expected_path}." >&2
+              exit 1
+            fi
+          }
+          verify_run "${RELEASE_PROOFS_RUN_ID}" ".github/workflows/candidate-release-proofs.yml"
+          verify_run "${INTEGRATION_EVIDENCE_RUN_ID}" ".github/workflows/candidate-integration-evidence.yml"
+
+      - name: Download retained exact-candidate evidence
+        run: |
+          rm -rf retained-evidence certified-evidence
+          mkdir -p retained-evidence/release retained-evidence/integration certified-evidence
+          gh run download "${RELEASE_PROOFS_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "release-proofs-${CANDIDATE_SHA}" \
+            --dir retained-evidence/release
+          gh run download "${INTEGRATION_EVIDENCE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "integration-evidence-${CANDIDATE_SHA}" \
+            --dir retained-evidence/integration
+          test -f retained-evidence/release/release-proofs.json
+          test -f retained-evidence/integration/integration-evidence.json
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+
+      - name: Install exact candidate wheel only
+        run: |
+          python -m pip install candidate-dist/*.whl
+          python -m pip check
+
+      - name: Certify exact candidate from retained evidence
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          fabric-framework candidate-certify \
+            --readiness-spec "release/${FRAMEWORK_VERSION}/readiness-spec.json" \
+            --integration-template "release/${FRAMEWORK_VERSION}/integration-evidence-template.json" \
+            --candidate-sha "${CANDIDATE_SHA}" \
+            --artifact-sha256 "${CANDIDATE_WHEEL_SHA256}" \
+            --environment "${CERTIFICATION_ENVIRONMENT}" \
+            --domain "${CERTIFICATION_DOMAIN}" \
+            --proofs retained-evidence/release/release-proofs.json \
+            --integration-evidence retained-evidence/integration/integration-evidence.json \
+            --output certified-evidence/release-readiness.json
+          cp retained-evidence/release/release-proofs.json certified-evidence/release-proofs.json
+          cp retained-evidence/integration/integration-evidence.json certified-evidence/integration-evidence.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path("certified-evidence/release-readiness.json").read_text())
+          if report.get("candidate_git_sha") != os.environ["CANDIDATE_SHA"]:
+              raise SystemExit("certified report candidate SHA mismatch")
+          if report.get("artifact_sha256") != os.environ["CANDIDATE_WHEEL_SHA256"]:
+              raise SystemExit("certified report wheel SHA256 mismatch")
+          if report.get("release_ready") is not True or report.get("blockers") != []:
+              raise SystemExit("candidate certification did not reach release_ready=true")
+          required = [item for item in report.get("results", []) if item.get("required")]
+          if not required or any(item.get("status") != "PASS" for item in required):
+              raise SystemExit("every required candidate readiness gate must PASS")
+          PY
+
+      - name: Upload certified readiness artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-readiness-certified-${{ inputs.candidate_git_sha }}
+          path: certified-evidence/
+          if-no-files-found: error
+          retention-days: 90
