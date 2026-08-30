@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import importlib
 from pathlib import Path
 
@@ -42,6 +43,16 @@ def test_control_plane_package_is_canonical_and_explicit():
             f"fabric_data_framework.control_plane.{module_name}"
         )
         assert imported is not None
+
+
+def test_control_plane_package_root_has_no_reexport_imports():
+    tree = ast.parse((CONTROL_PLANE_ROOT / "__init__.py").read_text(encoding="utf-8"))
+    imports = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+    ]
+    assert imports == []
 
 
 @pytest.mark.parametrize("module_name", REMOVED_FLAT_MODULES)
