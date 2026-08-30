@@ -27,9 +27,17 @@ fabric-data-framework/
 | `src/fabric_data_framework/` | framework package 本体 | 只有通用能力变化时 |
 | `tests/` | semantic/runtime/provider/evidence contract tests | framework 改动时同步改 |
 
+如果只是想浏览 Python 源码，先看：
+
+```text
+src/fabric_data_framework/README.md
+```
+
+它是代码层导航，不记录开发历史。
+
 ## `src/fabric_data_framework/` 怎么看
 
-可以按下面六个层次理解：
+可以按下面七个层次理解：
 
 ```text
 1. semantic config
@@ -37,7 +45,8 @@ fabric-data-framework/
 3. planning / execution
 4. provider adapters
 5. recovery / control plane
-6. approved evidence / CLI / release
+6. approved evidence / delivery
+7. CLI presentation
 ```
 
 ### 1. Semantic config
@@ -104,7 +113,7 @@ marker absent -> UNRESOLVED
 只有独立 no-late-commit 证明 -> NOT_COMMITTED
 ```
 
-### 6. Approved evidence / release / CLI
+### 6. Approved evidence / delivery
 
 | 文件 | 职责 |
 |---|---|
@@ -117,8 +126,43 @@ marker absent -> UNRESOLVED
 | `approved_warehouse_runner.py` | approved Warehouse target+marker commit/recovery |
 | `approved_warehouse_fault_runner.py` | real ambiguous-COMMIT drill + optional session-termination recovery |
 | `delivery.py` / deployment 相关模块 | config bundle、release manifest、deployment provenance |
-| `cli.py` | 较早/通用 CLI commands |
-| `cli_router.py` | 新的 additive CLI commands 和 approved runners 路由 |
+
+这些是可复用的 library/runtime contract，不属于 CLI。CLI 只是调用它们。
+
+### 7. `cli/` — 可以单独忽略的 presentation layer
+
+```text
+src/fabric_data_framework/cli/
+├─ README.md
+├─ __init__.py
+├─ __main__.py
+├─ main.py
+├─ base.py
+└─ approved.py
+```
+
+| 文件 | 职责 |
+|---|---|
+| `cli/main.py` | 很薄的 command-family router / composition root |
+| `cli/base.py` | validation、metadata、deployment、preflight 等通用 CLI |
+| `cli/approved.py` | approved evidence / real-environment CLI |
+| `cli/__init__.py` | 暴露 console-script `main` |
+| `cli/__main__.py` | 支持 `python -m fabric_data_framework.cli` |
+| `cli/README.md` | CLI 代码边界说明 |
+
+依赖方向必须是：
+
+```text
+cli/ ---> framework core
+
+framework core -X-> cli/
+```
+
+因此如果你只是想理解 framework 的核心数据处理能力，可以直接跳过整个 `cli/`。
+
+更强的约束是：**把 `src/fabric_data_framework/cli/` 物理删除后，核心 library import、capture/apply/execution/recovery/runtime 仍必须可用。** CI 有专门的 isolation test 钉住这个边界。
+
+`cli_router.py` 只保留为旧 import 的 deprecated compatibility shim；实际 CLI implementation 不再放在顶层。
 
 ## `extensions/` 是什么
 
@@ -166,6 +210,7 @@ customer extension owns only bounded customer-specific translation or mutation
 provider Completed + missing framework outcome -> FAIL
 marker absent -> UNRESOLVED
 fault injection permission != Admin KILL permission
+core library must not depend on CLI
 ```
 
 对应测试应该明确钉住这个行为。
@@ -183,6 +228,7 @@ target_operation_*.py
 integration_evidence*.py
 provider REST transports
 control-plane repository
+cli/*
 ```
 
 如果你发现每接一个新 dataset 都要改这些文件，说明 customer/framework 边界已经设计错了。

@@ -1,4 +1,8 @@
-"""Small provider-neutral CLI used by CI/CD runners and operator validation."""
+"""Provider-neutral base CLI commands.
+
+This module is a presentation layer over the reusable framework. Core package
+modules must never import from ``fabric_data_framework.cli``.
+"""
 
 from __future__ import annotations
 
@@ -11,22 +15,22 @@ import sys
 
 from sqlalchemy import create_engine
 
-from . import __version__
-from .adapters.fabric.rest import FabricRestClient
-from .capture import (
+from .. import __version__
+from ..adapters.fabric.rest import FabricRestClient
+from ..capture import (
     load_capture_selections,
     load_semantic_capture_selections,
     validate_capture_selection,
     validate_semantic_capture_selection,
 )
-from .control_plane import apply_baseline_schema, current_schema_version
-from .control_plane_certification import (
+from ..control_plane import apply_baseline_schema, current_schema_version
+from ..control_plane_certification import (
     CONTROL_PLANE_BACKEND_PROFILES,
     ControlPlaneExternalEvidence,
     certify_control_plane_backend,
     get_control_plane_backend_profile,
 )
-from .delivery import (
+from ..delivery import (
     build_release_manifest,
     load_dataset_configs,
     load_environment_bindings,
@@ -37,10 +41,10 @@ from .delivery import (
     validate_release_tag,
     write_json_model,
 )
-from .deployment import CIProvider, DeploymentMechanism, DeploymentProvenance
-from .fabric_auth import EnvironmentAccessTokenProvider
-from .integration_checks import run_fabric_item_read_check
-from .integration_evidence import (
+from ..deployment import CIProvider, DeploymentMechanism, DeploymentProvenance
+from ..fabric_auth import EnvironmentAccessTokenProvider
+from ..integration_checks import run_fabric_item_read_check
+from ..integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceStatus,
     load_integration_evidence_manifest,
@@ -49,11 +53,11 @@ from .integration_evidence import (
     validate_integration_evidence_manifest,
     write_integration_evidence_manifest,
 )
-from .integration_runner import (
+from ..integration_runner import (
     build_approved_integration_run_plan,
     load_approved_integration_runner_config,
 )
-from .operator import get_dataset_operational_snapshot, list_dataset_operational_snapshots
+from ..operator import get_dataset_operational_snapshot, list_dataset_operational_snapshots
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -282,9 +286,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "control-plane-certify":
             if args.require_production_certified and not args.run_conformance:
-                raise ValueError(
-                    "--require-production-certified requires --run-conformance"
-                )
+                raise ValueError("--require-production-certified requires --run-conformance")
             evidence = (
                 ControlPlaneExternalEvidence.from_json_file(args.external_evidence)
                 if args.external_evidence
@@ -503,5 +505,4 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+__all__ = ["main"]
