@@ -257,9 +257,90 @@ ordering = source event position / sequence
 
 但具体字段必须由真实 source semantics 决定。
 
-## 9. 全量校验，不要一张张手工跑
+然后把每张表的 source/capture/Bronze/history 声明写到：
 
-当 config 和 semantic selections 都准备好后：
+```text
+config/capture/semantic-selections.json
+```
+
+这个文件必须覆盖所有 `DatasetConfig`，不能留下“先跑起来以后再说”的未审查表。
+
+## 9. 用 project-validate 做项目级 dry run
+
+当 DatasetConfig 和 semantic selections 准备好后，推荐先跑：
+
+```bash
+fabric-framework project-validate .
+```
+
+这不是去连接 Fabric，也不会改任何远端资源。它是 source-controlled project 的静态 dry run，会一次性检查：
+
+```text
+fabric-project.json 是否有效
+DatasetConfig 是否都能解析且 dataset_id 唯一
+所有 dependencies 是否引用 repo 内真实 dataset
+依赖图是否有 cycle
+capture engine 是否能证明所选 capture semantics
+apply engine 是否支持所选 apply strategy
+semantic-selections.json 是否 100% 覆盖 DatasetConfig
+是否引用不存在的 dataset
+semantic preset 与 DatasetConfig capture strategy 是否一致
+history/delete claim 是否 overclaim
+```
+
+成功时会输出类似项目汇总：
+
+```json
+{
+  "dataset_count": 100,
+  "semantic_selection_count": 100,
+  "capture_strategies": [
+    {"value": "FULL", "count": 50},
+    {"value": "CDC", "count": 10}
+  ],
+  "apply_strategies": [
+    {"value": "SCD1", "count": 20},
+    {"value": "SCD2", "count": 20}
+  ],
+  "execution_groups": [
+    {"value": "health-core-daily", "count": 60},
+    {"value": "health-cdc", "count": 10}
+  ]
+}
+```
+
+上面的数字只是示意；同一张 dataset 同时有 capture strategy 和 apply strategy，所以不要把这些分类当成互斥总和。
+
+如果 CI 需要保留 dry-run artifact：
+
+```bash
+fabric-framework project-validate . \
+  --output build/project-validation.json
+```
+
+如果 semantic selection 文件不在默认位置：
+
+```bash
+fabric-framework project-validate . \
+  --semantic-selections config/capture/health-semantics.json
+```
+
+这个命令的价值是把你之前说的：
+
+```text
+init
+  -> 配 metadata
+  -> dry run
+  -> 没问题再 push GitHub
+```
+
+变成一个可重复、可放进 PR CI 的标准流程。
+
+## 10. 什么时候还需要单独跑 semantic onboarding validate
+
+`project-validate` 已经把完整 semantic onboarding 纳入项目级 dry run。
+
+如果你正在调试一个 semantic selection 文件，仍然可以单独跑底层命令：
 
 ```bash
 fabric-framework capture-semantic-onboarding-validate \
@@ -268,18 +349,16 @@ fabric-framework capture-semantic-onboarding-validate \
   --require-all
 ```
 
-`--require-all` 很重要。
-
-对于 100 张表，它能防止：
+`--require-all` 的原则仍然非常重要：
 
 ```text
 99 张已经做 semantic onboarding
 1 张忘了做
 ```
 
-然后再进入 release/deployment 流程。
+必须让 CI 失败，而不是默默把第 100 张带进 DEV。
 
-## 10. DEV / UAT / PROD 的物理信息放哪里
+## 11. DEV / UAT / PROD 的物理信息放哪里
 
 建议：
 
@@ -308,7 +387,9 @@ raw connection credential
 
 Semantic DatasetConfig 仍然是 immutable source-controlled truth。
 
-## 11. GitHub 的正常流程
+`project-validate` 当前检查的是 source-controlled semantic/project integrity，不把“环境 binding 已存在”误当成“环境已真实可用”。真实 workspace/item/credential/provider proof 仍然属于部署和 approved evidence 阶段。
+
+## 12. GitHub 的正常流程
 
 一个合理的本地到企业 Git 流程是：
 
@@ -318,11 +399,12 @@ Semantic DatasetConfig 仍然是 immutable source-controlled truth。
   -> project-init
   -> 做 inventory
   -> 写 DatasetConfig
-  -> semantic validate
-  -> unit / contract tests
+  -> 写 semantic selections
+  -> project-validate dry run
+  -> domain unit / contract tests
   -> git commit
   -> push company GitHub
-  -> PR / CI
+  -> PR / CI 再跑 project-validate
   -> immutable release artifact
   -> DEV deployment
   -> UAT / PROD promotion
@@ -334,7 +416,9 @@ Semantic DatasetConfig 仍然是 immutable source-controlled truth。
 CLI 也可以在 CI/CD 和受控 operator 环境中运行。
 ```
 
-## 12. 什么情况下才拆成多个 customer repo
+最推荐的是：本地先 dry run，PR CI 再用同一个命令重跑一次。
+
+## 13. 什么情况下才拆成多个 customer repo
 
 考虑拆 repo 的理由应该是：
 
@@ -353,12 +437,13 @@ CLI 也可以在 CI/CD 和受控 operator 环境中运行。
 
 就拆 repo。
 
-## 13. framework repo 和 customer repo 的边界
+## 14. framework repo 和 customer repo 的边界
 
 ```text
 fabric-data-framework
   reusable capture/apply/runtime/recovery/provider/evidence code
   immutable wheel
+  project init / project dry-run contracts
 
 fabric-customer / fabric-health
   DatasetConfig

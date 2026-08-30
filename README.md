@@ -59,13 +59,16 @@ The wheel is not edited inside Fabric. Source code remains in Git.
 
 The CLI is mainly for local development, validation, packaging, deployment/evidence preparation, and approved operational checks. You do not need an interactive Fabric terminal to use the framework at runtime.
 
-For a new customer/domain repository, the framework can create a non-destructive source-controlled skeleton:
+For a new customer/domain repository, create a non-destructive source-controlled skeleton and then dry-run the complete metadata bundle before pushing it:
 
 ```bash
 fabric-framework project-init ./fabric-health --domain health
+cd fabric-health
+# author DatasetConfig + config/capture/semantic-selections.json
+fabric-framework project-validate .
 ```
 
-This initializes repository structure only. It does not guess keys, watermarks, delete semantics, SCD strategy, or create live Fabric resources.
+`project-init` does not guess keys, watermarks, delete semantics, SCD strategy, or create live Fabric resources. `project-validate` remains local/static: it checks config parsing, dependency integrity, capability compatibility and complete semantic onboarding without touching Fabric.
 
 ## Start here
 
@@ -75,7 +78,7 @@ Human documentation is intentionally small and task-oriented:
 - [`docs/human/CONCEPTS.md`](docs/human/CONCEPTS.md) — how to understand the framework.
 - [`docs/human/REPOSITORY_GUIDE.md`](docs/human/REPOSITORY_GUIDE.md) — what each important file/folder is for.
 - [`docs/human/GETTING_STARTED.md`](docs/human/GETTING_STARTED.md) — install, test, package, and use the framework.
-- [`docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md`](docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md) — initialize a new customer repo and organize tens or hundreds of datasets safely.
+- [`docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md`](docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md) — initialize a new customer repo, dry-run it, and organize tens or hundreds of datasets safely.
 - [`docs/human/DATASET_ONBOARDING.md`](docs/human/DATASET_ONBOARDING.md) — what to do when a new dataset arrives, with concrete examples.
 - [`docs/human/OPERATIONS.md`](docs/human/OPERATIONS.md) — release/evidence/operational CLI workflow.
 
@@ -93,6 +96,7 @@ Useful discovery commands:
 ```bash
 fabric-framework --help
 fabric-framework project-init --help
+fabric-framework project-validate --help
 fabric-framework capture-semantic-onboarding-validate --help
 fabric-framework integration-run-preflight --help
 ```
