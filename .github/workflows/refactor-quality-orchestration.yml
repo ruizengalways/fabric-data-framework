@@ -1,0 +1,143 @@
+name: refactor-quality-orchestration
+
+on:
+  push:
+    branches:
+      - codex/quality-orchestration-explicit-imports
+
+permissions:
+  contents: write
+
+jobs:
+  codemod:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/quality-orchestration-explicit-imports
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Remove quality and orchestration facades
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+          pkg = root / 'src' / 'fabric_data_framework'
+
+          mappings = {
+              'quality': {
+                  'reconcile_append': 'append',
+                  'reconcile_full_replace': 'full_refresh',
+                  'QuarantinedRecord': 'rules',
+                  'RowRule': 'rules',
+                  'ValidationOutcome': 'rules',
+                  'validate_records': 'rules',
+                  'SchemaChangeKind': 'schema_evolution',
+                  'SchemaEvolutionClassification': 'schema_evolution',
+                  'SchemaEvolutionDecision': 'schema_evolution',
+                  'SchemaFieldChange': 'schema_evolution',
+                  'classify_schema_evolution': 'schema_evolution',
+                  'require_compatible_schema': 'schema_evolution',
+                  'reconcile_snapshot_diff': 'snapshot_diff',
+                  'EventTimeRelation': 'temporal',
+                  'SourceOrderRelation': 'temporal',
+                  'TemporalAssessment': 'temporal',
+                  'TemporalCondition': 'temporal',
+                  'TemporalOrderingError': 'temporal',
+                  'assess_temporal': 'temporal',
+                  'compare_event_time': 'temporal',
+                  'compare_source_order': 'temporal',
+              },
+              'orchestration': {
+                  'DEFAULT_REQUIRED_CRITICALITIES': 'planner',
+                  'DispatchPlan': 'planner',
+                  'OrchestrationIntegrityError': 'planner',
+                  'aggregate_pipeline_status': 'planner',
+                  'blocking_dependencies': 'planner',
+                  'build_dispatch_plan': 'planner',
+                  'ready_dataset_ids': 'planner',
+              },
+          }
+
+          pattern = re.compile(
+              r'(?P<indent>^[ \t]*)from (?P<prefix>(?:fabric_data_framework\.|\.+))'
+              r'(?P<package>quality|orchestration) import '
+              r'(?P<body>\([^\)]*\)|[^\n]+)',
+              re.MULTILINE,
+          )
+
+          def rewrite_match(match: re.Match[str]) -> str:
+              indent = match.group('indent')
+              prefix = match.group('prefix')
+              package = match.group('package')
+              body = match.group('body').strip()
+              if body.startswith('('):
+                  body = body[1:-1]
+              names = []
+              for raw in body.split(','):
+                  token = raw.strip()
+                  if not token:
+                      continue
+                  token = token.split('#', 1)[0].strip()
+                  if token:
+                      names.append(token)
+              grouped: dict[str, list[str]] = {}
+              for token in names:
+                  original = token.split(' as ', 1)[0].strip()
+                  owner = mappings[package].get(original)
+                  if owner is None:
+                      raise RuntimeError(f'unknown {package} facade symbol: {original}')
+                  grouped.setdefault(owner, []).append(token)
+              lines = []
+              for owner, tokens in sorted(grouped.items()):
+                  lines.append(
+                      f"{indent}from {prefix}{package}.{owner} import {', '.join(tokens)}"
+                  )
+              return '\n'.join(lines)
+
+          for base in (pkg, root / 'tests'):
+              for path in sorted(base.rglob('*.py')):
+                  text = path.read_text(encoding='utf-8')
+                  updated = pattern.sub(rewrite_match, text)
+                  if updated != text:
+                      path.write_text(updated, encoding='utf-8')
+
+          (pkg / 'quality' / '__init__.py').write_text(
+              '"""Quality namespace. Import concrete contracts from explicit submodules."""\n',
+              encoding='utf-8',
+          )
+          (pkg / 'orchestration' / '__init__.py').write_text(
+              '"""Orchestration namespace. Import planner and dispatcher explicitly."""\n',
+              encoding='utf-8',
+          )
+
+          boundary = root / 'tests' / 'test_quality_orchestration_package_boundaries.py'
+          boundary.write_text('''from __future__ import annotations\n\nimport importlib\nfrom pathlib import Path\n\n\nREPO_ROOT = Path(__file__).parents[1]\n\n\ndef test_quality_and_orchestration_roots_are_namespace_only():\n    quality = importlib.import_module("fabric_data_framework.quality")\n    orchestration = importlib.import_module("fabric_data_framework.orchestration")\n    assert not hasattr(quality, "validate_records")\n    assert not hasattr(quality, "SchemaChangeKind")\n    assert not hasattr(orchestration, "build_dispatch_plan")\n    assert not hasattr(orchestration, "DispatchPlan")\n\n\ndef test_explicit_quality_and_orchestration_modules_import():\n    modules = (\n        "fabric_data_framework.quality.rules",\n        "fabric_data_framework.quality.schema_evolution",\n        "fabric_data_framework.quality.temporal",\n        "fabric_data_framework.quality.reconciliation",\n        "fabric_data_framework.orchestration.planner",\n        "fabric_data_framework.orchestration.dispatcher",\n    )\n    for module_name in modules:\n        assert importlib.import_module(module_name) is not None\n\n\ndef test_source_and_tests_do_not_use_quality_orchestration_facades():\n    forbidden = (\n        "from fabric_data_framework.quality import",\n        "from fabric_data_framework.orchestration import",\n    )\n    offenders: list[str] = []\n    current = Path(__file__).resolve()\n    for root in (REPO_ROOT / "src", REPO_ROOT / "tests"):\n        for path in sorted(root.rglob("*.py")):\n            if path.resolve() == current:\n                continue\n            text = path.read_text(encoding="utf-8")\n            for value in forbidden:\n                if value in text:\n                    offenders.append(f"{path.relative_to(REPO_ROOT)}: {value}")\n    assert offenders == []\n''', encoding='utf-8')
+
+          offenders = []
+          for base in (pkg, root / 'tests'):
+              for path in base.rglob('*.py'):
+                  if path == boundary:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  if re.search(r'from fabric_data_framework\.(quality|orchestration) import ', text):
+                      offenders.append(str(path))
+                  if re.search(r'from \.+(quality|orchestration) import ', text):
+                      offenders.append(str(path))
+          if offenders:
+              raise RuntimeError('facade imports remain:\n' + '\n'.join(sorted(set(offenders))))
+
+          (root / '.github' / 'workflows' / 'refactor-quality-orchestration.yml').unlink()
+          PY
+      - name: Commit explicit package imports
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor: remove quality and orchestration facades"
+          git push origin HEAD:codex/quality-orchestration-explicit-imports
