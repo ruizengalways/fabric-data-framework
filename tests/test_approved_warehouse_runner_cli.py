@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from fabric_data_framework import cli
+import fabric_data_framework.cli as cli
 from fabric_data_framework.cli import approved as cli_approved
 from fabric_data_framework.evidence.approved_warehouse_runner import ApprovedWarehouseRunConfig
 from fabric_data_framework.config import (
