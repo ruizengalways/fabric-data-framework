@@ -169,7 +169,7 @@ CANDIDATE.json
 
 A GitHub artifact archive digest is not the inner wheel SHA256.
 
-## Candidate certification — PR #84
+## Candidate certification — merged baseline
 
 Source-controlled integration check template:
 
@@ -194,16 +194,23 @@ Ownership table:
 
 | Area | Canonical owner | Boundary |
 |---|---|---|
-| Bind integration template to exact env/domain/wheel hash | `evidence/candidate_certification.py` | template check membership is source-controlled; exact candidate identity supplied at runtime |
-| Require fully certified IntegrationEvidenceManifest | `evidence/candidate_certification.py` | calls canonical integration evidence validator with `require_certified=True` |
-| Reject credential-like release proof text | `evidence/candidate_certification.py` + `evidence/safety.py` | certification artifact must be safe to retain/publish |
+| Bind integration template to exact env/domain/wheel hash | `evidence/candidate_certification.py` | template check membership source-controlled; exact identity runtime-bound |
+| Require fully certified IntegrationEvidenceManifest | `evidence/candidate_certification.py` | canonical validator with `require_certified=True` |
+| Reject credential-like release proof text | `evidence/candidate_certification.py` + `evidence/safety.py` | certified artifact must be safe to retain/publish |
 | Final zero-blocker readiness aggregation | `evidence/candidate_certification.py` -> `evidence/release_readiness.py` | all required readiness gates must PASS |
 | Hard certification CLI | `cli/release.py` | presentation only |
 | Candidate/run/wheel/evidence provenance orchestration | `.github/workflows/candidate-certification.yml` | no Fabric execution, no wheel build, no release mutation |
-| Release-proof producer | `.github/workflows/candidate-release-proofs.yml` | NOT YET IMPLEMENTED; must retain exact-candidate source/wheel/customer/business-path proofs |
-| Integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | NOT YET IMPLEMENTED; must run approved exact-candidate live integration checks |
+| Release-proof producer | `.github/workflows/candidate-release-proofs.yml` | NOT YET IMPLEMENTED; exact static + business-path proof source |
+| Integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | NOT YET IMPLEMENTED; approved exact-candidate live integration source |
 
-PR #84 CI `33314693131` proves the certification contract and workflow structure on Python 3.11/3.13, wheel and ordinary readiness jobs; Python 3.13 reports 651 tests. This is PR CI evidence pending merge/main checkpoint, not live Fabric evidence.
+Merged PR #84:
+
+```text
+merge SHA       bb9b7ed74e2696978c546011c893fb316ffdd57c
+final PR CI     33314924064
+main CI         33314977393
+merged tests    653
+```
 
 The certification workflow accepts upstream evidence only when the producer run is:
 
@@ -223,6 +230,8 @@ release-readiness-certified-<candidate SHA>/
   release-proofs.json
   integration-evidence.json
 ```
+
+The two producer workflows do not yet exist, so successful live certification remains impossible by design.
 
 ## Exact immutable release promotion
 
@@ -308,9 +317,26 @@ fabric_data_framework.warehouse_commit_fault_injectors
 
 Extensions may provide bounded provider behavior/evidence observations. They cannot redefine framework semantic truth or manufacture commit/evidence PASS.
 
+## Next release implementation ownership
+
+The next code work must not collapse static and live proof into one fake producer.
+
+Preferred order:
+
+```text
+strict ReleaseReadinessProofBundle partial merge
+  -> candidate-release-proofs workflow for exact portable/static proof
+  -> separate retained live business-path proof contribution
+  -> candidate-integration-evidence workflow using approved live runners
+  -> exact candidate freeze
+  -> candidate-certification
+```
+
+A future proof merge must follow the same evidence discipline as integration merge: identity must match exactly; contradictory substantive results must conflict; no latest/PASS/FAIL precedence.
+
 ## Tests as executable specification
 
-When changing a semantic, recovery, evidence or release invariant:
+When changing semantic, recovery, evidence or release invariants:
 
 ```text
 1. identify exact contract
@@ -318,15 +344,15 @@ When changing a semantic, recovery, evidence or release invariant:
 3. change implementation
 4. run full suite
 5. update machine docs
-6. update human docs if user/operator-facing behavior changed
+6. update human docs if operator behavior changed
 ```
 
-Release-critical tests must preserve at least:
+Release-critical tests must preserve:
 
 ```text
 missing readiness evidence blocks
 proof candidate/artifact identity matching
-integration-backed gates reject generic proof substitution
+integration-backed gates reject generic substitution
 required OUT_OF_SCOPE blocks
 candidate artifact rejects changed bytes/provenance/version
 release workflow never rebuilds certified wheel
@@ -334,8 +360,8 @@ candidate certification requires fully certified integration evidence
 candidate certification rejects other-wheel evidence
 candidate certification rejects credential-like proof text
 candidate certification workflow never builds/tags/releases
-candidate certification workflow environment choices match EnvironmentName
-machine docs cannot regress candidate-certification to future/not-implemented state
+workflow environment choices match EnvironmentName
+machine docs cannot regress candidate-certification to pre-implementation or pending-merge state
 ```
 
 ## Documentation ownership
@@ -358,5 +384,3 @@ docs/machine/CAPABILITIES.md               guarantee/evidence matrix
 docs/machine/IMPLEMENTATION_MAP.md         canonical code ownership
 docs/machine/HISTORY.md                    compact merged milestones
 ```
-
-`STATE.md` should not claim an unmerged PR as the merged baseline. Post-merge checkpoint it with exact merge SHA, PR/main CI IDs and test count.
