@@ -1,0 +1,72 @@
+name: refactor-root-package
+
+on:
+  push:
+    branches:
+      - codex/root-package-marker
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/root-package-marker
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Remove root package re-export facade
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import ast
+          from pathlib import Path
+
+          root = Path('.')
+          pkg = root / 'src' / 'fabric_data_framework'
+          package_init = pkg / '__init__.py'
+
+          offenders: list[str] = []
+          for base in (pkg, root / 'tests'):
+              for path in sorted(base.rglob('*.py')):
+                  if path == package_init:
+                      continue
+                  tree = ast.parse(path.read_text(encoding='utf-8'))
+                  for node in ast.walk(tree):
+                      if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == 'fabric_data_framework':
+                          offenders.append(f'{path}: from fabric_data_framework import ...')
+          if offenders:
+              raise RuntimeError('root package facade still has callers:\n' + '\n'.join(offenders))
+
+          package_init.write_text(
+              '"""Enterprise Fabric data framework package.\n\n'
+              'Use explicit submodule imports. The package root deliberately exposes no\n'
+              'business/runtime compatibility facade.\n'
+              '"""\n',
+              encoding='utf-8',
+          )
+
+          boundary = root / 'tests' / 'test_root_package_boundary.py'
+          boundary.write_text('''from __future__ import annotations\n\nimport ast\nimport importlib\nfrom pathlib import Path\n\n\nREPO_ROOT = Path(__file__).parents[1]\nPACKAGE_ROOT = REPO_ROOT / "src" / "fabric_data_framework"\n\n\ndef test_root_package_is_namespace_only():\n    package = importlib.import_module("fabric_data_framework")\n    tree = ast.parse((PACKAGE_ROOT / "__init__.py").read_text(encoding="utf-8"))\n    assert not any(isinstance(node, (ast.Import, ast.ImportFrom)) for node in tree.body)\n    for legacy_name in (\n        "DatasetConfig",\n        "CaptureReceipt",\n        "SchemaContract",\n        "SqlAlchemyControlPlaneRepository",\n        "TargetOperationIntent",\n        "apply_scd1",\n        "dispatch_datasets",\n    ):\n        assert not hasattr(package, legacy_name)\n\n\ndef test_source_and_tests_do_not_use_root_symbol_imports():\n    offenders: list[str] = []\n    current = Path(__file__).resolve()\n    for root in (REPO_ROOT / "src", REPO_ROOT / "tests"):\n        for path in sorted(root.rglob("*.py")):\n            if path.resolve() == current:\n                continue\n            tree = ast.parse(path.read_text(encoding="utf-8"))\n            for node in ast.walk(tree):\n                if (\n                    isinstance(node, ast.ImportFrom)\n                    and node.level == 0\n                    and node.module == "fabric_data_framework"\n                ):\n                    offenders.append(str(path.relative_to(REPO_ROOT)))\n    assert offenders == []\n''', encoding='utf-8')
+
+          source_readme = pkg / 'README.md'
+          text = source_readme.read_text(encoding='utf-8')
+          note = '\nPackage-root imports are intentionally unsupported; import the owning submodule explicitly.\n'
+          if note.strip() not in text:
+              source_readme.write_text(text + note, encoding='utf-8')
+
+          (root / '.github' / 'workflows' / 'refactor-root-package.yml').unlink()
+          PY
+      - name: Commit root package cleanup
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor: remove root package re-export facade"
+          git push origin HEAD:codex/root-package-marker
