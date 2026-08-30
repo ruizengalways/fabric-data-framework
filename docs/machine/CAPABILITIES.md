@@ -26,7 +26,7 @@ EXTERNAL                   enterprise/platform control outside this repository
 | Replay-stable file/API guardrails | capture modules | REFERENCE + CI PROVEN |
 | Typed CaptureReceipt / progress authority | contracts/capabilities | REFERENCE + CI PROVEN |
 
-## Developer / customer project bootstrap
+## Developer / customer project bootstrap and dry run
 
 | Capability | Implementation owner | Current evidence |
 |---|---|---|
@@ -36,8 +36,18 @@ EXTERNAL                   enterprise/platform control outside this repository
 | Existing manifest domain-match guard | `deployment/project.py` | REFERENCE + CI PROVEN |
 | Mixed FULL/WATERMARK/CDC + SCD1/SCD2 datasets in one domain repo | DatasetConfig + scaffold/runbook | REFERENCE MODEL + CI PROVEN scaffold |
 | Dataset inventory before semantic configuration | generated `docs/dataset-inventory.csv` | DEVELOPER WORKFLOW CONTRACT + CI PROVEN |
+| Whole-project static dry run | `deployment/project.py` | REFERENCE + CI PROVEN |
+| `project-validate` CLI adapter | `cli/project.py` | PRESENTATION + CI PROVEN |
+| Dependency reference validation | `deployment/project.py` | REFERENCE + CI PROVEN fail-closed |
+| Dependency cycle detection | `deployment/project.py` | REFERENCE + CI PROVEN fail-closed |
+| Capture/apply engine capability validation across project | `deployment/project.py` + `metadata/capabilities.py` | REFERENCE + CI PROVEN |
+| Exact semantic-selection coverage for every DatasetConfig | `deployment/project.py` + `capture/onboarding.py` | REFERENCE + CI PROVEN fail-closed |
+| Unknown semantic-selection dataset rejection | `deployment/project.py` | REFERENCE + CI PROVEN fail-closed |
+| Per-dataset semantic overclaim validation in project dry run | `capture/onboarding.py` via `deployment/project.py` | REFERENCE + CI PROVEN |
+| Deterministic workload summary by capture/apply/group/engine | `deployment/project.py` | REFERENCE + CI PROVEN |
+| Retained JSON project-validation report | `cli/project.py` | DEVELOPER/CI ARTIFACT + CI PROVEN |
 
-Boundary: project scaffolding creates source-controlled structure only. It does not infer source semantics, create Fabric resources, mutate live environments, or persist secrets. It does not raise any live Fabric evidence claim.
+Boundary: project init/validation operates on source-controlled structure and metadata only. It does not infer source semantics, create Fabric resources, mutate live environments, persist secrets, validate workspace authorization, execute providers, or prove target/recovery behavior. A PASS means the source-controlled project is internally valid under portable framework contracts; it does not raise any live Fabric evidence claim.
 
 ## Fabric/provider execution
 
