@@ -28,6 +28,7 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #52 | docs checkpoint, Actions `33283847867`, 525 | canonicalized PR #51 state |
 | #53 | `b9187d93015d921614147831da1336b2d91f3e22`, Actions `33284190041`, 534 | approved session-termination recovery wiring with separate Admin authorization |
 | #54 | `c5baff6318b5facc366fa9466d23041291835fd5`, Actions `33284381347`, 534 | canonical docs checkpoint after PR #53 |
+| #55 | documentation-only reorganization | split stable human docs from exact machine/recovery docs; removed superseded flat docs/ADRs/runbooks and unified examples under root `examples/` |
 
 ## Important historical design decisions now integrated into current model
 
