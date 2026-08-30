@@ -1,0 +1,60 @@
+name: fix-root-version-owner
+
+on:
+  push:
+    branches:
+      - codex/root-package-marker
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/root-package-marker
+          fetch-depth: 0
+      - name: Move CLI version lookup to package metadata
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/fabric_data_framework/cli/base.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'import argparse\nfrom datetime import datetime, timezone\nimport json\n'
+          new = 'import argparse\nfrom datetime import datetime, timezone\nfrom importlib.metadata import version\nimport json\n'
+          if old not in text:
+              raise RuntimeError('cli/base.py import anchor not found')
+          text = text.replace(old, new, 1)
+          old = 'from .. import __version__\n'
+          if old not in text:
+              raise RuntimeError('root __version__ import not found')
+          text = text.replace(old, '', 1)
+          anchor = 'from ..control_plane.operator import get_dataset_operational_snapshot, list_dataset_operational_snapshots\n\n\n'
+          replacement = anchor + 'FRAMEWORK_VERSION = version("fabric-data-framework")\n\n\n'
+          if anchor not in text:
+              raise RuntimeError('CLI version constant anchor missing')
+          text = text.replace(anchor, replacement, 1)
+          text = text.replace('default=__version__', 'default=FRAMEWORK_VERSION')
+          if '__version__' in text:
+              raise RuntimeError('cli/base.py still depends on root __version__')
+          path.write_text(text, encoding='utf-8')
+
+          boundary = Path('tests/test_root_package_boundary.py')
+          existing = boundary.read_text(encoding='utf-8')
+          check = '''\n\ndef test_cli_does_not_depend_on_root_package_version_symbol():\n    text = (PACKAGE_ROOT / "cli" / "base.py").read_text(encoding="utf-8")\n    assert "from .. import __version__" not in text\n    assert "version(\\\"fabric-data-framework\\\")" in text\n'''
+          if 'test_cli_does_not_depend_on_root_package_version_symbol' not in existing:
+              boundary.write_text(existing + check, encoding='utf-8')
+
+          Path('.github/workflows/fix-root-version-owner.yml').unlink()
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor: read CLI version from package metadata"
+          git push origin HEAD:codex/root-package-marker
