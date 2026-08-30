@@ -12,7 +12,7 @@ src/fabric_data_framework/
   provider adapters / Fabric transports
   target-operation recovery / Warehouse commit proof
   relational control plane
-  integration evidence / approved runners
+  evidence/ integration evidence / approved runners
   extensions
   delivery / deployment
   cli/ presentation layer
@@ -95,26 +95,47 @@ Provider terminal status is transport evidence, not framework semantic success.
 
 Runtime rule: production execution never silently provisions/migrates schema.
 
-## Integration evidence
+## Integration evidence package
+
+Canonical implementation owner:
+
+```text
+src/fabric_data_framework/evidence/
+```
 
 | Area | Primary owner |
 |---|---|
-| Evidence check kinds/status/spec/manifest | `integration_evidence.py` |
-| Credential-free preflight/runtime env-var requirements | `integration_runner.py` |
-| Strict partial manifest merge | `integration_evidence_merge.py` |
+| Evidence check kinds/status/spec/manifest | `evidence/integration_evidence.py` |
+| Safe projection from existing provider/runtime outcomes | `evidence/integration_checks.py` |
+| Credential-free preflight/runtime env-var requirements | `evidence/integration_runner.py` |
+| Strict partial manifest merge | `evidence/integration_evidence_merge.py` |
 | Retained evidence secret scanning | `retained_evidence_safety.py` |
 
+Historical root modules named `integration_evidence.py`, `integration_checks.py`, `integration_evidence_merge.py`, and `integration_runner.py` are compatibility aliases only. New implementation belongs under `evidence/`.
+
 Merge rule: contradictory substantive reruns conflict; no latest/PASS/FAIL precedence.
+
+Evidence ownership rule:
+
+```text
+semantic/runtime/provider/recovery core
+                 ↑
+             evidence
+```
+
+Evidence proves existing contracts. It must not redefine dataset semantics, capture fidelity, target commit truth, or recovery behavior merely to make an evidence check PASS.
 
 ## Approved runners
 
 | File | Exact responsibility |
 |---|---|
-| `approved_control_plane_runner.py` | exact-spec production-eligible control-plane conformance + external enterprise evidence references |
-| `approved_pipeline_runner.py` | remote Pipeline execution + exact durable child `DatasetDispatchOutcome` requirement |
-| `approved_capture_runner.py` | Copy/Spark exact-release execution + observation/native evidence/`CaptureReceipt` validation |
-| `approved_warehouse_runner.py` | target operation claim + same-transaction Warehouse marker + UNKNOWN reconciliation |
-| `approved_warehouse_fault_runner.py` | real ambiguous-COMMIT evidence drill; optional separately-authorized session-termination recovery |
+| `evidence/approved_control_plane_runner.py` | exact-spec production-eligible control-plane conformance + external enterprise evidence references |
+| `evidence/approved_pipeline_runner.py` | remote Pipeline execution + exact durable child `DatasetDispatchOutcome` requirement |
+| `evidence/approved_capture_runner.py` | Copy/Spark exact-release execution + observation/native evidence/`CaptureReceipt` validation |
+| `evidence/approved_warehouse_runner.py` | target operation claim + same-transaction Warehouse marker + UNKNOWN reconciliation |
+| `evidence/approved_warehouse_fault_runner.py` | real ambiguous-COMMIT evidence drill; optional separately-authorized session-termination recovery |
+
+Historical root `approved_*_runner.py` modules are compatibility aliases to these canonical modules and contain no business implementation.
 
 Do not collapse approved runners into a single high-privilege command. Their separate authorization/evidence surfaces are intentional.
 
@@ -166,7 +187,8 @@ Ownership:
 Non-negotiable dependency rule:
 
 ```text
-cli -> core
+cli -> evidence/core
+evidence -X-> cli
 core -X-> cli
 ```
 
@@ -183,16 +205,14 @@ Do not add new top-level `cli_*.py` implementations. Put command adapters inside
 
 ## Readability / future folder extraction rule
 
-Several mature areas remain flat, especially:
+After CLI and evidence extraction, the main mature flat cluster still worth considering separately is:
 
 ```text
 control_plane*.py
-integration_*.py
-approved_*_runner.py
 repository.py / relational_repository.py
 ```
 
-Do not move them merely for aesthetics. Extract a folder only when:
+Do not move it merely for aesthetics. Extract a folder only when:
 
 ```text
 ownership boundary is clear
@@ -201,7 +221,7 @@ dependency direction improves
 full contract suite proves no behavior regression
 ```
 
-CLI was extracted first because it is a true leaf dependency. Potential later clusters may include control-plane and evidence surfaces, but only as separate refactors.
+Do not combine a future control-plane extraction with unrelated feature/evidence/CLI changes.
 
 ## Tests as executable specification
 
@@ -230,6 +250,8 @@ credential/evidence redaction
 strict evidence merge conflicts
 separate mutation/fault/Admin authorization
 core library independent from CLI presentation layer
+legacy evidence import resolving to the same canonical module object
+root evidence compatibility modules containing no implementation
 ```
 
 ## Documentation ownership after reorganization
