@@ -5,8 +5,9 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from fabric_data_framework import cli_router
-from fabric_data_framework.approved_warehouse_runner import ApprovedWarehouseRunConfig
+from fabric_data_framework import cli
+from fabric_data_framework.cli import approved as cli_approved
+from fabric_data_framework.evidence.approved_warehouse_runner import ApprovedWarehouseRunConfig
 from fabric_data_framework.config import (
     ApplyStrategy,
     CaptureStrategy,
@@ -20,7 +21,7 @@ from fabric_data_framework.config import (
 )
 from fabric_data_framework.delivery import build_release_manifest
 from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -28,7 +29,7 @@ from fabric_data_framework.integration_evidence import (
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.integration_runner import ApprovedIntegrationRunnerConfig
+from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
 
 
 EXTENSION_ARTIFACT = "fabric-customer-0.4.0.dev1-py3-none-any.whl"
@@ -220,8 +221,8 @@ def test_warehouse_cli_routes_exact_inputs_and_writes_report_and_manifest(tmp_pa
             },
         )
 
-    monkeypatch.setattr(cli_router, "execute_approved_warehouse", fake_execute)
-    rc = cli_router.main(_argv(paths, config_dir, output, report))
+    monkeypatch.setattr(cli_approved, "execute_approved_warehouse", fake_execute)
+    rc = cli.main(_argv(paths, config_dir, output, report))
 
     assert rc == 0
     assert observed["run_config"].check_id == "warehouse.commit"
@@ -241,8 +242,8 @@ def test_warehouse_cli_preflight_failure_does_not_write_outputs(tmp_path, monkey
         assert kwargs["allow_warehouse_execution"] is False
         raise ValueError("approved Warehouse preflight is not ready")
 
-    monkeypatch.setattr(cli_router, "execute_approved_warehouse", fake_execute)
-    rc = cli_router.main(_argv(paths, config_dir, output, report, allow=False))
+    monkeypatch.setattr(cli_approved, "execute_approved_warehouse", fake_execute)
+    rc = cli.main(_argv(paths, config_dir, output, report, allow=False))
 
     assert rc == 2
     assert not output.exists()

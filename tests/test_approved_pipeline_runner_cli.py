@@ -6,7 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
-from fabric_data_framework import cli_router
+from fabric_data_framework import cli
+from fabric_data_framework.cli import approved as cli_approved
 from fabric_data_framework.config import (
     ApplyStrategy,
     CaptureStrategy,
@@ -20,7 +21,7 @@ from fabric_data_framework.config import (
 )
 from fabric_data_framework.delivery import build_release_manifest
 from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -28,7 +29,7 @@ from fabric_data_framework.integration_evidence import (
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.integration_runner import (
+from fabric_data_framework.evidence.integration_runner import (
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
 )
@@ -211,8 +212,8 @@ def test_pipeline_cli_routes_exact_artifacts_and_writes_partial_manifest(tmp_pat
         observed.update(kwargs)
         return SimpleNamespace(manifest=expected)
 
-    monkeypatch.setattr(cli_router, "execute_approved_pipeline", fake_execute)
-    rc = cli_router.main(_argv(config, spec_path, prerequisite, release, config_dir, output))
+    monkeypatch.setattr(cli_approved, "execute_approved_pipeline", fake_execute)
+    rc = cli.main(_argv(config, spec_path, prerequisite, release, config_dir, output))
 
     assert rc == 0
     assert observed["check_id"] == "fabric.pipeline"
@@ -232,8 +233,8 @@ def test_pipeline_cli_failure_does_not_write_manifest(tmp_path: Path, monkeypatc
         assert kwargs["allow_pipeline_execution"] is False
         raise ValueError("approved Pipeline preflight is not ready")
 
-    monkeypatch.setattr(cli_router, "execute_approved_pipeline", fake_execute)
-    rc = cli_router.main(
+    monkeypatch.setattr(cli_approved, "execute_approved_pipeline", fake_execute)
+    rc = cli.main(
         _argv(config, spec, prerequisite, release, config_dir, output, allow=False)
     )
 

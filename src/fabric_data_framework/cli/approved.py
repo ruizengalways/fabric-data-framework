@@ -10,37 +10,37 @@ import argparse
 import os
 import sys
 
-from ..approved_capture_runner import (
+from ..evidence.approved_capture_runner import (
     execute_approved_capture,
     load_approved_capture_run_config,
 )
-from ..approved_control_plane_runner import (
+from ..evidence.approved_control_plane_runner import (
     execute_approved_control_plane_certification,
     write_control_plane_certification_report,
 )
-from ..approved_pipeline_runner import execute_approved_pipeline
-from ..approved_warehouse_fault_runner import (
+from ..evidence.approved_pipeline_runner import execute_approved_pipeline
+from ..evidence.approved_warehouse_fault_runner import (
     execute_approved_warehouse_fault_drill,
     load_approved_warehouse_fault_drill_config,
 )
-from ..approved_warehouse_runner import (
+from ..evidence.approved_warehouse_runner import (
     execute_approved_warehouse,
     load_approved_warehouse_run_config,
 )
 from ..control_plane_certification import ControlPlaneExternalEvidence
 from ..delivery import load_dataset_configs, load_release_manifest, write_json_model
-from ..integration_evidence import (
+from ..evidence.integration_evidence import (
     IntegrationEvidenceStatus,
     load_integration_evidence_manifest,
     load_integration_evidence_spec,
     validate_integration_evidence_manifest,
     write_integration_evidence_manifest,
 )
-from ..integration_evidence_merge import (
+from ..evidence.integration_evidence_merge import (
     IntegrationEvidenceMergeConflict,
     merge_integration_evidence_manifests,
 )
-from ..integration_runner import load_approved_integration_runner_config
+from ..evidence.integration_runner import load_approved_integration_runner_config
 
 
 APPROVED_COMMANDS = frozenset(

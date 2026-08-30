@@ -13,7 +13,7 @@ def test_core_source_does_not_import_cli_package():
     offenders: list[str] = []
     for path in sorted(PACKAGE_ROOT.rglob("*.py")):
         relative = path.relative_to(PACKAGE_ROOT)
-        if "cli" in relative.parts or relative.name == "cli_router.py":
+        if "cli" in relative.parts:
             continue
         text = path.read_text(encoding="utf-8")
         if (

@@ -72,7 +72,7 @@ approved_*_runner.py
   explicitly authorized environment-facing evidence execution
 ```
 
-Historical root imports such as `fabric_data_framework.integration_evidence` and `fabric_data_framework.approved_capture_runner` remain compatibility aliases. The actual implementation owner is `evidence/`; do not add new logic to the root shims.
+There are no root-level evidence compatibility modules. Import evidence contracts and approved runners only from `fabric_data_framework.evidence...`.
 
 ## Why some modules are still flat
 

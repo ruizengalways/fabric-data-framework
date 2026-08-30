@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 
 from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -15,7 +15,7 @@ from fabric_data_framework.integration_evidence import (
     IntegrationEvidenceStatus,
     validate_integration_evidence_manifest,
 )
-from fabric_data_framework.integration_evidence_merge import (
+from fabric_data_framework.evidence.integration_evidence_merge import (
     IntegrationEvidenceMergeConflict,
     merge_integration_evidence_manifests,
 )

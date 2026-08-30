@@ -6,8 +6,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
-from fabric_data_framework import cli_router
-from fabric_data_framework.approved_capture_runner import ApprovedCaptureRunConfig
+from fabric_data_framework import cli
+from fabric_data_framework.cli import approved as cli_approved
+from fabric_data_framework.evidence.approved_capture_runner import ApprovedCaptureRunConfig
 from fabric_data_framework.config import (
     ApplyStrategy,
     CaptureStrategy,
@@ -25,7 +26,7 @@ from fabric_data_framework.config import (
 )
 from fabric_data_framework.delivery import build_release_manifest
 from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -33,7 +34,7 @@ from fabric_data_framework.integration_evidence import (
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.integration_runner import (
+from fabric_data_framework.evidence.integration_runner import (
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
 )
@@ -241,8 +242,8 @@ def test_capture_cli_routes_exact_artifacts_and_writes_report_and_partial_manife
             },
         )
 
-    monkeypatch.setattr(cli_router, "execute_approved_capture", fake_execute)
-    rc = cli_router.main(_argv(paths, config_dir, output, report))
+    monkeypatch.setattr(cli_approved, "execute_approved_capture", fake_execute)
+    rc = cli.main(_argv(paths, config_dir, output, report))
 
     assert rc == 0
     assert observed["capture_config"].check_id == "fabric.copy"
@@ -265,8 +266,8 @@ def test_capture_cli_preflight_failure_does_not_write_outputs(tmp_path: Path, mo
         assert kwargs["allow_capture_execution"] is False
         raise ValueError("approved capture preflight is not ready")
 
-    monkeypatch.setattr(cli_router, "execute_approved_capture", fake_execute)
-    rc = cli_router.main(_argv(paths, config_dir, output, report, allow=False))
+    monkeypatch.setattr(cli_approved, "execute_approved_capture", fake_execute)
+    rc = cli.main(_argv(paths, config_dir, output, report, allow=False))
 
     assert rc == 2
     assert not output.exists()

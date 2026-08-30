@@ -42,14 +42,14 @@ from fabric_data_framework.control_plane_certification import (
     ControlPlaneCertificationReport,
     FABRIC_SQL_DATABASE_V1,
 )
-from fabric_data_framework.integration_checks import (
+from fabric_data_framework.evidence.integration_checks import (
     build_control_plane_certification_check_result,
     build_fabric_capture_check_result,
     build_fabric_pipeline_check_result,
     build_fabric_warehouse_commit_check_result,
     run_fabric_item_read_check,
 )
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceStatus,
 )

@@ -7,7 +7,7 @@ import json
 import pytest
 from sqlalchemy import create_engine
 
-from fabric_data_framework.approved_control_plane_runner import (
+from fabric_data_framework.evidence.approved_control_plane_runner import (
     execute_approved_control_plane_certification,
     write_control_plane_certification_report,
 )
@@ -19,13 +19,13 @@ from fabric_data_framework.control_plane_certification import (
     FABRIC_SQL_DATABASE_V1,
 )
 from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckSpec,
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.integration_runner import ApprovedIntegrationRunnerConfig
+from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
 
 
 NOW = datetime(2026, 8, 29, 13, 30, tzinfo=timezone.utc)

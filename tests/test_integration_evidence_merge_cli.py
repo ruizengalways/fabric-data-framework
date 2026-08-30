@@ -5,9 +5,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID
 
-from fabric_data_framework.cli_router import main
+from fabric_data_framework.cli import main
 from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,

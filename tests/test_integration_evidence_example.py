@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fabric_data_framework.integration_evidence import load_integration_evidence_spec
+from fabric_data_framework.evidence.integration_evidence import load_integration_evidence_spec
 
 
 def test_dev_integration_evidence_spec_example_is_valid():

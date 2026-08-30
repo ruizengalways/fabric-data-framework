@@ -43,16 +43,16 @@ semantic/runtime/provider/recovery core
 
 Evidence may depend on core contracts. Core semantics must not be rewritten inside an evidence runner just to make a check pass.
 
-## Compatibility modules
+## Canonical imports
 
-Historical imports such as:
+This folder is the only evidence import surface. Use canonical paths such as:
 
 ```python
-from fabric_data_framework.integration_evidence import IntegrationEvidenceSpec
-from fabric_data_framework.approved_capture_runner import execute_approved_capture
+from fabric_data_framework.evidence.integration_evidence import IntegrationEvidenceSpec
+from fabric_data_framework.evidence.approved_capture_runner import execute_approved_capture
 ```
 
-remain supported through thin root-level compatibility aliases. The actual implementation owner is this folder. New internal framework code should import from `fabric_data_framework.evidence...`.
+Root-level evidence aliases are intentionally not provided.
 
 ## Safety rules
 

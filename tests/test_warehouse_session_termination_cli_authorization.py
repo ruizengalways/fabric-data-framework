@@ -1,4 +1,4 @@
-from fabric_data_framework import cli_router
+from fabric_data_framework.cli import approved as cli_approved
 
 
 def _base_args():
@@ -26,14 +26,14 @@ def _base_args():
 
 
 def test_session_termination_authorization_is_false_by_default():
-    args = cli_router._warehouse_fault_parser().parse_args(_base_args())
+    args = cli_approved._warehouse_fault_parser().parse_args(_base_args())
 
     assert args.allow_warehouse_fault_injection is True
     assert args.allow_warehouse_session_termination is False
 
 
 def test_session_termination_requires_its_own_explicit_flag():
-    args = cli_router._warehouse_fault_parser().parse_args(
+    args = cli_approved._warehouse_fault_parser().parse_args(
         _base_args() + ["--allow-warehouse-session-termination"]
     )
 
