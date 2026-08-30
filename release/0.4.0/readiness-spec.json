@@ -1,0 +1,110 @@
+{
+  "readiness_schema_version": 1,
+  "framework_version": "0.4.0",
+  "gates": [
+    {
+      "gate_id": "source.tests",
+      "kind": "SOURCE_VERIFICATION",
+      "required": true,
+      "description": "Python 3.11/3.13 tests, architecture checks and package checks for the exact candidate."
+    },
+    {
+      "gate_id": "wheel.integrity",
+      "kind": "WHEEL_INTEGRITY",
+      "required": true,
+      "description": "Exact candidate wheel is retained, checksum-verified and install-tested."
+    },
+    {
+      "gate_id": "customer.compatibility",
+      "kind": "CUSTOMER_COMPATIBILITY",
+      "required": true,
+      "description": "fabric-customer exact-candidate compatibility validation is retained."
+    },
+    {
+      "gate_id": "fabric.identity",
+      "kind": "FABRIC_IDENTITY",
+      "required": true,
+      "integration_check_id": "fabric.item.read",
+      "description": "Enterprise identity and read-only workspace/item authorization are proven in Fabric."
+    },
+    {
+      "gate_id": "control.certification",
+      "kind": "CONTROL_PLANE",
+      "required": true,
+      "integration_check_id": "control.cert",
+      "description": "Selected production control-plane backend certification is retained."
+    },
+    {
+      "gate_id": "fabric.pipeline",
+      "kind": "FABRIC_PIPELINE",
+      "required": true,
+      "integration_check_id": "fabric.pipeline",
+      "description": "Approved Fabric Pipeline execution has exact framework and native correlation evidence."
+    },
+    {
+      "gate_id": "fabric.copy",
+      "kind": "FABRIC_COPY_CAPTURE",
+      "required": true,
+      "integration_check_id": "fabric.copy",
+      "description": "Approved Copy capture path has verified CaptureReceipt and retained provider evidence."
+    },
+    {
+      "gate_id": "fabric.spark",
+      "kind": "FABRIC_SPARK_CAPTURE",
+      "required": true,
+      "integration_check_id": "fabric.spark",
+      "description": "Approved bounded Spark capture path has verified CaptureReceipt and retained provider evidence."
+    },
+    {
+      "gate_id": "warehouse.commit",
+      "kind": "STATE_COMMIT_SAFETY",
+      "required": true,
+      "integration_check_id": "warehouse.commit",
+      "description": "Warehouse target mutation and operation marker commit semantics are proven for the exact artifact."
+    },
+    {
+      "gate_id": "full.replace",
+      "kind": "FULL_REPLACE",
+      "required": true,
+      "description": "Representative live FULL to REPLACE dataset proof is retained."
+    },
+    {
+      "gate_id": "watermark.scd1",
+      "kind": "WATERMARK_SCD1",
+      "required": true,
+      "description": "Representative live WATERMARK to SCD1 dataset proof is retained."
+    },
+    {
+      "gate_id": "watermark.scd2",
+      "kind": "WATERMARK_SCD2",
+      "required": true,
+      "description": "Representative live WATERMARK to SCD2 history proof is retained."
+    },
+    {
+      "gate_id": "retry.idempotency",
+      "kind": "RETRY_IDEMPOTENCY",
+      "required": true,
+      "description": "Retry/rerun failure drill proves idempotent final state and no unsafe progress advance."
+    },
+    {
+      "gate_id": "reconciliation.fail_closed",
+      "kind": "RECONCILIATION_FAIL_CLOSED",
+      "required": true,
+      "description": "Provider success cannot override failed semantic reconciliation."
+    },
+    {
+      "gate_id": "warehouse.ambiguous_commit",
+      "kind": "AMBIGUOUS_COMMIT_RECOVERY",
+      "required": true,
+      "integration_check_id": "warehouse.ambiguous_commit",
+      "description": "Real ambiguous-COMMIT drill and fail-closed recovery evidence are retained."
+    },
+    {
+      "gate_id": "external.cdc.debezium",
+      "kind": "EXTERNAL_CDC",
+      "required": false,
+      "integration_check_id": "kafka.live",
+      "description": "Optional for 0.4.0 unless Debezium/Kafka is explicitly included in the GA certification scope."
+    }
+  ]
+}
