@@ -1,4 +1,4 @@
-"""Release-candidate readiness and certification CLI commands."""
+"""Release-candidate readiness, proof merge and certification CLI commands."""
 
 from __future__ import annotations
 
@@ -17,9 +17,14 @@ from fabric_data_framework.evidence.release_readiness import (
     load_release_readiness_proofs,
     load_release_readiness_spec,
 )
+from fabric_data_framework.evidence.release_readiness_merge import (
+    merge_release_readiness_proof_bundles,
+)
 
 
-_COMMANDS = frozenset({"release-readiness", "candidate-certify"})
+_COMMANDS = frozenset(
+    {"release-readiness", "release-proofs-merge", "candidate-certify"}
+)
 
 
 def _readiness_parser() -> argparse.ArgumentParser:
@@ -45,6 +50,20 @@ def _readiness_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Exit non-zero unless every required release gate is PASS",
     )
+    return parser
+
+
+def _proof_merge_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="fabric-framework release-proofs-merge")
+    parser.add_argument("--spec", required=True, help="Release readiness specification JSON")
+    parser.add_argument(
+        "--input",
+        action="append",
+        required=True,
+        dest="inputs",
+        help="Partial ReleaseReadinessProofBundle JSON; repeat for each retained producer output",
+    )
+    parser.add_argument("--output", required=True, help="Merged release proof bundle JSON")
     return parser
 
 
@@ -100,6 +119,16 @@ def _run_readiness(argv: list[str]) -> int:
     return 0
 
 
+def _run_proof_merge(argv: list[str]) -> int:
+    args = _proof_merge_parser().parse_args(argv)
+    merged = merge_release_readiness_proof_bundles(
+        load_release_readiness_spec(args.spec),
+        (load_release_readiness_proofs(path) for path in args.inputs),
+    )
+    _render(merged, args.output)
+    return 0
+
+
 def _run_certification(argv: list[str]) -> int:
     args = _certification_parser().parse_args(argv)
     report = certify_release_candidate(
@@ -123,8 +152,10 @@ def run_if_matched(argv: list[str]) -> int | None:
     try:
         if argv[0] == "release-readiness":
             return _run_readiness(argv[1:])
+        if argv[0] == "release-proofs-merge":
+            return _run_proof_merge(argv[1:])
         return _run_certification(argv[1:])
-    except (KeyError, ValueError, OSError) as exc:
+    except (KeyError, RuntimeError, ValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
