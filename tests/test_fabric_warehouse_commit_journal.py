@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from sqlalchemy import Column, Integer, MetaData, String, Table, create_engine, select
 
-from fabric_data_framework.control_plane import apply_baseline_schema, dataset
+from fabric_data_framework.control_plane.schema import apply_baseline_schema, dataset
 from fabric_data_framework.recovery import (
     FabricWarehouseMarkerStore,
     FabricWarehouseMutationEvidence,
@@ -13,7 +13,7 @@ from fabric_data_framework.recovery import (
     build_fabric_warehouse_operation_marker_table,
     probe_and_reconcile_target_operation,
 )
-from fabric_data_framework.target_operation_io import (
+from fabric_data_framework.control_plane.target_operation_journal import (
     claim_target_operation,
     mark_target_operation_unknown,
 )

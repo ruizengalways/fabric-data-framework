@@ -29,7 +29,7 @@ from ..config import (
     RunMode,
     resolve_effective_config,
 )
-from ..control_plane_certification import get_control_plane_backend_profile
+from ..control_plane.certification import get_control_plane_backend_profile
 from ..delivery import config_bundle_hash
 from ..deployment import ReleaseManifest
 from ..fabric_auth import EnvironmentAccessTokenProvider
@@ -51,7 +51,7 @@ from .integration_runner import (
     build_approved_integration_run_plan,
 )
 from ..operations import PipelineRunAudit
-from ..relational_repository import SqlAlchemyControlPlaneRepository
+from ..control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
 from ..retained_evidence_safety import assert_safe_retained_text
 
 

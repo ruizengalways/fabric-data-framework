@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 
 from sqlalchemy import create_engine
 
-from fabric_data_framework.control_plane import apply_baseline_schema, dataset
-from fabric_data_framework.control_plane_certification import (
+from fabric_data_framework.control_plane.schema import apply_baseline_schema, dataset
+from fabric_data_framework.control_plane.certification import (
     AZURE_SQL_DATABASE_V1,
     FABRIC_SQL_DATABASE_V1,
     SQLITE_REFERENCE_V1,

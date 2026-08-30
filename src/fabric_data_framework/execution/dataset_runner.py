@@ -21,7 +21,7 @@ from ..operations import (
 )
 from ..quality import QuarantinedRecord, RowRule, validate_records
 from ..reconciliation import reconcile_scd2_batch
-from ..repository import ControlPlaneRepository
+from ..control_plane.repository import ControlPlaneRepository
 from ..runtime import StateCommitGate, WatermarkPosition, WatermarkTransition
 from ..scd2 import InMemorySCD2Target, SCD2ApplyResult, apply_scd2
 from ..watermark import WatermarkBatch, plan_watermark_batch

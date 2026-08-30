@@ -14,7 +14,7 @@ from fabric_data_framework.config import (
     resolve_effective_config,
 )
 from fabric_data_framework.execution.backends.fabric_pipeline import FabricPipelineBackend
-from fabric_data_framework.repository import InMemoryControlPlane
+from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 from uuid import uuid4
 
 

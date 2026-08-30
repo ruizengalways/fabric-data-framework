@@ -17,7 +17,7 @@ from ..config import (
 )
 from ..contracts.dispatch import DatasetDispatchOutcome
 from ..metadata.capabilities import CapabilityRegistry, DEFAULT_CAPABILITY_REGISTRY
-from ..repository import ControlPlaneRepository
+from ..control_plane.repository import ControlPlaneRepository
 
 
 _DEFAULT_REQUIRED_CRITICALITIES = frozenset({Criticality.HIGH, Criticality.CRITICAL})

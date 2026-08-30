@@ -11,7 +11,7 @@ from typing import Iterable
 from sqlalchemy import Engine, and_, select, update
 
 from .config import DatasetConfig, canonical_hash
-from .control_plane import (
+from .control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     apply_baseline_schema,
     data_quality_policy,
@@ -24,7 +24,7 @@ from .control_plane import (
     ordering_policy,
     reconciliation_policy,
 )
-from .control_plane_stage_policy import apply_execution_policy
+from .control_plane.schema import apply_execution_policy
 from .deployment import (
     DeploymentPlan,
     DeploymentProvenance,

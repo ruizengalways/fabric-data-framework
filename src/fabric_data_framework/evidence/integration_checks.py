@@ -18,7 +18,7 @@ from ..adapters.fabric.contracts import FabricNativeRunStatus
 from ..adapters.fabric.pipeline import FabricPipelineInvocation
 from ..adapters.fabric.rest import FabricJobInstance, FabricJobStatus, FabricRestClient
 from ..config import ExecutionEngine
-from ..control_plane_certification import ControlPlaneCertificationReport
+from ..control_plane.certification import ControlPlaneCertificationReport
 from ..contracts.execution_plan import ExecutionKind
 from .integration_evidence import (
     IntegrationEvidenceCheckKind,

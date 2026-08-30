@@ -12,13 +12,13 @@ from fabric_data_framework.adapters.cdc import (
     plan_delta_cdf_resume,
 )
 from fabric_data_framework.capture.cdc import build_cdc_checkpoint
-from fabric_data_framework.control_plane import apply_baseline_schema, dataset
+from fabric_data_framework.control_plane.schema import apply_baseline_schema, dataset
 from fabric_data_framework.contracts.recovery import UnknownOutcomeResolution
 from fabric_data_framework.recovery import (
     TargetCommitProbeEvidence,
     probe_and_reconcile_target_operation,
 )
-from fabric_data_framework.target_operation_io import (
+from fabric_data_framework.control_plane.target_operation_journal import (
     claim_target_operation,
     mark_target_operation_unknown,
 )

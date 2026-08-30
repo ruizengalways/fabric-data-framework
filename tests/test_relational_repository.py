@@ -23,7 +23,7 @@ from fabric_data_framework.config import (
     TargetConfig,
     resolve_effective_config,
 )
-from fabric_data_framework.control_plane import apply_baseline_schema, step_run
+from fabric_data_framework.control_plane.schema import apply_baseline_schema, step_run
 from fabric_data_framework.delivery import config_bundle_hash
 from fabric_data_framework.execution.backends.fabric_pipeline import FabricPipelineBackend
 from fabric_data_framework.operations import (
@@ -32,7 +32,7 @@ from fabric_data_framework.operations import (
     StepRunAudit,
     StepStatus,
 )
-from fabric_data_framework.relational_repository import SqlAlchemyControlPlaneRepository
+from fabric_data_framework.control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
 
 
 def _config(*, connection_ref="crm-readonly"):

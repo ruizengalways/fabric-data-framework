@@ -15,7 +15,7 @@ from fabric_data_framework.config import (
     TargetConfig,
     WatermarkConfig,
 )
-from fabric_data_framework.control_plane import (
+from fabric_data_framework.control_plane.schema import (
     PROMOTABLE_DEFINITION_TABLES,
     apply_baseline_schema,
     apply_execution_policy,

@@ -26,7 +26,7 @@ from fabric_data_framework.dispatcher import (
     dispatch_datasets,
 )
 from fabric_data_framework.operations import DatasetRunAudit
-from fabric_data_framework.repository import InMemoryControlPlane
+from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 
 
 CONFIG_HASH = "a" * 64

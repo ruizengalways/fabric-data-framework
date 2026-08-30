@@ -100,9 +100,9 @@ Provider 返回 `Completed` 不代表 framework 已经可以推进 semantic chec
 | 文件/目录 | 职责 |
 |---|---|
 | `target_operations.py` | 一个逻辑 target mutation 的稳定 semantic identity、状态和允许动作 |
-| `target_operation_io.py` | target-operation journal 的持久化/CAS 操作 |
+| `control_plane/target_operation_journal.py` | target-operation journal 的持久化/CAS 操作 |
 | `recovery/` | provider-native recovery、target commit probe、Warehouse marker/session recovery |
-| `relational_repository.py` | SQLAlchemy production-oriented control-plane repository |
+| `control_plane/sqlalchemy_repository.py` | SQLAlchemy production-oriented control-plane repository |
 | control-plane certification 相关模块 | 验证一个 SQL backend 是否符合 framework runtime contract |
 
 Warehouse 相关要记住：

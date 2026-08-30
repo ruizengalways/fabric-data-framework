@@ -15,7 +15,7 @@ from pathlib import Path
 
 from sqlalchemy import Engine, create_engine
 
-from ..control_plane_certification import (
+from ..control_plane.certification import (
     ControlPlaneBackendProfile,
     ControlPlaneCertificationReport,
     ControlPlaneExternalEvidence,

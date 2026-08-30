@@ -19,7 +19,7 @@ from ..contracts.replay import (
     QuarantineReplayPayloadProvider,
     QuarantineReplayPlan,
 )
-from ..control_plane_io import (
+from ..control_plane.io import (
     QuarantineReplayMarkerConflict,
     mark_quarantine_replayed,
     read_quarantine_batches,

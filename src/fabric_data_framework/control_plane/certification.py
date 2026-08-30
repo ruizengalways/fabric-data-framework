@@ -21,10 +21,7 @@ from uuid import uuid4
 from pydantic import Field, computed_field
 from sqlalchemy import Engine, inspect, select
 
-from .capture.cdc import build_cdc_checkpoint
-from .config import FrozenModel
-from .control_plane import (
-    CONTROL_PLANE_MIGRATIONS,
+from ..capture.cdc import build_cdc_checkpointfrom ..config import FrozenModelfrom .schema import (    CONTROL_PLANE_MIGRATIONS,
     CONTROL_PLANE_SCHEMA_VERSION,
     cdc_checkpoint,
     current_schema_version,
@@ -34,18 +31,13 @@ from .control_plane import (
     target_operation,
     target_operation_event,
 )
-from .control_plane_io import CDCCheckpointVersionConflict, commit_cdc_checkpoint
-from .contracts.recovery import UnknownOutcomeResolution
-from .runtime import StateCommitGate
-from .target_operation_io import (
-    TargetOperationVersionConflict,
+from .io import CDCCheckpointVersionConflict, commit_cdc_checkpointfrom ..contracts.recovery import UnknownOutcomeResolutionfrom ..runtime import StateCommitGatefrom .target_operation_journal import (    TargetOperationVersionConflict,
     claim_target_operation,
     mark_target_operation_succeeded,
     mark_target_operation_unknown,
     reconcile_target_operation,
 )
-from .target_operations import TargetOperationIntent, fingerprint_semantic_payload
-
+from ..target_operations import TargetOperationIntent, fingerprint_semantic_payload
 
 class ControlPlaneBackendClass(str, Enum):
     REFERENCE = "REFERENCE"

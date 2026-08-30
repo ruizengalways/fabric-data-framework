@@ -36,7 +36,7 @@ from fabric_data_framework.contracts.execution_plan import (
     ExecutionKind,
     compile_execution_plan,
 )
-from fabric_data_framework.control_plane_certification import (
+from fabric_data_framework.control_plane.certification import (
     CertificationCheckStatus,
     ControlPlaneCertificationCheck,
     ControlPlaneCertificationReport,

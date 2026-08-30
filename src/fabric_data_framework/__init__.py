@@ -103,7 +103,7 @@ from .quality import (
     compare_source_order,
     require_compatible_schema,
 )
-from .relational_repository import SqlAlchemyControlPlaneRepository
+from .control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
 from .schema_contract import (
     LogicalType,
     SchemaCompatibilityPolicy,
@@ -111,7 +111,7 @@ from .schema_contract import (
     SchemaField,
     SchemaShape,
 )
-from .target_operation_io import (
+from .control_plane.target_operation_journal import (
     TargetOperationSemanticConflict,
     TargetOperationVersionConflict,
     claim_target_operation,

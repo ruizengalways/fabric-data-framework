@@ -17,7 +17,7 @@ from sqlalchemy import Engine
 
 from ..config import FrozenModel
 from ..contracts.recovery import UnknownOutcomeResolution
-from ..target_operation_io import read_target_operation, reconcile_target_operation
+from ..control_plane.target_operation_journal import read_target_operation, reconcile_target_operation
 from ..target_operations import TargetOperationRecord, TargetOperationStatus
 
 

@@ -15,14 +15,14 @@ from fabric_data_framework.config import (
     SourceConfig,
     TargetConfig,
 )
-from fabric_data_framework.control_plane import (
+from fabric_data_framework.control_plane.schema import (
     ENVIRONMENT_LOCAL_STATE_TABLES,
     PROMOTABLE_DEFINITION_TABLES,
     dataset_attempt_lineage,
     reprocess_request,
     table_names,
 )
-from fabric_data_framework.control_plane_io import (
+from fabric_data_framework.control_plane.io import (
     record_attempt_lineage,
     record_reprocess_request,
 )

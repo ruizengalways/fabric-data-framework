@@ -23,7 +23,7 @@ from fabric_data_framework.config import (
     SourceConfig,
     TargetConfig,
 )
-from fabric_data_framework.control_plane import pipeline_run, step_run
+from fabric_data_framework.control_plane.schema import pipeline_run, step_run
 from fabric_data_framework.delivery import build_release_manifest, materialize_semantic_metadata
 from fabric_data_framework.infrastructure import EnvironmentName
 from fabric_data_framework.evidence.integration_evidence import (
@@ -39,7 +39,7 @@ from fabric_data_framework.evidence.integration_runner import (
     IntegrationCheckPhysicalBinding,
 )
 from fabric_data_framework.operations import DatasetRunAudit
-from fabric_data_framework.relational_repository import SqlAlchemyControlPlaneRepository
+from fabric_data_framework.control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
 
 
 NOW = datetime(2026, 8, 29, 14, 0, tzinfo=timezone.utc)

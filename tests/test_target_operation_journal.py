@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import create_engine
 
-from fabric_data_framework.control_plane import (
+from fabric_data_framework.control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     ENVIRONMENT_LOCAL_STATE_TABLES,
     apply_baseline_schema,
@@ -12,7 +12,7 @@ from fabric_data_framework.control_plane import (
     table_names,
 )
 from fabric_data_framework.contracts.recovery import UnknownOutcomeResolution
-from fabric_data_framework.target_operation_io import (
+from fabric_data_framework.control_plane.target_operation_journal import (
     TargetOperationVersionConflict,
     claim_target_operation,
     mark_target_operation_succeeded,

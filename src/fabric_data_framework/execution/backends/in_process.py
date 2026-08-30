@@ -15,7 +15,7 @@ from ...contracts.dispatch import (
 from ...contracts.execution_plan import ExecutionKind, build_default_execution_plan
 from ...operations import DatasetRunAudit
 from ...orchestration.planner import OrchestrationIntegrityError
-from ...repository import ControlPlaneRepository
+from ...control_plane.repository import ControlPlaneRepository
 
 
 _TERMINAL_DATASET_STATUSES = frozenset(
