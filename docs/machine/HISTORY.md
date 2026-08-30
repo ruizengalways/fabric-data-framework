@@ -32,6 +32,7 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #57 | `3ddbb873029a13985af4e563228629c1efc4f7d4`, Actions `33286548611`, 539 | extracted CLI into removable leaf package; console entrypoint moved to `fabric_data_framework.cli`; added source-code map and CLI-isolation contracts |
 | #59 | `c5471b7a417525e3a73d309b786f331192b22c0f`, Actions `33287715582`, 561 | grouped integration evidence and approved exact-run implementations under canonical `evidence/` |
 | #61 | `83cc031d542723e42f064259aacff6c11ca8b015`, Actions `33288491628`, 562 | removed root evidence/approved aliases and `cli_router.py`; canonical-only `fabric_data_framework.evidence.*` and `fabric_data_framework.cli` imports; tests forbid legacy paths from returning |
+| #63 | `661651387fd75ad548da8b049da59529b296ec9a`, Actions `33288912694`, 575 | extracted canonical `control_plane/` package; removed flat control-plane/repository/operator/journal modules; package root deliberately has no re-export API |
 
 ## Important historical design decisions now integrated into current model
 
@@ -50,6 +51,9 @@ CLI is a leaf presentation layer; reusable core must not depend on it
 evidence/ is the only integration-evidence / approved-runner import and implementation owner
 cli/ is the only CLI import and implementation owner
 legacy evidence and cli_router module paths are intentionally absent
+control_plane/ is the only relational control-plane implementation surface
+flat control-plane/repository/operator/journal module paths are intentionally absent
+control_plane package root deliberately does not rebuild the former flat API via re-exports
 ```
 
 Current versions of those decisions are summarized in human `CONCEPTS.md` / `REPOSITORY_GUIDE.md` and machine `CONTEXT.md` / `IMPLEMENTATION_MAP.md`.
@@ -63,7 +67,7 @@ provider REST implementation != live provider proof
 CI commit-then-raise double != real network/driver fault proof
 simulated framework ACK loss != real COMMIT disconnect
 session-termination provider contract != production-approved Admin/KILL proof
-CLI/evidence readability refactors != new provider or production evidence
+CLI/evidence/control-plane readability refactors != new provider or production evidence
 ```
 
 Keep these distinctions even if future implementation refactors merge code paths.
