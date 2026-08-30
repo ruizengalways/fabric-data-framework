@@ -1,0 +1,59 @@
+name: refactor-fix-cli-tests
+
+on:
+  push:
+    branches:
+      - codex/remove-evidence-legacy-paths
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/remove-evidence-legacy-paths
+          fetch-depth: 0
+      - name: Move CLI tests to canonical modules
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('.')
+          changed = []
+          for path in (root / 'tests').rglob('*.py'):
+              text = path.read_text(encoding='utf-8')
+              if 'cli_router' not in text:
+                  continue
+              original = text
+              text = text.replace(
+                  'from fabric_data_framework import cli_router',
+                  'from fabric_data_framework import cli\nfrom fabric_data_framework.cli import approved as cli_approved',
+              )
+              text = text.replace(
+                  'monkeypatch.setattr(cli_router,',
+                  'monkeypatch.setattr(cli_approved,',
+              )
+              text = text.replace('cli_router.main(', 'cli.main(')
+              # Negative boundary test intentionally refers to the removed import as a string.
+              if path.name != 'test_evidence_package_boundary.py' and 'cli_router' in text:
+                  raise RuntimeError(f'unhandled cli_router reference remains in {path}')
+              if text != original:
+                  path.write_text(text, encoding='utf-8')
+                  changed.append(str(path))
+
+          if not changed:
+              raise RuntimeError('no CLI test imports were migrated')
+          print('\n'.join(changed))
+          (root / '.github/workflows/refactor-fix-cli-tests.yml').unlink()
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "test: use canonical CLI modules after router removal"
+          git push origin HEAD:codex/remove-evidence-legacy-paths
