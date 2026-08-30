@@ -14,11 +14,12 @@ code_baseline:
   python_3_11: success
   python_3_13: success
   wheel: success
-latest_pre_reorg_docs_checkpoint:
-  merge_sha: c5baff6318b5facc366fa9466d23041291835fd5
-  ci_actions: 33284381347
-documentation_model:
+documentation_baseline:
   pull_request: 55
+  merge_sha: 46c10ab00fefc2ca546fd7f2bea369a7037216da
+  exact_candidate_head: bc791829c2f3e5be82d012f2b425adf7efab7a5e
+  ci_actions: 33285255666
+  tests: 534
   human: docs/human
   machine: docs/machine
   examples: examples
