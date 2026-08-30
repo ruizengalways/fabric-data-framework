@@ -35,12 +35,19 @@ _FABRIC_ITEM_KINDS = frozenset(
     }
 )
 
+_WAREHOUSE_RUNTIME_KINDS = frozenset(
+    {
+        IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_TARGET_COMMIT,
+        IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL,
+    }
+)
+
 _MUTATING_KINDS = frozenset(
     {
         IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN,
         IntegrationEvidenceCheckKind.FABRIC_COPY_JOB_CAPTURE,
         IntegrationEvidenceCheckKind.FABRIC_SPARK_CAPTURE,
-        IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_TARGET_COMMIT,
+        *_WAREHOUSE_RUNTIME_KINDS,
         IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION,
         IntegrationEvidenceCheckKind.KAFKA_PROVIDER,
         IntegrationEvidenceCheckKind.DELTA_CDF_PROVIDER,
@@ -51,7 +58,7 @@ _CONTROL_PLANE_RUNTIME_KINDS = frozenset(
     {
         IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION,
         IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN,
-        IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_TARGET_COMMIT,
+        *_WAREHOUSE_RUNTIME_KINDS,
     }
 )
 
@@ -221,8 +228,8 @@ def _runtime_requirements(
     if kinds.intersection(_CONTROL_PLANE_RUNTIME_KINDS):
         if config.control_plane_database_url_env_var is None:
             raise ValueError(
-                "CONTROL_PLANE_CERTIFICATION/FABRIC_PIPELINE_RUN/"
-                "FABRIC_WAREHOUSE_TARGET_COMMIT check needs control-plane runtime configuration"
+                "CONTROL_PLANE_CERTIFICATION/FABRIC_PIPELINE_RUN/Warehouse evidence check "
+                "needs control-plane runtime configuration"
             )
         if IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION in kinds:
             purpose = "control-plane database URL"
@@ -231,11 +238,9 @@ def _runtime_requirements(
         else:
             purpose = "Warehouse target-operation journal control-plane database URL"
         requirements.append((purpose, config.control_plane_database_url_env_var))
-    if IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_TARGET_COMMIT in kinds:
+    if kinds.intersection(_WAREHOUSE_RUNTIME_KINDS):
         if config.warehouse_database_url_env_var is None:
-            raise ValueError(
-                "FABRIC_WAREHOUSE_TARGET_COMMIT check needs warehouse_database_url_env_var"
-            )
+            raise ValueError("Warehouse evidence check needs warehouse_database_url_env_var")
         requirements.append(
             ("Warehouse SQL database URL", config.warehouse_database_url_env_var)
         )
