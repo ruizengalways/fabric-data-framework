@@ -1,126 +1,272 @@
 name: framework-release
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       version:
-        description: "Package version to release, for example 0.3.0"
+        description: "Package version to release, for example 0.4.0"
+        required: true
+        type: string
+      candidate_run_id:
+        description: "Successful main framework-ci run that built the exact candidate wheel"
+        required: true
+        type: string
+      candidate_git_sha:
+        description: "Exact 40-character candidate source SHA from that main CI run"
+        required: true
+        type: string
+      candidate_wheel_sha256:
+        description: "Exact inner wheel SHA256 from CANDIDATE.json/SHA256SUMS"
+        required: true
+        type: string
+      readiness_run_id:
+        description: "Successful candidate-certification run that retained release_ready=true evidence"
         required: true
         type: string
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
-  group: framework-release-${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+  group: framework-release-${{ inputs.version }}
   cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      CANDIDATE_SHA: ${{ inputs.candidate_git_sha }}
+      CANDIDATE_WHEEL_SHA256: ${{ inputs.candidate_wheel_sha256 }}
+      READINESS_RUN_ID: ${{ inputs.readiness_run_id }}
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Checkout release source
+      - name: Validate release inputs
+        run: |
+          python - <<'PY'
+          import os
+          import re
+
+          version = os.environ["RELEASE_VERSION"].removeprefix("v")
+          if not version or len(version) > 64:
+              raise SystemExit("release version is invalid")
+          if re.fullmatch(r"[0-9a-f]{40}", os.environ["CANDIDATE_SHA"]) is None:
+              raise SystemExit("candidate_git_sha must be a 40-character lowercase git SHA")
+          if re.fullmatch(r"[0-9a-f]{64}", os.environ["CANDIDATE_WHEEL_SHA256"]) is None:
+              raise SystemExit("candidate_wheel_sha256 must be a 64-character lowercase SHA256")
+          for name in ("CANDIDATE_RUN_ID", "READINESS_RUN_ID"):
+              value = os.environ[name]
+              if not value.isdigit() or int(value) < 1:
+                  raise SystemExit(f"{name} must be a positive GitHub Actions run ID")
+          PY
+
+      - name: Checkout exact candidate source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: ${{ inputs.candidate_git_sha }}
           fetch-depth: 0
 
-      - name: Resolve immutable release tag
+      - name: Verify candidate source and release tag are eligible
         id: release
-        env:
-          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
-              echo "Manual releases must run from the main branch; selected ref is ${GITHUB_REF}." >&2
-              exit 1
-            fi
-            if [ -z "${INPUT_VERSION}" ]; then
-              echo "Manual release version is required." >&2
-              exit 1
-            fi
-            TAG="v${INPUT_VERSION#v}"
-          else
-            TAG="${GITHUB_REF_NAME}"
-          fi
-
-          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
-          echo "Resolved immutable release tag: ${TAG}"
-
-      - name: Prepare manual release source
-        id: manual_source
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
-            echo "Release ${RELEASE_TAG} already exists; immutable release overwrite refused." >&2
+          VERSION="${RELEASE_VERSION#v}"
+          TAG="v${VERSION}"
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          if [ "${ACTUAL_SHA}" != "${CANDIDATE_SHA}" ]; then
+            echo "Checked out ${ACTUAL_SHA}, expected exact candidate ${CANDIDATE_SHA}." >&2
             exit 1
           fi
 
-          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
-            echo "Tag ${RELEASE_TAG} already exists without a Release; validating that immutable tag for recovery."
-            git fetch --force origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
-            git checkout --detach "refs/tags/${RELEASE_TAG}"
-            echo "tag_exists=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "Tag ${RELEASE_TAG} does not exist; this run will create it after validation."
-            echo "tag_exists=false" >> "${GITHUB_OUTPUT}"
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "${CANDIDATE_SHA}" origin/main; then
+            echo "Candidate ${CANDIDATE_SHA} is not reachable from main; release refused." >&2
+            exit 1
           fi
+
+          SOURCE_VERSION="$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+          print(tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])
+          PY
+          )"
+          if [ "${SOURCE_VERSION}" != "${VERSION}" ]; then
+            echo "Candidate source version ${SOURCE_VERSION} does not match requested release ${VERSION}." >&2
+            exit 1
+          fi
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists; immutable release overwrite refused." >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists; exact candidate promotion refuses tag reuse." >&2
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify candidate CI provenance
+        id: candidate_run
+        run: |
+          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}")"
+          RUN_HEAD="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["head_sha"])')"
+          RUN_BRANCH="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["head_branch"])')"
+          RUN_EVENT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["event"])')"
+          RUN_CONCLUSION="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["conclusion"])')"
+          RUN_PATH="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["path"])')"
+          RUN_ATTEMPT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["run_attempt"])')"
+
+          if [ "${RUN_HEAD}" != "${CANDIDATE_SHA}" ]; then
+            echo "Candidate CI head ${RUN_HEAD} does not match ${CANDIDATE_SHA}." >&2
+            exit 1
+          fi
+          if [ "${RUN_BRANCH}" != "main" ] || [ "${RUN_EVENT}" != "push" ]; then
+            echo "Candidate must come from a main push CI run; branch=${RUN_BRANCH} event=${RUN_EVENT}." >&2
+            exit 1
+          fi
+          if [ "${RUN_CONCLUSION}" != "success" ]; then
+            echo "Candidate CI run conclusion is ${RUN_CONCLUSION}, not success." >&2
+            exit 1
+          fi
+          if [ "${RUN_PATH}" != ".github/workflows/ci.yml" ]; then
+            echo "Candidate run used unexpected workflow ${RUN_PATH}." >&2
+            exit 1
+          fi
+          echo "run_attempt=${RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download exact candidate wheel artifact
+        run: |
+          rm -rf candidate-dist
+          gh run download "${CANDIDATE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "framework-wheel-${CANDIDATE_SHA}" \
+            --dir candidate-dist
+          test -f candidate-dist/CANDIDATE.json
+          test -f candidate-dist/SHA256SUMS
+
+      - name: Verify exact candidate bytes before install
+        env:
+          CANDIDATE_RUN_ATTEMPT: ${{ steps.candidate_run.outputs.run_attempt }}
+          EXPECTED_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          python src/fabric_data_framework/deployment/candidate_artifact.py verify \
+            --dist-dir candidate-dist \
+            --manifest candidate-dist/CANDIDATE.json \
+            --candidate-sha "${CANDIDATE_SHA}" \
+            --workflow-run-id "${CANDIDATE_RUN_ID}" \
+            --workflow-run-attempt "${CANDIDATE_RUN_ATTEMPT}" \
+            --expected-version "${EXPECTED_VERSION}" \
+            --expected-wheel-sha256 "${CANDIDATE_WHEEL_SHA256}"
+          (cd candidate-dist && sha256sum -c SHA256SUMS)
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.13"
 
-      - name: Install and validate release candidate
+      - name: Install and smoke-test exact candidate wheel
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
-          python -m pip install -e ".[dev]"
+          python -m pip install "pytest<10,>=8"
+          python -m pip install candidate-dist/*.whl
           fabric-framework validate-tag --tag "${RELEASE_TAG}"
-          ruff check --isolated --select E4,E7,E9,F src tests
-          python -m compileall -q src tests
           python -m pip check
           pytest -q
 
-      - name: Build immutable wheel and checksum
+      - name: Verify certified readiness run provenance
         run: |
-          python -m pip install "setuptools>=77"
-          rm -rf dist
-          python -m pip wheel . --no-deps --no-build-isolation -w dist
-          (cd dist && sha256sum *.whl | tee SHA256SUMS)
-          (cd dist && sha256sum -c SHA256SUMS)
-
-      - name: Refuse existing release
-        env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
-            echo "Release ${RELEASE_TAG} already exists; immutable release overwrite refused." >&2
+          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${READINESS_RUN_ID}")"
+          RUN_CONCLUSION="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["conclusion"])')"
+          RUN_EVENT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["event"])')"
+          RUN_PATH="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["path"])')"
+          if [ "${RUN_CONCLUSION}" != "success" ]; then
+            echo "Readiness run conclusion is ${RUN_CONCLUSION}, not success." >&2
+            exit 1
+          fi
+          if [ "${RUN_EVENT}" != "workflow_dispatch" ]; then
+            echo "Certified readiness must come from an explicit workflow_dispatch run." >&2
+            exit 1
+          fi
+          if [ "${RUN_PATH}" != ".github/workflows/candidate-certification.yml" ]; then
+            echo "Certified readiness run used unexpected workflow ${RUN_PATH}." >&2
             exit 1
           fi
 
-      - name: Create immutable tag for manual run
-        if: github.event_name == 'workflow_dispatch' && steps.manual_source.outputs.tag_exists != 'true'
+      - name: Download certified readiness evidence
+        run: |
+          rm -rf certified-evidence
+          gh run download "${READINESS_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "release-readiness-certified-${CANDIDATE_SHA}" \
+            --dir certified-evidence
+          test -f certified-evidence/release-readiness.json
+          test -f certified-evidence/release-proofs.json
+          test -f certified-evidence/integration-evidence.json
+
+      - name: Verify certified readiness binds exact candidate artifact
+        env:
+          EXPECTED_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          expected_version = os.environ["EXPECTED_VERSION"]
+          expected_sha = os.environ["CANDIDATE_SHA"]
+          expected_wheel = os.environ["CANDIDATE_WHEEL_SHA256"]
+
+          report = json.loads(Path("certified-evidence/release-readiness.json").read_text())
+          if report.get("framework_version") != expected_version:
+              raise SystemExit("readiness framework version mismatch")
+          if report.get("candidate_git_sha") != expected_sha:
+              raise SystemExit("readiness candidate git SHA mismatch")
+          if report.get("artifact_sha256") != expected_wheel:
+              raise SystemExit("readiness artifact SHA256 mismatch")
+          if report.get("release_ready") is not True or report.get("blockers") != []:
+              raise SystemExit("candidate readiness report is not release_ready=true with zero blockers")
+          required = [result for result in report.get("results", []) if result.get("required")]
+          if not required or any(result.get("status") != "PASS" for result in required):
+              raise SystemExit("every required readiness result must be PASS")
+
+          proofs = json.loads(Path("certified-evidence/release-proofs.json").read_text())
+          if proofs.get("framework_version") != expected_version:
+              raise SystemExit("release proof framework version mismatch")
+          if proofs.get("candidate_git_sha") != expected_sha:
+              raise SystemExit("release proof candidate git SHA mismatch")
+          if proofs.get("artifact_sha256") != expected_wheel:
+              raise SystemExit("release proof artifact SHA256 mismatch")
+
+          integration = json.loads(Path("certified-evidence/integration-evidence.json").read_text())
+          if integration.get("framework_version") != expected_version:
+              raise SystemExit("integration evidence framework version mismatch")
+          if integration.get("release_hash") != expected_wheel:
+              raise SystemExit("integration evidence release_hash mismatch")
+          PY
+
+      - name: Create immutable tag at exact candidate SHA
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "${RELEASE_TAG}" HEAD -m "fabric-data-framework ${RELEASE_TAG}"
+          git tag -a "${RELEASE_TAG}" "${CANDIDATE_SHA}" -m "fabric-data-framework ${RELEASE_TAG}"
           git push origin "refs/tags/${RELEASE_TAG}"
 
-      - name: Create GitHub release
+      - name: Create GitHub release from exact certified bytes
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${RELEASE_TAG}" dist/* \
+          gh release create "${RELEASE_TAG}" \
+            candidate-dist/*.whl \
+            candidate-dist/SHA256SUMS \
+            candidate-dist/CANDIDATE.json \
+            certified-evidence/release-readiness.json \
+            certified-evidence/release-proofs.json \
+            certified-evidence/integration-evidence.json \
             --verify-tag \
             --title "fabric-data-framework ${RELEASE_TAG}" \
             --generate-notes
