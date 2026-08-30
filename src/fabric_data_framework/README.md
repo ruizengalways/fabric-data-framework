@@ -14,8 +14,8 @@ Use this file when browsing source code. It describes the current code organizat
 | quality/schema ordering rules | `quality/`, `schema_contract.py` |
 | control-plane state/runtime repository | `control_plane*.py`, `repository.py`, `relational_repository.py` |
 | target idempotency / unknown commit recovery | `target_operations.py`, `target_operation_io.py`, `recovery/` |
+| approved integration evidence | `evidence/` |
 | release/deployment materialization | `delivery.py`, `deployment.py` |
-| approved integration evidence | `integration_*.py`, `approved_*_runner.py` |
 | command line interface | `cli/` |
 
 ## Dependency shape
@@ -36,14 +36,43 @@ provider adapters
             |
             v
 operational evidence + delivery
-  integration_* / approved_* / delivery / deployment
+  evidence / delivery / deployment
             |
             v
 CLI presentation
   cli/
 ```
 
-The arrows indicate allowed consumption direction at a high level. In particular, `cli/` is a leaf presentation layer and reusable framework modules must not depend on it.
+The arrows indicate allowed consumption direction at a high level. In particular:
+
+```text
+CLI -> evidence/core
+evidence -> semantic/runtime/provider/recovery core
+core -X-> CLI
+```
+
+`evidence/` proves existing contracts; it must not become a second semantic truth.
+
+## `evidence/` reading order
+
+```text
+integration_evidence.py
+  retained evidence vocabulary/spec/result/manifest
+        |
+        v
+integration_checks.py
+  safe projection of existing provider/runtime outcomes
+        |
+        v
+integration_evidence_merge.py + integration_runner.py
+  strict staged merge + credential-free exact-release preflight
+        |
+        v
+approved_*_runner.py
+  explicitly authorized environment-facing evidence execution
+```
+
+Historical root imports such as `fabric_data_framework.integration_evidence` and `fabric_data_framework.approved_capture_runner` remain compatibility aliases. The actual implementation owner is `evidence/`; do not add new logic to the root shims.
 
 ## Why some modules are still flat
 
@@ -51,8 +80,6 @@ Several mature areas predate the current folder organization, especially:
 
 ```text
 control_plane*.py
-integration_*.py
-approved_*_runner.py
 repository.py / relational_repository.py
 ```
 
@@ -63,4 +90,4 @@ Do not move them merely for aesthetics. A folder extraction should happen only w
 3. dependency direction improves;
 4. the full contract suite proves behavior did not change.
 
-The CLI extraction is intentionally the first such cleanup because it is a true leaf dependency and can be physically removed without breaking core library use.
+CLI and evidence were extracted as separate slices. A future control-plane extraction should also be isolated rather than mixed into unrelated feature work.
