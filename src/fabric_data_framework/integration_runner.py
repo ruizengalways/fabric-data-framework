@@ -75,7 +75,14 @@ class IntegrationCheckPhysicalBinding(FrozenModel):
 
 
 class ApprovedIntegrationRunnerConfig(FrozenModel):
-    """Source-controlled configuration for one exact approved-environment run."""
+    """Source-controlled configuration for one exact approved-environment run.
+
+    ``warehouse_admin_database_url_env_var`` is deliberately separate from the ordinary
+    Warehouse target connection. It names the runtime credential used only for explicit
+    Admin/session-control evidence such as ``KILL``. Supplying the same environment
+    variable name for both paths is rejected so routine Warehouse mutation credentials
+    cannot silently inherit session-termination authority.
+    """
 
     environment: EnvironmentName
     domain: str = Field(min_length=1, max_length=128)
@@ -88,6 +95,9 @@ class ApprovedIntegrationRunnerConfig(FrozenModel):
         default=None, pattern=_ENV_NAME_PATTERN
     )
     warehouse_database_url_env_var: str | None = Field(
+        default=None, pattern=_ENV_NAME_PATTERN
+    )
+    warehouse_admin_database_url_env_var: str | None = Field(
         default=None, pattern=_ENV_NAME_PATTERN
     )
     control_plane_profile: str | None = None
@@ -122,6 +132,21 @@ class ApprovedIntegrationRunnerConfig(FrozenModel):
         ):
             raise ValueError(
                 "control_plane_profile requires control_plane_database_url_env_var"
+            )
+        if (
+            self.warehouse_admin_database_url_env_var is not None
+            and self.warehouse_database_url_env_var is None
+        ):
+            raise ValueError(
+                "warehouse_admin_database_url_env_var requires warehouse_database_url_env_var"
+            )
+        if (
+            self.warehouse_admin_database_url_env_var is not None
+            and self.warehouse_admin_database_url_env_var
+            == self.warehouse_database_url_env_var
+        ):
+            raise ValueError(
+                "Warehouse Admin and ordinary Warehouse database URL env vars must differ"
             )
         return self
 
@@ -245,6 +270,10 @@ def _runtime_requirements(
             ("Warehouse SQL database URL", config.warehouse_database_url_env_var)
         )
 
+    # Admin/session-control credentials are intentionally not included automatically.
+    # Whether they are required is an exact run-recipe decision, and the approved
+    # Warehouse fault runner adds that requirement only when session termination
+    # recovery is explicitly enabled and separately authorized.
     seen: set[str] = set()
     result: list[RuntimeEnvironmentRequirement] = []
     for purpose, env_var in requirements:

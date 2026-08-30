@@ -219,6 +219,15 @@ def _warehouse_fault_parser() -> argparse.ArgumentParser:
             "Warehouse mutation."
         ),
     )
+    parser.add_argument(
+        "--allow-warehouse-session-termination",
+        action="store_true",
+        help=(
+            "Separately authorize Admin-level exact-session termination recovery when the "
+            "fault config explicitly enables it. This never follows implicitly from fault "
+            "injection authorization."
+        ),
+    )
     return parser
 
 
@@ -426,6 +435,7 @@ def _run_warehouse_fault(argv: list[str]) -> int:
             environ=os.environ,
             evidence_references=tuple(args.evidence_references),
             allow_warehouse_fault_injection=args.allow_warehouse_fault_injection,
+            allow_warehouse_session_termination=args.allow_warehouse_session_termination,
         )
         if execution.report is not None:
             write_json_model(execution.report, args.report_output)

@@ -1,44 +1,59 @@
 # Approved Fabric Warehouse Ambiguous-COMMIT Fault Drill
 
-Status: runner contract under CI; no real network/driver fault claim exists until an exact-release approved live run is retained.
+Status: implemented runner contract; real provider/network/driver fault evidence is still required.
 
 ## Purpose
 
 `integration-warehouse-fault-drill-run` is deliberately separate from the normal
 `integration-warehouse-run` stage.
 
-The normal Warehouse stage proves the target mutation + framework marker transaction and
-the framework's UNKNOWN recovery contract. Its deterministic success path simulates a
-framework acknowledgement loss after the transaction has already returned.
+The normal Warehouse stage proves target mutation + framework marker atomicity and the
+framework's UNKNOWN recovery contract. The fault-drill stage exists for the stronger
+claim that an actual provider/session/network fault was observed and independently
+verified.
 
-The fault-drill stage exists only for the stronger claim:
+Fault-drill PASS still means exactly:
 
 ```text
-a real provider/session/network fault was armed
-execute_atomic() actually raised a provider/driver exception
-the injector independently verified the intended fault triggered
-the committed Warehouse marker resolved the ambiguous outcome
+actual provider/driver exception observed
+verified exact injected fault identity
+matching target marker -> COMMITTED
 journal -> SUCCEEDED
 later re-entry -> SKIP_SUCCEEDED
 ```
 
-A normal transaction return can never PASS this drill.
+A normal transaction return can never PASS.
 
-## Separate evidence kind
+## Optional session-termination recovery
 
-The evidence spec uses:
+The same approved runner can now optionally exercise the independent PR #51
+session-termination absence contract when an actual fault leaves the marker unresolved.
+This is an **operational recovery result**, not a second way to PASS the fault drill.
 
 ```text
-FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL
+verified fault + marker UNRESOLVED
+  -> exact target connection/session binding exists
+  -> separately authorized Admin authority observes open transaction
+  -> KILL exact session
+  -> exact session disappears
+  -> post-termination marker remains absent
+  -> target journal may reconcile to NOT_COMMITTED
+  -> retry becomes eligible
+  -> fault-drill check remains FAIL
 ```
 
-Do not reuse `FABRIC_WAREHOUSE_TARGET_COMMIT` for this claim. Keeping the checks separate
-prevents a deterministic simulated ACK-loss run from being mistaken for a real
-network/driver COMMIT fault.
+This separation is intentional:
+
+```text
+fault-drill PASS        = prove ambiguous operation actually COMMITTED
+NOT_COMMITTED recovery  = prove operation safely did not commit and can be retried later
+```
+
+Do not collapse these into one evidence claim.
 
 ## Prerequisites
 
-The same exact-spec prerequisite manifest must already contain:
+The exact-spec prerequisite manifest must already contain:
 
 ```text
 FABRIC_ITEM_READ                         PASS
@@ -47,131 +62,59 @@ FABRIC_WAREHOUSE_TARGET_COMMIT          PASS
 FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL NOT_RUN
 ```
 
-The normal Warehouse PASS is intentionally required first. A real fault drill is a
-failure-injection certification stage, not the first proof that the target path works.
+The normal Warehouse PASS is required before fault injection.
 
-The runner config must name both runtime database URL environment variables and use a
-production-eligible control-plane profile. URL **values** remain runtime-only and are
-read only after non-secret gates have passed.
+## Runtime credential separation
 
-## Exact release provenance
+Source-controlled `ApprovedIntegrationRunnerConfig` may name:
 
-Before database URL values are retrieved, the runner validates:
+```json
+{
+  "control_plane_database_url_env_var": "FABRIC_CONTROL_PLANE_DATABASE_URL",
+  "warehouse_database_url_env_var": "FABRIC_WAREHOUSE_DATABASE_URL",
+  "warehouse_admin_database_url_env_var": "FABRIC_WAREHOUSE_ADMIN_DATABASE_URL"
+}
+```
+
+Only environment-variable **names** belong in source control.
+
+The Admin env-var name must differ from the ordinary Warehouse env-var name. This creates
+an explicit least-privilege boundary:
 
 ```text
-exact environment/domain/framework/release identity
-exact DatasetConfig bundle hash
-selected dataset in exact release bundle
-mutation extension artifact fingerprint in ReleaseManifest
-fault injector extension artifact fingerprint in ReleaseManifest
-selected fault-drill check still NOT_RUN
-normal Warehouse prerequisite PASS
-explicit fault-injection authorization
+ordinary Warehouse credential -> target mutation / marker path
+Admin Warehouse credential    -> optional session DMV / KILL path only
 ```
 
-## Bounded mutation extension
-
-The target mutation continues to use:
-
-```text
-fabric_data_framework.warehouse_mutations
-```
-
-The extension receives the framework-owned transactional SQLAlchemy `Connection` and may
-perform only the bounded representative mutation. It must not commit, write the
-framework marker, mutate the control-plane journal, or decide PASS.
-
-## Bounded fault injector extension
-
-Entry-point group:
-
-```text
-fabric_data_framework.warehouse_commit_fault_injectors
-```
-
-The registered callable is a factory:
-
-```python
-(
-    warehouse_engine: sqlalchemy.Engine,
-    request: FabricWarehouseCommitFaultRequest,
-    payload: Mapping[str, object],
-) -> FabricWarehouseCommitFaultInjector
-```
-
-The returned controller implements:
-
-```python
-arm(request) -> FabricWarehouseCommitFaultArmEvidence
-disarm(request) -> None
-verify(
-    request,
-    *,
-    observed_exception_type: str | None,
-    probe_evidence: TargetCommitProbeEvidence,
-) -> FabricWarehouseCommitFaultVerification
-```
-
-The extension may install only the approved provider/session fault mechanism needed for
-the drill. It does not receive the control-plane URL and it cannot declare framework
-PASS.
-
-The first supported phase is:
-
-```text
-COMMIT_ACKNOWLEDGEMENT
-```
-
-A provider implementation should target loss/ambiguity of the COMMIT acknowledgement,
-not arbitrary target corruption.
-
-## Fault identity
-
-An armed fault must retain either:
-
-```text
-provider_fault_id
-or evidence_reference
-```
-
-Verification must correlate to the same identity. If the arm and verification identities
-do not match, the drill fails even when a target marker exists.
-
-This prevents an unrelated provider fault from being credited to the exact approved
-operation.
+Routine target execution must not silently inherit session-termination authority.
 
 ## Run config
 
 Example: `examples/dev_warehouse_fault_drill_run.json`.
 
+Safe default:
+
 ```json
 {
-  "check_id": "warehouse.ambiguous-commit",
-  "dataset_id": "sales.order",
-  "operation_kind": "EVIDENCE_AMBIGUOUS_COMMIT_DRILL",
-  "target_reference": "warehouse.dbo.sales_order",
-  "mutation_extension": "sales.order.evidence-mutation",
-  "mutation_extension_artifact_name": "fabric-customer-0.4.0.dev1-py3-none-any.whl",
-  "mutation_payload": {
-    "evidence_key": "candidate-0.4.0-sales-order-fault-drill"
-  },
-  "fault_injector_extension": "sales.order.commit-ack-fault",
-  "fault_injector_artifact_name": "fabric-customer-faults-0.4.0.dev1-py3-none-any.whl",
-  "fault_payload": {
-    "fault_case": "approved-commit-ack-disconnect"
-  },
-  "marker_table_name": "fabric_framework_operation_commit",
-  "marker_schema": "dbo"
+  "enable_session_termination_recovery": false
 }
 ```
 
-The operation `input_fingerprint` includes both mutation input and fault-drill identity,
-so this drill does not collide with the normal Warehouse evidence operation.
+To exercise the additional NOT_COMMITTED recovery branch, explicitly set:
 
-Do not put credentials, raw SQL with secrets, connection strings, access tokens, or
-secret-bearing provider diagnostics in this file.
+```json
+{
+  "enable_session_termination_recovery": true
+}
+```
 
-## Execution
+Changing this flag changes the exact run-config hash, but it does not change the semantic
+target operation input fingerprint. The target mutation/fault case remains the same
+logical operation; only the independently authorized recovery capability changes.
+
+## Authorization
+
+Normal fault drill:
 
 ```bash
 fabric-framework integration-warehouse-fault-drill-run \
@@ -187,138 +130,184 @@ fabric-framework integration-warehouse-fault-drill-run \
   --allow-warehouse-fault-injection
 ```
 
-The authorization flag is intentionally distinct from `--allow-warehouse-execution`.
-Approving a normal target mutation does not implicitly approve network/session fault
-injection.
+When `enable_session_termination_recovery=true`, a second independent flag is mandatory:
 
-## Execution chain
-
-For a successful real drill:
-
-```text
-claim target operation -> EXECUTE
-  ↓
-construct exact fault request
-  ↓
-fault injector arm -> armed + durable fault identity
-  ↓
-execute target mutation + framework marker in one transaction
-  ↓
-real provider/driver exception observed
-  ↓
-always disarm injector before marker probe
-  ↓
-control-plane journal -> UNKNOWN (exception type only)
-  ↓
-read-only Warehouse marker probe
-  matching marker -> COMMITTED
-  ↓
-UNKNOWN -> SUCCEEDED
-  ↓
-fault injector verify -> triggered + same fault identity
-  ↓
-later claim -> SKIP_SUCCEEDED
-  ↓
-PASS
+```bash
+  --allow-warehouse-session-termination
 ```
 
-## PASS rule
+`--allow-warehouse-fault-injection` never implies permission to `KILL` a Warehouse
+session.
 
-All of the following are mandatory:
+The runner rejects session-termination mode before reading any secret values when:
 
 ```text
-fault armed
-execute_atomic actually raised
-execution exception type retained; raw message excluded
-fault disarmed successfully before probe
+separate authorization flag is missing
+warehouse_admin_database_url_env_var is absent
+Admin env-var is empty
+Admin env-var name equals ordinary Warehouse env-var name
+```
+
+## Secret-access order
+
+The Admin credential value is intentionally more tightly gated than ordinary runtime
+credentials.
+
+It is not read merely because the run config enables recovery. The runner reads it only
+when all of these are already true:
+
+```text
+actual execute_atomic exception observed
+fault disarm succeeded
 fault verification succeeded
-fault verification says triggered=true
-arm and verification identities match
-marker probe = COMMITTED
-journal final status = SUCCEEDED
-later claim = SKIP_SUCCEEDED
-safe retained report exists
-```
-
-If any condition is absent, the drill is FAIL.
-
-## Normal return is FAIL
-
-If the target transaction returns normally:
-
-```text
-target+marker may be committed
-journal may safely reconcile to SUCCEEDED
-later claim may be SKIP_SUCCEEDED
-```
-
-but the fault-drill result is still:
-
-```text
-FAIL / NO_PROVIDER_OR_DRIVER_EXCEPTION
-```
-
-Even a buggy or malicious injector that reports `triggered=true` cannot turn a normal
-return into a real-fault PASS.
-
-## Marker absence remains fail closed
-
-If execution raises and the marker is absent:
-
-```text
-marker absent -> UNRESOLVED
+fault identity matched
+initial marker probe = UNRESOLVED
 journal remains UNKNOWN
-fault drill -> FAIL
-no re-execution
+exact target session binding was captured before mutation
 ```
 
-The fault injector is not an absence certifier. It cannot turn marker absence into
-`NOT_COMMITTED`.
-
-The only valid route to `NOT_COMMITTED` after an ambiguous target attempt remains an
-independently certified provider/session-specific no-late-commit proof.
-
-## Fault not armed
-
-If `arm()` returns `armed=false`, the framework does not call the target mutation. Because
-execution never started, the control-plane operation can be marked `NOT_COMMITTED` from
-local pre-execution knowledge. This is not an inference from marker absence.
-
-The drill still FAILs.
-
-## Retained evidence safety
-
-Raw provider/driver exception messages are not retained. The report stores exception
-**types only** for execution/disarm/verification failures.
-
-The report may retain:
+Therefore:
 
 ```text
-run_config_hash
-operation_key
-dataset_run_id
-target_reference
-fault phase
-armed/exception-observed/verified booleans
-provider fault ID and/or safe evidence reference
-marker reference
-probe resolution
-final journal status
-re-entry action
-PASS/FAIL and stable failure reason
-approved evidence references
+COMMITTED marker path -> Admin URL value is never read
+normal return         -> Admin URL value is never read
+fault not verified    -> Admin URL value is never read
+missing session bind  -> Admin URL value is never read
 ```
 
-## Evidence label
+## Exact session binding
 
-After deterministic CI proves this implementation, the maximum valid label is:
+When session recovery is enabled, the framework captures the provider
+`connection_id + session_id` on the exact SQLAlchemy target connection **before the
+customer mutation**.
+
+No weak fallback is allowed. If binding capture fails, the runner retains only the
+exception type and the recovery branch cannot use Admin session termination.
+
+Canonical provider contract:
+
+```text
+docs/FABRIC_WAREHOUSE_SESSION_ABSENCE_CERTIFIER.md
+```
+
+## COMMITTED path
+
+The existing PASS path is unchanged:
+
+```text
+claim EXECUTE
+ -> arm exact fault
+ -> target execute raises
+ -> disarm
+ -> journal UNKNOWN
+ -> plain marker probe COMMITTED
+ -> fault verify triggered + identity match
+ -> journal SUCCEEDED
+ -> later claim SKIP_SUCCEEDED
+ -> PASS
+```
+
+Even when session recovery is configured and authorized, this path never constructs the
+Admin session authority because the primary marker already proves commit.
+
+## NOT_COMMITTED recovery path
+
+Only after a verified fault remains `UNRESOLVED` does the runner construct the separate
+Admin engine and invoke the session-termination absence certifier.
+
+The certifier requires:
+
+```text
+exact connection_id + session_id
+same exact session still observable
+open_transaction_count > 0
+Admin KILL exact session
+same exact connection/session disappears
+post-termination marker read succeeds
+marker still absent
+```
+
+If safe absence is proven:
+
+```text
+UNKNOWN -> NOT_COMMITTED
+retry_eligible = true
+reentry_action = null
+fault drill = FAIL / SAFE_NOT_COMMITTED_AFTER_SESSION_TERMINATION
+```
+
+The runner deliberately does **not** call `claim_target_operation()` after
+`NOT_COMMITTED`, because that would reopen the durable operation to `IN_PROGRESS` without
+actually performing the retry. A future intentional execution may claim it later.
+
+## Termination race
+
+A commit can win the race immediately before session termination. PR #51 therefore
+requires a second marker read after termination.
+
+If the absence certifier stays unresolved, the approved runner performs one additional
+plain marker probe:
+
+```text
+marker appears -> COMMITTED may reconcile to SUCCEEDED
+marker absent  -> still UNRESOLVED / UNKNOWN
+```
+
+That final probe can only recognize positive commit evidence; it never turns absence into
+`NOT_COMMITTED` by itself.
+
+## Fail-closed cases
+
+```text
+normal transaction return                         -> fault drill FAIL
+injector triggered=true without observed exception -> FAIL
+fault identity mismatch                           -> FAIL
+binding capture failure                           -> FAIL / no Admin path
+session not captured                              -> FAIL / no Admin path
+Admin authority construction failure              -> FAIL / UNKNOWN
+DMV/KILL/post-check failure                       -> FAIL / UNKNOWN
+session already disappeared before inspection     -> FAIL / UNKNOWN
+no observable open transaction                    -> FAIL / UNKNOWN
+marker remains absent without certified rollback  -> FAIL / UNKNOWN
+safe session rollback + marker absent              -> FAIL / NOT_COMMITTED / retry eligible
+```
+
+Raw provider/driver/Admin exception messages are never retained; exception types only.
+
+## Report additions
+
+The safe report may now retain:
+
+```text
+session_termination_recovery_enabled
+session_termination_authorized
+session_binding_captured
+session_id
+connection_id
+session_binding_capture_exception_type
+session_termination_recovery_attempted
+session_recovery_exception_type
+absence_safe_to_retry
+retry_eligible
+```
+
+Session/connection IDs are provider correlation, not credentials. Database URLs and
+credential values are never serialized.
+
+## Evidence labels
+
+COMMITTED real-fault runner contract:
 
 ```text
 IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT
 ```
 
-That label still does **not** mean a real fault happened.
+Optional NOT_COMMITTED recovery wiring, once deterministic exact-head CI passes:
 
-A stronger live claim requires a retained exact-release approved run using a
-provider-specific injector in the selected enterprise environment, with durable fault
-identity/correlation evidence plus the committed marker and framework journal chain.
+```text
+IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE SESSION-TERMINATION RECOVERY CONTRACT
+```
+
+Neither label proves a live Fabric fault or production-approved Admin KILL path. Stronger
+claims require retained exact-release real execution using the selected enterprise
+identity, SQL driver, Warehouse and separately controlled Admin authority.
