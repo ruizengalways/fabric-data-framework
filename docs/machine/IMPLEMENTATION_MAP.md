@@ -14,7 +14,7 @@ src/fabric_data_framework/
   relational control plane
   evidence/ integration evidence / approved runners
   extensions
-  deployment/ release delivery + customer project scaffolding
+  deployment/ release delivery + customer project init/validation
   cli/ presentation layer
 ```
 
@@ -154,29 +154,49 @@ fabric_data_framework.warehouse_commit_fault_injectors
 
 Extension artifact identity must be pinned in exact release provenance where approved runners require it.
 
-## Delivery / deployment / project bootstrap
+## Delivery / deployment / customer project init + validation
 
 | Area | Primary owner |
 |---|---|
-| Config bundle hashing/materialization | `deployment/delivery.py` and related modules |
+| Config bundle hashing/materialization and canonical bundle loading | `deployment/delivery.py` and related modules |
 | Release manifest/provenance | deployment/delivery modules |
 | Customer/domain source-control scaffold contract/API | `deployment/project.py` |
-| Project-init presentation adapter | `cli/project.py` |
+| Whole-project static dry-run orchestration/report | `deployment/project.py` |
+| Per-dataset semantic selection validation used by dry run | `capture/onboarding.py` |
+| Capture/apply capability validation used by dry run | `metadata/capabilities.py` |
+| Project-init / project-validate presentation adapters | `cli/project.py` |
 | Package metadata/version/console script | `pyproject.toml` |
 | CI | `.github/workflows/ci.yml` |
 | Release artifact workflow | `.github/workflows/release.yml` |
 
-Project bootstrap dependency/behavior boundary:
+Project command dependency/behavior boundary:
 
 ```text
 cli/project.py -> deployment/project.py
-reusable scaffold -X-> cli
+
+deployment/project.py
+  -> fabric_data_framework.deployment.delivery       canonical DatasetConfig bundle loader
+  -> capture/onboarding.py                           semantic selection validation
+  -> metadata/capabilities.py                        capture/apply engine capability validation
+
+reusable project init/validation -X-> cli
+
 project-init creates source-controlled structure only
 project-init never guesses keys/watermarks/delete/history semantics
 project-init never creates or mutates Fabric resources
 project-init never persists secret values
 existing files are never overwritten
+
+project-validate is a local/CI static dry run
+project-validate rejects unknown dependencies and dependency cycles
+project-validate requires semantic selection coverage for every DatasetConfig
+project-validate rejects semantic selections for unknown datasets
+project-validate validates capture/apply capability compatibility
+project-validate runs semantic overclaim guardrails
+project-validate never connects to Fabric or upgrades portable validation to live evidence
 ```
+
+Use the canonical fully-qualified `fabric_data_framework.deployment.delivery` owner path from `deployment/project.py`. A package-boundary test intentionally rejects flat/facade-like delivery/deployment imports; PR 78 exercised this guard before merge.
 
 Repo-layout guidance is intentionally independent of apply strategy. One business/domain repository may contain mixed FULL, WATERMARK, CDC, SCD1, SCD2 and other supported DatasetConfig combinations; use `orchestration.execution_group` for operational grouping.
 
@@ -193,7 +213,7 @@ Ownership:
 | File | Exact responsibility |
 |---|---|
 | `cli/main.py` | tiny composition root; routes command family only |
-| `cli/project.py` | developer-time non-destructive customer/domain project initialization adapter |
+| `cli/project.py` | developer/CI-time customer/domain project init + static dry-run adapters |
 | `cli/base.py` | general validation, metadata, deployment and preflight commands |
 | `cli/approved.py` | approved evidence / real-environment command adapters |
 | `cli/__init__.py` | public console-script `main` export |
@@ -261,6 +281,11 @@ strict evidence merge conflicts
 separate mutation/fault/Admin authorization
 core library independent from CLI presentation layer
 project scaffold no-overwrite/domain-match behavior
+project dry-run dependency reference validation
+project dry-run dependency cycle rejection
+project dry-run complete semantic-selection coverage
+project dry-run capability/semantic validation
+canonical deployment.delivery ownership from deployment/project.py
 legacy evidence import paths failing to resolve
 root evidence legacy module files remaining absent
 ```
@@ -272,7 +297,7 @@ docs/human/README.md                       human reading order
 docs/human/CONCEPTS.md                     stable conceptual model
 docs/human/REPOSITORY_GUIDE.md             human repo/file map
 docs/human/GETTING_STARTED.md              install/package/Fabric consumption
-docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md   new customer/domain repo bootstrap and large-project organization
+docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md   new customer/domain repo bootstrap + project dry run + large-project organization
 docs/human/DATASET_ONBOARDING.md           new-data decision guide
 docs/human/OPERATIONS.md                   operational/CLI guide
 
