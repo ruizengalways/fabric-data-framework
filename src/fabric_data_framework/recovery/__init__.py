@@ -16,6 +16,14 @@ from .fabric_warehouse import (
     FabricWarehouseTargetCommitProbe,
     build_fabric_warehouse_operation_marker_table,
 )
+from .fabric_warehouse_session_absence import (
+    FabricWarehouseSessionAuthority,
+    FabricWarehouseSessionBinding,
+    FabricWarehouseSessionState,
+    FabricWarehouseSessionTerminationAbsenceCertifier,
+    SqlAlchemyFabricWarehouseSessionAuthority,
+    capture_fabric_warehouse_session_binding,
+)
 from .rebuild import (
     FullRebuildContext,
     FullRebuildError,
@@ -73,6 +81,10 @@ __all__ = [
     "FabricWarehouseOperationMarker",
     "FabricWarehouseSecondaryCorrelation",
     "FabricWarehouseSecondaryCorrelationReader",
+    "FabricWarehouseSessionAuthority",
+    "FabricWarehouseSessionBinding",
+    "FabricWarehouseSessionState",
+    "FabricWarehouseSessionTerminationAbsenceCertifier",
     "FabricWarehouseTargetCommitProbe",
     "FailureClassification",
     "FailureDisposition",
@@ -94,6 +106,7 @@ __all__ = [
     "RecoveryRunResult",
     "RetryPolicy",
     "RetryableExecutionError",
+    "SqlAlchemyFabricWarehouseSessionAuthority",
     "TargetCommitProbe",
     "TargetCommitProbeEvidence",
     "TargetCommitProbeRequest",
@@ -101,6 +114,7 @@ __all__ = [
     "UnknownCommitOutcomeError",
     "UnknownOutcomeUnresolvedError",
     "build_fabric_warehouse_operation_marker_table",
+    "capture_fabric_warehouse_session_binding",
     "classify_failure",
     "execute_full_rebuild",
     "execute_quarantine_replay",
