@@ -241,6 +241,7 @@ Exact identity chain:
 ```text
 framework version
 + exact 40-character candidate source SHA
++ successful main candidate workflow run ID/attempt
 + exact inner candidate wheel SHA256
 + retained ReleaseReadinessProofBundle
 + retained IntegrationEvidenceManifest whose release_hash == exact wheel SHA256
@@ -265,6 +266,43 @@ provider Completed does not satisfy semantic/business-path readiness gates
 The source-controlled 0.4 matrix currently keeps Debezium/Kafka optional. If the public 0.4 GA promise is changed to include live Debezium/Kafka certification, that gate must become required **before** final evidence review and release.
 
 A green CI job that generates an intentionally blocked readiness report proves only the fail-closed aggregator contract. It does not make the candidate release-ready.
+
+## Exact candidate artifact promotion
+
+Release publication is promotion of already-certified bytes, not a second build.
+
+Required invariant:
+
+```text
+main CI builds exact wheel
+-> CANDIDATE.json binds source SHA + workflow run/attempt + inner wheel SHA256
+-> certification consumes that exact wheel
+-> IntegrationEvidenceManifest.release_hash == that exact inner wheel SHA256
+-> release-readiness required blockers == 0
+-> release workflow downloads and verifies that same wheel
+-> immutable tag is created at the exact candidate source SHA
+-> the same certified wheel bytes are published
+```
+
+Fail closed:
+
+```text
+release workflow must not rebuild the wheel
+release workflow must not publish from tag-push alone
+candidate must come from successful main push CI
+candidate run head SHA must equal selected candidate SHA
+candidate manifest run/SHA/version/hash mismatch -> refuse release
+wheel byte/hash mismatch -> refuse release
+missing/expired candidate artifact -> refuse release; never rebuild
+missing/mismatched certified readiness artifact -> refuse release
+release_ready != true or blockers != [] -> refuse release
+any required readiness result != PASS -> refuse release
+existing tag/release -> refuse overwrite/reuse
+```
+
+Candidate artifact verification is intentionally standard-library-only so downloaded bytes can be authenticated before installing/trusting the candidate wheel itself.
+
+A main CI candidate artifact is only a releasable **input**. It is not a frozen candidate and is not evidence of live Fabric certification until it is explicitly selected and bound to retained certification evidence.
 
 ## Credential/evidence safety
 
