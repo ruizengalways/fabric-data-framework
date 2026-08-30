@@ -133,7 +133,9 @@ def test_item_smoke_writes_partial_manifest_and_never_retains_access_token(
     spec_path, config_path = _paths(tmp_path)
     output = tmp_path / "item-smoke-manifest.json"
     monkeypatch.setenv("FABRIC_ACCESS_TOKEN", "live-ephemeral-token")
-    monkeypatch.setattr("fabric_data_framework.cli.FabricRestClient", _FakeFabricRestClient)
+    monkeypatch.setattr(
+        "fabric_data_framework.cli.base.FabricRestClient", _FakeFabricRestClient
+    )
     _FakeFabricRestClient.wrong_item = False
 
     assert (
@@ -169,7 +171,9 @@ def test_item_smoke_identity_mismatch_is_retained_as_sanitized_fail(
     spec_path, config_path = _paths(tmp_path)
     output = tmp_path / "item-smoke-manifest.json"
     monkeypatch.setenv("FABRIC_ACCESS_TOKEN", "live-ephemeral-token")
-    monkeypatch.setattr("fabric_data_framework.cli.FabricRestClient", _FakeFabricRestClient)
+    monkeypatch.setattr(
+        "fabric_data_framework.cli.base.FabricRestClient", _FakeFabricRestClient
+    )
     _FakeFabricRestClient.wrong_item = True
 
     assert (
