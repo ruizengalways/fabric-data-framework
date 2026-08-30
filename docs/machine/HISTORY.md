@@ -15,7 +15,7 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #28 | `67562e4312dc9c37e8b7fb8d79535bb621bd573f` | Fabric Warehouse same-transaction target commit proof |
 | #30 | `732920e214ccdead20c632f7e70c0eb8f1267f0d`, Actions `33250676068` | approved DEV integration evidence harness |
 | #32 | `e42dee86db3d4102c7264bc0d1f01f83fb8aade2`, Actions `33251177339`, 407 | approved-run preflight + read-only item smoke |
-| #34 | `1c7d67bedd125f5fb5e983be791085fd1eaa9b0e`, Actions `33253215030`, 419 | orthogonal capture semantics + exact 14 presets |
+| #34 | `1c7d67bedd125f5fb9e983be791085fd1eaa9b0e`, Actions `33253215030`, 419 | orthogonal capture semantics + exact 14 presets |
 | #35 | `bf215fcb3538f9806b4002d2f154dbd46ae19412`, Actions `33253394201`, 430 | semantic onboarding + CLI |
 | #37 | `d69b2ff49f984331b6753bcd9274ea9a298ce798`, Actions `33253581049`, 441 | full-baseline to WATERMARK bootstrap |
 | #39 | `014cd334105de6f867b6320509b94147a444a2fa`, Actions `33253817758`, 455 | strict staged evidence merge |
@@ -43,6 +43,7 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #76 | `1c3669cad03b2209527d7f0727fd879c45dda4df` | non-destructive customer/domain `project-init` scaffold contract |
 | #78 | `8094e4742507c23ffad16220aebd6862876a3cd0`, Actions `33305885406`, 627 | whole-project fail-closed `project-validate` dry-run contract |
 | #80 | `353b43c37077a1ffc9e22b6c76ae5494a164306e`, PR Actions `33309737895`, main Actions `33309805619`, 636 | 0.4 exact-candidate fail-closed release-readiness aggregation; current readiness intentionally BLOCKED |
+| #82 | `7f7849b9319df43ef382574747bfe27ee6378403`, PR Actions `33310317289`, main Actions `33310363412`, 644 | exact candidate wheel identity + exact certified-byte release promotion; no release-time rebuild |
 
 ## Integrated design decisions
 
@@ -58,7 +59,7 @@ framework-first semantics with bounded provider-native delegation
 CLI is a removable leaf
 evidence/ is the only integration-evidence, release-readiness and approved-runner owner
 control_plane/ is the relational state owner
-deployment/ is the release/promotion/delivery owner
+deployment/ is the release/promotion/delivery and candidate-artifact identity owner
 contracts/ is the provider-neutral semantic/runtime owner
 source root and major package roots are namespace-only
 callers import explicit owner submodules
@@ -67,6 +68,10 @@ removed paths and broad facades are contract-tested as absent
 one business/domain repo may contain mixed FULL/WATERMARK/CDC and SCD1/SCD2; execution_group handles operational grouping
 release readiness binds exact candidate source SHA and exact artifact SHA for live evidence
 integration-backed release gates cannot be bypassed by generic/manual PASS proof
+main candidate artifact binds source SHA + CI run/attempt + wheel filename/version + inner SHA256
+release workflow promotes already-certified bytes and must never rebuild the wheel
+release accepts candidate artifacts only from successful main push framework-ci runs
+candidate artifact existence does not mean candidate has been selected/frozen
 0.4 is feature-frozen and remains unreleased until required readiness blockers reach zero
 Debezium/Kafka is optional in the 0.4 certification matrix unless explicitly promoted into GA scope
 ```
@@ -83,4 +88,6 @@ project-validate PASS != live Fabric readiness
 release-readiness contract PASS != release readiness
 GitHub Actions artifact archive digest != exact inner wheel SHA256
 source/version equality != permission to reuse evidence across rebuilt artifacts
+candidate-capable main artifact != frozen/certified candidate
+exact-byte promotion contract != live certification
 ```
