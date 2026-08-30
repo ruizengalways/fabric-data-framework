@@ -13,7 +13,7 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #24 | `2fa8e2c4bc6875b529a4968694722d4108a635ff` | SQLAlchemy relational runtime repository |
 | #26 | `8f23942acd5b03d817e42b97d9f490acc6bee89f` | Copy Job + Spark Job Definition REST transports |
 | #28 | `67562e4312dc9c37e8b7fb8d79535bb621bd573f` | Fabric Warehouse same-transaction target commit proof |
-| #30 | `732920e214ccdead20c632f07e70c0eb8f1267f0d`, Actions `33250676068` | approved DEV integration evidence harness |
+| #30 | `732920e214ccdead20c632f7e70c0eb8f1267f0d`, Actions `33250676068` | approved DEV integration evidence harness |
 | #32 | `e42dee86db3d4102c7264bc0d1f01f83fb8aade2`, Actions `33251177339`, 407 tests | approved-run preflight + read-only item smoke |
 | #34 | `1c7d67bedd125f5fb5e983be791085fd1eaa9b0e`, Actions `33253215030`, 419 | orthogonal cheatsheet semantics + exact 14 presets |
 | #35 | `bf215fcb3538f9806b4002d2f154dbd46ae19412`, Actions `33253394201`, 430 | semantic onboarding + CLI |
