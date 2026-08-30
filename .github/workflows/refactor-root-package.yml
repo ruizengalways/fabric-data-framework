@@ -32,6 +32,20 @@ jobs:
           pkg = root / 'src' / 'fabric_data_framework'
           package_init = pkg / '__init__.py'
 
+          # A few CLI tests imported the cli submodule through package-root import syntax.
+          # Make submodule ownership explicit before removing the root facade.
+          for base in (pkg, root / 'tests'):
+              for path in sorted(base.rglob('*.py')):
+                  if path == package_init:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  updated = text.replace(
+                      'from fabric_data_framework import cli',
+                      'import fabric_data_framework.cli as cli',
+                  )
+                  if updated != text:
+                      path.write_text(updated, encoding='utf-8')
+
           offenders: list[str] = []
           for base in (pkg, root / 'tests'):
               for path in sorted(base.rglob('*.py')):
