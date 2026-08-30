@@ -15,10 +15,10 @@ Last updated: 2026-08-30
 ## Latest coherent CI baseline
 
 ```text
-code baseline = 4dfa5e22fd8eab67406ced8af954f2d81ad18321  (PR #51 merge)
-PR #51 head   = 514de16a84c4756d9511fe773e0912c0acf607be
-Actions       = 33283668067
-525 tests
+code baseline = b9187d93015d921614147831da1336b2d91f3e22  (PR #53 merge)
+PR #53 head   = d98ca2c9ab48708d13adc88fbe772f232d53f166
+Actions       = 33284190041
+534 tests
 Python 3.11 + 3.13 + static + wheel SUCCESS
 ```
 
@@ -35,6 +35,7 @@ PR #45 / 490  approved Copy Job + Spark capture runner
 PR #47 / 501  approved Warehouse commit/recovery runner
 PR #49 / 513  approved Warehouse ambiguous-COMMIT fault-drill runner
 PR #51 / 525  Warehouse session-termination absence certifier contract
+PR #53 / 534  approved Warehouse session-termination recovery contract
 ```
 
 ## Core guarantee map
@@ -50,11 +51,9 @@ PR #51 / 525  Warehouse session-termination absence certifier contract
 | CDC order/dedupe/checkpoint | CDC modules | REFERENCE + CI PROVEN |
 | Debezium/Kafka recovery | CDC adapter | ADAPTER/RECOVERY CONTRACT + CI PROVEN |
 | Delta CDF bounded recovery | Delta adapter | ADAPTER/RECOVERY CONTRACT + CI PROVEN |
-| Typed CaptureReceipt / single progress authority | contracts/capabilities | REFERENCE + CI PROVEN |
 | Copy Job REST transport | Fabric Copy adapter | IMPLEMENTED + CI PROVEN TRANSPORT CONTRACT |
 | Spark Job Definition transport | Fabric Spark adapter | IMPLEMENTED + CI PROVEN TRANSPORT CONTRACT |
 | Fabric Data Pipeline backend | Pipeline backend | IMPLEMENTED + CI PROVEN BACKEND |
-| Provider Completed insufficient for semantic success | Pipeline/capture adapters | REFERENCE + CI PROVEN |
 | Durable target-operation CAS journal | target operations + IO | IMPLEMENTED + CI PROVEN REFERENCE |
 | UNKNOWN tri-state reconciliation | recovery | IMPLEMENTED + CI PROVEN REFERENCE |
 | Fabric Warehouse same-transaction marker proof | Warehouse recovery | IMPLEMENTED + CI PROVEN PROVIDER COMMIT CONTRACT |
@@ -66,78 +65,80 @@ PR #51 / 525  Warehouse session-termination absence certifier contract
 | Pipeline PASS requires exact durable child outcome | approved Pipeline runner | IMPLEMENTED + CI PROVEN APPROVED PIPELINE RUNNER CONTRACT |
 | Capture PASS requires observation -> native evidence -> CaptureReceipt | approved capture runner | IMPLEMENTED + CI PROVEN APPROVED CAPTURE RUNNER CONTRACT |
 | Framework owns Warehouse transaction + commit marker | approved Warehouse runner | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT |
-| Matching marker reconciles UNKNOWN -> SUCCEEDED | Warehouse runner + target probe | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT |
 | Marker absence alone remains UNRESOLVED | target probe | REFERENCE + CI PROVEN fail-closed |
-| Provider/driver errors retained by type only | approved runners + target probe | REFERENCE + CI PROVEN secret-safety guardrail |
 | Simulated framework ACK loss is not real network fault proof | Warehouse evidence model | EXPLICIT EVIDENCE BOUNDARY |
-| Real-fault drill is a separate evidence kind | integration evidence + fault runner | IMPLEMENTED + CI PROVEN EVIDENCE SEPARATION |
-| Fault drill requires normal Warehouse PASS prerequisite | approved fault runner | REFERENCE + CI PROVEN GUARDRAIL |
-| Fault injection requires exact fingerprinted artifact + separate authorization | fault runner + ReleaseManifest | REFERENCE + CI PROVEN GUARDRAIL |
-| Fault drill PASS requires actual observed execution exception | approved fault runner | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT |
+| Real-fault drill is separate evidence kind | integration evidence + fault runner | IMPLEMENTED + CI PROVEN EVIDENCE SEPARATION |
+| Fault drill requires actual execution exception | approved fault runner | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT |
 | Normal transaction return cannot PASS real-fault drill | approved fault runner | REFERENCE + CI PROVEN false-positive guard |
 | Fault identity must match arm/verification | approved fault runner | REFERENCE + CI PROVEN fail-closed |
-| Fault drill absent marker remains UNKNOWN/UNRESOLVED | approved fault runner | REFERENCE + CI PROVEN fail-closed |
-| Fault injector cannot manufacture NOT_COMMITTED | fault contract | EXPLICIT EVIDENCE BOUNDARY |
-| CI commit-then-raise double is not live fault proof | fault evidence model | EXPLICIT EVIDENCE BOUNDARY |
-| Exact Warehouse session identity is connection_id + session_id | session absence module | IMPLEMENTED + CI PROVEN PROVIDER CONTRACT |
-| Session binding capture occurs on exact target connection | session absence module | IMPLEMENTED + CI PROVEN PROVIDER CONTRACT |
-| Session ID alone is insufficient for absence proof | session absence module | REFERENCE + CI PROVEN fail-closed |
-| Session already gone before inspection remains unresolved | session absence certifier | REFERENCE + CI PROVEN fail-closed |
+| Fault injector cannot manufacture NOT_COMMITTED | fault evidence model | EXPLICIT EVIDENCE BOUNDARY |
+| Exact Warehouse session identity = connection_id + session_id | session absence module | IMPLEMENTED + CI PROVEN PROVIDER CONTRACT |
+| Session ID alone is insufficient | session absence module | REFERENCE + CI PROVEN fail-closed |
 | Absence proof requires open_transaction_count > 0 | session absence certifier | REFERENCE + CI PROVEN fail-closed |
-| Admin authority DMV lookup filters exact connection + session | SQLAlchemy session authority | IMPLEMENTED + CI PROVEN PROVIDER CONTRACT |
-| Session termination uses explicit `KILL <validated session_id>` under AUTOCOMMIT | SQLAlchemy session authority | IMPLEMENTED + CI PROVEN PROVIDER CONTRACT |
-| KILL / DMV / post-check errors retain exception type only | session absence certifier | REFERENCE + CI PROVEN secret-safety guardrail |
+| Admin DMV lookup filters exact connection + session | SQLAlchemy session authority | IMPLEMENTED + CI PROVEN PROVIDER CONTRACT |
+| Session termination uses Admin `KILL <validated session_id>` under AUTOCOMMIT | SQLAlchemy session authority | IMPLEMENTED + CI PROVEN PROVIDER CONTRACT |
 | Exact session must disappear after termination | session absence certifier | REFERENCE + CI PROVEN fail-closed |
 | Post-termination marker must be re-read | session absence certifier | IMPLEMENTED + CI PROVEN race guard |
 | Marker appearing during termination forbids NOT_COMMITTED | session absence certifier | REFERENCE + CI PROVEN race guard |
-| Query Insights is not immediate absence proof | Warehouse recovery evidence model | EXPLICIT EVIDENCE BOUNDARY |
-| Session-termination certifier is not yet an approved runner | evidence model | EXPLICIT EVIDENCE BOUNDARY |
+| Query Insights is not immediate absence proof | Warehouse evidence model | EXPLICIT EVIDENCE BOUNDARY |
+| Separate Admin DB env-var name from ordinary Warehouse path | approved runner config | IMPLEMENTED + CI PROVEN least-privilege guardrail |
+| Ordinary and Admin Warehouse env-var names must differ | approved runner config | REFERENCE + CI PROVEN fail-closed |
+| Session termination requires run-config opt-in | approved fault runner | IMPLEMENTED + CI PROVEN guardrail |
+| Session termination requires separate CLI/runtime authorization | approved fault runner + CLI | IMPLEMENTED + CI PROVEN guardrail |
+| Fault-injection authorization never implies KILL permission | approved fault runner + CLI | EXPLICIT AUTHORIZATION BOUNDARY + CI PROVEN |
+| Admin credential value not read on COMMITTED path | approved fault runner | IMPLEMENTED + CI PROVEN least-secret-access guardrail |
+| Admin credential value read only for verified UNRESOLVED exact-session branch | approved fault runner | IMPLEMENTED + CI PROVEN least-secret-access guardrail |
+| Safe absence reconciles UNKNOWN -> NOT_COMMITTED | approved fault runner + absence certifier | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE SESSION-TERMINATION RECOVERY CONTRACT |
+| NOT_COMMITTED sets retry eligibility but runner does not auto-reexecute | approved fault runner | IMPLEMENTED + CI PROVEN fail-closed recovery guardrail |
+| NOT_COMMITTED recovery cannot PASS committed-fault evidence check | approved fault runner | EXPLICIT EVIDENCE SEPARATION + CI PROVEN |
+| Final post-termination plain probe can only recognize positive COMMITTED evidence | approved fault runner | IMPLEMENTED + CI PROVEN race guard |
+| Provider/Admin exceptions retained by type only | approved runners + recovery | REFERENCE + CI PROVEN secret-safety guardrail |
 | v0.3.0 immutable wheel/checksum | historical release | RELEASE PROVEN for v0.3.0 |
 
-## Warehouse commit/recovery invariants
+## Warehouse recovery truth table
 
 ```text
-provider/native source cursor != framework downstream semantic checkpoint
-provider Completed != framework semantic success
-unknown target commit -> reconcile -> COMMITTED / NOT_COMMITTED / UNRESOLVED
+matching marker
+  -> COMMITTED
+  -> SUCCEEDED
+
+marker absent, no independent proof
+  -> UNRESOLVED
+  -> UNKNOWN
+  -> no retry
+
+marker absent
++ exact retained connection/session
++ observable open transaction
++ separately authorized Admin KILL
++ exact session disappears
++ post-KILL marker still absent
+  -> NOT_COMMITTED
+  -> retry eligible
+  -> no automatic retry by evidence runner
 ```
 
-Primary Warehouse truth:
+Evidence semantics stay separate:
 
 ```text
-matching same-transaction marker -> COMMITTED
-marker absent                     -> UNRESOLVED
+FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL PASS
+    means actual fault + operation COMMITTED + recovered to SUCCEEDED
+
+SAFE_NOT_COMMITTED_AFTER_SESSION_TERMINATION
+    means actual verified fault + safe rollback/non-commit proof
+    and therefore the committed-fault check remains FAIL
 ```
 
-PR #51 adds one narrow independent no-late-commit branch:
+## Secret and authorization invariants
 
 ```text
-marker initially absent
-+ exact connection/session retained
-+ exact live session observed with open_transaction_count > 0
-+ independent Admin KILL succeeds
-+ exact connection/session disappears
-+ post-KILL marker re-read remains absent
-= safe_to_retry=true may support NOT_COMMITTED
+source control stores env-var names only
+ordinary Warehouse credential != Admin Warehouse credential name
+fault injection authorization != session termination authorization
+Admin URL value is read only after verified UNRESOLVED exact-session ambiguity
+COMMITTED path never reads Admin URL value
+raw provider/driver/Admin exception messages are not retained
 ```
-
-This does not change the default: without all of those facts, marker absence stays `UNRESOLVED`.
-
-If the marker appears after termination, commit may have won the race and `NOT_COMMITTED` is forbidden.
-
-## Evidence accumulation invariants
-
-```text
-exact spec/environment/domain/framework/release required
-NOT_RUN = no evidence for that stage
-substantive PASS/FAIL/EXTERNAL_REQUIRED retained unchanged
-identical substantive duplicate may collapse
-different rerun evidence = conflict
-no timestamp/status precedence
-source partial manifests remain retained
-```
-
-Approved provider stages additionally require explicit authorization and provider-specific semantic evidence before PASS.
 
 ## Required real proof not yet complete
 
@@ -151,29 +152,17 @@ Approved provider stages additionally require explicit authorization and provide
 | Spark Job Definition | approved runner ready | bounded live job + observer + verified receipt |
 | Fabric Warehouse commit/recovery | approved runner ready | real target+marker transaction + recovery PASS |
 | Real ambiguous Warehouse COMMIT fault | approved fault runner ready | live provider-specific injector + retained drill PASS |
-| Exact Warehouse session binding | provider contract only | live selected-driver proof |
-| Admin DMV/KILL rollback chain | provider contract only | separately authorized approved live run |
-| Production-approved marker absence proof | CI contract only | approved runner wiring + live exact-release evidence |
+| Exact Warehouse session binding | approved wiring ready | live selected-driver proof |
+| Admin DMV/KILL rollback chain | approved wiring ready | separately authorized live Admin proof |
+| Production-approved marker absence recovery | CI contract only | retained exact-release live recovery evidence |
 | Live Kafka coordination | adapter contract only | live broker proof if in release scope |
 | Live Delta CDF | adapter contract only | live Lakehouse proof if in release scope |
 | Capacity/IAM/network/DR/monitoring/governance | EXTERNAL | retained enterprise controls |
 | Complete exact-release evidence bundle | not retained | staged real checks + merge + `--require-certified` |
 
-## Next implementation boundary
+## Next boundary
 
-If live inputs remain unavailable, the next reusable slice is not another absence algorithm. It is approved wiring for the existing PR #51 contract:
-
-```text
-separate source-controlled Admin DB URL env-var NAME
-separate Admin engine / identity
-separate explicit session-termination authorization
-exact session capture before target mutation
-invoke certifier only after actual ambiguous execution exception
-do not make KILL default
-do not reuse normal mutation/fault authorization as Admin termination permission
-```
-
-A fault drill can legitimately FAIL its `COMMITTED` ambiguity claim while session-termination recovery safely moves operational state to `NOT_COMMITTED`. Evidence status and recovery state are different concepts.
+The reusable Warehouse recovery surface is now sufficiently broad at CI-contract level. If live inputs are unavailable, do not add another generic recovery mechanism. Next work should prepare exact-candidate evidence inputs or implement a provider-specific live fault injector only once the actual enterprise environment/fault mechanism is known.
 
 ## Release rule
 
@@ -183,7 +172,7 @@ A fault drill can legitimately FAIL its `COMMITTED` ambiguity claim while sessio
 CI PROVEN != FABRIC PROVEN
 CI PROVEN != PRODUCTION DB PROVEN
 CI fault contract != real network/driver fault proof
-CI absence certifier != production-approved absence proof
+CI session-termination recovery != production-approved Admin/KILL proof
 ```
 
 ## Update rule
