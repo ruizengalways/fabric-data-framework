@@ -1,0 +1,124 @@
+# MACHINE CAPABILITY MATRIX
+
+Evidence vocabulary:
+
+```text
+REFERENCE / CONTRACT       deterministic semantic/runtime implementation
+CI PROVEN                  static/tests/build succeeded
+RELEASE PROVEN             immutable published artifact/checksum evidence
+FABRIC/PRODUCTION PROVEN   retained approved real-service evidence for exact release
+EXTERNAL                   enterprise/platform control outside this repository
+```
+
+## Semantic / runtime guarantees
+
+| Capability | Implementation owner | Current evidence |
+|---|---|---|
+| Immutable DatasetConfig / effective config hashing | `config.py` | REFERENCE + CI PROVEN |
+| Exact 14 capture/Bronze semantic presets | `capture/semantic_contracts.py` | REFERENCE + CI PROVEN |
+| Semantic onboarding overclaim guardrails | `capture/onboarding.py` | REFERENCE + CI PROVEN |
+| Full baseline -> WATERMARK fenced bootstrap | capture bootstrap modules | REFERENCE + CI PROVEN |
+| Snapshot -> CDC fenced bootstrap | capture bootstrap modules | REFERENCE + CI PROVEN |
+| APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF | `apply/` | REFERENCE + CI PROVEN |
+| Provider-neutral CDC order/dedupe/checkpoint | CDC modules | REFERENCE + CI PROVEN |
+| Debezium/Kafka normalization/recovery | CDC adapter | ADAPTER/RECOVERY CONTRACT + CI PROVEN |
+| Delta CDF bounded recovery | Delta adapter | ADAPTER/RECOVERY CONTRACT + CI PROVEN |
+| Replay-stable file/API guardrails | capture modules | REFERENCE + CI PROVEN |
+| Typed CaptureReceipt / progress authority | contracts/capabilities | REFERENCE + CI PROVEN |
+
+## Fabric/provider execution
+
+| Capability | Implementation owner | Current evidence |
+|---|---|---|
+| Fabric Data Pipeline backend | Pipeline backend | IMPLEMENTED + CI PROVEN BACKEND |
+| Copy Job REST transport | Fabric Copy adapter | IMPLEMENTED + CI PROVEN TRANSPORT CONTRACT |
+| Spark Job Definition REST transport | Fabric Spark adapter | IMPLEMENTED + CI PROVEN TRANSPORT CONTRACT |
+| Provider Completed insufficient for semantic success | Pipeline/capture adapters | REFERENCE + CI PROVEN |
+| Fabric Warehouse same-transaction target marker | Warehouse recovery | IMPLEMENTED + CI PROVEN PROVIDER COMMIT CONTRACT |
+
+## Control plane / target recovery
+
+| Capability | Implementation owner | Current evidence |
+|---|---|---|
+| Durable target-operation CAS journal | target operations + IO | IMPLEMENTED + CI PROVEN REFERENCE |
+| UNKNOWN tri-state recovery | recovery modules | IMPLEMENTED + CI PROVEN REFERENCE |
+| SQLAlchemy relational runtime repository | `relational_repository.py` | IMPLEMENTED + CI PROVEN RELATIONAL RUNTIME |
+| Control-plane backend conformance certification | certification modules | IMPLEMENTED + CI PROVEN CONTRACT |
+| Runtime does not silently migrate production schema | repository/runtime boundary | REFERENCE + CI PROVEN GUARDRAIL |
+
+## Approved evidence surfaces
+
+| Capability | Implementation owner | Current evidence |
+|---|---|---|
+| Evidence spec/manifest/hash | `integration_evidence.py` | IMPLEMENTED + CI PROVEN EVIDENCE HARNESS CONTRACT |
+| Credential-safe approved-run preflight | `integration_runner.py` | IMPLEMENTED + CI PROVEN APPROVED-RUN PREFLIGHT CONTRACT |
+| Read-only Fabric item smoke | integration runner/checks | IMPLEMENTED + CI PROVEN READ-ONLY RUNNER CONTRACT |
+| Strict staged evidence merge | `integration_evidence_merge.py` | IMPLEMENTED + CI PROVEN EVIDENCE MERGE CONTRACT |
+| Approved control-plane certification | `approved_control_plane_runner.py` | IMPLEMENTED + CI PROVEN APPROVED CONTROL-PLANE CERTIFICATION RUNNER CONTRACT |
+| Approved Pipeline execution evidence | `approved_pipeline_runner.py` | IMPLEMENTED + CI PROVEN APPROVED PIPELINE RUNNER CONTRACT |
+| Approved Copy/Spark capture evidence | `approved_capture_runner.py` | IMPLEMENTED + CI PROVEN APPROVED CAPTURE RUNNER CONTRACT |
+| Approved Warehouse commit/recovery | `approved_warehouse_runner.py` | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT |
+| Approved real ambiguous-COMMIT drill | `approved_warehouse_fault_runner.py` | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT |
+
+## Warehouse ambiguity / session recovery
+
+| Guarantee | Current evidence |
+|---|---|
+| Matching same-transaction marker -> COMMITTED | REFERENCE + CI PROVEN |
+| Marker absence alone -> UNRESOLVED | REFERENCE + CI PROVEN fail-closed |
+| Unknown target outcome never blind retries | REFERENCE + CI PROVEN fail-closed |
+| Simulated framework ACK loss is not real network/driver proof | EXPLICIT EVIDENCE BOUNDARY |
+| Real-fault drill requires actual observed execution exception | IMPLEMENTED + CI PROVEN runner contract |
+| Normal transaction return cannot PASS real-fault drill | REFERENCE + CI PROVEN false-positive guard |
+| Fault arm/verification identity must match | REFERENCE + CI PROVEN fail-closed |
+| Fault injector cannot manufacture NOT_COMMITTED | EXPLICIT EVIDENCE BOUNDARY |
+| Exact Warehouse session identity = connection_id + session_id | IMPLEMENTED + CI PROVEN PROVIDER CONTRACT |
+| Session ID alone is insufficient | REFERENCE + CI PROVEN fail-closed |
+| Session already gone before inspection remains UNRESOLVED | REFERENCE + CI PROVEN fail-closed |
+| Absence proof requires open_transaction_count > 0 | REFERENCE + CI PROVEN fail-closed |
+| Admin DMV lookup exact-filters connection + session | IMPLEMENTED + CI PROVEN PROVIDER CONTRACT |
+| Session termination uses validated `KILL <session_id>` | IMPLEMENTED + CI PROVEN PROVIDER CONTRACT |
+| Post-termination exact session disappearance required | REFERENCE + CI PROVEN fail-closed |
+| Marker must be re-read after termination | IMPLEMENTED + CI PROVEN race guard |
+| Marker appearing during race forbids NOT_COMMITTED | REFERENCE + CI PROVEN race guard |
+| Query Insights is not immediate absence proof | EXPLICIT EVIDENCE BOUNDARY |
+| Admin credential/env-var name separate from ordinary Warehouse credential | IMPLEMENTED + CI PROVEN approved recovery guardrail |
+| Fault authorization does not imply Admin termination authorization | IMPLEMENTED + CI PROVEN approved recovery guardrail |
+| Admin secret value not read on COMMITTED path | IMPLEMENTED + CI PROVEN least-privilege guardrail |
+| Safe session termination reconciles UNKNOWN -> NOT_COMMITTED | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE SESSION-TERMINATION RECOVERY CONTRACT |
+| NOT_COMMITTED recovery does not auto re-execute | IMPLEMENTED + CI PROVEN fail-closed |
+| NOT_COMMITTED operational recovery does not PASS committed fault-drill evidence | EXPLICIT EVIDENCE SEPARATION |
+
+## Extension surfaces
+
+| Extension kind | Entry-point group | Boundary |
+|---|---|---|
+| Capture observer | `fabric_data_framework.capture_observers` | translate provider/item observation into bounded evidence; cannot decide framework PASS |
+| Spark execution data | `fabric_data_framework.spark_execution_data` | bounded runtime execution-data resolution |
+| Warehouse mutation | `fabric_data_framework.warehouse_mutations` | bounded mutation using supplied framework-owned Connection; cannot commit/write marker/journal |
+| Warehouse commit fault injector | `fabric_data_framework.warehouse_commit_fault_injectors` | provider/session-specific arm/disarm/verify; cannot manufacture commit/absence truth |
+
+## Real proof still missing
+
+| Proof | State |
+|---|---|
+| Enterprise Fabric identity/token | NOT YET RETAINED |
+| Workspace/item authorization | NOT YET RETAINED |
+| Production Fabric SQL/Azure SQL certification PASS | NOT YET RETAINED |
+| Live approved Pipeline | NOT YET RETAINED |
+| Live Copy Job + verified observation/receipt | NOT YET RETAINED |
+| Live bounded Spark + verified observation/receipt | NOT YET RETAINED |
+| Live Warehouse target+marker transaction | NOT YET RETAINED |
+| Provider-specific real ambiguous COMMIT fault | NOT YET RETAINED |
+| Live exact Warehouse session capture | NOT YET RETAINED |
+| Live Admin DMV/KILL/rollback chain | NOT YET RETAINED |
+| Production-approved marker absence proof | NOT YET RETAINED |
+| Complete exact-release evidence bundle | NOT YET RETAINED |
+| Capacity/IAM/network/DR/monitoring/governance | EXTERNAL / NOT YET RETAINED |
+
+## Historical release proof
+
+```text
+v0.3.0 immutable release artifact = RELEASE PROVEN for v0.3.0
+0.4.0 development source          = NOT RELEASED
+```

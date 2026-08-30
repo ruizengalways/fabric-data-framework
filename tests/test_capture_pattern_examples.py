@@ -8,7 +8,7 @@ from fabric_data_framework.delivery import load_dataset_configs
 from fabric_data_framework.metadata import DEFAULT_CAPABILITY_REGISTRY
 
 
-EXAMPLE_ROOT = Path("docs/examples/capture-patterns")
+EXAMPLE_ROOT = Path("examples/capture-patterns")
 
 
 def test_capture_pattern_examples_are_typed_and_onboarding_claims_remain_valid():
