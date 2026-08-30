@@ -14,8 +14,11 @@ src/fabric_data_framework/
   relational control plane
   integration evidence / approved runners
   extensions
-  delivery / deployment / CLI
+  delivery / deployment
+  cli/ presentation layer
 ```
+
+Code-browser entrypoint: `src/fabric_data_framework/README.md`.
 
 ## Semantic configuration
 
@@ -136,11 +139,69 @@ Extension artifact identity must be pinned in exact release provenance where app
 |---|---|
 | Config bundle hashing/materialization | `delivery.py` and related modules |
 | Release manifest/provenance | deployment/delivery modules |
-| CLI legacy/general commands | `cli.py` |
-| Additive approved-run CLI routing | `cli_router.py` |
 | Package metadata/version/console script | `pyproject.toml` |
 | CI | `.github/workflows/ci.yml` |
 | Release artifact workflow | `.github/workflows/release.yml` |
+
+## CLI presentation boundary
+
+All active CLI implementation lives under:
+
+```text
+src/fabric_data_framework/cli/
+```
+
+Ownership:
+
+| File | Exact responsibility |
+|---|---|
+| `cli/main.py` | tiny composition root; routes command family only |
+| `cli/base.py` | general validation, metadata, deployment and preflight commands |
+| `cli/approved.py` | approved evidence / real-environment command adapters |
+| `cli/__init__.py` | public console-script `main` export |
+| `cli/__main__.py` | module execution entrypoint |
+| `cli/README.md` | code-local dependency/ownership rule |
+| `cli_router.py` | deprecated compatibility shim only; no command/business implementation |
+
+Non-negotiable dependency rule:
+
+```text
+cli -> core
+core -X-> cli
+```
+
+`tests/test_cli_isolation.py` proves both:
+
+```text
+non-CLI source does not import the CLI package
+physical removal of cli/ does not break core package/capture/apply/execution/recovery/runtime imports
+```
+
+The console script may cease to function if `cli/` is removed; that is expected. Library/runtime functionality must remain independent.
+
+Do not add new top-level `cli_*.py` implementations. Put command adapters inside `cli/` and keep reusable semantics/runtime outside it.
+
+## Readability / future folder extraction rule
+
+Several mature areas remain flat, especially:
+
+```text
+control_plane*.py
+integration_*.py
+approved_*_runner.py
+repository.py / relational_repository.py
+```
+
+Do not move them merely for aesthetics. Extract a folder only when:
+
+```text
+ownership boundary is clear
+public/import compatibility is preserved or intentionally versioned
+dependency direction improves
+full contract suite proves no behavior regression
+```
+
+CLI was extracted first because it is a true leaf dependency. Potential later clusters may include control-plane and evidence surfaces, but only as separate refactors.
 
 ## Tests as executable specification
 
@@ -168,6 +229,7 @@ marker absence remaining UNRESOLVED
 credential/evidence redaction
 strict evidence merge conflicts
 separate mutation/fault/Admin authorization
+core library independent from CLI presentation layer
 ```
 
 ## Documentation ownership after reorganization
@@ -178,7 +240,7 @@ docs/human/CONCEPTS.md             stable conceptual model
 docs/human/REPOSITORY_GUIDE.md     human repo/file map
 docs/human/GETTING_STARTED.md      install/package/Fabric consumption
 docs/human/DATASET_ONBOARDING.md   new-data decision guide
-docs/human/OPERATIONS.md            operational/CLI guide
+docs/human/OPERATIONS.md           operational/CLI guide
 
 docs/machine/STATE.md              exact current engineering state
 docs/machine/CONTEXT.md            invariants/fail-closed boundaries
