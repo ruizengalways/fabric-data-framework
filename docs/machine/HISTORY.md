@@ -40,6 +40,9 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #72 | `80d0efec39899d01b1a61515396896c397a3b70a`, Actions `33292517022`, 608 | removed recovery package re-export facade |
 | #73 | `7c55c8179e50386d83ca945665e41251826eaf81`, Actions `33292620504`, 612 | removed capture and apply package re-export facades |
 | #74 | `0b82a55981700484e68c5fb9f68de7c94a68b75b`, Actions `33302223695`, 615 | removed quality and orchestration package re-export facades |
+| #76 | `1c3669cad03b2209527d7f0727fd879c45dda4df` | non-destructive customer/domain `project-init` scaffold contract |
+| #78 | `8094e4742507c23ffad16220aebd6862876a3cd0`, Actions `33305885406`, 627 | whole-project fail-closed `project-validate` dry-run contract |
+| #80 | `353b43c37077a1ffc9e22b6c76ae5494a164306e`, PR Actions `33309737895`, main Actions `33309805619`, 636 | 0.4 exact-candidate fail-closed release-readiness aggregation; current readiness intentionally BLOCKED |
 
 ## Integrated design decisions
 
@@ -53,7 +56,7 @@ Pipeline/Spark execution boundary
 semantic model separate from physical execution engine
 framework-first semantics with bounded provider-native delegation
 CLI is a removable leaf
-evidence/ is the only integration-evidence and approved-runner owner
+evidence/ is the only integration-evidence, release-readiness and approved-runner owner
 control_plane/ is the relational state owner
 deployment/ is the release/promotion/delivery owner
 contracts/ is the provider-neutral semantic/runtime owner
@@ -61,6 +64,11 @@ source root and major package roots are namespace-only
 callers import explicit owner submodules
 unreleased 0.4.0 does not preserve obsolete aliases
 removed paths and broad facades are contract-tested as absent
+one business/domain repo may contain mixed FULL/WATERMARK/CDC and SCD1/SCD2; execution_group handles operational grouping
+release readiness binds exact candidate source SHA and exact artifact SHA for live evidence
+integration-backed release gates cannot be bypassed by generic/manual PASS proof
+0.4 is feature-frozen and remains unreleased until required readiness blockers reach zero
+Debezium/Kafka is optional in the 0.4 certification matrix unless explicitly promoted into GA scope
 ```
 
 ## Historical evidence discipline
@@ -71,4 +79,8 @@ CI commit-then-raise double != real network/driver fault proof
 simulated framework ACK loss != real COMMIT disconnect
 session-termination provider contract != production-approved Admin/KILL proof
 readability/layout refactor != new provider or production evidence
+project-validate PASS != live Fabric readiness
+release-readiness contract PASS != release readiness
+GitHub Actions artifact archive digest != exact inner wheel SHA256
+source/version equality != permission to reuse evidence across rebuilt artifacts
 ```
