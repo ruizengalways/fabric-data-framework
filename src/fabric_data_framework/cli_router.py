@@ -21,6 +21,10 @@ from .approved_control_plane_runner import (
     write_control_plane_certification_report,
 )
 from .approved_pipeline_runner import execute_approved_pipeline
+from .approved_warehouse_fault_runner import (
+    execute_approved_warehouse_fault_drill,
+    load_approved_warehouse_fault_drill_config,
+)
 from .approved_warehouse_runner import (
     execute_approved_warehouse,
     load_approved_warehouse_run_config,
@@ -173,6 +177,47 @@ def _warehouse_parser() -> argparse.ArgumentParser:
         "--allow-warehouse-execution",
         action="store_true",
         help="Explicitly authorize the representative Warehouse target mutation.",
+    )
+    return parser
+
+
+def _warehouse_fault_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="fabric-framework integration-warehouse-fault-drill-run"
+    )
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--spec", required=True)
+    parser.add_argument(
+        "--prerequisite-manifest",
+        required=True,
+        help=(
+            "Exact-spec merged manifest containing PASS item-read, control-plane and "
+            "normal Warehouse commit prerequisites while the fault drill remains NOT_RUN."
+        ),
+    )
+    parser.add_argument("--release-manifest", required=True)
+    parser.add_argument("--config-dir", required=True)
+    parser.add_argument(
+        "--fault-config",
+        required=True,
+        help="Credential-free mutation plus provider-specific commit-fault drill recipe.",
+    )
+    parser.add_argument(
+        "--evidence-reference",
+        action="append",
+        required=True,
+        dest="evidence_references",
+        help="Durable retained fault-drill evidence reference; repeat if needed.",
+    )
+    parser.add_argument("--report-output", required=True)
+    parser.add_argument("--output", required=True, help="Partial integration manifest output.")
+    parser.add_argument(
+        "--allow-warehouse-fault-injection",
+        action="store_true",
+        help=(
+            "Explicitly authorize the provider/session fault injection and representative "
+            "Warehouse mutation."
+        ),
     )
     return parser
 
@@ -362,6 +407,49 @@ def _run_warehouse(argv: list[str]) -> int:
         return 2
 
 
+def _run_warehouse_fault(argv: list[str]) -> int:
+    args = _warehouse_fault_parser().parse_args(argv)
+    try:
+        config = load_approved_integration_runner_config(args.config)
+        spec = load_integration_evidence_spec(args.spec)
+        prerequisite_manifest = load_integration_evidence_manifest(args.prerequisite_manifest)
+        release_manifest = load_release_manifest(args.release_manifest)
+        configs = load_dataset_configs(args.config_dir)
+        fault_config = load_approved_warehouse_fault_drill_config(args.fault_config)
+        execution = execute_approved_warehouse_fault_drill(
+            config=config,
+            spec=spec,
+            prerequisite_manifest=prerequisite_manifest,
+            release_manifest=release_manifest,
+            configs=configs,
+            run_config=fault_config,
+            environ=os.environ,
+            evidence_references=tuple(args.evidence_references),
+            allow_warehouse_fault_injection=args.allow_warehouse_fault_injection,
+        )
+        if execution.report is not None:
+            write_json_model(execution.report, args.report_output)
+        write_integration_evidence_manifest(execution.manifest, args.output)
+        result = next(
+            item
+            for item in execution.manifest.results
+            if item.check_id == fault_config.check_id
+        )
+        print(
+            f"integration_evidence_id={execution.manifest.evidence_id} "
+            f"check_id={result.check_id} status={result.status.value} "
+            f"manifest_hash={execution.manifest.manifest_hash}"
+        )
+        if result.status is not IntegrationEvidenceStatus.PASS:
+            raise ValueError("approved Warehouse ambiguous-COMMIT fault drill did not PASS")
+        if execution.report is None:
+            raise ValueError("approved Warehouse fault-drill PASS did not produce a safe report")
+        return 0
+    except (KeyError, ValueError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     effective_argv = list(sys.argv[1:] if argv is None else argv)
     if effective_argv and effective_argv[0] == "integration-evidence-merge":
@@ -374,6 +462,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_capture(effective_argv[1:])
     if effective_argv and effective_argv[0] == "integration-warehouse-run":
         return _run_warehouse(effective_argv[1:])
+    if effective_argv and effective_argv[0] == "integration-warehouse-fault-drill-run":
+        return _run_warehouse_fault(effective_argv[1:])
     return legacy_cli.main(effective_argv)
 
 
