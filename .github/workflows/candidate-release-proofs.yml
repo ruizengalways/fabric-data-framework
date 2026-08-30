@@ -1,0 +1,378 @@
+name: candidate-release-proofs
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: "Successful main framework-ci run that built the exact candidate wheel"
+        required: true
+        type: string
+      candidate_git_sha:
+        description: "Exact 40-character candidate source SHA; dispatch this workflow at that same ref"
+        required: true
+        type: string
+      candidate_wheel_sha256:
+        description: "Exact inner candidate wheel SHA256 from CANDIDATE.json/SHA256SUMS"
+        required: true
+        type: string
+      customer_git_sha:
+        description: "Exact fabric-customer commit from approved main history"
+        required: true
+        type: string
+      business_path_evidence_run_id:
+        description: "Successful exact-candidate candidate-business-path-evidence workflow run"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: candidate-release-proofs-${{ inputs.candidate_git_sha }}
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      CANDIDATE_SHA: ${{ inputs.candidate_git_sha }}
+      CANDIDATE_WHEEL_SHA256: ${{ inputs.candidate_wheel_sha256 }}
+      CUSTOMER_SHA: ${{ inputs.customer_git_sha }}
+      BUSINESS_PATH_RUN_ID: ${{ inputs.business_path_evidence_run_id }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate exact-candidate inputs and dispatch ref
+        run: |
+          python - <<'PY'
+          import os
+          import re
+
+          if re.fullmatch(r"[0-9a-f]{40}", os.environ["CANDIDATE_SHA"]) is None:
+              raise SystemExit("candidate_git_sha must be a 40-character lowercase git SHA")
+          if re.fullmatch(r"[0-9a-f]{64}", os.environ["CANDIDATE_WHEEL_SHA256"]) is None:
+              raise SystemExit("candidate_wheel_sha256 must be a 64-character lowercase SHA256")
+          if re.fullmatch(r"[0-9a-f]{40}", os.environ["CUSTOMER_SHA"]) is None:
+              raise SystemExit("customer_git_sha must be a 40-character lowercase git SHA")
+          for name in ("CANDIDATE_RUN_ID", "BUSINESS_PATH_RUN_ID"):
+              value = os.environ[name]
+              if not value.isdigit() or int(value) < 1:
+                  raise SystemExit(f"{name} must be a positive GitHub Actions run ID")
+          if os.environ["GITHUB_SHA"] != os.environ["CANDIDATE_SHA"]:
+              raise SystemExit(
+                  "candidate-release-proofs must be workflow_dispatch'ed at the exact candidate ref"
+              )
+          PY
+
+      - name: Checkout exact candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.candidate_git_sha }}
+          fetch-depth: 0
+
+      - name: Verify candidate source and main CI provenance
+        id: candidate
+        run: |
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          if [ "${ACTUAL_SHA}" != "${CANDIDATE_SHA}" ]; then
+            echo "Checked out ${ACTUAL_SHA}, expected ${CANDIDATE_SHA}." >&2
+            exit 1
+          fi
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "${CANDIDATE_SHA}" origin/main; then
+            echo "Candidate ${CANDIDATE_SHA} is not reachable from main." >&2
+            exit 1
+          fi
+          VERSION="$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+          print(tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])
+          PY
+          )"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}")"
+          RUN_HEAD="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["head_sha"])')"
+          RUN_BRANCH="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["head_branch"])')"
+          RUN_EVENT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["event"])')"
+          RUN_CONCLUSION="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["conclusion"])')"
+          RUN_PATH="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["path"])')"
+          RUN_ATTEMPT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["run_attempt"])')"
+          if [ "${RUN_HEAD}" != "${CANDIDATE_SHA}" ] || [ "${RUN_BRANCH}" != "main" ]; then
+            echo "Candidate CI run does not bind exact main candidate SHA." >&2
+            exit 1
+          fi
+          if [ "${RUN_EVENT}" != "push" ] || [ "${RUN_CONCLUSION}" != "success" ]; then
+            echo "Candidate CI run must be a successful main push." >&2
+            exit 1
+          fi
+          if [ "${RUN_PATH}" != ".github/workflows/ci.yml" ]; then
+            echo "Candidate run used unexpected workflow ${RUN_PATH}." >&2
+            exit 1
+          fi
+          echo "run_attempt=${RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+
+          JOBS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/jobs?per_page=100")"
+          printf '%s' "${JOBS_JSON}" | python - <<'PY'
+          import json
+          import sys
+
+          payload = json.load(sys.stdin)
+          jobs = {item["name"]: item["conclusion"] for item in payload["jobs"]}
+          required = {
+              "test-python-3.11",
+              "test-python-3.13",
+              "build-wheel",
+              "release-readiness-contract",
+          }
+          missing = sorted(required - jobs.keys())
+          failed = sorted(name for name in required if jobs.get(name) != "success")
+          if missing or failed:
+              raise SystemExit(f"candidate CI required jobs invalid: missing={missing}, failed={failed}")
+          PY
+
+      - name: Download and verify exact candidate wheel
+        env:
+          CANDIDATE_RUN_ATTEMPT: ${{ steps.candidate.outputs.run_attempt }}
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          rm -rf candidate-dist
+          gh run download "${CANDIDATE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "framework-wheel-${CANDIDATE_SHA}" \
+            --dir candidate-dist
+          test -f candidate-dist/CANDIDATE.json
+          test -f candidate-dist/SHA256SUMS
+          python src/fabric_data_framework/deployment/candidate_artifact.py verify \
+            --dist-dir candidate-dist \
+            --manifest candidate-dist/CANDIDATE.json \
+            --candidate-sha "${CANDIDATE_SHA}" \
+            --workflow-run-id "${CANDIDATE_RUN_ID}" \
+            --workflow-run-attempt "${CANDIDATE_RUN_ATTEMPT}" \
+            --expected-version "${FRAMEWORK_VERSION}" \
+            --expected-wheel-sha256 "${CANDIDATE_WHEEL_SHA256}"
+          (cd candidate-dist && sha256sum -c SHA256SUMS)
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+
+      - name: Install exact candidate wheel only
+        run: |
+          python -m pip install candidate-dist/*.whl
+          python -m pip install "pytest>=8,<10"
+          python -m pip check
+
+      - name: Checkout exact fabric-customer source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ruizengalways/fabric-customer
+          ref: ${{ inputs.customer_git_sha }}
+          path: customer
+          fetch-depth: 0
+
+      - name: Verify customer commit is from main history
+        run: |
+          ACTUAL_CUSTOMER_SHA="$(git -C customer rev-parse HEAD)"
+          if [ "${ACTUAL_CUSTOMER_SHA}" != "${CUSTOMER_SHA}" ]; then
+            echo "Customer checkout ${ACTUAL_CUSTOMER_SHA} does not match ${CUSTOMER_SHA}." >&2
+            exit 1
+          fi
+          git -C customer fetch origin main --no-tags
+          if ! git -C customer merge-base --is-ancestor "${CUSTOMER_SHA}" origin/main; then
+            echo "Customer commit ${CUSTOMER_SHA} is not reachable from fabric-customer main." >&2
+            exit 1
+          fi
+
+      - name: Run exact-candidate customer project compatibility
+        run: |
+          rm -rf retained
+          mkdir -p retained/static retained/customer-compat retained/business retained/final
+          python -m compileall -q customer/src customer/scripts
+          fabric-framework project-validate customer \
+            --output retained/customer-compat/customer-project-validation.json
+
+          fabric-framework project-init retained/customer-compat/health-project --domain health
+          python customer/scripts/scaffold_from_manifest.py \
+            --manifest customer/examples/enterprise_100_table/health_100_tables.csv \
+            --output retained/customer-compat/health-project/config/datasets \
+            --expect-count 100 \
+            --framework-next \
+            --semantic-selections-output retained/customer-compat/health-project/config/capture/semantic-selections.json \
+            --write
+          fabric-framework project-validate retained/customer-compat/health-project \
+            --output retained/customer-compat/health-project-validation.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("retained/customer-compat/health-project-validation.json").read_text())
+          assert report["dataset_count"] == 100
+          assert report["semantic_selection_count"] == 100
+
+          def counts(name):
+              return {item["value"]: item["count"] for item in report[name]}
+
+          assert counts("capture_strategies") == {"CDC": 10, "FULL": 50, "WATERMARK": 40}
+          assert counts("apply_strategies") == {"REPLACE": 50, "SCD1": 20, "SCD2": 20, "UPSERT": 10}
+          assert counts("execution_groups") == {
+              "health_debezium": 10,
+              "health_full_refresh": 50,
+              "health_scd1": 20,
+              "health_scd2": 20,
+          }
+          assert counts("capture_engines") == {"EXTERNAL_CDC": 10, "SPARK": 90}
+          assert counts("apply_engines") == {"SPARK": 100}
+          PY
+
+      - name: Build retained static partial release proof
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from fabric_data_framework.evidence.release_readiness import (
+              ReleaseReadinessGateKind,
+              ReleaseReadinessProofBundle,
+              ReleaseReadinessProofResult,
+              ReleaseReadinessStatus,
+          )
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          candidate_run = os.environ["CANDIDATE_RUN_ID"]
+          candidate_sha = os.environ["CANDIDATE_SHA"]
+          wheel_sha = os.environ["CANDIDATE_WHEEL_SHA256"]
+          customer_sha = os.environ["CUSTOMER_SHA"]
+          current_run = os.environ["GITHUB_RUN_ID"]
+
+          bundle = ReleaseReadinessProofBundle(
+              framework_version=os.environ["FRAMEWORK_VERSION"],
+              candidate_git_sha=candidate_sha,
+              artifact_sha256=wheel_sha,
+              results=(
+                  ReleaseReadinessProofResult(
+                      gate_id="source.tests",
+                      kind=ReleaseReadinessGateKind.SOURCE_VERIFICATION,
+                      status=ReleaseReadinessStatus.PASS,
+                      evidence_references=(f"github-actions://{repo}/runs/{candidate_run}",),
+                      detail="Exact candidate main CI required jobs completed successfully.",
+                  ),
+                  ReleaseReadinessProofResult(
+                      gate_id="wheel.integrity",
+                      kind=ReleaseReadinessGateKind.WHEEL_INTEGRITY,
+                      status=ReleaseReadinessStatus.PASS,
+                      evidence_references=(
+                          f"github-artifact://{repo}/runs/{candidate_run}/framework-wheel-{candidate_sha}",
+                      ),
+                      detail="CANDIDATE.json, SHA256SUMS, wheel bytes, version and install were re-verified.",
+                  ),
+                  ReleaseReadinessProofResult(
+                      gate_id="customer.compatibility",
+                      kind=ReleaseReadinessGateKind.CUSTOMER_COMPATIBILITY,
+                      status=ReleaseReadinessStatus.PASS,
+                      evidence_references=(
+                          f"github-commit://ruizengalways/fabric-customer/{customer_sha}",
+                          f"github-actions://{repo}/runs/{current_run}",
+                      ),
+                      detail="Exact candidate passed customer project validation and 100-table Health framework-next contract.",
+                  ),
+              ),
+          )
+          Path("retained/static/static-release-proofs.json").write_text(
+              json.dumps(bundle.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Verify live business-path evidence run provenance
+        run: |
+          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${BUSINESS_PATH_RUN_ID}")"
+          RUN_HEAD="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["head_sha"])')"
+          RUN_EVENT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["event"])')"
+          RUN_CONCLUSION="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["conclusion"])')"
+          RUN_PATH="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["path"])')"
+          if [ "${RUN_HEAD}" != "${CANDIDATE_SHA}" ]; then
+            echo "Business-path evidence run head ${RUN_HEAD} does not match ${CANDIDATE_SHA}." >&2
+            exit 1
+          fi
+          if [ "${RUN_EVENT}" != "workflow_dispatch" ] || [ "${RUN_CONCLUSION}" != "success" ]; then
+            echo "Business-path evidence must come from a successful workflow_dispatch run." >&2
+            exit 1
+          fi
+          if [ "${RUN_PATH}" != ".github/workflows/candidate-business-path-evidence.yml" ]; then
+            echo "Business-path evidence run used unexpected workflow ${RUN_PATH}." >&2
+            exit 1
+          fi
+
+      - name: Download retained live business-path partial proof
+        run: |
+          gh run download "${BUSINESS_PATH_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "business-path-release-proofs-${CANDIDATE_SHA}" \
+            --dir retained/business
+          test -f retained/business/business-path-release-proofs.json
+
+      - name: Strictly merge and validate complete non-integration release proof
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          fabric-framework release-proofs-merge \
+            --spec "release/${FRAMEWORK_VERSION}/readiness-spec.json" \
+            --input retained/static/static-release-proofs.json \
+            --input retained/business/business-path-release-proofs.json \
+            --output retained/final/release-proofs.json
+
+          python - <<'PY'
+          import os
+
+          from fabric_data_framework.evidence.release_readiness import (
+              ReleaseReadinessStatus,
+              load_release_readiness_proofs,
+              load_release_readiness_spec,
+          )
+
+          spec = load_release_readiness_spec(
+              f"release/{os.environ['FRAMEWORK_VERSION']}/readiness-spec.json"
+          )
+          bundle = load_release_readiness_proofs("retained/final/release-proofs.json")
+          if bundle.candidate_git_sha != os.environ["CANDIDATE_SHA"]:
+              raise SystemExit("merged release proof candidate SHA mismatch")
+          if bundle.artifact_sha256 != os.environ["CANDIDATE_WHEEL_SHA256"]:
+              raise SystemExit("merged release proof wheel SHA256 mismatch")
+
+          required_non_integration = {
+              gate.gate_id
+              for gate in spec.gates
+              if gate.required and gate.integration_check_id is None
+          }
+          by_id = {result.gate_id: result for result in bundle.results}
+          if set(by_id) != required_non_integration:
+              raise SystemExit(
+                  "release proof must contain exactly every required non-integration gate: "
+                  f"expected={sorted(required_non_integration)}, observed={sorted(by_id)}"
+              )
+          failed = sorted(
+              gate_id
+              for gate_id, result in by_id.items()
+              if result.status is not ReleaseReadinessStatus.PASS
+          )
+          if failed:
+              raise SystemExit(f"non-integration release proof gates not PASS: {failed}")
+          PY
+
+          cp retained/customer-compat/customer-project-validation.json retained/final/
+          cp retained/customer-compat/health-project-validation.json retained/final/
+
+      - name: Upload exact-candidate release proof artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-proofs-${{ inputs.candidate_git_sha }}
+          path: retained/final/
+          if-no-files-found: error
+          retention-days: 90
