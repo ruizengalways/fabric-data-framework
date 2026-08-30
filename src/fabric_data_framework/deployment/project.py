@@ -13,6 +13,8 @@ from typing import Iterable, Mapping
 
 from pydantic import Field
 
+from fabric_data_framework.deployment.delivery import load_dataset_configs
+
 from ..capture.onboarding import (
     load_semantic_capture_selections,
     validate_semantic_capture_selection,
@@ -20,7 +22,6 @@ from ..capture.onboarding import (
 from ..contracts.base import FrozenModel
 from ..metadata.capabilities import DEFAULT_CAPABILITY_REGISTRY, CapabilityRegistry
 from ..metadata.config import DatasetConfig
-from .delivery import load_dataset_configs
 
 
 _PROJECT_DOMAIN_PATTERN = r"^[a-z][a-z0-9-]*$"
