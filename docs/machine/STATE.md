@@ -7,108 +7,137 @@ public_release: v0.3.0
 source_version: 0.4.0-development-unreleased
 release_allowed: false
 code_baseline:
-  pull_request: 63
-  merge_sha: 661651387fd75ad548da8b049da59529b296ec9a
-  exact_candidate_head: 6721e89900d61e525ad90c628179852028432f44
-  milestone: canonical-only CLI, evidence and relational control-plane package surfaces; flat legacy paths physically removed
-  ci_actions: 33288912694
-  tests: 575
+  pull_request: 68
+  merge_sha: a117c27a32b4e4f9c4bf1a7dcf6a35e9d3f6d16b
+  exact_candidate_head: 930c1b22f9901d447250db0799b3f7e855d38303
+  milestone: canonical-only explicit package ownership; root package is namespace-only
+  ci_actions: 33291942505
+  tests: 592
   python_3_11: success
   python_3_13: success
   wheel: success
-documentation_baseline:
-  pull_request: 55
-  merge_sha: 46c10ab00fefc2ca546fd7f2bea369a7037216da
-  exact_candidate_head: bc791829c2f3e5be82d012f2b425adf7efab7a5e
-  ci_actions: 33285255666
+documentation_model:
   human: docs/human
   machine: docs/machine
   examples: examples
-  rule: human docs contain stable understanding/usage; machine docs contain exact engineering state/evidence/history
+  rule: human docs explain stable understanding and use; machine docs retain exact engineering state, evidence and compact provenance
 ```
 
 ## Release decision
 
-`0.4.0` remains **UNRELEASED**.
+`0.4.0` remains **UNRELEASED**. Portable semantics/runtime/approved-runner contracts are broad, but exact-candidate retained real enterprise evidence is incomplete. Never infer live proof from CI.
 
-Reason: portable semantics/runtime/approved-runner contracts are broad, but exact-candidate retained real enterprise evidence is incomplete.
+## Canonical source ownership
 
-Never infer live proof from CI.
-
-## Current package readability boundary
-
-The current source tree uses canonical-only module ownership for the extracted CLI, evidence and relational control-plane clusters:
+The unreleased 0.4.0 tree intentionally prefers one explicit owner over compatibility aliases or broad package facades.
 
 ```text
 src/fabric_data_framework/
-  evidence/
+  __init__.py               namespace marker only; no imports/re-exports/version symbol
+
+  contracts/                provider-neutral immutable semantic/runtime contracts
+    base.py
+    schema.py
+    audit.py
+    reconciliation.py
+    quarantine.py
+    target_operation.py
+    capture_receipt.py
+    dispatch.py
+    execution_plan.py
+    rebuild.py
+    recovery.py
+    replay.py
+
+  control_plane/            relational control-plane implementation
+    schema.py
+    io.py
+    schema_evidence.py
+    certification.py
+    repository.py
+    sqlalchemy_repository.py
+    operator.py
+    target_operation_journal.py
+
+  evidence/                 integration evidence + approved exact-run executors
+    safety.py
     integration_evidence.py
     integration_checks.py
     integration_evidence_merge.py
     integration_runner.py
     approved_*_runner.py
 
-  cli/
-    main.py       tiny composition/router
-    base.py       general CLI adapters
-    approved.py   approved evidence / real-environment CLI adapters
+  deployment/               release/promotion contracts + delivery/materialization
+    contracts.py
+    delivery.py
 
-  control_plane/
-    schema.py                    relational schema + explicit migration contract
-    io.py                        CDC/quarantine/reprocess/capture persistence helpers
-    schema_evidence.py           immutable schema-observation persistence
-    certification.py             backend qualification + conformance evidence
-    repository.py                repository protocol + in-memory adapter
-    sqlalchemy_repository.py     durable SQLAlchemy runtime repository
-    operator.py                  typed read-only operational views
-    target_operation_journal.py  durable target-operation CAS/event journal
+  cli/                      removable leaf presentation layer
+    main.py
+    base.py
+    approved.py
+
+  capture/
+  apply/
+  execution/
+  adapters/
+  data_plane/
+  orchestration/
+  quality/
+  recovery/
+  extensions/
+  metadata/
 ```
 
-Dependency direction:
+Package-root and extracted-package `__init__.py` files do not rebuild convenience APIs through large re-export lists. Callers import the concrete owner module.
 
-```text
-semantic/runtime/provider/recovery core
-            ↑             ↑
-      control_plane    evidence
-                          ↑
-                         cli
+Examples:
 
-core -X-> cli
-control_plane -X-> cli
-evidence -X-> cli
+```python
+from fabric_data_framework.config import DatasetConfig
+from fabric_data_framework.contracts.target_operation import TargetOperationIntent
+from fabric_data_framework.control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
+from fabric_data_framework.deployment.delivery import build_release_manifest
+from fabric_data_framework.evidence.integration_evidence import IntegrationEvidenceManifest
 ```
 
-`evidence/` is the **only** import and implementation surface for retained integration-evidence contracts, strict merge/preflight and approved exact-run executors. Root `integration_*` and `approved_*_runner.py` modules are physically absent. Old root imports intentionally fail with `ModuleNotFoundError`.
+The root `__version__` symbol is intentionally absent. CLI defaults read the installed distribution version through `importlib.metadata.version("fabric-data-framework")`.
 
-`cli/` is the **only** CLI import and implementation surface. `cli_router.py` is physically absent. CLI tests patch canonical `fabric_data_framework.cli` / `fabric_data_framework.cli.approved` modules directly.
+## Readability boundary contracts
 
-`control_plane/` is the **only** relational control-plane implementation surface. Former flat `control_plane.py`, `control_plane_*`, `repository.py`, `relational_repository.py`, `operator.py` and `target_operation_io.py` paths are physically absent. `control_plane/__init__.py` deliberately contains no re-export imports; callers use explicit submodules.
-
-`target_operations.py` remains outside `control_plane/` because it owns provider-neutral semantic operation identity/state. Only its durable relational CAS/event persistence belongs to `control_plane/target_operation_journal.py`.
-
-Contract tests enforce all of the following:
+CI enforces canonical-only ownership:
 
 ```text
-removed root evidence files stay absent
-old root evidence imports do not resolve
+removed flat evidence modules stay absent
+retained_evidence_safety.py stays absent; evidence/safety.py is the owner
 cli_router.py stays absent
-old cli_router import does not resolve
-removed flat control-plane/repository/operator/journal files stay absent
-old flat control-plane imports do not resolve
-src/ and tests/ may not reintroduce removed flat import paths
-evidence/ may not depend on cli/
-control_plane/ may not depend on cli/
-control_plane package root may not recreate a re-export API
-cli/ remains removable from reusable core
+removed flat control-plane/repository/operator/journal modules stay absent
+root deployment.py and delivery.py stay absent
+root schema_contract.py, operations.py and target_operations.py stay absent
+contracts/__init__.py does not recreate an eager re-export facade
+control_plane/__init__.py does not recreate the old control-plane API
+root fabric_data_framework/__init__.py is namespace-only
+src/tests may not use root symbol imports such as `from fabric_data_framework import DatasetConfig`
+core/control_plane/evidence/deployment do not depend on CLI
+physical removal of cli/ does not break explicit reusable-core imports
 ```
 
-Evidence proves existing semantic/runtime/provider/recovery truth; it must not redefine dataset semantics, capture fidelity, target commit truth or recovery behavior merely to make a check PASS.
+For further readability work: move only ownership-complete modules into an already-clear domain, migrate all callers/tests/docs in the same slice, delete the old path, prove the old path stays absent, and run full Python 3.11 / 3.13 / wheel CI. Do not add compatibility shims for unreleased 0.4.0.
 
-The CLI remains a removable leaf presentation layer. `tests/test_cli_isolation.py` physically removes `cli/` from a copied package and proves reusable core imports still work. Removing `cli/` may remove the console command; it must not remove Python library/runtime functionality.
+## Dependency direction
 
-Source-code reading map: `src/fabric_data_framework/README.md`.
+```text
+contracts / config / semantic core
+             ↓
+ capture / apply / execution / recovery
+             ↓
+ adapters + control_plane
+             ↓
+ evidence
+             ↓
+ cli
+```
 
-For unreleased `0.4.0` readability refactors, prefer one canonical path over legacy aliases. A folder extraction is acceptable only when ownership is clear, all internal imports/tests/docs are migrated together, dependency direction improves, removed paths are intentionally tested as absent, and the full contract suite stays green. CLI, evidence and relational control-plane now follow this rule; future cleanup should choose another ownership-complete cluster rather than reopening these boundaries.
+This is conceptual rather than a requirement that every module import exactly downward; the hard rule is that CLI remains a leaf and evidence must not redefine semantic/runtime truth merely to make checks pass.
 
 ## Current highest evidence labels
 
@@ -125,9 +154,7 @@ IMPLEMENTED + CI PROVEN FABRIC WAREHOUSE SESSION-TERMINATION ABSENCE CERTIFIER C
 IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE SESSION-TERMINATION RECOVERY CONTRACT
 ```
 
-The CLI/evidence/control-plane readability refactors do not add or promote any live-service evidence label.
-
-Do not use `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN`, `PRODUCTION DB PROVEN`, or equivalent without retained exact-release approved real-service evidence.
+Readability refactors do not promote any live-service evidence label. Do not use `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN`, `PRODUCTION DB PROVEN`, or equivalent without retained exact-release approved real-service evidence.
 
 ## Current real-service gaps
 
@@ -170,23 +197,19 @@ complete exact-release certified IntegrationEvidenceManifest
 14. only then consider 0.4.0 release
 ```
 
-## Current reusable-work boundary
+## Next reusable readability work
 
-Do not add another generic Warehouse recovery algorithm.
-
-Commit proof, ambiguous-COMMIT evidence separation, exact-session absence proof, and approved session-termination recovery are implemented at CI-contract level.
-
-Without real enterprise inputs, useful next work should be limited to:
+Do not add another generic Warehouse recovery algorithm. With no real enterprise credentials, the useful source-layout work is to reduce the remaining root stragglers only where an existing owner is obvious. Candidates to inspect/move independently:
 
 ```text
-exact-candidate release/evidence preparation
-or
-provider-specific live fault/identity integration when the actual enterprise mechanism is known
+watermark.py       -> capture/
+scd2.py            -> apply/
+bronze.py          -> data_plane/
+reconciliation.py  -> quality/
+fabric_auth.py     -> adapters/fabric/
 ```
 
-For readability work, prefer isolated ownership refactors over broad directory churn. CLI, evidence and relational control-plane are canonical-only packages. Any next extraction should migrate the real implementation and all consumers together, delete superseded flat paths, and prove their absence in CI rather than retaining compatibility shims.
-
-Avoid broadening provider surface only to increase feature count.
+Inspect `runtime.py` and `infrastructure.py` before deciding ownership; do not create a directory merely to reduce root file count.
 
 ## Repository ownership
 
