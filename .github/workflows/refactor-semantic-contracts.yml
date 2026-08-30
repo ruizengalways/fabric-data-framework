@@ -1,0 +1,465 @@
+name: refactor-semantic-contracts
+
+on:
+  push:
+    branches:
+      - codex/semantic-contracts-package
+
+permissions:
+  contents: write
+
+jobs:
+  codemod:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/semantic-contracts-package
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Extract canonical semantic contracts
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import ast
+          from collections import defaultdict
+          from pathlib import Path
+          import re
+          import subprocess
+
+          root = Path('.')
+          pkg = root / 'src' / 'fabric_data_framework'
+          contracts = pkg / 'contracts'
+
+          # Move the two already-cohesive semantic contract modules.
+          subprocess.run(
+              ['git', 'mv', str(pkg / 'schema_contract.py'), str(contracts / 'schema.py')],
+              check=True,
+          )
+          subprocess.run(
+              ['git', 'mv', str(pkg / 'target_operations.py'), str(contracts / 'target_operation.py')],
+              check=True,
+          )
+
+          # contracts/base.py becomes the single immutable strict Pydantic base owner.
+          (contracts / 'base.py').write_text(
+              '"""Shared immutable Pydantic base for provider-neutral framework contracts."""\n\n'
+              'from pydantic import BaseModel, ConfigDict\n\n\n'
+              'class FrozenModel(BaseModel):\n'
+              '    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)\n\n\n'
+              '__all__ = ["FrozenModel"]\n',
+              encoding='utf-8',
+          )
+
+          # Split the ambiguous root operations.py by semantic ownership.
+          operations_path = pkg / 'operations.py'
+          operations_text = operations_path.read_text(encoding='utf-8')
+          operations_tree = ast.parse(operations_text)
+          source_by_name: dict[str, str] = {}
+          for node in operations_tree.body:
+              if isinstance(node, (ast.ClassDef, ast.FunctionDef)):
+                  segment = ast.get_source_segment(operations_text, node)
+                  if segment is not None:
+                      source_by_name[node.name] = segment
+
+          def joined(names: tuple[str, ...]) -> str:
+              return '\n\n\n'.join(source_by_name[name] for name in names) + '\n'
+
+          audit_names = (
+              '_utcnow',
+              '_require_aware',
+              'StepStatus',
+              'RowAccounting',
+              'MutationCounts',
+              'PipelineRunAudit',
+              'DatasetRunAudit',
+              'StepRunAudit',
+          )
+          reconciliation_names = (
+              '_utcnow',
+              '_require_aware',
+              'ReconciliationStatus',
+              'ReconciliationMetric',
+              'ReconciliationResult',
+          )
+          quarantine_names = (
+              '_utcnow',
+              'QuarantineScope',
+              'QuarantineBatch',
+          )
+
+          (contracts / 'audit.py').write_text(
+              '"""Pipeline, dataset and step execution audit contracts."""\n\n'
+              'from __future__ import annotations\n\n'
+              'from datetime import datetime, timezone\n'
+              'from enum import Enum\n'
+              'from uuid import UUID, uuid4\n\n'
+              'from pydantic import Field, model_validator\n\n'
+              'from ..config import DatasetStatus, PipelineStatus, RunMode\n'
+              'from .base import FrozenModel\n\n\n'
+              + joined(audit_names)
+              + '\n__all__ = [\n'
+              '    "DatasetRunAudit",\n'
+              '    "MutationCounts",\n'
+              '    "PipelineRunAudit",\n'
+              '    "RowAccounting",\n'
+              '    "StepRunAudit",\n'
+              '    "StepStatus",\n'
+              ']\n',
+              encoding='utf-8',
+          )
+          (contracts / 'reconciliation.py').write_text(
+              '"""Reconciliation result and metric contracts."""\n\n'
+              'from __future__ import annotations\n\n'
+              'from datetime import datetime, timezone\n'
+              'from enum import Enum\n'
+              'from uuid import UUID, uuid4\n\n'
+              'from pydantic import Field, model_validator\n\n'
+              'from .base import FrozenModel\n\n\n'
+              + joined(reconciliation_names)
+              + '\n__all__ = [\n'
+              '    "ReconciliationMetric",\n'
+              '    "ReconciliationResult",\n'
+              '    "ReconciliationStatus",\n'
+              ']\n',
+              encoding='utf-8',
+          )
+          (contracts / 'quarantine.py').write_text(
+              '"""Quarantine batch contracts."""\n\n'
+              'from __future__ import annotations\n\n'
+              'from datetime import datetime, timezone\n'
+              'from enum import Enum\n'
+              'from uuid import UUID, uuid4\n\n'
+              'from pydantic import Field\n\n'
+              'from .base import FrozenModel\n\n\n'
+              + joined(quarantine_names)
+              + '\n__all__ = ["QuarantineBatch", "QuarantineScope"]\n',
+              encoding='utf-8',
+          )
+          subprocess.run(['git', 'rm', str(operations_path)], check=True)
+
+          # target_operation moved one package level deeper.
+          target_operation = contracts / 'target_operation.py'
+          text = target_operation.read_text(encoding='utf-8')
+          text = text.replace('from .config import FrozenModel', 'from .base import FrozenModel')
+          text = text.replace(
+              'from .contracts.recovery import UnknownOutcomeResolution',
+              'from .recovery import UnknownOutcomeResolution',
+          )
+          target_operation.write_text(text, encoding='utf-8')
+
+          # config now depends on explicit contract submodules. FrozenModel is intentionally
+          # private inside config so config.FrozenModel does not become a compatibility alias.
+          config = pkg / 'config.py'
+          text = config.read_text(encoding='utf-8')
+          text = text.replace(
+              'from pydantic import BaseModel, ConfigDict, Field, model_validator',
+              'from pydantic import Field, model_validator',
+          )
+          text = text.replace(
+              'from .schema_contract import SchemaContract',
+              'from .contracts.base import FrozenModel as _FrozenModel\n'
+              'from .contracts.schema import SchemaContract',
+          )
+          text = re.sub(
+              r'\nclass FrozenModel\(BaseModel\):\n'
+              r'    """Base model for immutable, strict framework contracts\."""\n\n'
+              r'    model_config = ConfigDict\(frozen=True, extra="forbid", str_strip_whitespace=True\)\n',
+              '',
+              text,
+          )
+          text = re.sub(r'class ([A-Za-z_][A-Za-z0-9_]*)\(FrozenModel\):', r'class \1(_FrozenModel):', text)
+          config.write_text(text, encoding='utf-8')
+
+          # Deployment contracts owned an identical local base; use the canonical contract base.
+          deployment_contracts = pkg / 'deployment' / 'contracts.py'
+          text = deployment_contracts.read_text(encoding='utf-8')
+          text = text.replace(
+              'from pydantic import BaseModel, ConfigDict, Field, model_validator',
+              'from pydantic import Field, model_validator',
+          )
+          text = text.replace(
+              'from ..control_plane.schema import ENVIRONMENT_LOCAL_STATE_TABLES, PROMOTABLE_DEFINITION_TABLES',
+              'from ..contracts.base import FrozenModel\n'
+              'from ..control_plane.schema import ENVIRONMENT_LOCAL_STATE_TABLES, PROMOTABLE_DEFINITION_TABLES',
+          )
+          text = re.sub(
+              r'\nclass FrozenModel\(BaseModel\):\n'
+              r'    model_config = ConfigDict\(frozen=True, extra="forbid", str_strip_whitespace=True\)\n',
+              '',
+              text,
+          )
+          deployment_contracts.write_text(text, encoding='utf-8')
+
+          operation_symbol_module = {
+              'StepStatus': 'audit',
+              'RowAccounting': 'audit',
+              'MutationCounts': 'audit',
+              'PipelineRunAudit': 'audit',
+              'DatasetRunAudit': 'audit',
+              'StepRunAudit': 'audit',
+              'ReconciliationStatus': 'reconciliation',
+              'ReconciliationMetric': 'reconciliation',
+              'ReconciliationResult': 'reconciliation',
+              'QuarantineScope': 'quarantine',
+              'QuarantineBatch': 'quarantine',
+          }
+          facade_symbol_module = {
+              'CaptureReceipt': 'capture_receipt',
+              'DatasetDispatchOutcome': 'dispatch',
+              'DatasetDispatchRequest': 'dispatch',
+              'ExecutionKind': 'execution_plan',
+              'ExecutionPlan': 'execution_plan',
+              'ExecutionRole': 'execution_plan',
+              'ExecutionUnit': 'execution_plan',
+              'build_default_execution_plan': 'execution_plan',
+              'compile_execution_plan': 'execution_plan',
+              'FullRebuildStateAdapter': 'rebuild',
+              'FullRebuildStateReplacement': 'rebuild',
+              'FullRebuildStateSnapshot': 'rebuild',
+              'RebuildProgressKind': 'rebuild',
+              'DatasetAttemptLineage': 'recovery',
+              'ReprocessRequest': 'recovery',
+              'ReprocessRequestStatus': 'recovery',
+              'UnknownOutcomeResolution': 'recovery',
+              'QuarantineBatchEvidence': 'replay',
+              'QuarantineReplayPayload': 'replay',
+              'QuarantineReplayPayloadProvider': 'replay',
+              'QuarantineReplayPlan': 'replay',
+          }
+
+          def render_import(module: str, level: int, aliases: list[ast.alias]) -> str:
+              prefix = '.' * level
+              names = [
+                  alias.name + (f' as {alias.asname}' if alias.asname else '')
+                  for alias in aliases
+              ]
+              if len(names) == 1:
+                  return f"from {prefix}{module} import {names[0]}\n"
+              body = ''.join(f"    {name},\n" for name in names)
+              return f"from {prefix}{module} import (\n{body})\n"
+
+          def rewrite_imports(path: Path) -> None:
+              text = path.read_text(encoding='utf-8')
+              try:
+                  tree = ast.parse(text)
+              except SyntaxError:
+                  return
+              lines = text.splitlines(keepends=True)
+              replacements: list[tuple[int, int, str]] = []
+
+              for node in tree.body:
+                  # Only top-level imports define architecture dependencies here.
+                  if not isinstance(node, ast.ImportFrom) or node.end_lineno is None:
+                      continue
+                  module = node.module or ''
+                  level = node.level
+                  groups: dict[tuple[str, int], list[ast.alias]] = defaultdict(list)
+                  changed = False
+
+                  is_operations = (
+                      (level > 0 and module == 'operations')
+                      or (level == 0 and module == 'fabric_data_framework.operations')
+                  )
+                  is_schema = (
+                      (level > 0 and module == 'schema_contract')
+                      or (level == 0 and module == 'fabric_data_framework.schema_contract')
+                  )
+                  is_target = (
+                      (level > 0 and module == 'target_operations')
+                      or (level == 0 and module == 'fabric_data_framework.target_operations')
+                  )
+                  is_contracts_facade = (
+                      (level > 0 and module == 'contracts')
+                      or (level == 0 and module == 'fabric_data_framework.contracts')
+                  )
+                  is_config = (
+                      (level > 0 and module == 'config')
+                      or (level == 0 and module == 'fabric_data_framework.config')
+                  )
+
+                  if is_operations:
+                      changed = True
+                      for alias in node.names:
+                          destination = operation_symbol_module.get(alias.name)
+                          if destination is None:
+                              raise RuntimeError(
+                                  f'unknown operations.py import {alias.name} in {path}'
+                              )
+                          new_module = (
+                              f'contracts.{destination}'
+                              if level > 0
+                              else f'fabric_data_framework.contracts.{destination}'
+                          )
+                          groups[(new_module, level)].append(alias)
+                  elif is_schema:
+                      changed = True
+                      new_module = (
+                          'contracts.schema'
+                          if level > 0
+                          else 'fabric_data_framework.contracts.schema'
+                      )
+                      groups[(new_module, level)].extend(node.names)
+                  elif is_target:
+                      changed = True
+                      new_module = (
+                          'contracts.target_operation'
+                          if level > 0
+                          else 'fabric_data_framework.contracts.target_operation'
+                      )
+                      groups[(new_module, level)].extend(node.names)
+                  elif is_contracts_facade:
+                      changed = True
+                      for alias in node.names:
+                          destination = facade_symbol_module.get(alias.name)
+                          if destination is None:
+                              raise RuntimeError(
+                                  f'unknown contracts facade import {alias.name} in {path}'
+                              )
+                          new_module = (
+                              f'contracts.{destination}'
+                              if level > 0
+                              else f'fabric_data_framework.contracts.{destination}'
+                          )
+                          groups[(new_module, level)].append(alias)
+                  elif is_config and any(alias.name == 'FrozenModel' for alias in node.names):
+                      changed = True
+                      remaining = [alias for alias in node.names if alias.name != 'FrozenModel']
+                      frozen = [alias for alias in node.names if alias.name == 'FrozenModel']
+                      if remaining:
+                          groups[(module, level)].extend(remaining)
+                      base_module = (
+                          'contracts.base'
+                          if level > 0
+                          else 'fabric_data_framework.contracts.base'
+                      )
+                      groups[(base_module, level)].extend(frozen)
+
+                  if changed:
+                      rendered = ''.join(
+                          render_import(mod, lvl, aliases)
+                          for (mod, lvl), aliases in sorted(groups.items())
+                      )
+                      replacements.append((node.lineno - 1, node.end_lineno, rendered))
+
+              for start, end, rendered in sorted(replacements, reverse=True):
+                  lines[start:end] = [rendered]
+              if replacements:
+                  path.write_text(''.join(lines), encoding='utf-8')
+
+          moved = {
+              (contracts / 'schema.py').resolve(),
+              (contracts / 'target_operation.py').resolve(),
+              (contracts / 'audit.py').resolve(),
+              (contracts / 'reconciliation.py').resolve(),
+              (contracts / 'quarantine.py').resolve(),
+              config.resolve(),
+              deployment_contracts.resolve(),
+          }
+          for base in (pkg, root / 'tests'):
+              for path in base.rglob('*.py'):
+                  if path.resolve() in moved or path == contracts / '__init__.py':
+                      continue
+                  rewrite_imports(path)
+
+          # The contracts package is now namespace/navigation only. Explicit submodules are
+          # required so importing contracts.schema from config cannot execute config-dependent
+          # facade imports and form a cycle.
+          (contracts / '__init__.py').write_text(
+              '"""Provider-neutral framework contracts.\n\n'
+              'Import concrete contracts from explicit submodules. The package root has no\n'
+              'eager re-export API.\n'
+              '"""\n',
+              encoding='utf-8',
+          )
+          (contracts / 'README.md').write_text(
+              '# Contracts package\n\n'
+              'This package owns provider-neutral immutable contracts and state-machine models.\n\n'
+              '```text\n'
+              'base.py              shared immutable Pydantic base\n'
+              'schema.py            provider-neutral schema intent and compatibility policy\n'
+              'audit.py             pipeline/dataset/step audit contracts\n'
+              'reconciliation.py    reconciliation metrics/results\n'
+              'quarantine.py        quarantine batch contracts\n'
+              'target_operation.py  semantic target-mutation identity and lifecycle\n'
+              'capture_receipt.py   capture handoff receipt\n'
+              'dispatch.py          orchestration request/outcome\n'
+              'execution_plan.py    execution plan contracts\n'
+              'rebuild.py           rebuild state contracts\n'
+              'recovery.py          retry/reprocess/unknown-outcome contracts\n'
+              'replay.py            quarantine replay contracts\n'
+              '```\n\n'
+              'The package root intentionally has no compatibility re-exports.\n',
+              encoding='utf-8',
+          )
+
+          boundary = root / 'tests' / 'test_semantic_contract_package_boundary.py'
+          boundary.write_text('''from __future__ import annotations\n\nimport ast\nimport importlib\nfrom pathlib import Path\nimport re\n\nimport pytest\n\n\nREPO_ROOT = Path(__file__).parents[1]\nPACKAGE_ROOT = REPO_ROOT / "src" / "fabric_data_framework"\nCONTRACTS_ROOT = PACKAGE_ROOT / "contracts"\n\n\ndef test_semantic_contracts_have_explicit_canonical_modules():\n    package = importlib.import_module("fabric_data_framework.contracts")\n    assert importlib.import_module("fabric_data_framework.contracts.schema").SchemaContract\n    assert importlib.import_module("fabric_data_framework.contracts.audit").DatasetRunAudit\n    assert importlib.import_module("fabric_data_framework.contracts.reconciliation").ReconciliationResult\n    assert importlib.import_module("fabric_data_framework.contracts.quarantine").QuarantineBatch\n    assert importlib.import_module("fabric_data_framework.contracts.target_operation").TargetOperationIntent\n    assert not hasattr(package, "SchemaContract")\n    assert not hasattr(package, "DatasetRunAudit")\n    assert not hasattr(package, "CaptureReceipt")\n\n\n@pytest.mark.parametrize("module_name", ("schema_contract", "operations", "target_operations"))\ndef test_removed_root_semantic_contract_modules_do_not_resolve(module_name: str):\n    assert not (PACKAGE_ROOT / f"{module_name}.py").exists()\n    with pytest.raises(ModuleNotFoundError):\n        importlib.import_module(f"fabric_data_framework.{module_name}")\n\n\ndef test_contracts_package_root_has_no_reexport_imports():\n    tree = ast.parse((CONTRACTS_ROOT / "__init__.py").read_text(encoding="utf-8"))\n    assert not any(isinstance(node, (ast.Import, ast.ImportFrom)) for node in tree.body)\n\n\ndef test_config_no_longer_owns_frozen_model():\n    config = importlib.import_module("fabric_data_framework.config")\n    base = importlib.import_module("fabric_data_framework.contracts.base")\n    assert hasattr(base, "FrozenModel")\n    assert not hasattr(config, "FrozenModel")\n\n\ndef test_source_and_tests_use_explicit_contract_submodules():\n    forbidden_text = (\n        "fabric_data_framework.schema_contract",\n        "fabric_data_framework.operations",\n        "fabric_data_framework.target_operations",\n        "from fabric_data_framework.contracts import",\n    )\n    forbidden_patterns = (\n        re.compile(r"from \\.+schema_contract import "),\n        re.compile(r"from \\.+operations import "),\n        re.compile(r"from \\.+target_operations import "),\n        re.compile(r"from \\.+contracts import "),\n    )\n    offenders: list[str] = []\n    current_test = Path(__file__).resolve()\n    for root in (REPO_ROOT / "src", REPO_ROOT / "tests"):\n        for path in sorted(root.rglob("*.py")):\n            if path.resolve() == current_test:\n                continue\n            text = path.read_text(encoding="utf-8")\n            for value in forbidden_text:\n                if value in text:\n                    offenders.append(f"{path.relative_to(REPO_ROOT)}: {value}")\n            for pattern in forbidden_patterns:\n                if pattern.search(text):\n                    offenders.append(f"{path.relative_to(REPO_ROOT)}: {pattern.pattern}")\n    assert offenders == []\n''', encoding='utf-8')
+
+          # Update current navigation docs only.
+          for path in (
+              pkg / 'README.md',
+              root / 'docs' / 'human' / 'REPOSITORY_GUIDE.md',
+              root / 'docs' / 'machine' / 'IMPLEMENTATION_MAP.md',
+          ):
+              text = path.read_text(encoding='utf-8')
+              original = text
+              text = text.replace('`schema_contract.py`', '`contracts/schema.py`')
+              text = text.replace('`target_operations.py`', '`contracts/target_operation.py`')
+              text = text.replace('`operations.py`', '`contracts/audit.py`, `contracts/reconciliation.py`, `contracts/quarantine.py`')
+              if text != original:
+                  path.write_text(text, encoding='utf-8')
+
+          # Fail closed if any executable import still depends on removed roots or the
+          # eager contracts facade.
+          offenders: list[str] = []
+          for base in (pkg, root / 'tests'):
+              for path in base.rglob('*.py'):
+                  if path == boundary:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  try:
+                      tree = ast.parse(text)
+                  except SyntaxError as exc:
+                      raise RuntimeError(f'syntax error after contract codemod: {path}: {exc}') from exc
+                  for node in ast.walk(tree):
+                      if isinstance(node, ast.ImportFrom):
+                          module = node.module or ''
+                          if module in {'schema_contract', 'operations', 'target_operations', 'contracts'} and node.level > 0:
+                              offenders.append(f'{path}: from {"." * node.level}{module} import ...')
+                          if module in {
+                              'fabric_data_framework.schema_contract',
+                              'fabric_data_framework.operations',
+                              'fabric_data_framework.target_operations',
+                              'fabric_data_framework.contracts',
+                          }:
+                              offenders.append(f'{path}: from {module} import ...')
+                          if (
+                              (module == 'config' and node.level > 0)
+                              or module == 'fabric_data_framework.config'
+                          ) and any(alias.name == 'FrozenModel' for alias in node.names):
+                              offenders.append(f'{path}: FrozenModel still imported from config')
+                      if isinstance(node, ast.Import):
+                          for alias in node.names:
+                              if alias.name in {
+                                  'fabric_data_framework.schema_contract',
+                                  'fabric_data_framework.operations',
+                                  'fabric_data_framework.target_operations',
+                              }:
+                                  offenders.append(f'{path}: import {alias.name}')
+          if offenders:
+              raise RuntimeError('legacy semantic contract imports remain:\n' + '\n'.join(offenders))
+
+          (root / '.github' / 'workflows' / 'refactor-semantic-contracts.yml').unlink()
+          PY
+      - name: Commit extraction
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor: extract explicit semantic contract modules"
+          git push origin HEAD:codex/semantic-contracts-package
