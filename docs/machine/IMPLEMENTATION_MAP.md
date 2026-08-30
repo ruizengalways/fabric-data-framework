@@ -6,7 +6,7 @@ Use this file to locate the implementation owner for a framework behavior before
 
 ```text
 src/fabric_data_framework/
-  config / semantic contracts
+  metadata / semantic contracts
   capture / apply / CDC
   capability resolution / execution planning
   provider adapters / Fabric transports
@@ -14,7 +14,7 @@ src/fabric_data_framework/
   relational control plane
   evidence/ integration evidence / approved runners
   extensions
-  delivery / deployment
+  deployment/ release delivery + customer project scaffolding
   cli/ presentation layer
 ```
 
@@ -154,15 +154,31 @@ fabric_data_framework.warehouse_commit_fault_injectors
 
 Extension artifact identity must be pinned in exact release provenance where approved runners require it.
 
-## Delivery / deployment / release
+## Delivery / deployment / project bootstrap
 
 | Area | Primary owner |
 |---|---|
 | Config bundle hashing/materialization | `deployment/delivery.py` and related modules |
 | Release manifest/provenance | deployment/delivery modules |
+| Customer/domain source-control scaffold contract/API | `deployment/project.py` |
+| Project-init presentation adapter | `cli/project.py` |
 | Package metadata/version/console script | `pyproject.toml` |
 | CI | `.github/workflows/ci.yml` |
 | Release artifact workflow | `.github/workflows/release.yml` |
+
+Project bootstrap dependency/behavior boundary:
+
+```text
+cli/project.py -> deployment/project.py
+reusable scaffold -X-> cli
+project-init creates source-controlled structure only
+project-init never guesses keys/watermarks/delete/history semantics
+project-init never creates or mutates Fabric resources
+project-init never persists secret values
+existing files are never overwritten
+```
+
+Repo-layout guidance is intentionally independent of apply strategy. One business/domain repository may contain mixed FULL, WATERMARK, CDC, SCD1, SCD2 and other supported DatasetConfig combinations; use `orchestration.execution_group` for operational grouping.
 
 ## CLI presentation boundary
 
@@ -177,6 +193,7 @@ Ownership:
 | File | Exact responsibility |
 |---|---|
 | `cli/main.py` | tiny composition root; routes command family only |
+| `cli/project.py` | developer-time non-destructive customer/domain project initialization adapter |
 | `cli/base.py` | general validation, metadata, deployment and preflight commands |
 | `cli/approved.py` | approved evidence / real-environment command adapters |
 | `cli/__init__.py` | public console-script `main` export |
@@ -205,14 +222,7 @@ Do not add top-level CLI compatibility modules. Put command adapters inside `cli
 
 ## Readability / future folder extraction rule
 
-After CLI and evidence extraction, the main mature flat cluster still worth considering separately is:
-
-```text
-control_plane*.py
-repository.py / relational_repository.py
-```
-
-Do not move it merely for aesthetics. Extract a folder only when:
+The canonical source root and major domain roots are already explicit. Do not move code merely for aesthetics. Extract or move only when:
 
 ```text
 ownership boundary is clear
@@ -221,7 +231,7 @@ dependency direction improves
 full contract suite proves no behavior regression
 ```
 
-Do not combine a future control-plane extraction with unrelated feature/evidence/CLI changes.
+Do not combine a future package-layout cleanup with unrelated feature/evidence/CLI changes.
 
 ## Tests as executable specification
 
@@ -250,6 +260,7 @@ credential/evidence redaction
 strict evidence merge conflicts
 separate mutation/fault/Admin authorization
 core library independent from CLI presentation layer
+project scaffold no-overwrite/domain-match behavior
 legacy evidence import paths failing to resolve
 root evidence legacy module files remaining absent
 ```
@@ -257,18 +268,19 @@ root evidence legacy module files remaining absent
 ## Documentation ownership after reorganization
 
 ```text
-docs/human/README.md               human reading order
-docs/human/CONCEPTS.md             stable conceptual model
-docs/human/REPOSITORY_GUIDE.md     human repo/file map
-docs/human/GETTING_STARTED.md      install/package/Fabric consumption
-docs/human/DATASET_ONBOARDING.md   new-data decision guide
-docs/human/OPERATIONS.md           operational/CLI guide
+docs/human/README.md                       human reading order
+docs/human/CONCEPTS.md                     stable conceptual model
+docs/human/REPOSITORY_GUIDE.md             human repo/file map
+docs/human/GETTING_STARTED.md              install/package/Fabric consumption
+docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md   new customer/domain repo bootstrap and large-project organization
+docs/human/DATASET_ONBOARDING.md           new-data decision guide
+docs/human/OPERATIONS.md                   operational/CLI guide
 
-docs/machine/STATE.md              exact current engineering state
-docs/machine/CONTEXT.md            invariants/fail-closed boundaries
-docs/machine/CAPABILITIES.md       guarantee/evidence matrix
-docs/machine/IMPLEMENTATION_MAP.md code ownership map
-docs/machine/HISTORY.md            compact merged milestone history
+docs/machine/STATE.md                      exact current engineering state
+docs/machine/CONTEXT.md                    invariants/fail-closed boundaries
+docs/machine/CAPABILITIES.md               guarantee/evidence matrix
+docs/machine/IMPLEMENTATION_MAP.md         code ownership map
+docs/machine/HISTORY.md                    compact merged milestone history
 ```
 
 Do not reintroduce one historical markdown file per implementation PR unless there is a durable standalone protocol that cannot be represented in the canonical machine docs.
