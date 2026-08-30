@@ -7,12 +7,12 @@ public_release: v0.3.0
 source_version: 0.4.0-development-unreleased
 release_allowed: false
 code_baseline:
-  pull_request: 61
-  merge_sha: 83cc031d542723e42f064259aacff6c11ca8b015
-  exact_candidate_head: 76288cbd1ca2aa23a152479c739c706516f6f3ca
-  milestone: canonical-only evidence and CLI module surfaces; legacy root module paths physically removed
-  ci_actions: 33288491628
-  tests: 562
+  pull_request: 63
+  merge_sha: 661651387fd75ad548da8b049da59529b296ec9a
+  exact_candidate_head: 6721e89900d61e525ad90c628179852028432f44
+  milestone: canonical-only CLI, evidence and relational control-plane package surfaces; flat legacy paths physically removed
+  ci_actions: 33288912694
+  tests: 575
   python_3_11: success
   python_3_13: success
   wheel: success
@@ -37,7 +37,7 @@ Never infer live proof from CI.
 
 ## Current package readability boundary
 
-The current source tree uses canonical-only module ownership for the two extracted clusters:
+The current source tree uses canonical-only module ownership for the extracted CLI, evidence and relational control-plane clusters:
 
 ```text
 src/fabric_data_framework/
@@ -52,24 +52,39 @@ src/fabric_data_framework/
     main.py       tiny composition/router
     base.py       general CLI adapters
     approved.py   approved evidence / real-environment CLI adapters
+
+  control_plane/
+    schema.py                    relational schema + explicit migration contract
+    io.py                        CDC/quarantine/reprocess/capture persistence helpers
+    schema_evidence.py           immutable schema-observation persistence
+    certification.py             backend qualification + conformance evidence
+    repository.py                repository protocol + in-memory adapter
+    sqlalchemy_repository.py     durable SQLAlchemy runtime repository
+    operator.py                  typed read-only operational views
+    target_operation_journal.py  durable target-operation CAS/event journal
 ```
 
 Dependency direction:
 
 ```text
 semantic/runtime/provider/recovery core
-                 ↑
-             evidence
-                 ↑
-                cli
+            ↑             ↑
+      control_plane    evidence
+                          ↑
+                         cli
 
 core -X-> cli
+control_plane -X-> cli
 evidence -X-> cli
 ```
 
 `evidence/` is the **only** import and implementation surface for retained integration-evidence contracts, strict merge/preflight and approved exact-run executors. Root `integration_*` and `approved_*_runner.py` modules are physically absent. Old root imports intentionally fail with `ModuleNotFoundError`.
 
 `cli/` is the **only** CLI import and implementation surface. `cli_router.py` is physically absent. CLI tests patch canonical `fabric_data_framework.cli` / `fabric_data_framework.cli.approved` modules directly.
+
+`control_plane/` is the **only** relational control-plane implementation surface. Former flat `control_plane.py`, `control_plane_*`, `repository.py`, `relational_repository.py`, `operator.py` and `target_operation_io.py` paths are physically absent. `control_plane/__init__.py` deliberately contains no re-export imports; callers use explicit submodules.
+
+`target_operations.py` remains outside `control_plane/` because it owns provider-neutral semantic operation identity/state. Only its durable relational CAS/event persistence belongs to `control_plane/target_operation_journal.py`.
 
 Contract tests enforce all of the following:
 
@@ -78,8 +93,12 @@ removed root evidence files stay absent
 old root evidence imports do not resolve
 cli_router.py stays absent
 old cli_router import does not resolve
-src/ and tests/ may not reintroduce old evidence/cli_router import paths
+removed flat control-plane/repository/operator/journal files stay absent
+old flat control-plane imports do not resolve
+src/ and tests/ may not reintroduce removed flat import paths
 evidence/ may not depend on cli/
+control_plane/ may not depend on cli/
+control_plane package root may not recreate a re-export API
 cli/ remains removable from reusable core
 ```
 
@@ -89,7 +108,7 @@ The CLI remains a removable leaf presentation layer. `tests/test_cli_isolation.p
 
 Source-code reading map: `src/fabric_data_framework/README.md`.
 
-For unreleased `0.4.0` readability refactors, prefer one canonical path over legacy aliases. A folder extraction is acceptable only when ownership is clear, all internal imports/tests/docs are migrated together, dependency direction improves, removed paths are intentionally tested as absent, and the full contract suite stays green. The next isolated readability cluster is the control-plane/repository surface; it must not be mixed into unrelated feature work.
+For unreleased `0.4.0` readability refactors, prefer one canonical path over legacy aliases. A folder extraction is acceptable only when ownership is clear, all internal imports/tests/docs are migrated together, dependency direction improves, removed paths are intentionally tested as absent, and the full contract suite stays green. CLI, evidence and relational control-plane now follow this rule; future cleanup should choose another ownership-complete cluster rather than reopening these boundaries.
 
 ## Current highest evidence labels
 
@@ -106,7 +125,7 @@ IMPLEMENTED + CI PROVEN FABRIC WAREHOUSE SESSION-TERMINATION ABSENCE CERTIFIER C
 IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE SESSION-TERMINATION RECOVERY CONTRACT
 ```
 
-The CLI/evidence readability refactors do not add or promote any live-service evidence label.
+The CLI/evidence/control-plane readability refactors do not add or promote any live-service evidence label.
 
 Do not use `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN`, `PRODUCTION DB PROVEN`, or equivalent without retained exact-release approved real-service evidence.
 
@@ -165,7 +184,7 @@ or
 provider-specific live fault/identity integration when the actual enterprise mechanism is known
 ```
 
-For readability work, prefer isolated ownership refactors over broad directory churn. CLI and evidence are canonical-only packages. The next control-plane extraction should follow the same rule: migrate real implementation and all consumers to one new package path, delete the old flat module paths, and prove their absence in CI rather than retaining compatibility shims.
+For readability work, prefer isolated ownership refactors over broad directory churn. CLI, evidence and relational control-plane are canonical-only packages. Any next extraction should migrate the real implementation and all consumers together, delete superseded flat paths, and prove their absence in CI rather than retaining compatibility shims.
 
 Avoid broadening provider surface only to increase feature count.
 
