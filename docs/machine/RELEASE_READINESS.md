@@ -8,11 +8,13 @@ release_allowed: false
 readiness_spec: release/0.4.0/readiness-spec.json
 integration_template: release/0.4.0/integration-evidence-template.json
 readiness_implementation: src/fabric_data_framework/evidence/release_readiness.py
+proof_merge_implementation: src/fabric_data_framework/evidence/release_readiness_merge.py
 certification_implementation: src/fabric_data_framework/evidence/candidate_certification.py
 candidate_artifact_contract: src/fabric_data_framework/deployment/candidate_artifact.py
 candidate_certification_workflow: .github/workflows/candidate-certification.yml
 release_promotion_workflow: .github/workflows/release.yml
 readiness_cli: fabric-framework release-readiness
+proof_merge_cli: fabric-framework release-proofs-merge
 certification_cli: fabric-framework candidate-certify
 ```
 
@@ -81,6 +83,59 @@ IntegrationEvidenceManifest
 ```
 
 Integration-backed readiness gates cannot be satisfied through generic release proof entries.
+
+## Strict partial ReleaseReadinessProofBundle merge
+
+Portable/static proof and representative live business-path proof may be produced independently. They are combined only through:
+
+```text
+src/fabric_data_framework/evidence/release_readiness_merge.py
+fabric-framework release-proofs-merge
+```
+
+The merge is an evidence combiner, not a proof producer. It never turns absence into PASS and never chooses a preferred rerun automatically.
+
+Every input partial bundle must:
+
+```text
+match readiness-spec framework_version
+bind exact candidate_git_sha
+bind exact non-null inner artifact_sha256
+reference only known non-integration readiness gates
+match each gate kind exactly
+```
+
+Merge semantics:
+
+```text
+omitted gate          -> no proof
+NOT_RUN               -> no proof
+one PASS/FAIL/OOS     -> retain unchanged
+identical duplicate substantive result -> allowed
+PASS vs FAIL          -> conflict
+PASS vs OUT_OF_SCOPE  -> conflict
+different PASS evidence references -> conflict
+different substantive detail/references -> conflict
+candidate SHA mismatch -> reject
+wheel SHA mismatch     -> reject
+unknown gate           -> reject
+kind mismatch          -> reject
+integration-backed gate -> reject
+```
+
+There is deliberately no latest-wins, timestamp-wins, FAIL-wins or PASS-wins rule. When a real check is rerun and produces different substantive evidence, the operator must explicitly select the intended retained result before merge. This prevents evidence laundering by ordering or overwrite.
+
+Example:
+
+```bash
+fabric-framework release-proofs-merge \
+  --spec release/0.4.0/readiness-spec.json \
+  --input evidence/static-release-proofs.json \
+  --input evidence/live-business-path-proofs.json \
+  --output evidence/release-proofs.json
+```
+
+A successful merge only proves that the supplied retained proof is internally compatible for one exact candidate. It does not mean any missing readiness gate has passed and does not make the candidate releasable.
 
 ## 0.4 integration evidence template
 
@@ -235,8 +290,6 @@ The intentionally missing upstream producers are:
 
 Those producers must generate retained evidence from approved exact-candidate static/tests/live runs. They must not manufacture PASS records merely to satisfy certification.
 
-Because `ReleaseReadinessProofBundle` contains both portable/static gates and representative live business-path gates, the next implementation should add strict partial proof merge so independent producers can contribute without contradictory-result precedence or evidence laundering.
-
 ## Current truth
 
 ```text
@@ -245,5 +298,6 @@ release_allowed = false
 candidate = NOT YET FROZEN
 ordinary readiness blockers = 15
 certified readiness artifact = NOT YET PRODUCED
-next = strict release-proof partial merge -> trusted proof producers -> freeze candidate -> collect real evidence
+strict partial proof merge = IMPLEMENTED ON FEATURE BRANCH / CI PENDING
+next = validate merge contract -> trusted proof producers -> freeze candidate -> collect real evidence
 ```
