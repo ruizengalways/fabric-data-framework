@@ -1,22 +1,31 @@
-"""Developer-time customer project scaffolding.
+"""Developer-time customer project scaffolding and static validation.
 
-The scaffold deliberately creates source-controlled structure only. It does not infer
-source semantics, generate DatasetConfig values from table names, create Fabric items,
-or mutate a live environment.
+The project helpers deliberately operate on source-controlled structure only. They do
+not infer source semantics, create Fabric items, mutate a live environment, or persist
+secrets.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
-from typing import Mapping
+from typing import Iterable, Mapping
 
 from pydantic import Field
 
+from ..capture.onboarding import (
+    load_semantic_capture_selections,
+    validate_semantic_capture_selection,
+)
 from ..contracts.base import FrozenModel
+from ..metadata.capabilities import DEFAULT_CAPABILITY_REGISTRY, CapabilityRegistry
+from ..metadata.config import DatasetConfig
+from .delivery import load_dataset_configs
 
 
 _PROJECT_DOMAIN_PATTERN = r"^[a-z][a-z0-9-]*$"
 _PROJECT_MANIFEST = "fabric-project.json"
+_DEFAULT_SEMANTIC_SELECTIONS = "semantic-selections.json"
 
 
 class CustomerProjectLayout(FrozenModel):
@@ -41,6 +50,28 @@ class CustomerProjectInitResult(FrozenModel):
     manifest_path: str
     created_paths: tuple[str, ...]
     existing_paths: tuple[str, ...]
+
+
+class ProjectValueCount(FrozenModel):
+    """Stable value/count pair used in project validation summaries."""
+
+    value: str = Field(min_length=1)
+    count: int = Field(ge=1)
+
+
+class CustomerProjectValidationReport(FrozenModel):
+    """Static dry-run report for one complete source-controlled project bundle."""
+
+    root: str
+    domain: str
+    dataset_count: int = Field(ge=1)
+    semantic_selection_count: int = Field(ge=1)
+    capture_strategies: tuple[ProjectValueCount, ...]
+    apply_strategies: tuple[ProjectValueCount, ...]
+    execution_groups: tuple[ProjectValueCount, ...]
+    capture_engines: tuple[ProjectValueCount, ...]
+    apply_engines: tuple[ProjectValueCount, ...]
+    warnings: tuple[str, ...] = ()
 
 
 _DATASET_INVENTORY_HEADER = (
@@ -75,20 +106,18 @@ per-dataset execution policy to group and schedule workloads.
 
 1. Fill `docs/dataset-inventory.csv` with the source facts you have verified.
 2. Create one valid DatasetConfig JSON file per dataset in `config/datasets/`.
-3. Record source/Bronze/history semantic selections under `config/capture/`.
-4. Validate all datasets before deployment.
+3. Record source/Bronze/history semantic selections in
+   `config/capture/semantic-selections.json`.
+4. Run `fabric-framework project-validate .` as the local/CI dry run.
 5. Keep DEV/UAT/PROD physical bindings under `config/environments/`; do not put secret
    values in Git.
 6. Build immutable release artifacts and deploy through CI/CD or an approved operator
    environment.
 
-Example validation command:
+Project dry run:
 
 ```bash
-fabric-framework capture-semantic-onboarding-validate \\
-  --config-dir config/datasets \\
-  --selections config/capture/semantic-selections.json \\
-  --require-all
+fabric-framework project-validate .
 ```
 
 The CLI is a local/CI/operator tool. It is not a requirement to open a terminal inside
@@ -115,7 +144,8 @@ that boundary. Capture and apply strategies belong inside each DatasetConfig.
         f"{layout.capture_selection_dir}/README.md": """# Capture semantic selections
 
 Store source/capture/Bronze/history onboarding decisions here and validate them against
-the DatasetConfig bundle. These files describe semantic claims; they are not secrets.
+the DatasetConfig bundle. The canonical project dry-run file is
+`semantic-selections.json`. These files describe semantic claims; they are not secrets.
 """,
         f"{layout.capture_selection_dir}/semantic-selections.example.json": "[]\n",
         f"{layout.environment_binding_dir}/README.md": """# Environment bindings
@@ -148,6 +178,43 @@ Keep customer-specific metadata, extension, contract, and deployment tests here.
 Framework implementation tests remain in the framework repository.
 """,
     }
+
+
+def _counts(values: Iterable[str]) -> tuple[ProjectValueCount, ...]:
+    counter = Counter(values)
+    return tuple(
+        ProjectValueCount(value=value, count=count)
+        for value, count in sorted(counter.items())
+    )
+
+
+def _validate_dependency_graph(configs: tuple[DatasetConfig, ...]) -> None:
+    by_id = {config.dataset_id: config for config in configs}
+    deployed_ids = frozenset(by_id)
+    for config in configs:
+        unknown = sorted(set(config.orchestration.dependencies) - deployed_ids)
+        if unknown:
+            raise ValueError(
+                f"dataset {config.dataset_id!r} depends on unknown datasets: "
+                + ", ".join(unknown)
+            )
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(dataset_id: str) -> None:
+        if dataset_id in visited:
+            return
+        if dataset_id in visiting:
+            raise ValueError(f"dataset dependency cycle detected at {dataset_id!r}")
+        visiting.add(dataset_id)
+        for dependency in by_id[dataset_id].orchestration.dependencies:
+            visit(dependency)
+        visiting.remove(dataset_id)
+        visited.add(dataset_id)
+
+    for dataset_id in sorted(by_id):
+        visit(dataset_id)
 
 
 def load_customer_project_layout(path: str | Path) -> CustomerProjectLayout:
@@ -241,9 +308,88 @@ def initialize_customer_project(
     )
 
 
+def validate_customer_project(
+    root: str | Path,
+    *,
+    semantic_selections: str | Path | None = None,
+    capability_registry: CapabilityRegistry = DEFAULT_CAPABILITY_REGISTRY,
+) -> CustomerProjectValidationReport:
+    """Dry-run a complete project bundle without touching any live service.
+
+    Validation covers DatasetConfig parsing/uniqueness, dependency integrity/cycles,
+    capture/apply engine capability compatibility, exact semantic-selection coverage,
+    semantic overclaim checks, and a deterministic workload summary.
+    """
+
+    project_root = Path(root)
+    if not project_root.is_dir():
+        raise ValueError(f"project root does not exist or is not a directory: {project_root}")
+
+    layout = load_customer_project_layout(project_root)
+    dataset_dir = project_root / layout.dataset_config_dir
+    configs = load_dataset_configs(dataset_dir)
+    _validate_dependency_graph(configs)
+
+    capture_engines: list[str] = []
+    apply_engines: list[str] = []
+    for config in configs:
+        capability_registry.validate(config)
+        capture_engines.append(capability_registry.resolve_capture_engine(config).value)
+        apply_engines.append(capability_registry.resolve_apply_engine(config).value)
+
+    selections_path = (
+        Path(semantic_selections)
+        if semantic_selections is not None
+        else project_root / layout.capture_selection_dir / _DEFAULT_SEMANTIC_SELECTIONS
+    )
+    if not selections_path.is_file():
+        raise ValueError(
+            f"semantic selection file not found: {selections_path}; create one before project dry run"
+        )
+
+    selections = load_semantic_capture_selections(selections_path)
+    configs_by_id = {config.dataset_id: config for config in configs}
+    selected_ids = {selection.dataset_id for selection in selections}
+    unknown = sorted(selected_ids - set(configs_by_id))
+    if unknown:
+        raise ValueError(
+            "semantic selections reference unknown datasets: " + ", ".join(unknown)
+        )
+    missing = sorted(set(configs_by_id) - selected_ids)
+    if missing:
+        raise ValueError(
+            "DatasetConfig values missing semantic capture selection: " + ", ".join(missing)
+        )
+
+    warnings: list[str] = []
+    for selection in selections:
+        report = validate_semantic_capture_selection(
+            configs_by_id[selection.dataset_id], selection
+        )
+        warnings.extend(
+            f"{selection.dataset_id}: {warning}" for warning in report.review_warnings
+        )
+
+    return CustomerProjectValidationReport(
+        root=str(project_root),
+        domain=layout.domain,
+        dataset_count=len(configs),
+        semantic_selection_count=len(selections),
+        capture_strategies=_counts(config.load.capture_strategy.value for config in configs),
+        apply_strategies=_counts(config.load.apply_strategy.value for config in configs),
+        execution_groups=_counts(config.orchestration.execution_group for config in configs),
+        capture_engines=_counts(capture_engines),
+        apply_engines=_counts(apply_engines),
+        warnings=tuple(warnings),
+    )
+
+
 __all__ = [
     "CustomerProjectInitResult",
     "CustomerProjectLayout",
+    "CustomerProjectValidationReport",
+    "ProjectValueCount",
     "initialize_customer_project",
     "load_customer_project_layout",
+    "validate_customer_project",
 ]
