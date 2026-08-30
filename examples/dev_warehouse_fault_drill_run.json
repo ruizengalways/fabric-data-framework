@@ -13,6 +13,7 @@
   "fault_payload": {
     "fault_case": "approved-commit-ack-disconnect"
   },
+  "enable_session_termination_recovery": false,
   "marker_table_name": "fabric_framework_operation_commit",
   "marker_schema": "dbo"
 }
