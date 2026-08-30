@@ -14,7 +14,7 @@ from fabric_data_framework.adapters.cdc import (
 from fabric_data_framework.capture.cdc import build_cdc_checkpoint
 from fabric_data_framework.control_plane.schema import apply_baseline_schema, dataset
 from fabric_data_framework.contracts.recovery import UnknownOutcomeResolution
-from fabric_data_framework.recovery import (
+from fabric_data_framework.recovery.target_probe import (
     TargetCommitProbeEvidence,
     probe_and_reconcile_target_operation,
 )

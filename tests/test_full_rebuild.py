@@ -8,7 +8,7 @@ from fabric_data_framework.contracts.rebuild import (
     RebuildProgressKind,
 )
 from fabric_data_framework.contracts.recovery import ReprocessRequest
-from fabric_data_framework.recovery import (
+from fabric_data_framework.recovery.rebuild import (
     FullRebuildError,
     FullRebuildGateError,
     FullRebuildMutationOutcome,

@@ -15,7 +15,7 @@ from fabric_data_framework.contracts.replay import (
     QuarantineBatchEvidence,
     QuarantineReplayPayload,
 )
-from fabric_data_framework.recovery import (
+from fabric_data_framework.recovery.replay import (
     QuarantineReplayError,
     QuarantineReplayGateError,
     QuarantineReplayMutationOutcome,
