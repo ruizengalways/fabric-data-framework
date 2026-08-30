@@ -20,6 +20,7 @@ class ExtensionKind(str, Enum):
     CAPTURE_OBSERVER = "capture_observer"
     SPARK_EXECUTION_DATA = "spark_execution_data"
     WAREHOUSE_MUTATION = "warehouse_mutation"
+    WAREHOUSE_COMMIT_FAULT_INJECTOR = "warehouse_commit_fault_injector"
 
     @property
     def entry_point_group(self) -> str:
@@ -29,6 +30,8 @@ class ExtensionKind(str, Enum):
             return "fabric_data_framework.spark_execution_data"
         if self is ExtensionKind.WAREHOUSE_MUTATION:
             return "fabric_data_framework.warehouse_mutations"
+        if self is ExtensionKind.WAREHOUSE_COMMIT_FAULT_INJECTOR:
+            return "fabric_data_framework.warehouse_commit_fault_injectors"
         return f"fabric_data_framework.{self.value}s"
 
 

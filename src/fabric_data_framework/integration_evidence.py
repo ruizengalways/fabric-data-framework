@@ -33,6 +33,7 @@ class IntegrationEvidenceCheckKind(str, Enum):
     FABRIC_COPY_JOB_CAPTURE = "FABRIC_COPY_JOB_CAPTURE"
     FABRIC_SPARK_CAPTURE = "FABRIC_SPARK_CAPTURE"
     FABRIC_WAREHOUSE_TARGET_COMMIT = "FABRIC_WAREHOUSE_TARGET_COMMIT"
+    FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL = "FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL"
     CONTROL_PLANE_CERTIFICATION = "CONTROL_PLANE_CERTIFICATION"
     KAFKA_PROVIDER = "KAFKA_PROVIDER"
     DELTA_CDF_PROVIDER = "DELTA_CDF_PROVIDER"
@@ -176,6 +177,11 @@ class IntegrationEvidenceCheckResult(FrozenModel):
             if self.operation_key is None:
                 raise ValueError(
                     "FABRIC_WAREHOUSE_TARGET_COMMIT PASS requires operation_key"
+                )
+        elif self.kind is IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL:
+            if self.operation_key is None or self.dataset_run_id is None:
+                raise ValueError(
+                    "FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL PASS requires operation_key and dataset_run_id"
                 )
         if not self.evidence_references:
             raise ValueError(f"{self.kind.value} PASS requires retained evidence_references")
