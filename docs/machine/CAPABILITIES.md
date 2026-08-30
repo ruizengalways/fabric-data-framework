@@ -83,6 +83,24 @@ Boundary: project init/validation operates on source-controlled structure and me
 | Approved Warehouse commit/recovery | `evidence/approved_warehouse_runner.py` | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT |
 | Approved real ambiguous-COMMIT drill | `evidence/approved_warehouse_fault_runner.py` | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT |
 
+## Release readiness / candidate certification aggregation
+
+| Capability | Implementation owner | Current evidence |
+|---|---|---|
+| Source-controlled 0.4 readiness matrix | `release/0.4.0/readiness-spec.json` | CONTRACT + CI PROVEN |
+| Exact candidate source-SHA binding | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| Exact artifact-SHA binding for live IntegrationEvidenceManifest | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| Generic proof cannot bypass integration-backed gate | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| Required `NOT_RUN` / `FAIL` / `OUT_OF_SCOPE` blocks release | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| Optional `OUT_OF_SCOPE` support | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN |
+| `release_ready=true` iff all required gates PASS | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN |
+| `release-readiness` report CLI | `cli/release.py` | PRESENTATION + CI PROVEN |
+| `--require-ready` hard non-zero gate | `cli/release.py` | PRESENTATION + CI PROVEN |
+| CI-retained blocked readiness report | `.github/workflows/ci.yml` | CI PROVEN; current main has 15 blockers |
+| Exact certified wheel handoff into immutable release | release workflow | NOT YET IMPLEMENTED / RELEASE BLOCKER |
+
+Boundary: a green readiness-contract CI job proves that the aggregator fails closed. It does not certify Fabric or make 0.4 releasable. Current 0.4 main intentionally has `release_ready=false`. The candidate source SHA and exact inner wheel SHA256 have not yet been frozen for live certification.
+
 ## Warehouse ambiguity / session recovery
 
 | Guarantee | Current evidence |
@@ -125,23 +143,32 @@ Boundary: project init/validation operates on source-controlled structure and me
 
 | Proof | State |
 |---|---|
+| Frozen exact 0.4 candidate source SHA + inner wheel SHA256 | NOT YET FROZEN |
+| Exact certified wheel handoff into release workflow | NOT YET IMPLEMENTED |
 | Enterprise Fabric identity/token | NOT YET RETAINED |
 | Workspace/item authorization | NOT YET RETAINED |
 | Production Fabric SQL/Azure SQL certification PASS | NOT YET RETAINED |
 | Live approved Pipeline | NOT YET RETAINED |
 | Live Copy Job + verified observation/receipt | NOT YET RETAINED |
 | Live bounded Spark + verified observation/receipt | NOT YET RETAINED |
+| Representative live FULL -> REPLACE | NOT YET RETAINED |
+| Representative live WATERMARK -> SCD1 | NOT YET RETAINED |
+| Representative live WATERMARK -> SCD2 | NOT YET RETAINED |
+| Real retry/rerun idempotency + progress safety drill | NOT YET RETAINED |
+| Real reconciliation fail-closed drill | NOT YET RETAINED |
 | Live Warehouse target+marker transaction | NOT YET RETAINED |
 | Provider-specific real ambiguous COMMIT fault | NOT YET RETAINED |
 | Live exact Warehouse session capture | NOT YET RETAINED |
 | Live Admin DMV/KILL/rollback chain | NOT YET RETAINED |
 | Production-approved marker absence proof | NOT YET RETAINED |
-| Complete exact-release evidence bundle | NOT YET RETAINED |
+| Complete exact-candidate release proof bundle + integration evidence | NOT YET RETAINED |
+| Release-readiness blockers = 0 | NOT YET; CURRENTLY 15 REQUIRED BLOCKERS |
+| Live Debezium/Kafka certification | OUT OF SCOPE UNLESS 0.4 GA SCOPE PROMOTES IT |
 | Capacity/IAM/network/DR/monitoring/governance | EXTERNAL / NOT YET RETAINED |
 
 ## Historical release proof
 
 ```text
 v0.3.0 immutable release artifact = RELEASE PROVEN for v0.3.0
-0.4.0 development source          = NOT RELEASED
+0.4.0 development source          = NOT RELEASED / FEATURE FROZEN / READINESS BLOCKED
 ```
