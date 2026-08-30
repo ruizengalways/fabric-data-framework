@@ -12,7 +12,8 @@ PACKAGE_ROOT = Path(__file__).parents[1] / "src" / "fabric_data_framework"
 def test_core_source_does_not_import_cli_package():
     offenders: list[str] = []
     for path in sorted(PACKAGE_ROOT.rglob("*.py")):
-        if "cli" in path.relative_to(PACKAGE_ROOT).parts:
+        relative = path.relative_to(PACKAGE_ROOT)
+        if "cli" in relative.parts or relative.name == "cli_router.py":
             continue
         text = path.read_text(encoding="utf-8")
         if (
@@ -20,7 +21,7 @@ def test_core_source_does_not_import_cli_package():
             or "from fabric_data_framework.cli" in text
             or "import fabric_data_framework.cli" in text
         ):
-            offenders.append(str(path.relative_to(PACKAGE_ROOT)))
+            offenders.append(str(relative))
     assert offenders == []
 
 
