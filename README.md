@@ -9,24 +9,24 @@ The framework owns reusable data-engineering semantics and operational contracts
 ```text
 latest public release = v0.3.0
 source version        = 0.4.0 development / unreleased
-current code baseline = 264c7547b4e70d24f258bdc3962af83d972e967d  (PR #49 merge)
-latest code CI        = Actions 33282725576
-full tests            = 513
+current code baseline = 4dfa5e22fd8eab67406ced8af954f2d81ad18321  (PR #51 merge)
+latest code CI        = Actions 33283668067
+full tests            = 525
 ```
 
-**Do not publish v0.4.0 yet.** The remaining gate is approved real-environment evidence, selected production backend certification and retained enterprise controls.
+**Do not publish v0.4.0 yet.** The remaining gate is retained exact-release approved real-environment evidence plus required enterprise controls.
 
-## Architecture
+## Governing model
 
 ```text
 source semantic truth
   -> immutable DatasetConfig + semantic onboarding
   -> capability resolver + immutable ExecutionPlan
-  -> native/external capture movement
-  -> validated CaptureReceipt / native evidence
+  -> provider/native capture or orchestration
+  -> verified receipt/native evidence or durable framework outcome
   -> normalize / DQ / apply
   -> target-operation commit proof / reconciliation
-  -> downstream watermark or CDC checkpoint
+  -> downstream semantic checkpoint
   -> exact-release retained integration evidence
 ```
 
@@ -39,51 +39,91 @@ provider Completed != framework semantic success
 unknown target commit outcome never permits blind re-execution
 marker absence alone never proves NOT_COMMITTED
 simulated framework ACK loss != real provider/driver/network COMMIT fault evidence
+session disappearance alone != rollback proof
 ```
 
 ## Current reusable capability surface
 
-- orthogonal cheatsheet-aligned source/change/read/delete/Bronze semantics;
-- exact fourteen-row cheatsheet semantic presets and semantic onboarding CI gate;
-- composite WATERMARK + lookback semantics;
-- full-baseline -> WATERMARK bootstrap evidence contract;
-- snapshot -> CDC no-gap/no-double-apply bootstrap;
+- orthogonal cheatsheet-aligned source/change/read/delete/Bronze semantics and exact fourteen-row presets;
+- semantic onboarding CI gate and full-baseline -> WATERMARK / snapshot -> CDC handoff contracts;
 - APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF;
 - normalized Bronze lineage, DQ/quarantine/accounting and reconciliation;
-- provider-neutral CDC order/dedupe/checkpoint contracts;
-- Debezium/Kafka and Delta CDF normalization/recovery contracts;
-- replay-stable file manifests and API cursor/window guardrails;
-- durable target-operation CAS journal and unknown-outcome recovery;
+- provider-neutral CDC order/dedupe/checkpoint contracts plus Kafka/Debezium and Delta CDF adapter contracts;
+- durable target-operation CAS journal and fail-closed unknown-outcome recovery;
 - SQLAlchemy relational control-plane repository;
-- Fabric REST Job Scheduler and Data Pipeline backend;
-- concrete Copy Job and Spark Job Definition REST transports;
-- Fabric Warehouse same-transaction target-side commit marker proof;
-- approved-environment evidence spec/manifest/preflight/read-only item runner;
-- strict staged integration evidence merge with conflict/output-safety rules;
-- approved production control-plane certification runner;
-- approved Fabric Pipeline evidence runner requiring exact durable child outcome;
-- approved Copy Job + Spark capture evidence runner requiring verified observation -> `CaptureReceipt` + native correlation;
-- approved Warehouse commit/recovery runner requiring same-transaction marker proof and durable target-operation reconciliation;
-- approved Warehouse ambiguous-COMMIT fault-drill runner with a separate evidence kind and explicit authorization;
+- Fabric REST Pipeline, Copy Job and Spark Job Definition transports/backends;
+- Fabric Warehouse same-transaction target-side marker proof;
+- approved-run preflight, read-only item smoke, control-plane certification, Pipeline, Copy/Spark capture and Warehouse commit/recovery runners;
+- separate approved Warehouse ambiguous-COMMIT fault-drill runner;
+- Fabric Warehouse exact-session termination absence-certifier provider contract;
 - controlled `capture_observers`, `spark_execution_data`, `warehouse_mutations`, and `warehouse_commit_fault_injectors` extension entry points;
-- credential-like retained evidence/provider exception redaction, including Warehouse secondary-correlation failures;
-- immutable release/config/deployment provenance.
+- strict staged integration evidence merge and credential-safe retained evidence.
 
-These are portable/reference, transport/backend, or approved-runner contracts unless explicitly backed by retained real-service evidence.
+These are reference/transport/backend/runner contracts unless a retained exact-release real-service run explicitly proves more.
 
-## Cheatsheet acceptance model
+## Warehouse recovery evidence ladder
 
-Canonical detail:
+Normal target commit proof:
 
 ```text
-docs/CHEATSHEET_PATTERN_ALIGNMENT.md
+same transaction: target mutation + framework marker
+matching marker -> COMMITTED
+marker absent   -> UNRESOLVED
 ```
 
-At the **semantic-contract + onboarding-validation level**, all fourteen cheatsheet rows are first-class and tested. Legacy `CapturePattern` remains supported through compatibility projection.
+PR #47 added `integration-warehouse-run` and deterministic recovery of simulated framework ACK loss:
 
-## Staged approved-environment evidence
+```text
+EXECUTE -> target+marker commit -> UNKNOWN -> marker COMMITTED
+        -> SUCCEEDED -> later SKIP_SUCCEEDED
+```
 
-Canonical runbooks:
+Correct label:
+
+```text
+IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT
+```
+
+PR #49 added the separate evidence kind `FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL` and `integration-warehouse-fault-drill-run`. PASS requires an actual observed provider/driver exception, independently verified same fault identity, marker `COMMITTED`, durable `SUCCEEDED`, and later `SKIP_SUCCEEDED`. A normal return can never satisfy this stronger drill.
+
+Correct label:
+
+```text
+IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT
+```
+
+PR #51 added the provider-specific session-termination absence-certifier contract. It does **not** make marker absence generally safe. `NOT_COMMITTED` becomes eligible only when all of this is proven:
+
+```text
+exact target connection_id + session_id captured before mutation
+same exact session still observable after ambiguity
+open_transaction_count > 0
+independent Admin-capable connection KILLs that exact session
+same exact connection/session no longer observable
+post-termination marker read succeeds
+marker is still absent
+```
+
+Critical race rule:
+
+```text
+marker appears during termination -> NOT_COMMITTED forbidden
+session already disappeared        -> UNRESOLVED
+no observable open transaction     -> UNRESOLVED
+DMV / KILL / post-check failure    -> UNRESOLVED
+```
+
+Query Insights remains secondary correlation only; completed history is not an immediate no-late-commit proof.
+
+Correct PR #51 label:
+
+```text
+IMPLEMENTED + CI PROVEN FABRIC WAREHOUSE SESSION-TERMINATION ABSENCE CERTIFIER CONTRACT
+```
+
+This is **not** a production-approved marker-absence certifier yet. Approved-run wiring with a separately controlled Admin credential/authorization and retained live Fabric execution are still missing.
+
+## Approved evidence runbooks
 
 ```text
 docs/DEV_INTEGRATION_EVIDENCE.md
@@ -93,101 +133,8 @@ docs/APPROVED_PIPELINE_EVIDENCE.md
 docs/APPROVED_CAPTURE_EVIDENCE.md
 docs/APPROVED_WAREHOUSE_EVIDENCE.md
 docs/APPROVED_WAREHOUSE_FAULT_DRILL.md
+docs/FABRIC_WAREHOUSE_SESSION_ABSENCE_CERTIFIER.md
 ```
-
-PR #39 added strict staged evidence merge. Contradictory reruns are never silently resolved by latest/PASS/FAIL precedence.
-
-PR #41 added the exact-release approved control-plane certification runner. The runtime database URL value never enters source-controlled config or retained evidence. Real `PRODUCTION DB PROVEN` still requires a retained PASS against the selected real backend.
-
-PR #43 added the approved Pipeline runner. Fabric `Completed` becomes PASS only when the exact durable framework `DatasetDispatchOutcome` for the generated child `dataset_run_id` exists and is `SUCCEEDED`.
-
-PR #45 added the approved Copy Job + Spark capture runner. Provider `Completed` still requires item-specific post-run observation before `FabricNativeRunEvidence` and a verified `CaptureReceipt` exist.
-
-Correct capture label:
-
-```text
-IMPLEMENTED + CI PROVEN APPROVED CAPTURE RUNNER CONTRACT
-```
-
-PR #47 added the approved Fabric Warehouse commit/recovery runner:
-
-```bash
-fabric-framework integration-warehouse-run \
-  --config dev-integration-runner.json \
-  --spec evidence-spec.json \
-  --prerequisite-manifest evidence/prerequisites-merged.json \
-  --release-manifest release-manifest.json \
-  --config-dir config/datasets \
-  --warehouse-config evidence/warehouse-run.json \
-  --evidence-reference artifact:warehouse-query-and-marker-evidence \
-  --report-output evidence/warehouse-report.json \
-  --output evidence/warehouse-partial.json \
-  --allow-warehouse-execution
-```
-
-The framework owns the SQL transaction and operation marker. The customer mutation extension receives the existing SQLAlchemy `Connection` and may perform only the bounded target mutation; it must not commit, write the framework marker, mutate the journal, or decide PASS.
-
-Recovery remains tri-state:
-
-```text
-matching marker -> COMMITTED
-marker absent -> UNRESOLVED
-marker absent + independently certified no-late-commit absence proof -> NOT_COMMITTED
-```
-
-A normal successful approved run deliberately simulates **framework ACK loss after the target transaction returns** and proves `UNKNOWN -> COMMITTED -> SUCCEEDED -> SKIP_SUCCEEDED`. This does not claim that a real driver/network COMMIT disconnect occurred.
-
-Correct Warehouse label:
-
-```text
-IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT
-```
-
-PR #49 added a **separate** stronger evidence surface for a real ambiguous-COMMIT drill:
-
-```bash
-fabric-framework integration-warehouse-fault-drill-run \
-  --config dev-integration-runner.json \
-  --spec evidence-spec.json \
-  --prerequisite-manifest evidence/warehouse-prerequisites-merged.json \
-  --release-manifest release-manifest.json \
-  --config-dir config/datasets \
-  --fault-config evidence/warehouse-fault-drill.json \
-  --evidence-reference artifact:warehouse-fault-provider-log \
-  --report-output evidence/warehouse-fault-report.json \
-  --output evidence/warehouse-fault-partial.json \
-  --allow-warehouse-fault-injection
-```
-
-The evidence kind is:
-
-```text
-FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL
-```
-
-A PASS requires all of the following for the exact operation:
-
-```text
-normal approved Warehouse commit/recovery prerequisite PASS
-fault injector armed
-execute_atomic() actually raises a provider/driver exception
-fault injector independently verifies the intended fault triggered
-arm/verification fault identity matches
-fault mechanism disarms before marker probe
-marker probe = COMMITTED
-journal = SUCCEEDED
-later claim = SKIP_SUCCEEDED
-```
-
-A normal transaction return can **never** PASS the fault drill, even if the marker committed and even if an injector reports `triggered=true`. Marker absence remains `UNRESOLVED`; the fault injector is not an absence certifier and cannot manufacture `NOT_COMMITTED`.
-
-Correct fault-drill label:
-
-```text
-IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT
-```
-
-CI uses deterministic doubles to prove the runner and fail-closed semantics. It does **not** prove that a real Fabric/network/driver fault occurred.
 
 ## Current real-service gaps
 
@@ -198,10 +145,11 @@ enterprise Entra token path
 live workspace/item authorization
 real Fabric SQL Database / Azure SQL Database certification PASS
 live Pipeline run through the approved runner
-live Copy Job / Spark runs through approved observers and verified CaptureReceipt evidence
+live Copy Job / Spark runs through approved observation and CaptureReceipt evidence
 real Fabric Warehouse target mutation + same-transaction marker execution
-provider-specific real Warehouse COMMIT fault injector in an approved environment
+provider-specific live Warehouse COMMIT fault injector
 retained real ambiguous Warehouse COMMIT fault-drill PASS
+live exact Warehouse session binding / DMV / Admin KILL / post-KILL marker proof
 production-approved marker-absence certifier
 live Kafka / Delta CDF if included in public release scope
 capacity/gateway/throttling and enterprise IAM/network/DR/monitoring/governance evidence
@@ -215,23 +163,17 @@ Preferred real sequence when approved runtime inputs are available:
 1. replace DEV placeholder release hash/item UUIDs with exact candidate values;
 2. run read-only item smoke;
 3. run production control-plane certification;
-4. strict-merge prerequisite evidence;
+4. strict-merge prerequisites;
 5. run approved Pipeline evidence;
-6. run approved Copy Job and Spark capture evidence with fingerprinted customer extensions;
-7. run approved Warehouse target+marker transaction/recovery stage;
-8. if the stronger claim is required, install a provider-specific fingerprinted fault injector and run the separate approved ambiguous-COMMIT drill;
-9. strict-merge all required evidence and pass `integration-evidence-validate --require-certified`;
-10. prove Kafka/Delta live only if included in the `0.4.0` public promise;
-11. run exact-candidate release audit before considering `0.4.0`.
+6. run approved Copy Job and Spark capture evidence;
+7. run approved Warehouse target+marker transaction/recovery;
+8. if required, run the separate provider-specific real ambiguous-COMMIT fault drill;
+9. if the `NOT_COMMITTED` recovery branch is required, run approved exact-session termination recovery with a separately controlled Admin authority;
+10. strict-merge required evidence and pass `integration-evidence-validate --require-certified`;
+11. prove Kafka/Delta live only if included in the public `0.4.0` promise;
+12. run exact-candidate release audit.
 
-If real enterprise inputs remain unavailable, do not duplicate another Warehouse fault runner. The most plausible remaining reusable boundary is a production-approved marker-absence certifier contract **only if** a provider/session-specific no-late-commit proof can be defined without weakening the tri-state rule.
-
-## Local development
-
-```bash
-python -m pip install -e '.[dev]'
-pytest
-```
+If real enterprise inputs remain unavailable, the next reusable slice is **approved session-termination recovery wiring**: separate Admin DB credential env-var name, separate explicit termination authorization, exact-session capture before mutation, and use of PR #51 only after a real ambiguous execution exception. Do not make session termination default and do not reuse normal Warehouse mutation authorization for `KILL`.
 
 ## Main CLI surfaces
 
@@ -246,12 +188,6 @@ fabric-framework integration-warehouse-run ...
 fabric-framework integration-warehouse-fault-drill-run ...
 fabric-framework integration-evidence-merge ...
 fabric-framework integration-evidence-validate ...
-fabric-framework control-plane-migrate ...
-fabric-framework control-plane-certify ...
-fabric-framework metadata-materialize ...
-fabric-framework release-manifest ...
-fabric-framework deployment-plan ...
-fabric-framework deployment-record ...
 ```
 
 Credentials and physical environment values remain outside reusable semantic config and retained release artifacts.
@@ -269,25 +205,26 @@ For a new conversation, read in this order:
 7. `docs/APPROVED_CAPTURE_EVIDENCE.md`
 8. `docs/APPROVED_WAREHOUSE_EVIDENCE.md`
 9. `docs/APPROVED_WAREHOUSE_FAULT_DRILL.md`
-10. `docs/INTEGRATION_EVIDENCE_MERGE.md`
-11. `docs/GUARANTEE_COVERAGE.md`
-12. `docs/EXTENSION_MODEL.md`
-13. `docs/PROJECT_BLUEPRINT.md`
-14. `docs/PRODUCTION_REQUIREMENTS.md`
-15. `docs/CAPTURE_PATTERN_CATALOG.md`
-16. `docs/TARGET_OPERATION_IDEMPOTENCY.md`
-17. `docs/PROVIDER_NATIVE_RECOVERY.md`
-18. `docs/FABRIC_WAREHOUSE_TARGET_COMMIT_PROOF.md`
-19. `docs/CONTROL_PLANE_CERTIFICATION.md`
-20. `docs/RELATIONAL_RUNTIME_REPOSITORY.md`
-21. `docs/FABRIC_PIPELINE_BACKEND.md`
-22. `docs/FABRIC_CAPTURE_REST_TRANSPORTS.md`
-23. `docs/EXECUTION_ENGINE_STRATEGY.md`
-24. `docs/FABRIC_EXECUTION_MODEL.md`
-25. `docs/CDC_DESIGN.md`
-26. `docs/CONTROL_PLANE_DESIGN.md`
-27. `docs/REPOSITORY_STRUCTURE.md`
-28. `docs/CICD_DESIGN.md`
-29. `docs/ECOSYSTEM_BLUEPRINT.md`
+10. `docs/FABRIC_WAREHOUSE_SESSION_ABSENCE_CERTIFIER.md`
+11. `docs/INTEGRATION_EVIDENCE_MERGE.md`
+12. `docs/GUARANTEE_COVERAGE.md`
+13. `docs/EXTENSION_MODEL.md`
+14. `docs/PROJECT_BLUEPRINT.md`
+15. `docs/PRODUCTION_REQUIREMENTS.md`
+16. `docs/CAPTURE_PATTERN_CATALOG.md`
+17. `docs/TARGET_OPERATION_IDEMPOTENCY.md`
+18. `docs/PROVIDER_NATIVE_RECOVERY.md`
+19. `docs/FABRIC_WAREHOUSE_TARGET_COMMIT_PROOF.md`
+20. `docs/CONTROL_PLANE_CERTIFICATION.md`
+21. `docs/RELATIONAL_RUNTIME_REPOSITORY.md`
+22. `docs/FABRIC_PIPELINE_BACKEND.md`
+23. `docs/FABRIC_CAPTURE_REST_TRANSPORTS.md`
+24. `docs/EXECUTION_ENGINE_STRATEGY.md`
+25. `docs/FABRIC_EXECUTION_MODEL.md`
+26. `docs/CDC_DESIGN.md`
+27. `docs/CONTROL_PLANE_DESIGN.md`
+28. `docs/REPOSITORY_STRUCTURE.md`
+29. `docs/CICD_DESIGN.md`
+30. `docs/ECOSYSTEM_BLUEPRINT.md`
 
 If documentation conflicts with code/tests, inspect implementation and repair documentation before continuing.
