@@ -29,6 +29,7 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #53 | `b9187d93015d921614147831da1336b2d91f3e22`, Actions `33284190041`, 534 | approved session-termination recovery wiring with separate Admin authorization |
 | #54 | `c5baff6318b5facc366fa9466d23041291835fd5`, Actions `33284381347`, 534 | canonical docs checkpoint after PR #53 |
 | #55 | `46c10ab00fefc2ca546fd7f2bea369a7037216da`, Actions `33285255666`, 534 | split stable human docs from exact machine/recovery docs; removed superseded flat docs/ADRs/runbooks and unified examples under root `examples/` |
+| #57 | `3ddbb873029a13985af4e563228629c1efc4f7d4`, Actions `33286548611`, 539 | extracted CLI into removable leaf package; console entrypoint moved to `fabric_data_framework.cli`; added source-code map and CLI-isolation contracts |
 
 ## Important historical design decisions now integrated into current model
 
@@ -43,9 +44,10 @@ immutable release artifact + delivery CLI
 Pipeline/Spark execution boundary
 semantic model separate from physical execution engine
 framework-first semantics with bounded provider-native stage delegation
+CLI is a leaf presentation layer; reusable core must not depend on it
 ```
 
-Current versions of those decisions are summarized in human `CONCEPTS.md` and machine `CONTEXT.md` / `IMPLEMENTATION_MAP.md`.
+Current versions of those decisions are summarized in human `CONCEPTS.md` / `REPOSITORY_GUIDE.md` and machine `CONTEXT.md` / `IMPLEMENTATION_MAP.md`.
 
 ## Historical evidence discipline
 
@@ -56,6 +58,7 @@ provider REST implementation != live provider proof
 CI commit-then-raise double != real network/driver fault proof
 simulated framework ACK loss != real COMMIT disconnect
 session-termination provider contract != production-approved Admin/KILL proof
+CLI/readability refactor != new provider or production evidence
 ```
 
 Keep these distinctions even if future implementation refactors merge code paths.
