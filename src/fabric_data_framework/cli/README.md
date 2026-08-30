@@ -7,6 +7,7 @@ cli/
 ├─ __init__.py   public `main` export
 ├─ __main__.py   `python -m fabric_data_framework.cli`
 ├─ main.py       tiny composition/router entrypoint
+├─ project.py    developer-time customer/domain project initialization
 ├─ base.py       general validation, metadata, deployment and preflight commands
 └─ approved.py   approved evidence / real-environment commands
 ```
@@ -28,3 +29,7 @@ Rules:
 - command handlers translate arguments to reusable APIs and render results;
 - new CLI commands should be grouped by operator intent, not by creating another top-level `cli_*.py` file;
 - core modules must never import `fabric_data_framework.cli`.
+
+`project-init` is intentionally developer-time only. It creates a safe source-controlled
+customer project skeleton and never infers DatasetConfig semantics, creates Fabric items,
+or touches a live environment.
