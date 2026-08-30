@@ -37,6 +37,7 @@ jobs:
                   'monkeypatch.setattr(cli_router,',
                   'monkeypatch.setattr(cli_approved,',
               )
+              text = text.replace('        cli_router,\n', '        cli_approved,\n')
               text = text.replace('cli_router.main(', 'cli.main(')
               # Negative boundary test intentionally refers to the removed import as a string.
               if path.name != 'test_evidence_package_boundary.py' and 'cli_router' in text:
