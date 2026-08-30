@@ -11,6 +11,7 @@
 | [`CONCEPTS.md`](CONCEPTS.md) | 先理解这个 framework 的边界、数据语义和整体运行模型 |
 | [`REPOSITORY_GUIDE.md`](REPOSITORY_GUIDE.md) | 看 repo 目录和重要代码文件分别负责什么 |
 | [`GETTING_STARTED.md`](GETTING_STARTED.md) | 本地怎么装、怎么测试、怎么打 wheel、Fabric 里怎么用 |
+| [`CUSTOMER_PROJECT_BOOTSTRAP.md`](CUSTOMER_PROJECT_BOOTSTRAP.md) | 新项目怎么初始化 customer repo，几十/几百张表怎么放在一个产品级 repo 里 |
 | [`DATASET_ONBOARDING.md`](DATASET_ONBOARDING.md) | 来了一个新数据源/新表，到底该选哪种 capture/Bronze/Silver 模式 |
 | [`OPERATIONS.md`](OPERATIONS.md) | CLI 是干什么的，release/evidence/approved run 怎么执行 |
 
