@@ -29,16 +29,25 @@ jobs:
               if 'cli_router' not in text:
                   continue
               original = text
-              text = text.replace(
-                  'from fabric_data_framework import cli_router',
-                  'from fabric_data_framework import cli\nfrom fabric_data_framework.cli import approved as cli_approved',
-              )
-              text = text.replace(
-                  'monkeypatch.setattr(cli_router,',
-                  'monkeypatch.setattr(cli_approved,',
-              )
-              text = text.replace('        cli_router,\n', '        cli_approved,\n')
-              text = text.replace('cli_router.main(', 'cli.main(')
+
+              if path.name == 'test_warehouse_session_termination_cli_authorization.py':
+                  text = text.replace(
+                      'from fabric_data_framework import cli_router',
+                      'from fabric_data_framework.cli import approved as cli_approved',
+                  )
+                  text = text.replace('cli_router.', 'cli_approved.')
+              else:
+                  text = text.replace(
+                      'from fabric_data_framework import cli_router',
+                      'from fabric_data_framework import cli\nfrom fabric_data_framework.cli import approved as cli_approved',
+                  )
+                  text = text.replace(
+                      'monkeypatch.setattr(cli_router,',
+                      'monkeypatch.setattr(cli_approved,',
+                  )
+                  text = text.replace('        cli_router,\n', '        cli_approved,\n')
+                  text = text.replace('cli_router.main(', 'cli.main(')
+
               # Negative boundary test intentionally refers to the removed import as a string.
               if path.name != 'test_evidence_package_boundary.py' and 'cli_router' in text:
                   raise RuntimeError(f'unhandled cli_router reference remains in {path}')
