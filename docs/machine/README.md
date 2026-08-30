@@ -6,9 +6,21 @@ Purpose: restore exact framework engineering context without forcing human-facin
 
 1. `STATE.md` — exact current baseline, release status, CI/test baseline, real-service gaps, next work.
 2. `CONTEXT.md` — non-negotiable semantic/recovery/evidence invariants.
-3. `CAPABILITIES.md` — capability -> implementation owner -> evidence level.
-4. `IMPLEMENTATION_MAP.md` — code/module ownership and where to change what.
-5. `HISTORY.md` — merged milestone history; read only when historical provenance matters.
+3. `APPROVED_EVIDENCE.md` — exact approved-run prerequisite, PASS/FAIL, authorization, and merge contracts.
+4. `CAPABILITIES.md` — capability -> implementation owner -> evidence level.
+5. `IMPLEMENTATION_MAP.md` — code/module ownership and where to change what.
+6. `HISTORY.md` — merged milestone history; read only when historical provenance matters.
+
+## File purpose
+
+| File | Machine use |
+|---|---|
+| `STATE.md` | answer “where are we now and what is next?” |
+| `CONTEXT.md` | prevent semantic/recovery regressions after context reset |
+| `APPROVED_EVIDENCE.md` | restore exact runner/evidence/authorization rules |
+| `CAPABILITIES.md` | prevent CI/reference/live evidence overclaim |
+| `IMPLEMENTATION_MAP.md` | find the correct module before editing code |
+| `HISTORY.md` | recover why/when a capability entered the framework |
 
 ## Source-of-truth rule
 
@@ -27,9 +39,23 @@ Human docs intentionally omit PR history, Actions IDs, merge SHAs, test-count pr
 After a meaningful framework slice:
 
 - update `STATE.md` if baseline/gap/next-work changed;
-- update `CAPABILITIES.md` if a guarantee/evidence level changed;
 - update `CONTEXT.md` if a new invariant or fail-closed boundary was introduced;
+- update `APPROVED_EVIDENCE.md` if an approved-run prerequisite/PASS/authorization contract changed;
+- update `CAPABILITIES.md` if a guarantee/evidence level changed;
 - update `IMPLEMENTATION_MAP.md` if module ownership/surface changed;
 - append `HISTORY.md` only for release-significant merged milestones.
 
-Do not create a new top-level historical runbook for every PR. Integrate the stable behavior into the appropriate machine document and keep history compact.
+Do not create a new top-level historical runbook for every PR. Integrate the stable behavior into the appropriate canonical machine file and keep history compact.
+
+## Documentation structure rule
+
+`docs/` must stay visually simple:
+
+```text
+docs/
+  README.md
+  human/
+  machine/
+```
+
+Executable/sample configuration belongs under root `examples/`, not under `docs/`.
