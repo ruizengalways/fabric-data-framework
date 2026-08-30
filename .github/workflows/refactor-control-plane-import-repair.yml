@@ -1,0 +1,82 @@
+name: refactor-control-plane-import-repair
+
+on:
+  push:
+    branches:
+      - codex/control-plane-package
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/control-plane-package
+          fetch-depth: 0
+      - name: Rebuild moved modules with correct relative imports
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import subprocess
+
+          root = Path('.')
+          pkg = root / 'src' / 'fabric_data_framework'
+          base = 'de364ea2a74c5368b4d2bd5c41ee8a6d8f909ad2'
+          moves = {
+              'control_plane.py': 'control_plane/schema.py',
+              'control_plane_io.py': 'control_plane/io.py',
+              'control_plane_schema.py': 'control_plane/schema_evidence.py',
+              'control_plane_certification.py': 'control_plane/certification.py',
+              'repository.py': 'control_plane/repository.py',
+              'relational_repository.py': 'control_plane/sqlalchemy_repository.py',
+              'operator.py': 'control_plane/operator.py',
+              'target_operation_io.py': 'control_plane/target_operation_journal.py',
+          }
+          internal = {
+              'control_plane': 'schema',
+              'control_plane_io': 'io',
+              'control_plane_schema': 'schema_evidence',
+              'control_plane_certification': 'certification',
+              'repository': 'repository',
+              'relational_repository': 'sqlalchemy_repository',
+              'operator': 'operator',
+              'target_operation_io': 'target_operation_journal',
+              'control_plane_stage_policy': 'schema',
+          }
+
+          for old, new in moves.items():
+              source = subprocess.check_output(
+                  ['git', 'show', f'{base}:src/fabric_data_framework/{old}'],
+                  text=True,
+              )
+              rebuilt: list[str] = []
+              for line in source.splitlines():
+                  match = re.match(r'(?P<indent>\s*)from \.([A-Za-z_][A-Za-z0-9_.]*)(?P<tail> import .*)$', line)
+                  if match is None:
+                      rebuilt.append(line)
+                      continue
+                  module = line.split('from .', 1)[1].split(' import ', 1)[0]
+                  head, *rest = module.split('.')
+                  if head in internal:
+                      target = internal[head]
+                      if rest:
+                          target += '.' + '.'.join(rest)
+                      rebuilt.append(f"{match.group('indent')}from .{target}{match.group('tail')}")
+                  else:
+                      rebuilt.append(f"{match.group('indent')}from ..{module}{match.group('tail')}")
+              (pkg / new).write_text('\n'.join(rebuilt) + '\n', encoding='utf-8')
+
+          (root / '.github/workflows/refactor-control-plane-import-repair.yml').unlink()
+          PY
+      - name: Commit repaired imports
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix: repair control-plane package relative imports"
+          git push origin HEAD:codex/control-plane-package
