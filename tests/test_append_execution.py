@@ -1,4 +1,4 @@
-from fabric_data_framework.apply import InMemoryAppendTarget
+from fabric_data_framework.apply.append import InMemoryAppendTarget
 from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,

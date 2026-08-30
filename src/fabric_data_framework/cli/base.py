@@ -17,7 +17,7 @@ import sys
 from sqlalchemy import create_engine
 
 from ..adapters.fabric.rest import FabricRestClient
-from ..capture import (
+from fabric_data_framework.capture.onboarding import (
     load_capture_selections,
     load_semantic_capture_selections,
     validate_capture_selection,
