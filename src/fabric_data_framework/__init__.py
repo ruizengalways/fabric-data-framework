@@ -67,8 +67,8 @@ from .config import (
     WatermarkConfig,
     resolve_effective_config,
 )
-from .contracts import (
-    CaptureReceipt,
+from fabric_data_framework.contracts.capture_receipt import CaptureReceipt
+from fabric_data_framework.contracts.execution_plan import (
     ExecutionKind,
     ExecutionPlan,
     ExecutionRole,
@@ -104,7 +104,7 @@ from .quality import (
     require_compatible_schema,
 )
 from .control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
-from .schema_contract import (
+from fabric_data_framework.contracts.schema import (
     LogicalType,
     SchemaCompatibilityPolicy,
     SchemaContract,
@@ -123,7 +123,7 @@ from .control_plane.target_operation_journal import (
     reconcile_target_operation,
     transition_target_operation,
 )
-from .target_operations import (
+from fabric_data_framework.contracts.target_operation import (
     TargetOperationAction,
     TargetOperationClaim,
     TargetOperationEvent,

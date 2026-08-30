@@ -8,9 +8,9 @@ from typing import Any, Sequence
 from pydantic import Field
 
 from ..capture.full import FullSnapshotEvidence
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from ..data_plane.staging import StagedBatch
-from ..operations import MutationCounts
+from fabric_data_framework.contracts.audit import MutationCounts
 
 
 class ReplaceGuardError(ValueError):

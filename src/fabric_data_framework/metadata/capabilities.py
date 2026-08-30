@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from ..config import (
+from fabric_data_framework.config import (
     ApplyStrategy,
     CaptureStrategy,
     DatasetConfig,
     ExecutionEngine,
-    FrozenModel,
     ProgressOwner,
 )
+from fabric_data_framework.contracts.base import FrozenModel
 
 
 class UnsupportedExecutionCombination(ValueError):

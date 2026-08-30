@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import Mapping, Sequence
 from uuid import UUID
 
-from .operations import (
+from fabric_data_framework.contracts.audit import RowAccounting
+from fabric_data_framework.contracts.reconciliation import (
     ReconciliationMetric,
     ReconciliationResult,
     ReconciliationStatus,
-    RowAccounting,
 )
 from .scd2 import assert_one_current_row
 

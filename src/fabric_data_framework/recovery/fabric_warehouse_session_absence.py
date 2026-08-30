@@ -20,7 +20,7 @@ from pydantic import Field
 from sqlalchemy import Engine, text
 from sqlalchemy.engine import Connection
 
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from .fabric_warehouse import FabricWarehouseAbsenceEvidence, FabricWarehouseMarkerStore
 from .target_probe import TargetCommitProbeRequest
 

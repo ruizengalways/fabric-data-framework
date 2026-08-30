@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 
 
 class RebuildProgressKind(str, Enum):

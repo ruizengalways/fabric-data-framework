@@ -16,8 +16,8 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, field_validator, model_validator
 
-from .config import FrozenModel
-from .contracts.recovery import UnknownOutcomeResolution
+from .base import FrozenModel
+from .recovery import UnknownOutcomeResolution
 
 
 def _utcnow() -> datetime:

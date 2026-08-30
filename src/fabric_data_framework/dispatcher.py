@@ -28,7 +28,10 @@ from .contracts.dispatch import (
     PipelineDispatchResult,
 )
 from .execution.backends.in_process import execute_ready_wave
-from .operations import DatasetRunAudit, PipelineRunAudit
+from fabric_data_framework.contracts.audit import (
+    DatasetRunAudit,
+    PipelineRunAudit,
+)
 from .orchestration.planner import (
     DEFAULT_REQUIRED_CRITICALITIES,
     OrchestrationIntegrityError,

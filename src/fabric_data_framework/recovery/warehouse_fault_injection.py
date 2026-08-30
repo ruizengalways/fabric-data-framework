@@ -14,7 +14,7 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from ..recovery.target_probe import TargetCommitProbeEvidence
 from ..evidence.safety import assert_safe_retained_text
 

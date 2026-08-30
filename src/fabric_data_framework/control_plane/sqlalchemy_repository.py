@@ -38,13 +38,13 @@ from .schema import (
     watermark,
 )
 from ..deployment.delivery import materialize_semantic_metadata
-from ..operations import (
+from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
     PipelineRunAudit,
-    QuarantineBatch,
-    ReconciliationResult,
     StepRunAudit,
 )
+from fabric_data_framework.contracts.quarantine import QuarantineBatch
+from fabric_data_framework.contracts.reconciliation import ReconciliationResult
 from ..runtime import WatermarkPosition
 
 

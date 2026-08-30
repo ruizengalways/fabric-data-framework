@@ -3,13 +3,15 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from fabric_data_framework.operations import (
+from fabric_data_framework.contracts.audit import RowAccounting
+from fabric_data_framework.contracts.quarantine import (
     QuarantineBatch,
     QuarantineScope,
+)
+from fabric_data_framework.contracts.reconciliation import (
     ReconciliationMetric,
     ReconciliationResult,
     ReconciliationStatus,
-    RowAccounting,
 )
 
 

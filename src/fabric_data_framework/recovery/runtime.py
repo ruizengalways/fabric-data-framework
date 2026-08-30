@@ -11,14 +11,18 @@ from uuid import UUID, uuid4
 
 from pydantic import Field
 
-from ..config import DatasetStatus, FrozenModel, RunMode
+from fabric_data_framework.config import (
+    DatasetStatus,
+    RunMode,
+)
+from fabric_data_framework.contracts.base import FrozenModel
 from ..contracts.recovery import (
     DatasetAttemptLineage,
     ReprocessRequest,
     ReprocessRequestStatus,
     UnknownOutcomeResolution,
 )
-from ..operations import DatasetRunAudit
+from fabric_data_framework.contracts.audit import DatasetRunAudit
 
 
 T = TypeVar("T")

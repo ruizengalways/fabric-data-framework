@@ -22,7 +22,7 @@ from fabric_data_framework.control_plane.target_operation_journal import (
     claim_target_operation,
     mark_target_operation_unknown,
 )
-from fabric_data_framework.target_operations import (
+from fabric_data_framework.contracts.target_operation import (
     TargetOperationAction,
     TargetOperationIntent,
     TargetOperationStatus,

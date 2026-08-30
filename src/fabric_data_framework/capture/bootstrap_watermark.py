@@ -7,7 +7,8 @@ from typing import Any, Mapping, Sequence
 
 from pydantic import Field
 
-from ..config import FrozenModel, WatermarkConfig
+from fabric_data_framework.config import WatermarkConfig
+from fabric_data_framework.contracts.base import FrozenModel
 from ..runtime import WatermarkPosition
 from ..watermark import WatermarkBatch, plan_watermark_batch
 

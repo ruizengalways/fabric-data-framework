@@ -13,7 +13,12 @@ from enum import Enum
 
 from pydantic import Field
 
-from ..config import ApplyStrategy, CaptureStrategy, DatasetConfig, FrozenModel
+from fabric_data_framework.config import (
+    ApplyStrategy,
+    CaptureStrategy,
+    DatasetConfig,
+)
+from fabric_data_framework.contracts.base import FrozenModel
 
 
 class CapturePattern(str, Enum):

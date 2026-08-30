@@ -6,7 +6,8 @@ from typing import Any
 
 from pydantic import Field
 
-from ..config import FrozenModel, canonical_hash
+from fabric_data_framework.config import canonical_hash
+from fabric_data_framework.contracts.base import FrozenModel
 
 
 class APICaptureError(ValueError):

@@ -7,7 +7,11 @@ from pathlib import Path
 
 from pydantic import Field, model_validator
 
-from ..config import CaptureStrategy, DatasetConfig, FrozenModel
+from fabric_data_framework.config import (
+    CaptureStrategy,
+    DatasetConfig,
+)
+from fabric_data_framework.contracts.base import FrozenModel
 from .patterns import (
     BronzeWriteMode,
     CapturePattern,

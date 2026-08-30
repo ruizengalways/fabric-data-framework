@@ -24,7 +24,7 @@ from ...capture.cdc import (
     build_cdc_checkpoint,
     normalize_cdc_batch,
 )
-from ...config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 
 
 class DebeziumKafkaAdapterError(CDCContractError):

@@ -38,7 +38,7 @@ from fabric_data_framework.evidence.integration_runner import (
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
 )
-from fabric_data_framework.operations import DatasetRunAudit
+from fabric_data_framework.contracts.audit import DatasetRunAudit
 from fabric_data_framework.control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
 
 

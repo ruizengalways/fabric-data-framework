@@ -10,15 +10,11 @@ import json
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
 
-from .schema_contract import SchemaContract
+from .contracts.base import FrozenModel as _FrozenModel
+from .contracts.schema import SchemaContract
 
-
-class FrozenModel(BaseModel):
-    """Base model for immutable, strict framework contracts."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
 
 
 class CaptureStrategy(str, Enum):
@@ -94,18 +90,18 @@ class ProgressOwner(str, Enum):
     EXTERNAL = "EXTERNAL"
 
 
-class SourceConfig(FrozenModel):
+class SourceConfig(_FrozenModel):
     system: str = Field(min_length=1)
     object: str = Field(min_length=1)
     connection_ref: str | None = None
 
 
-class TargetConfig(FrozenModel):
+class TargetConfig(_FrozenModel):
     layer: str = Field(min_length=1)
     object: str = Field(min_length=1)
 
 
-class WatermarkConfig(FrozenModel):
+class WatermarkConfig(_FrozenModel):
     column: str = Field(min_length=1)
     tie_breaker: tuple[str, ...] = ()
     overlap_window_seconds: int = Field(default=0, ge=0)
@@ -127,7 +123,7 @@ _STATEFUL_APPLY = {
 }
 
 
-class LoadPolicy(FrozenModel):
+class LoadPolicy(_FrozenModel):
     capture_strategy: CaptureStrategy
     apply_strategy: ApplyStrategy
     business_key: tuple[str, ...] = ()
@@ -196,7 +192,7 @@ class LoadPolicy(FrozenModel):
         )
 
 
-class OrchestrationPolicy(FrozenModel):
+class OrchestrationPolicy(_FrozenModel):
     execution_group: str = Field(min_length=1)
     criticality: Criticality = Criticality.MEDIUM
     dependencies: tuple[str, ...] = ()
@@ -213,17 +209,17 @@ class OrchestrationPolicy(FrozenModel):
         return self
 
 
-class DataQualityPolicy(FrozenModel):
+class DataQualityPolicy(_FrozenModel):
     policy_name: str = Field(min_length=1)
     quarantine_policy: str = Field(min_length=1)
 
 
-class ReconciliationPolicy(FrozenModel):
+class ReconciliationPolicy(_FrozenModel):
     policy_name: str = Field(min_length=1)
     required_for_state_commit: bool = True
 
 
-class ExecutionPolicy(FrozenModel):
+class ExecutionPolicy(_FrozenModel):
     """Source-controlled physical execution selection for dataset stages.
 
     ``engine`` and ``capability_profile`` describe capture/movement. Apply is an
@@ -241,7 +237,7 @@ class ExecutionPolicy(FrozenModel):
 _EXTENSION_NAME_PATTERN = r"^[a-z][a-z0-9_.-]*$"
 
 
-class ExtensionConfig(FrozenModel):
+class ExtensionConfig(_FrozenModel):
     """Logical names resolved from a controlled domain extension registry."""
 
     capture: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
@@ -251,7 +247,7 @@ class ExtensionConfig(FrozenModel):
     apply: str | None = Field(default=None, pattern=_EXTENSION_NAME_PATTERN)
 
 
-class DatasetConfig(FrozenModel):
+class DatasetConfig(_FrozenModel):
     dataset_id: str = Field(min_length=1)
     source: SourceConfig
     target: TargetConfig
@@ -315,7 +311,7 @@ def _require_aware(value: datetime, field_name: str) -> None:
         raise ValueError(f"{field_name} must be timezone-aware")
 
 
-class RuntimeOverride(FrozenModel):
+class RuntimeOverride(_FrozenModel):
     override_id: UUID = Field(default_factory=uuid4)
     dataset_id: str = Field(min_length=1)
     field: OverrideField
@@ -355,7 +351,7 @@ class RuntimeOverride(FrozenModel):
         )
 
 
-class EffectiveDatasetConfig(FrozenModel):
+class EffectiveDatasetConfig(_FrozenModel):
     config: DatasetConfig
     base_config_hash: str
     effective_config_hash: str

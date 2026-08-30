@@ -15,7 +15,11 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from ...config import ExecutionEngine, FrozenModel, ProgressOwner
+from fabric_data_framework.config import (
+    ExecutionEngine,
+    ProgressOwner,
+)
+from fabric_data_framework.contracts.base import FrozenModel
 from ...contracts.execution_plan import ExecutionKind
 from .contracts import (
     FabricCaptureRequest,

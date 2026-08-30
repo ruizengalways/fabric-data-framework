@@ -9,15 +9,19 @@ from uuid import UUID, uuid4
 
 from ..bronze import BronzeRecord, normalize_bronze
 from ..config import ApplyStrategy, CaptureStrategy, DatasetStatus, RunMode
-from ..operations import (
+from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
-    QuarantineBatch,
-    QuarantineScope,
-    ReconciliationResult,
-    ReconciliationStatus,
     RowAccounting,
     StepRunAudit,
     StepStatus,
+)
+from fabric_data_framework.contracts.quarantine import (
+    QuarantineBatch,
+    QuarantineScope,
+)
+from fabric_data_framework.contracts.reconciliation import (
+    ReconciliationResult,
+    ReconciliationStatus,
 )
 from ..quality import QuarantinedRecord, RowRule, validate_records
 from ..reconciliation import reconcile_scd2_batch

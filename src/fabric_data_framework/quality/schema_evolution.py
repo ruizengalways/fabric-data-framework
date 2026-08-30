@@ -6,8 +6,8 @@ from enum import Enum
 
 from pydantic import Field
 
-from ..config import FrozenModel
-from ..schema_contract import (
+from fabric_data_framework.contracts.base import FrozenModel
+from fabric_data_framework.contracts.schema import (
     LogicalType,
     SchemaCompatibilityPolicy,
     SchemaContract,

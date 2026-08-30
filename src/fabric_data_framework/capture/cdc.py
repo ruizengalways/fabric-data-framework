@@ -13,7 +13,8 @@ from typing import Any, Mapping, Sequence
 
 from pydantic import Field, model_validator
 
-from ..config import FrozenModel, canonical_hash
+from fabric_data_framework.config import canonical_hash
+from fabric_data_framework.contracts.base import FrozenModel
 from ..runtime import StateCommitGate
 
 

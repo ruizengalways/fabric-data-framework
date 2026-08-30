@@ -57,7 +57,7 @@ from fabric_data_framework.recovery.fabric_warehouse import (
     FabricWarehouseAtomicMutationResult,
     FabricWarehouseOperationMarker,
 )
-from fabric_data_framework.target_operations import (
+from fabric_data_framework.contracts.target_operation import (
     TargetOperationIntent,
     fingerprint_semantic_payload,
 )
