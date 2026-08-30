@@ -8,12 +8,12 @@ Last updated: 2026-08-30
 ```text
 latest public release = v0.3.0
 source version        = 0.4.0 development / unreleased
-latest code baseline = 4dfa5e22fd8eab67406ced8af954f2d81ad18321  (PR #51 merge)
-latest full code CI   = Actions 33283668067
-full test baseline   = 525
+latest code baseline = b9187d93015d921614147831da1336b2d91f3e22  (PR #53 merge)
+latest full code CI   = Actions 33284190041
+full test baseline   = 534
 ```
 
-**Do not publish `0.4.0` yet.** Portable semantics/runtime/approved-runner contracts are broad, but exact-release approved real-environment evidence and external enterprise controls remain incomplete.
+**Do not publish `0.4.0` yet.** Exact-release approved real-environment evidence and external enterprise controls remain incomplete.
 
 ## Release-significant merged sequence
 
@@ -37,9 +37,10 @@ PR #45  approved Copy Job + Spark capture evidence runner               490
 PR #47  approved Fabric Warehouse commit/recovery runner                501
 PR #49  approved Warehouse ambiguous-COMMIT fault-drill runner          513
 PR #51  Fabric Warehouse session-termination absence certifier contract 525
+PR #53  approved Warehouse session-termination recovery wiring          534
 ```
 
-Latest code CI: Actions `33283668067`, Python 3.11 / 3.13 / static / wheel all SUCCESS.
+Latest code CI: Actions `33284190041`, Python 3.11 / 3.13 / static / wheel all SUCCESS.
 
 ## Governing invariants
 
@@ -56,6 +57,8 @@ simulated framework ACK loss != real driver/network COMMIT disconnect evidence
 normal Warehouse transaction return cannot prove the real-fault drill
 fault injector != marker-absence certifier
 session disappearance alone != rollback proof
+fault-drill PASS != NOT_COMMITTED recovery
+Admin session termination authorization != fault injection authorization
 ```
 
 ## Semantic / provider coverage
@@ -66,14 +69,12 @@ Canonical semantic detail: `CHEATSHEET_PATTERN_ALIGNMENT.md`.
 
 ## Target-operation recovery
 
-Control-plane target-operation state remains attempt-independent and CAS protected:
-
 ```text
 new               -> EXECUTE
 SUCCEEDED         -> SKIP_SUCCEEDED
 IN_PROGRESS retry -> RECONCILE_REQUIRED
 UNKNOWN retry     -> RECONCILE_REQUIRED
-NOT_COMMITTED     -> CAS reopen -> EXECUTE
+NOT_COMMITTED     -> future intentional claim may reopen -> EXECUTE
 ```
 
 Warehouse primary commit truth:
@@ -86,36 +87,33 @@ marker absent + independently certified no-late-commit proof -> NOT_COMMITTED
 
 ### PR #47 — approved Warehouse commit/recovery
 
-`integration-warehouse-run` proves the same-transaction marker/recovery contract. The normal deterministic path deliberately simulates framework acknowledgement loss only **after** target transaction success:
+Normal deterministic proof:
 
 ```text
 EXECUTE
  -> target mutation + marker commit
- -> journal UNKNOWN
+ -> deliberately simulate framework ACK loss
+ -> UNKNOWN
  -> marker COMMITTED
- -> journal SUCCEEDED
+ -> SUCCEEDED
  -> later SKIP_SUCCEEDED
 ```
 
-Correct evidence label:
+Correct label:
 
 ```text
 IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT
 ```
 
-It does not prove an actual network/driver COMMIT fault.
+### PR #49 — approved ambiguous-COMMIT fault drill
 
-### PR #49 — approved real-fault drill contract
-
-Separate evidence kind and CLI:
+Separate evidence kind:
 
 ```text
 FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL
-integration-warehouse-fault-drill-run
-fabric_data_framework.warehouse_commit_fault_injectors
 ```
 
-PASS requires an actually observed provider/driver exception, independently verified same fault identity, marker `COMMITTED`, durable journal `SUCCEEDED`, and later `SKIP_SUCCEEDED`. A normal transaction return can never PASS. Marker absence remains `UNRESOLVED`; fault injectors cannot manufacture `NOT_COMMITTED`.
+PASS requires an actual provider/driver exception, verified same fault identity, marker `COMMITTED`, journal `SUCCEEDED`, and later `SKIP_SUCCEEDED`. A normal return can never PASS.
 
 Correct label:
 
@@ -123,64 +121,99 @@ Correct label:
 IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT
 ```
 
-No real approved fault drill is retained yet.
-
 ### PR #51 — session-termination absence certifier
 
-New provider-specific module:
+A narrow Fabric-specific no-late-commit proof exists. Safe absence requires:
 
 ```text
-recovery/fabric_warehouse_session_absence.py
+exact target connection_id + session_id captured before mutation
+same exact session observable after ambiguity
+open_transaction_count > 0
+Admin KILL exact session
+same exact connection/session disappears
+post-termination marker re-read succeeds
+marker remains absent
 ```
 
-Exports:
+Any uncertainty stays unresolved. Marker appearing during termination forbids `NOT_COMMITTED`.
 
-```text
-FabricWarehouseSessionBinding
-FabricWarehouseSessionState
-FabricWarehouseSessionAuthority
-SqlAlchemyFabricWarehouseSessionAuthority
-FabricWarehouseSessionTerminationAbsenceCertifier
-capture_fabric_warehouse_session_binding
-```
-
-This contract defines a narrow Fabric-specific no-late-commit proof. `safe_to_retry=true` is allowed only after:
-
-```text
-1. exact target connection_id + session_id captured on target connection before mutation
-2. independent authority sees that exact connection/session after the ambiguous exception
-3. open_transaction_count > 0
-4. Admin KILL succeeds for that exact session
-5. exact connection/session disappears
-6. target marker is read again after termination
-7. marker is still absent
-```
-
-Critical fail-closed cases:
-
-```text
-session already gone before inspection -> UNRESOLVED; may already have committed
-open_transaction_count == 0            -> UNRESOLVED
-connection/session mismatch            -> UNRESOLVED
-DMV/KILL/post-check error              -> UNRESOLVED; exception type only
-session remains observable             -> UNRESOLVED
-post-KILL marker read fails            -> UNRESOLVED
-marker appears during KILL race        -> NOT_COMMITTED forbidden
-```
-
-The exact session binding uses provider `connection_id` plus numeric `session_id`; numeric session ID alone is insufficient. The SQLAlchemy authority uses a separate connection and exact DMV filtering; `KILL` runs under AUTOCOMMIT.
-
-Query Insights remains secondary only because completed history is eventually visible and cannot establish immediate no-late-commit safety.
-
-Correct evidence label:
+Correct label:
 
 ```text
 IMPLEMENTED + CI PROVEN FABRIC WAREHOUSE SESSION-TERMINATION ABSENCE CERTIFIER CONTRACT
 ```
 
-This is **not** a production-approved marker-absence certifier. It is not yet wired into an approved execution CLI with a separately controlled Admin credential and separate session-termination authorization.
+### PR #53 — approved session-termination recovery wiring
 
-Canonical runbook: `FABRIC_WAREHOUSE_SESSION_ABSENCE_CERTIFIER.md`.
+PR #53 integrates PR #51 into `integration-warehouse-fault-drill-run` as an **optional operational recovery path**, without changing the fault-drill PASS meaning.
+
+Source-controlled `ApprovedIntegrationRunnerConfig` now supports:
+
+```text
+warehouse_admin_database_url_env_var
+```
+
+Rules:
+
+```text
+ordinary Warehouse DB env-var name != Admin Warehouse DB env-var name
+run config must set enable_session_termination_recovery=true
+CLI/runtime must separately set --allow-warehouse-session-termination
+--allow-warehouse-fault-injection never grants KILL permission
+```
+
+Admin URL value is lazily read only after all of these are known:
+
+```text
+execute_atomic actually raised
+exact session binding captured
+fault disarm succeeded
+fault verify succeeded
+fault identity matched
+initial plain marker probe = UNRESOLVED
+journal remains UNKNOWN
+```
+
+For the positive commit path:
+
+```text
+marker COMMITTED
+ -> Admin URL value is not read
+ -> Admin authority is not constructed
+ -> existing COMMITTED -> SUCCEEDED -> SKIP_SUCCEEDED PASS semantics remain unchanged
+```
+
+For safe rollback:
+
+```text
+verified unresolved fault
+ -> independently authorized exact-session termination certifier
+ -> exact session killed / disappears
+ -> post-KILL marker remains absent
+ -> UNKNOWN -> NOT_COMMITTED
+ -> retry_eligible=true
+ -> runner does not auto-claim or auto-reexecute
+ -> fault-drill check remains FAIL
+```
+
+That FAIL is correct: `FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL` proves committed ambiguity recovery. `NOT_COMMITTED` is a different operational recovery conclusion.
+
+If the certifier remains unresolved, the runner performs one final **plain positive marker probe**. It may recognize a marker that appeared during the race; it can never infer absence by itself.
+
+Correct PR #53 label:
+
+```text
+IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE SESSION-TERMINATION RECOVERY CONTRACT
+```
+
+No real Fabric/Admin/KILL or production-approved marker-absence claim exists yet.
+
+Canonical detail:
+
+```text
+APPROVED_WAREHOUSE_FAULT_DRILL.md
+FABRIC_WAREHOUSE_SESSION_ABSENCE_CERTIFIER.md
+```
 
 ## Approved evidence system
 
@@ -197,13 +230,13 @@ FABRIC_WAREHOUSE_SESSION_ABSENCE_CERTIFIER.md
 INTEGRATION_EVIDENCE_MERGE.md
 ```
 
-Evidence remains exact-spec/exact-release. Required checks certify only on PASS. Strict staged merge rules remain:
+Strict staged merge remains fail closed:
 
 ```text
 NOT_RUN = absence
 one substantive result = retain unchanged
 identical substantive duplicate = allowed
-different rerun evidence = conflict
+different substantive rerun evidence = conflict
 no latest/PASS-wins/FAIL-wins arbitration
 ```
 
@@ -218,11 +251,10 @@ real Copy Job capture + approved observation
 real bounded Spark execution + approved observation
 real Fabric Warehouse target+marker transaction
 provider-specific live Warehouse COMMIT fault injector
-retained real ambiguous Warehouse COMMIT/network-driver fault-drill PASS
+retained real ambiguous-COMMIT/network-driver fault-drill PASS
 live exact Warehouse session binding via selected driver
-live Admin DMV observation / KILL / rollback proof
-approved-run wiring with separate Admin credential and termination authorization
-production-approved marker-absence certifier
+live separate Admin identity / DMV observation / KILL / rollback proof
+production-approved marker-absence recovery
 live Kafka coordination if release scope includes Kafka
 live Delta CDF bounded read/retention if release scope includes Delta
 capacity/throttling/gateway behavior
@@ -239,17 +271,17 @@ When approved enterprise inputs are available:
 1. replace placeholder DEV release hash/item UUIDs with exact candidate values;
 2. run real read-only item smoke;
 3. run real production control-plane certification;
-4. strict-merge prerequisite evidence;
+4. strict-merge prerequisites;
 5. run approved Pipeline;
 6. run approved Copy Job + bounded Spark capture;
 7. run approved Warehouse target+marker recovery;
 8. if required, run provider-specific real ambiguous-COMMIT fault drill;
-9. if `NOT_COMMITTED` recovery is required, run exact-session termination recovery under separately controlled Admin authority;
+9. if the unresolved branch matters, exercise exact-session termination recovery under a separately controlled Admin authority;
 10. merge required evidence and pass `integration-evidence-validate --require-certified`;
 11. prove Kafka/Delta live only if part of `0.4.0` public promise;
 12. run exact-candidate release audit.
 
-If real inputs remain unavailable, next reusable slice is **approved session-termination recovery wiring**. It must add a separate Admin DB URL environment-variable name and separate explicit authorization. Normal Warehouse mutation/fault authorization must never silently grant `KILL` authority.
+If real inputs remain unavailable, **do not add another Warehouse recovery abstraction**. Commit recovery, real-fault evidence separation, exact-session absence proof, and approved NOT_COMMITTED wiring now exist at CI-contract level. The next reusable work should prepare the exact 0.4.0 evidence candidate or implement a provider-specific live fault injector only when its actual enterprise mechanism is known.
 
 ## Repository boundaries
 
