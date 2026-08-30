@@ -1,10 +1,9 @@
 """Exact-release approved real-fault drill for ambiguous Fabric Warehouse COMMIT.
 
-This runner is intentionally separate from the normal approved Warehouse commit runner.
-A PASS requires an actually observed provider/driver exception, verified provider-specific
-fault injection, a committed target-side marker, durable journal reconciliation to
-SUCCEEDED, and later SKIP_SUCCEEDED re-entry. A normal transaction return can never PASS
-this drill even when the marker proves the target committed.
+This runner is separate from the normal approved Warehouse commit runner. PASS requires
+an actually observed provider/driver exception, verified provider-specific fault
+injection, committed target-side marker evidence, journal reconciliation to SUCCEEDED,
+and later SKIP_SUCCEEDED re-entry. A normal transaction return can never PASS this drill.
 """
 
 from __future__ import annotations
@@ -62,7 +61,6 @@ from .target_operation_io import (
     claim_target_operation,
     mark_target_operation_not_committed,
     mark_target_operation_unknown,
-    read_target_operation,
 )
 from .target_operations import (
     TargetOperationAction,
@@ -149,7 +147,7 @@ class ApprovedWarehouseFaultDrillReport(FrozenModel):
     @model_validator(mode="after")
     def validate_report(self) -> "ApprovedWarehouseFaultDrillReport":
         if self.evidence_status is IntegrationEvidenceStatus.PASS:
-            required = (
+            passed = (
                 self.fault_armed
                 and self.provider_exception_observed
                 and self.execution_exception_type is not None
@@ -163,7 +161,7 @@ class ApprovedWarehouseFaultDrillReport(FrozenModel):
                 and self.marker_reference is not None
                 and self.failure_reason is None
             )
-            if not required:
+            if not passed:
                 raise ValueError(
                     "approved Warehouse ambiguous-COMMIT drill PASS requires an observed and "
                     "verified real fault plus COMMITTED->SUCCEEDED->SKIP_SUCCEEDED recovery"
@@ -225,8 +223,7 @@ def _require_prerequisites(
 ) -> None:
     validate_integration_evidence_manifest(spec, prerequisite_manifest)
     results = {item.check_id: item for item in prerequisite_manifest.results}
-    selected = results[selected_check_id]
-    if selected.status is not IntegrationEvidenceStatus.NOT_RUN:
+    if results[selected_check_id].status is not IntegrationEvidenceStatus.NOT_RUN:
         raise ValueError(
             "approved Warehouse fault drill requires the selected check to remain NOT_RUN in "
             "the prerequisite manifest"
@@ -242,9 +239,9 @@ def _require_prerequisites(
             "normal approved Warehouse commit/recovery",
         ),
     )
-    for required_kind, label in required:
+    for kind, label in required:
         if not any(
-            item.kind is required_kind and item.status is IntegrationEvidenceStatus.PASS
+            item.kind is kind and item.status is IntegrationEvidenceStatus.PASS
             for item in prerequisite_manifest.results
         ):
             raise ValueError(
@@ -295,15 +292,16 @@ def _resolve_extensions(
     if extension_registry is None:
         registry.discover(ExtensionKind.WAREHOUSE_MUTATION)
         registry.discover(ExtensionKind.WAREHOUSE_COMMIT_FAULT_INJECTOR)
-    mutation = registry.factory(
-        ExtensionKind.WAREHOUSE_MUTATION,
-        run_config.mutation_extension,
+    return (
+        registry.factory(
+            ExtensionKind.WAREHOUSE_MUTATION,
+            run_config.mutation_extension,
+        ),
+        registry.factory(
+            ExtensionKind.WAREHOUSE_COMMIT_FAULT_INJECTOR,
+            run_config.fault_injector_extension,
+        ),
     )
-    fault_factory = registry.factory(
-        ExtensionKind.WAREHOUSE_COMMIT_FAULT_INJECTOR,
-        run_config.fault_injector_extension,
-    )
-    return mutation, fault_factory
 
 
 def _dedupe_references(*groups: Iterable[str | None]) -> tuple[str, ...]:
@@ -323,9 +321,7 @@ def _fault_identity_matches(
     arm: FabricWarehouseCommitFaultArmEvidence,
     verification: FabricWarehouseCommitFaultVerification | None,
 ) -> bool:
-    if verification is None:
-        return False
-    if arm.phase is not verification.phase:
+    if verification is None or arm.phase is not verification.phase:
         return False
     if arm.provider_fault_id is not None:
         return verification.provider_fault_id == arm.provider_fault_id
@@ -371,6 +367,63 @@ def _atomic_from_committed_marker(
         marker=markers[0],
         marker_reference=marker_store.marker_reference(intent.operation_key),
         executed=True,
+    )
+
+
+def _report(
+    *,
+    run_config: ApprovedWarehouseFaultDrillConfig,
+    intent: TargetOperationIntent,
+    dataset_run_id: UUID,
+    request: FabricWarehouseCommitFaultRequest,
+    arm: FabricWarehouseCommitFaultArmEvidence,
+    status: IntegrationEvidenceStatus,
+    references: tuple[str, ...],
+    provider_exception_observed: bool = False,
+    execution_exception_type: str | None = None,
+    disarm_exception_type: str | None = None,
+    verification_exception_type: str | None = None,
+    verification: FabricWarehouseCommitFaultVerification | None = None,
+    identity_matches: bool = False,
+    atomic_result: FabricWarehouseAtomicMutationResult | None = None,
+    probe_resolution: UnknownOutcomeResolution | None = None,
+    final_status: TargetOperationStatus | None = None,
+    reentry_action: str | None = None,
+    failure_reason: str | None = None,
+) -> ApprovedWarehouseFaultDrillReport:
+    return ApprovedWarehouseFaultDrillReport(
+        check_id=run_config.check_id,
+        run_config_hash=run_config.run_config_hash,
+        operation_key=intent.operation_key,
+        dataset_run_id=dataset_run_id,
+        target_reference=intent.target_reference,
+        fault_phase=request.phase,
+        fault_armed=arm.armed,
+        provider_exception_observed=provider_exception_observed,
+        execution_exception_type=execution_exception_type,
+        disarm_exception_type=disarm_exception_type,
+        verification_exception_type=verification_exception_type,
+        fault_verified=bool(verification and verification.triggered),
+        fault_identity_matches=identity_matches,
+        fault_evidence_reference=(
+            verification.evidence_reference
+            if verification is not None
+            else arm.evidence_reference
+        ),
+        provider_fault_id=(
+            verification.provider_fault_id
+            if verification is not None
+            else arm.provider_fault_id
+        ),
+        marker_reference=(
+            atomic_result.marker_reference if atomic_result is not None else None
+        ),
+        probe_resolution=probe_resolution,
+        final_status=final_status,
+        reentry_action=reentry_action,
+        evidence_status=status,
+        failure_reason=failure_reason,
+        evidence_references=references,
     )
 
 
@@ -429,7 +482,6 @@ def execute_approved_warehouse_fault_drill(
         release_manifest=release_manifest,
         configs=config_tuple,
     )
-
     if config.control_plane_profile is None or config.control_plane_database_url_env_var is None:
         raise ValueError("approved Warehouse fault runner requires control-plane configuration")
     if config.warehouse_database_url_env_var is None:
@@ -456,11 +508,10 @@ def execute_approved_warehouse_fault_drill(
         input_fingerprint=run_config.input_fingerprint,
     )
 
-    # Secret-bearing URL values are read only after exact release, prerequisite,
-    # provenance, profile and explicit fault-authorization gates pass.
+    # Secret-bearing values are retrieved only after all non-secret gates pass.
     control_database_url = environ[config.control_plane_database_url_env_var]
     warehouse_database_url = environ[config.warehouse_database_url_env_var]
-    report_holder: list[ApprovedWarehouseFaultDrillReport] = []
+    reports: list[ApprovedWarehouseFaultDrillReport] = []
 
     def runner() -> IntegrationEvidenceCheckResult:
         control_engine = control_engine_factory(control_database_url)
@@ -499,24 +550,20 @@ def execute_approved_warehouse_fault_drill(
                     detail_code=f"FRESH_EXECUTE_REQUIRED_{claim.action.value}",
                 )
 
-            fault_request = FabricWarehouseCommitFaultRequest(
+            request = FabricWarehouseCommitFaultRequest(
                 operation_key=intent.operation_key,
                 dataset_id=intent.dataset_id,
                 dataset_run_id=dataset_run_id,
                 attempt=1,
                 target_reference=intent.target_reference,
             )
-            fault_injector = fault_factory(
-                warehouse_engine,
-                fault_request,
-                run_config.fault_payload,
-            )
-            if not isinstance(fault_injector, FabricWarehouseCommitFaultInjector):
+            injector = fault_factory(warehouse_engine, request, run_config.fault_payload)
+            if not isinstance(injector, FabricWarehouseCommitFaultInjector):
                 raise TypeError(
                     "Warehouse fault injector extension did not return the required controller"
                 )
-            arm = fault_injector.arm(fault_request)
-            if arm.phase is not fault_request.phase:
+            arm = injector.arm(request)
+            if arm.phase is not request.phase:
                 raise ValueError("Warehouse fault injector armed the wrong fault phase")
             if not arm.armed:
                 current = mark_target_operation_not_committed(
@@ -528,24 +575,17 @@ def execute_approved_warehouse_fault_drill(
                     outcome_reference=arm.evidence_reference,
                 )
                 retained = _dedupe_references(references, (arm.evidence_reference,))
-                report_holder.append(
-                    ApprovedWarehouseFaultDrillReport(
-                        check_id=check_id,
-                        run_config_hash=run_config.run_config_hash,
-                        operation_key=intent.operation_key,
+                reports.append(
+                    _report(
+                        run_config=run_config,
+                        intent=intent,
                         dataset_run_id=dataset_run_id,
-                        target_reference=intent.target_reference,
-                        fault_phase=fault_request.phase,
-                        fault_armed=False,
-                        provider_exception_observed=False,
-                        fault_verified=False,
-                        fault_identity_matches=False,
-                        fault_evidence_reference=arm.evidence_reference,
-                        provider_fault_id=arm.provider_fault_id,
+                        request=request,
+                        arm=arm,
+                        status=IntegrationEvidenceStatus.FAIL,
+                        references=retained,
                         final_status=current.status,
-                        evidence_status=IntegrationEvidenceStatus.FAIL,
                         failure_reason="FAULT_NOT_ARMED",
-                        evidence_references=retained,
                     )
                 )
                 return _build_result(
@@ -580,7 +620,7 @@ def execute_approved_warehouse_fault_drill(
                 execution_exception_type = type(exc).__name__
             finally:
                 try:
-                    fault_injector.disarm(fault_request)
+                    injector.disarm(request)
                 except Exception as exc:
                     disarm_exception_type = type(exc).__name__
 
@@ -618,14 +658,14 @@ def execute_approved_warehouse_fault_drill(
             verification: FabricWarehouseCommitFaultVerification | None = None
             verification_exception_type: str | None = None
             try:
-                verification = fault_injector.verify(
-                    fault_request,
+                verification = injector.verify(
+                    request,
                     observed_exception_type=execution_exception_type,
                     probe_evidence=probe_evidence,
                 )
             except Exception as exc:
                 verification_exception_type = type(exc).__name__
-            if verification is not None and verification.phase is not fault_request.phase:
+            if verification is not None and verification.phase is not request.phase:
                 verification = None
                 verification_exception_type = "FaultPhaseMismatch"
 
@@ -685,53 +725,32 @@ def execute_approved_warehouse_fault_drill(
             else:
                 failure_reason = None
 
-            status = (
-                IntegrationEvidenceStatus.PASS
-                if passed
-                else IntegrationEvidenceStatus.FAIL
-            )
-            marker_reference = (
-                atomic_result.marker_reference if atomic_result is not None else None
-            )
+            status = IntegrationEvidenceStatus.PASS if passed else IntegrationEvidenceStatus.FAIL
             native_operation_id = (
                 atomic_result.marker.native_operation_id
                 if atomic_result is not None
                 else probe_evidence.native_operation_id
             )
-            fault_reference = (
-                verification.evidence_reference
-                if verification is not None
-                else arm.evidence_reference
-            )
-            provider_fault_id = (
-                verification.provider_fault_id
-                if verification is not None
-                else arm.provider_fault_id
-            )
-            report_holder.append(
-                ApprovedWarehouseFaultDrillReport(
-                    check_id=check_id,
-                    run_config_hash=run_config.run_config_hash,
-                    operation_key=intent.operation_key,
+            reports.append(
+                _report(
+                    run_config=run_config,
+                    intent=intent,
                     dataset_run_id=dataset_run_id,
-                    target_reference=intent.target_reference,
-                    fault_phase=fault_request.phase,
-                    fault_armed=arm.armed,
+                    request=request,
+                    arm=arm,
+                    status=status,
+                    references=retained,
                     provider_exception_observed=execution_exception_type is not None,
                     execution_exception_type=execution_exception_type,
                     disarm_exception_type=disarm_exception_type,
                     verification_exception_type=verification_exception_type,
-                    fault_verified=fault_verified,
-                    fault_identity_matches=identity_matches,
-                    fault_evidence_reference=fault_reference,
-                    provider_fault_id=provider_fault_id,
-                    marker_reference=marker_reference,
+                    verification=verification,
+                    identity_matches=identity_matches,
+                    atomic_result=atomic_result,
                     probe_resolution=probe_evidence.resolution,
                     final_status=current.status,
                     reentry_action=reentry_action,
-                    evidence_status=status,
                     failure_reason=failure_reason,
-                    evidence_references=retained,
                 )
             )
             return _build_result(
@@ -748,8 +767,11 @@ def execute_approved_warehouse_fault_drill(
             control_engine.dispose()
 
     manifest = run_integration_evidence(spec, runners={check_id: runner})
-    report = report_holder[0] if report_holder else None
-    return ApprovedWarehouseFaultDrillExecution(plan=plan, manifest=manifest, report=report)
+    return ApprovedWarehouseFaultDrillExecution(
+        plan=plan,
+        manifest=manifest,
+        report=reports[0] if reports else None,
+    )
 
 
 __all__ = [
