@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import importlib
 from pathlib import Path
+import re
 
 import pytest
 
@@ -45,9 +46,13 @@ def test_deployment_package_has_no_cli_dependency():
 
 
 def test_source_and_tests_do_not_reintroduce_flat_delivery_or_deployment_symbol_imports():
-    forbidden = (
+    forbidden_text = (
         "from fabric_data_framework.delivery import",
         "from fabric_data_framework.deployment import",
+    )
+    forbidden_patterns = (
+        re.compile(r"from \.+delivery import "),
+        re.compile(r"from \.+deployment import "),
     )
     offenders: list[str] = []
     current_test = Path(__file__).resolve()
@@ -56,7 +61,12 @@ def test_source_and_tests_do_not_reintroduce_flat_delivery_or_deployment_symbol_
             if path.resolve() == current_test:
                 continue
             text = path.read_text(encoding="utf-8")
-            for value in forbidden:
+            for value in forbidden_text:
                 if value in text:
                     offenders.append(f"{path.relative_to(REPO_ROOT)}: {value}")
+            for pattern in forbidden_patterns:
+                if pattern.search(text):
+                    offenders.append(
+                        f"{path.relative_to(REPO_ROOT)}: {pattern.pattern}"
+                    )
     assert offenders == []
