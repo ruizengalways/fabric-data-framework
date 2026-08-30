@@ -53,6 +53,14 @@ jobs:
                           'from ..retained_evidence_safety import ',
                           'from ..evidence.safety import ',
                       )
+                      updated = updated.replace(
+                          'from ...retained_evidence_safety import ',
+                          'from ...evidence.safety import ',
+                      )
+                      updated = updated.replace(
+                          'from ....retained_evidence_safety import ',
+                          'from ....evidence.safety import ',
+                      )
                   updated = updated.replace(
                       'import fabric_data_framework.retained_evidence_safety',
                       'import fabric_data_framework.evidence.safety',
