@@ -23,7 +23,7 @@ from fabric_data_framework.contracts.reconciliation import (
     ReconciliationResult,
     ReconciliationStatus,
 )
-from ..quality import QuarantinedRecord, RowRule, validate_records
+from ..quality.rules import QuarantinedRecord, RowRule, validate_records
 from fabric_data_framework.quality.reconciliation import reconcile_scd2_batch
 from ..control_plane.repository import ControlPlaneRepository
 from fabric_data_framework.contracts.runtime import StateCommitGate, WatermarkPosition, WatermarkTransition
