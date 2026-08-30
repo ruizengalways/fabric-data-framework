@@ -232,6 +232,40 @@ failed/conflicting merge must not clobber output
 
 Exact spec/environment/domain/framework/release/check list must match.
 
+## Release-readiness identity and scope
+
+Release readiness is a separate aggregation layer over retained proof. It never executes Fabric and never invents missing evidence.
+
+Exact identity chain:
+
+```text
+framework version
++ exact 40-character candidate source SHA
++ exact inner candidate wheel SHA256
++ retained ReleaseReadinessProofBundle
++ retained IntegrationEvidenceManifest whose release_hash == exact wheel SHA256
+```
+
+Non-negotiable rules:
+
+```text
+missing proof -> NOT_RUN
+required NOT_RUN or FAIL -> release blocker
+required OUT_OF_SCOPE -> FAIL/blocker
+optional OUT_OF_SCOPE -> allowed only when release scope explicitly excludes that capability
+release_ready=true iff every required gate is PASS
+integration-backed readiness gate cannot be satisfied by a generic/manual proof entry
+proof from one candidate source SHA cannot certify another candidate
+integration evidence from one wheel SHA cannot certify a rebuilt/different wheel
+GitHub artifact archive digest is not the inner wheel SHA256
+same source version or same git SHA does not authorize evidence reuse across different artifact bytes
+provider Completed does not satisfy semantic/business-path readiness gates
+```
+
+The source-controlled 0.4 matrix currently keeps Debezium/Kafka optional. If the public 0.4 GA promise is changed to include live Debezium/Kafka certification, that gate must become required **before** final evidence review and release.
+
+A green CI job that generates an intentionally blocked readiness report proves only the fail-closed aggregator contract. It does not make the candidate release-ready.
+
 ## Credential/evidence safety
 
 Source-controlled approved-run config may store env-var **names**, never secret values.
@@ -263,11 +297,11 @@ CLI -> reusable framework core
 reusable framework core -X-> CLI
 ```
 
-Core semantics/runtime/provider/recovery modules must never import `fabric_data_framework.cli`.
+Core semantics/runtime/provider/recovery/evidence/deployment modules must never import `fabric_data_framework.cli`.
 
 Physical removal of the `cli/` directory is allowed to remove the console command, but must not make the reusable package core unimportable or unusable through Python APIs.
 
-`src/fabric_data_framework/cli_router.py` may exist only as a deprecated import-compatibility shim; it must not regain command/business implementation.
+The removed root `src/fabric_data_framework/cli_router.py` compatibility path must remain absent. Do not reintroduce root-level CLI shims or command/business implementation.
 
 New reusable logic belongs outside `cli/`; command handlers should only parse arguments, call reusable APIs, and render/write results.
 
@@ -283,4 +317,4 @@ FABRIC WAREHOUSE PROVEN
 PRODUCTION DB PROVEN
 ```
 
-after retained approved real-service execution for the exact release candidate.
+after retained approved real-service execution for the exact release candidate and exact certified artifact.
