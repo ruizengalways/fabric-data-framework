@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fabric_data_framework.capture import (
+from fabric_data_framework.capture.onboarding import (
     load_capture_selections,
     validate_capture_selection,
 )
