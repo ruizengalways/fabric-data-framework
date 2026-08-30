@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 
-PACKAGE_ROOT = Path(__file__).parents[1] / "src" / "fabric_data_framework"
+REPO_ROOT = Path(__file__).parents[1]
+PACKAGE_ROOT = REPO_ROOT / "src" / "fabric_data_framework"
 
 EVIDENCE_MODULES = (
     "integration_evidence",
@@ -46,3 +47,25 @@ def test_cli_router_legacy_module_is_absent():
     assert not (PACKAGE_ROOT / "cli_router.py").exists()
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module("fabric_data_framework.cli_router")
+
+
+def test_source_and_tests_do_not_reintroduce_legacy_import_paths():
+    forbidden = tuple(
+        f"fabric_data_framework.{module_name}" for module_name in EVIDENCE_MODULES
+    ) + (
+        "from fabric_data_framework import cli_router",
+        "import fabric_data_framework.cli_router",
+    )
+    offenders: list[str] = []
+    current_test = Path(__file__).resolve()
+
+    for root in (REPO_ROOT / "src", REPO_ROOT / "tests"):
+        for path in sorted(root.rglob("*.py")):
+            if path.resolve() == current_test:
+                continue
+            text = path.read_text(encoding="utf-8")
+            for value in forbidden:
+                if value in text:
+                    offenders.append(f"{path.relative_to(REPO_ROOT)}: {value}")
+
+    assert offenders == []
