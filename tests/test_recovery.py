@@ -9,7 +9,7 @@ from fabric_data_framework.contracts.recovery import (
     ReprocessRequestStatus,
     UnknownOutcomeResolution,
 )
-from fabric_data_framework.recovery import (
+from fabric_data_framework.recovery.runtime import (
     FailureDisposition,
     PermanentExecutionError,
     RecoveryExhaustedError,
