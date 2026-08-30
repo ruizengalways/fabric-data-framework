@@ -25,7 +25,7 @@ from sqlalchemy.engine import Connection
 
 from ..config import DatasetConfig, FrozenModel, canonical_hash, resolve_effective_config
 from ..contracts.recovery import UnknownOutcomeResolution
-from ..control_plane_certification import get_control_plane_backend_profile
+from ..control_plane.certification import get_control_plane_backend_profile
 from ..delivery import config_bundle_hash
 from ..deployment import ReleaseManifest
 from ..extensions import ExtensionKind, ExtensionRegistry
@@ -69,9 +69,9 @@ from ..recovery.warehouse_fault_injection import (
     FabricWarehouseCommitFaultVerification,
     WarehouseCommitFaultPhase,
 )
-from ..relational_repository import SqlAlchemyControlPlaneRepository
+from ..control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
 from ..retained_evidence_safety import assert_safe_retained_text
-from ..target_operation_io import (
+from ..control_plane.target_operation_journal import (
     claim_target_operation,
     mark_target_operation_not_committed,
     mark_target_operation_unknown,

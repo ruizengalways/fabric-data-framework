@@ -16,7 +16,7 @@ from fabric_data_framework.config import (
     TargetConfig,
     WatermarkConfig,
 )
-from fabric_data_framework.control_plane import (
+from fabric_data_framework.control_plane.schema import (
     capture_receipt,
     cdc_checkpoint,
     dataset_attempt_lineage,
@@ -29,7 +29,7 @@ from fabric_data_framework.control_plane import (
     watermark,
 )
 from fabric_data_framework.delivery import materialize_semantic_metadata
-from fabric_data_framework.operator import (
+from fabric_data_framework.control_plane.operator import (
     get_dataset_operational_snapshot,
     list_dataset_operational_snapshots,
 )

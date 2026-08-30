@@ -33,7 +33,7 @@ from ..operations import (
     StepStatus,
 )
 from ..quality import QuarantinedRecord, RowRule, reconcile_full_replace, validate_records
-from ..repository import ControlPlaneRepository
+from ..control_plane.repository import ControlPlaneRepository
 
 
 @dataclass(frozen=True)

@@ -7,18 +7,18 @@ from threading import RLock
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
-from .config import DatasetConfig
-from .contracts.capture_receipt import CaptureReceipt
-from .contracts.dispatch import DatasetDispatchOutcome
-from .contracts.recovery import DatasetAttemptLineage, ReprocessRequest
-from .operations import (
+from ..config import DatasetConfig
+from ..contracts.capture_receipt import CaptureReceipt
+from ..contracts.dispatch import DatasetDispatchOutcome
+from ..contracts.recovery import DatasetAttemptLineage, ReprocessRequest
+from ..operations import (
     DatasetRunAudit,
     PipelineRunAudit,
     QuarantineBatch,
     ReconciliationResult,
     StepRunAudit,
 )
-from .runtime import WatermarkPosition
+from ..runtime import WatermarkPosition
 
 
 @runtime_checkable

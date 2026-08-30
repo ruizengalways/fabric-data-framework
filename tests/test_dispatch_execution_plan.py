@@ -15,7 +15,7 @@ from fabric_data_framework.config import (
 )
 from fabric_data_framework.contracts.execution_plan import ExecutionKind
 from fabric_data_framework.dispatcher import DatasetDispatchOutcome, dispatch_datasets
-from fabric_data_framework.repository import InMemoryControlPlane
+from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 
 
 def test_in_process_backend_attaches_immutable_execution_plan_to_dataset_request():

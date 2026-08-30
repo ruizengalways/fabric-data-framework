@@ -42,7 +42,7 @@ from fabric_data_framework.recovery.fabric_warehouse import (
     FabricWarehouseMutationEvidence,
     build_fabric_warehouse_operation_marker_table,
 )
-from fabric_data_framework.target_operation_io import (
+from fabric_data_framework.control_plane.target_operation_journal import (
     read_target_operation,
     read_target_operation_events,
 )

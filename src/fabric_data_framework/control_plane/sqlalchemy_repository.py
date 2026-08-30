@@ -19,11 +19,11 @@ from uuid import UUID
 
 from sqlalchemy import Engine, select
 
-from .config import DatasetConfig, DatasetStatus
-from .contracts.capture_receipt import CaptureReceipt
-from .contracts.dispatch import DatasetDispatchOutcome
-from .contracts.recovery import DatasetAttemptLineage, ReprocessRequest
-from .control_plane import (
+from ..config import DatasetConfig, DatasetStatus
+from ..contracts.capture_receipt import CaptureReceipt
+from ..contracts.dispatch import DatasetDispatchOutcome
+from ..contracts.recovery import DatasetAttemptLineage, ReprocessRequest
+from .schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     capture_receipt,
     current_schema_version,
@@ -37,15 +37,15 @@ from .control_plane import (
     step_run,
     watermark,
 )
-from .delivery import materialize_semantic_metadata
-from .operations import (
+from ..delivery import materialize_semantic_metadata
+from ..operations import (
     DatasetRunAudit,
     PipelineRunAudit,
     QuarantineBatch,
     ReconciliationResult,
     StepRunAudit,
 )
-from .runtime import WatermarkPosition
+from ..runtime import WatermarkPosition
 
 
 def _utcnow() -> datetime:

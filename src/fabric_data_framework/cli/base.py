@@ -23,8 +23,8 @@ from ..capture import (
     validate_capture_selection,
     validate_semantic_capture_selection,
 )
-from ..control_plane import apply_baseline_schema, current_schema_version
-from ..control_plane_certification import (
+from ..control_plane.schema import apply_baseline_schema, current_schema_version
+from ..control_plane.certification import (
     CONTROL_PLANE_BACKEND_PROFILES,
     ControlPlaneExternalEvidence,
     certify_control_plane_backend,
@@ -57,7 +57,7 @@ from ..evidence.integration_runner import (
     build_approved_integration_run_plan,
     load_approved_integration_runner_config,
 )
-from ..operator import get_dataset_operational_snapshot, list_dataset_operational_snapshots
+from ..control_plane.operator import get_dataset_operational_snapshot, list_dataset_operational_snapshots
 
 
 def _parser() -> argparse.ArgumentParser:

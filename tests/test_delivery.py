@@ -15,7 +15,7 @@ from fabric_data_framework.config import (
     TargetConfig,
     WatermarkConfig,
 )
-from fabric_data_framework.control_plane import dataset, deployment_history, watermark
+from fabric_data_framework.control_plane.schema import dataset, deployment_history, watermark
 from fabric_data_framework.delivery import (
     build_release_manifest,
     config_bundle_hash,

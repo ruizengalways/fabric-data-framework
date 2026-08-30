@@ -21,7 +21,7 @@ from fabric_data_framework.orchestration.planner import (
     blocking_dependencies,
     build_dispatch_plan,
 )
-from fabric_data_framework.repository import InMemoryControlPlane
+from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 
 
 def _config(

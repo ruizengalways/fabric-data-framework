@@ -12,8 +12,8 @@ Use this file when browsing source code. It describes the current code organizat
 | execution plan / orchestration | `contracts/execution_plan.py`, `orchestration/`, `dispatcher.py` |
 | Fabric / CDC provider adapters | `adapters/` |
 | quality/schema ordering rules | `quality/`, `schema_contract.py` |
-| control-plane state/runtime repository | `control_plane*.py`, `repository.py`, `relational_repository.py` |
-| target idempotency / unknown commit recovery | `target_operations.py`, `target_operation_io.py`, `recovery/` |
+| control-plane state/runtime repository | `control_plane/` |
+| target idempotency / unknown commit recovery | `target_operations.py`, `control_plane/target_operation_journal.py`, `recovery/` |
 | approved integration evidence | `evidence/` |
 | release/deployment materialization | `delivery.py`, `deployment.py` |
 | command line interface | `cli/` |

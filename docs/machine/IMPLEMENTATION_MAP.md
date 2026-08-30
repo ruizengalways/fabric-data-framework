@@ -78,7 +78,7 @@ Provider terminal status is transport evidence, not framework semantic success.
 | Area | Primary owner | Critical invariant |
 |---|---|---|
 | Stable logical target operation | `target_operations.py` | operation identity independent of physical retry/run ID |
-| Persistent target-operation CAS | `target_operation_io.py` | UNKNOWN/IN_PROGRESS cannot blind retry |
+| Persistent target-operation CAS | `control_plane/target_operation_journal.py` | UNKNOWN/IN_PROGRESS cannot blind retry |
 | Generic target probes | `recovery/target_probe.py` | tri-state COMMITTED/NOT_COMMITTED/UNRESOLVED |
 | Fabric Warehouse marker store/probe | `recovery/fabric_warehouse.py` | target mutation + marker in same transaction |
 | Warehouse session absence proof | `recovery/fabric_warehouse_session_absence.py` | exact session + open tx + Admin KILL + post-KILL marker reread |
@@ -89,7 +89,7 @@ Provider terminal status is transport evidence, not framework semantic success.
 
 | Area | Primary owner |
 |---|---|
-| Production-oriented SQL repository | `relational_repository.py` |
+| Production-oriented SQL repository | `control_plane/sqlalchemy_repository.py` |
 | Backend certification profiles/contracts | control-plane certification modules |
 | Schema materialization/migration tooling | control-plane/delivery/CLI modules |
 

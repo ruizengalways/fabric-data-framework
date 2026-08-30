@@ -37,7 +37,7 @@ from .orchestration.planner import (
     build_dispatch_plan,
     ready_dataset_ids,
 )
-from .repository import ControlPlaneRepository
+from .control_plane.repository import ControlPlaneRepository
 
 
 def _utcnow() -> datetime:

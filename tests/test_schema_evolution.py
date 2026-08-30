@@ -16,8 +16,8 @@ from fabric_data_framework.config import (
     SourceConfig,
     TargetConfig,
 )
-from fabric_data_framework.control_plane import dataset_contract, schema_change
-from fabric_data_framework.control_plane_schema import record_schema_change
+from fabric_data_framework.control_plane.schema import dataset_contract, schema_change
+from fabric_data_framework.control_plane.schema_evidence import record_schema_change
 from fabric_data_framework.delivery import materialize_semantic_metadata
 from fabric_data_framework.quality import (
     SchemaChangeKind,

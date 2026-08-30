@@ -14,9 +14,9 @@ from uuid import UUID, uuid4
 from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 
-from .control_plane import apply_baseline_schema, target_operation, target_operation_event
-from .contracts.recovery import UnknownOutcomeResolution
-from .target_operations import (
+from .schema import apply_baseline_schema, target_operation, target_operation_event
+from ..contracts.recovery import UnknownOutcomeResolution
+from ..target_operations import (
     TargetOperationAction,
     TargetOperationClaim,
     TargetOperationEvent,

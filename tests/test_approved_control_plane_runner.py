@@ -11,7 +11,7 @@ from fabric_data_framework.evidence.approved_control_plane_runner import (
     execute_approved_control_plane_certification,
     write_control_plane_certification_report,
 )
-from fabric_data_framework.control_plane_certification import (
+from fabric_data_framework.control_plane.certification import (
     CertificationCheckStatus,
     ControlPlaneCertificationCheck,
     ControlPlaneCertificationReport,

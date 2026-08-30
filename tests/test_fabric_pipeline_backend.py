@@ -21,7 +21,7 @@ from fabric_data_framework.config import (
 )
 from fabric_data_framework.contracts.dispatch import DatasetDispatchOutcome
 from fabric_data_framework.execution.backends.fabric_pipeline import FabricPipelineBackend
-from fabric_data_framework.repository import InMemoryControlPlane
+from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 
 
 def _effective():

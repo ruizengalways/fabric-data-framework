@@ -18,7 +18,7 @@ from fabric_data_framework.config import (
     resolve_effective_config,
 )
 from fabric_data_framework.contracts.execution_plan import ExecutionKind, compile_execution_plan
-from fabric_data_framework.control_plane import (
+from fabric_data_framework.control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     apply_baseline_schema,
     current_schema_version,

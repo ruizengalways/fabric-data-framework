@@ -20,7 +20,7 @@ from fabric_data_framework.recovery import (
     classify_failure,
     execute_with_retry,
 )
-from fabric_data_framework.repository import InMemoryControlPlane
+from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 
 
 _CONFIG_HASH = "a" * 64

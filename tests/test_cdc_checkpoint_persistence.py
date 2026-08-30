@@ -15,11 +15,11 @@ from fabric_data_framework.config import (
     SourceConfig,
     TargetConfig,
 )
-from fabric_data_framework.control_plane import (
+from fabric_data_framework.control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     ENVIRONMENT_LOCAL_STATE_TABLES,
 )
-from fabric_data_framework.control_plane_io import (
+from fabric_data_framework.control_plane.io import (
     CDCCheckpointVersionConflict,
     commit_cdc_checkpoint,
     read_cdc_checkpoint,

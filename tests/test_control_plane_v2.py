@@ -18,7 +18,7 @@ from fabric_data_framework.config import (
     SourceConfig,
     TargetConfig,
 )
-from fabric_data_framework.control_plane import (
+from fabric_data_framework.control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     ENVIRONMENT_LOCAL_STATE_TABLES,
     PROMOTABLE_DEFINITION_TABLES,
@@ -28,7 +28,7 @@ from fabric_data_framework.control_plane import (
     ordering_policy,
     schema_migration_history,
 )
-from fabric_data_framework.control_plane_io import record_capture_receipt
+from fabric_data_framework.control_plane.io import record_capture_receipt
 from fabric_data_framework.contracts.capture_receipt import CaptureReceipt
 from fabric_data_framework.delivery import materialize_semantic_metadata
 

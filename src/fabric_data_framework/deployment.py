@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .control_plane import ENVIRONMENT_LOCAL_STATE_TABLES, PROMOTABLE_DEFINITION_TABLES
+from .control_plane.schema import ENVIRONMENT_LOCAL_STATE_TABLES, PROMOTABLE_DEFINITION_TABLES
 from .infrastructure import EnvironmentName, ResolvedResource
 
 

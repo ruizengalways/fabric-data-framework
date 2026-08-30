@@ -22,7 +22,7 @@ from fabric_data_framework.dispatcher import (
     OrchestrationIntegrityError,
     dispatch_datasets_with_backend,
 )
-from fabric_data_framework.repository import InMemoryControlPlane
+from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 
 
 class _Backend:

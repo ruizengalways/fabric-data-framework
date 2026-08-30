@@ -31,7 +31,7 @@ from ..operations import (
 )
 from ..quality import QuarantinedRecord, RowRule, validate_records
 from ..quality.snapshot_diff import reconcile_snapshot_diff
-from ..repository import ControlPlaneRepository
+from ..control_plane.repository import ControlPlaneRepository
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, inspect
 
-from fabric_data_framework.control_plane import (
+from fabric_data_framework.control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     ENVIRONMENT_LOCAL_STATE_TABLES,
     PROMOTABLE_DEFINITION_TABLES,

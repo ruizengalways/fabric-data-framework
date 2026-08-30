@@ -8,9 +8,9 @@ from uuid import UUID
 from pydantic import Field
 from sqlalchemy import Engine, select
 
-from .capture.cdc import CDCCheckpoint, CDCCheckpointTransition
-from .config import FrozenModel
-from .control_plane import (
+from ..capture.cdc import CDCCheckpoint, CDCCheckpointTransition
+from ..config import FrozenModel
+from .schema import (
     apply_baseline_schema,
     capture_receipt,
     cdc_checkpoint,
@@ -18,10 +18,10 @@ from .control_plane import (
     quarantine_batch,
     reprocess_request,
 )
-from .contracts.capture_receipt import CaptureReceipt
-from .contracts.recovery import DatasetAttemptLineage, ReprocessRequest
-from .contracts.replay import QuarantineBatchEvidence
-from .runtime import StateCommitGate
+from ..contracts.capture_receipt import CaptureReceipt
+from ..contracts.recovery import DatasetAttemptLineage, ReprocessRequest
+from ..contracts.replay import QuarantineBatchEvidence
+from ..runtime import StateCommitGate
 
 
 class CDCCheckpointVersionConflict(RuntimeError):
