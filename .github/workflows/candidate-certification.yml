@@ -30,7 +30,6 @@ on:
         type: choice
         options:
           - DEV
-          - TEST
           - UAT
           - PROD
       domain:
