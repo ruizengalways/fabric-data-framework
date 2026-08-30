@@ -1,0 +1,226 @@
+name: refactor-control-plane-package
+
+on:
+  push:
+    branches:
+      - codex/control-plane-package
+
+permissions:
+  contents: write
+
+jobs:
+  codemod:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/control-plane-package
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Extract canonical control-plane package
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import subprocess
+
+          root = Path('.')
+          pkg = root / 'src' / 'fabric_data_framework'
+          cp = pkg / 'control_plane'
+          cp.mkdir()
+
+          moves = {
+              'control_plane.py': 'control_plane/schema.py',
+              'control_plane_io.py': 'control_plane/io.py',
+              'control_plane_schema.py': 'control_plane/schema_evidence.py',
+              'control_plane_certification.py': 'control_plane/certification.py',
+              'repository.py': 'control_plane/repository.py',
+              'relational_repository.py': 'control_plane/sqlalchemy_repository.py',
+              'operator.py': 'control_plane/operator.py',
+              'target_operation_io.py': 'control_plane/target_operation_journal.py',
+          }
+          for old, new in moves.items():
+              subprocess.run(['git', 'mv', str(pkg / old), str(pkg / new)], check=True)
+          subprocess.run(['git', 'rm', str(pkg / 'control_plane_stage_policy.py')], check=True)
+
+          # Moved modules gained one package depth. Internal control-plane references stay
+          # one-dot; all other former root-relative imports gain one dot.
+          internal_map = {
+              'control_plane': 'schema',
+              'control_plane_io': 'io',
+              'control_plane_schema': 'schema_evidence',
+              'control_plane_certification': 'certification',
+              'repository': 'repository',
+              'relational_repository': 'sqlalchemy_repository',
+              'operator': 'operator',
+              'target_operation_io': 'target_operation_journal',
+              'control_plane_stage_policy': 'schema',
+          }
+          for relative in moves.values():
+              path = pkg / relative
+              lines = path.read_text(encoding='utf-8').splitlines(keepends=True)
+              rewritten = []
+              for line in lines:
+                  match = re.match(r'(?P<indent>\s*)from \.([A-Za-z_][A-Za-z0-9_.]*)(?P<tail> import .*)', line)
+                  if not match:
+                      rewritten.append(line)
+                      continue
+                  module = line.split('from .', 1)[1].split(' import ', 1)[0]
+                  head, *rest = module.split('.')
+                  if head in internal_map:
+                      target = internal_map[head]
+                      if rest:
+                          target += '.' + '.'.join(rest)
+                      rewritten.append(
+                          f"{match.group('indent')}from .{target}{match.group('tail')}"
+                      )
+                  else:
+                      rewritten.append(
+                          f"{match.group('indent')}from ..{module}{match.group('tail')}"
+                      )
+              path.write_text(''.join(rewritten), encoding='utf-8')
+
+          external_map = {
+              'control_plane_certification': 'control_plane.certification',
+              'control_plane_io': 'control_plane.io',
+              'control_plane_schema': 'control_plane.schema_evidence',
+              'relational_repository': 'control_plane.sqlalchemy_repository',
+              'repository': 'control_plane.repository',
+              'operator': 'control_plane.operator',
+              'target_operation_io': 'control_plane.target_operation_journal',
+              'control_plane_stage_policy': 'control_plane.schema',
+          }
+
+          def rewrite_external_imports(text: str) -> str:
+              for old, new in external_map.items():
+                  text = re.sub(
+                      rf'from (?P<prefix>\.+){re.escape(old)}(?P<tail>\.[A-Za-z0-9_.]+)? import ',
+                      lambda m: f"from {m.group('prefix')}{new}{m.group('tail') or ''} import ",
+                      text,
+                  )
+                  text = re.sub(
+                      rf'from fabric_data_framework\.{re.escape(old)}(?P<tail>\.[A-Za-z0-9_.]+)? import ',
+                      lambda m: f"from fabric_data_framework.{new}{m.group('tail') or ''} import ",
+                      text,
+                  )
+                  text = text.replace(
+                      f'import fabric_data_framework.{old}',
+                      f'import fabric_data_framework.{new}',
+                  )
+              # The old control_plane.py became schema.py. Only exact module-import forms
+              # are rewritten; already-canonical control_plane.<submodule> paths are untouched.
+              text = re.sub(
+                  r'from (?P<prefix>\.+)control_plane import ',
+                  lambda m: f"from {m.group('prefix')}control_plane.schema import ",
+                  text,
+              )
+              text = text.replace(
+                  'from fabric_data_framework.control_plane import ',
+                  'from fabric_data_framework.control_plane.schema import ',
+              )
+              return text
+
+          moved_paths = {pkg / value for value in moves.values()}
+          for base in (pkg, root / 'tests'):
+              for path in base.rglob('*.py'):
+                  if path in moved_paths:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  updated = rewrite_external_imports(text)
+                  if updated != text:
+                      path.write_text(updated, encoding='utf-8')
+
+          # Minimal package marker: intentionally no old control_plane.py symbol re-exports.
+          (cp / '__init__.py').write_text(
+              '"""Canonical relational control-plane package.\n\n'
+              'Import concrete contracts from explicit submodules such as ``schema``,\n'
+              '``repository`` or ``sqlalchemy_repository``. The package root deliberately\n'
+              'does not recreate the former flat-module API.\n'
+              '"""\n',
+              encoding='utf-8',
+          )
+          (cp / 'README.md').write_text(
+              '# Control-plane package\n\n'
+              'This folder is the only implementation owner for relational control-plane behavior.\n\n'
+              '```text\n'
+              'schema.py                    SQLAlchemy tables + explicit schema migration contract\n'
+              'io.py                        capture/reprocess/quarantine/CDC runtime persistence helpers\n'
+              'schema_evidence.py           immutable schema-change observation persistence\n'
+              'certification.py             production backend profile + conformance certification\n'
+              'repository.py                repository protocol + deterministic in-memory adapter\n'
+              'sqlalchemy_repository.py     production-oriented SQLAlchemy repository\n'
+              'operator.py                  typed read-only operational views\n'
+              'target_operation_journal.py  durable target-operation CAS/event journal persistence\n'
+              '```\n\n'
+              'The package root intentionally does not re-export the old flat `control_plane.py` API.\n'
+              'Use explicit submodule imports so ownership remains visible in source code.\n\n'
+              '`target_operations.py` remains outside this folder because it defines provider-neutral\n'
+              'semantic operation identity/state; only its relational journal persistence lives here.\n',
+              encoding='utf-8',
+          )
+
+          boundary = root / 'tests' / 'test_control_plane_package_boundary.py'
+          boundary.write_text('''from __future__ import annotations\n\nimport importlib\nfrom pathlib import Path\n\nimport pytest\n\n\nREPO_ROOT = Path(__file__).parents[1]\nPACKAGE_ROOT = REPO_ROOT / "src" / "fabric_data_framework"\nCONTROL_PLANE_ROOT = PACKAGE_ROOT / "control_plane"\n\nREMOVED_FLAT_MODULES = (\n    "control_plane_certification",\n    "control_plane_io",\n    "control_plane_schema",\n    "control_plane_stage_policy",\n    "repository",\n    "relational_repository",\n    "operator",\n    "target_operation_io",\n)\n\nEXPECTED_CANONICAL_MODULES = (\n    "schema",\n    "io",\n    "schema_evidence",\n    "certification",\n    "repository",\n    "sqlalchemy_repository",\n    "operator",\n    "target_operation_journal",\n)\n\n\ndef test_control_plane_package_is_canonical_and_explicit():\n    package = importlib.import_module("fabric_data_framework.control_plane")\n    assert not hasattr(package, "apply_baseline_schema")\n    assert not hasattr(package, "SqlAlchemyControlPlaneRepository")\n    for module_name in EXPECTED_CANONICAL_MODULES:\n        imported = importlib.import_module(\n            f"fabric_data_framework.control_plane.{module_name}"\n        )\n        assert imported is not None\n\n\n@pytest.mark.parametrize("module_name", REMOVED_FLAT_MODULES)\ndef test_removed_flat_control_plane_imports_do_not_resolve(module_name: str):\n    assert not (PACKAGE_ROOT / f"{module_name}.py").exists()\n    with pytest.raises(ModuleNotFoundError):\n        importlib.import_module(f"fabric_data_framework.{module_name}")\n\n\ndef test_former_control_plane_module_file_is_replaced_by_package():\n    assert not (PACKAGE_ROOT / "control_plane.py").exists()\n    assert CONTROL_PLANE_ROOT.is_dir()\n\n\ndef test_control_plane_package_has_no_cli_dependency():\n    offenders: list[str] = []\n    for path in sorted(CONTROL_PLANE_ROOT.rglob("*.py")):\n        text = path.read_text(encoding="utf-8")\n        if "fabric_data_framework.cli" in text or "from ..cli" in text:\n            offenders.append(str(path.relative_to(PACKAGE_ROOT)))\n    assert offenders == []\n\n\ndef test_source_and_tests_do_not_reintroduce_removed_flat_import_paths():\n    forbidden = tuple(\n        f"fabric_data_framework.{module_name}" for module_name in REMOVED_FLAT_MODULES\n    ) + (\n        "from fabric_data_framework.control_plane import",\n    )\n    offenders: list[str] = []\n    current_test = Path(__file__).resolve()\n    for root in (REPO_ROOT / "src", REPO_ROOT / "tests"):\n        for path in sorted(root.rglob("*.py")):\n            if path.resolve() == current_test:\n                continue\n            text = path.read_text(encoding="utf-8")\n            for value in forbidden:\n                if value in text:\n                    offenders.append(f"{path.relative_to(REPO_ROOT)}: {value}")\n    assert offenders == []\n''', encoding='utf-8')
+
+          # Update current navigation docs. History/provenance is left intact.
+          current_docs = (
+              pkg / 'README.md',
+              root / 'docs' / 'human' / 'REPOSITORY_GUIDE.md',
+              root / 'docs' / 'machine' / 'IMPLEMENTATION_MAP.md',
+          )
+          replacements = {
+              '`control_plane*.py`, `repository.py`, `relational_repository.py`': '`control_plane/`',
+              '`relational_repository.py`': '`control_plane/sqlalchemy_repository.py`',
+              '`control_plane.py`': '`control_plane/schema.py`',
+              '`control_plane_io.py`': '`control_plane/io.py`',
+              '`control_plane_schema.py`': '`control_plane/schema_evidence.py`',
+              '`control_plane_certification.py`': '`control_plane/certification.py`',
+              '`target_operation_io.py`': '`control_plane/target_operation_journal.py`',
+              '`operator.py`': '`control_plane/operator.py`',
+          }
+          for path in current_docs:
+              text = path.read_text(encoding='utf-8')
+              original = text
+              for old, new in replacements.items():
+                  text = text.replace(old, new)
+              if path == pkg / 'README.md':
+                  text = text.replace(
+                      '| control-plane state/runtime repository | `control_plane/` |',
+                      '| control-plane state/runtime repository | `control_plane/` |',
+                  )
+              if text != original:
+                  path.write_text(text, encoding='utf-8')
+
+          # Fail the codemod if executable Python still uses removed flat imports.
+          forbidden_fragments = tuple(
+              f'fabric_data_framework.{name}' for name in external_map
+          ) + ('from fabric_data_framework.control_plane import',)
+          offenders = []
+          for base in (pkg, root / 'tests'):
+              for path in base.rglob('*.py'):
+                  if path == boundary:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  for value in forbidden_fragments:
+                      if value in text:
+                          offenders.append(f'{path}: {value}')
+                  for old in external_map:
+                      if re.search(rf'from \.+{re.escape(old)}(?:\.| import)', text):
+                          offenders.append(f'{path}: relative {old}')
+                  if re.search(r'from \.+control_plane import ', text):
+                      offenders.append(f'{path}: flat control_plane import')
+          if offenders:
+              raise RuntimeError('removed flat control-plane imports remain:\n' + '\n'.join(offenders))
+
+          (root / '.github' / 'workflows' / 'refactor-control-plane-package.yml').unlink()
+          PY
+      - name: Commit extraction
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor: extract canonical control-plane package"
+          git push origin HEAD:codex/control-plane-package
