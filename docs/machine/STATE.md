@@ -7,12 +7,12 @@ public_release: v0.3.0
 source_version: 0.4.0-development-unreleased
 release_allowed: false
 code_baseline:
-  pull_request: 74
-  merge_sha: 0b82a55981700484e68c5fb9f68de7c94a68b75b
-  exact_candidate_head: 69077c16064591447a08c5924892054e755c7008
-  milestone: canonical-only explicit module ownership; source root and major domain roots are namespace-only
-  ci_actions: 33302223695
-  tests: 615
+  pull_request: 76
+  merge_sha: 1c3669cad03b2209527d7f0727fd879c45dda4df
+  exact_candidate_head: 1850056e7c2af612df9d6b0e14c904d428d34d85
+  milestone: non-destructive customer/domain project bootstrap added on top of canonical explicit module ownership
+  ci_actions: 33305550612
+  tests: 621
   python_3_11: success
   python_3_13: success
   wheel: success
@@ -47,9 +47,9 @@ src/fabric_data_framework/
   control_plane/            relational state, repository, schema and certification
   recovery/                 retry/replay/rebuild/target commit recovery
   evidence/                 retained evidence and approved exact-run executors
-  deployment/               release contracts and delivery/materialization
+  deployment/               release contracts, delivery/materialization and safe project scaffolding
   extensions/               bounded extension loading/contracts
-  cli/                      removable leaf presentation layer
+  cli/                      removable leaf presentation layer, including project-init adapter
 ```
 
 Representative imports:
@@ -64,9 +64,36 @@ from fabric_data_framework.orchestration.dispatcher import dispatch_datasets
 from fabric_data_framework.control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
 from fabric_data_framework.evidence.integration_evidence import IntegrationEvidenceManifest
 from fabric_data_framework.deployment.delivery import build_release_manifest
+from fabric_data_framework.deployment.project import initialize_customer_project
 ```
 
 The root `__version__` symbol is intentionally absent. CLI defaults read the installed distribution version using `importlib.metadata`.
+
+## Customer project bootstrap boundary
+
+The reusable project scaffold is owned by `deployment/project.py`; `cli/project.py` is presentation only.
+
+```text
+fabric-framework project-init <path> --domain <domain>
+```
+
+Contract:
+
+```text
+default target is absent/empty
+--allow-existing may fill missing scaffold files only
+existing files are never overwritten
+existing fabric-project.json domain must match
+no DatasetConfig semantic inference
+no Fabric resource creation
+no live-environment mutation
+no secret persistence
+one customer/domain repo may contain mixed FULL/WATERMARK/CDC and SCD1/SCD2 datasets
+repo boundaries follow business ownership/release/security lifecycle, not apply strategy
+execution_group is the operational grouping mechanism inside one repo
+```
+
+The generated inventory intentionally asks for source/business facts before DatasetConfig authoring. The scaffold does not turn unknown source semantics into guessed configuration.
 
 ## Readability contracts enforced by CI
 
@@ -79,6 +106,7 @@ old module imports intentionally fail
 src/tests use concrete owner modules
 CLI is a removable leaf
 core/control_plane/evidence/deployment do not depend on CLI
+project scaffold reusable logic is outside CLI
 ```
 
 Do not continue moving files merely to maximize folder count. Inspect `execution/`, `adapters/`, `extensions/`, `metadata/`, and `data_plane/` independently; remove another facade only where ownership is unambiguous and readability materially improves.
@@ -99,6 +127,8 @@ IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER C
 IMPLEMENTED + CI PROVEN FABRIC WAREHOUSE SESSION-TERMINATION ABSENCE CERTIFIER CONTRACT
 IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE SESSION-TERMINATION RECOVERY CONTRACT
 ```
+
+`project-init` is a local/source-control developer-experience capability and does not raise any live Fabric evidence level.
 
 ## Current real-service gaps
 
@@ -137,7 +167,7 @@ complete exact-release certified IntegrationEvidenceManifest
 ## Repository ownership
 
 ```text
-fabric-data-framework = reusable semantics/runtime/adapters/recovery/evidence/package
+fabric-data-framework = reusable semantics/runtime/adapters/recovery/evidence/package + safe project scaffold
 fabric-customer       = domain DatasetConfig + bounded extensions + Fabric content
 fabric-infra          = optional capacity/workspace/infrastructure lifecycle
 ```
