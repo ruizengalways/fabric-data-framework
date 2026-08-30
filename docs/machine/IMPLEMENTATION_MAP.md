@@ -109,7 +109,7 @@ src/fabric_data_framework/evidence/
 | Safe projection from existing provider/runtime outcomes | `evidence/integration_checks.py` |
 | Credential-free preflight/runtime env-var requirements | `evidence/integration_runner.py` |
 | Strict partial manifest merge | `evidence/integration_evidence_merge.py` |
-| Retained evidence secret scanning | `retained_evidence_safety.py` |
+| Retained evidence secret scanning | `evidence/safety.py` |
 
 Root-level `integration_*` evidence modules are intentionally absent. `evidence/` is the only import and implementation surface.
 

@@ -63,3 +63,5 @@ Root-level evidence aliases are intentionally not provided.
 - Unknown target commit outcome never permits blind retry.
 - Marker absence is `UNRESOLVED` unless independently certified otherwise.
 - A simulated framework ACK loss is not evidence of a real provider/network COMMIT disconnect.
+
+`evidence/safety.py` owns fail-closed validation for text retained as integration evidence.

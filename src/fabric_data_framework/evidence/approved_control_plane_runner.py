@@ -34,7 +34,7 @@ from .integration_runner import (
     ApprovedIntegrationRunnerConfig,
     build_approved_integration_run_plan,
 )
-from ..retained_evidence_safety import assert_safe_retained_text
+from .safety import assert_safe_retained_text
 
 
 EngineFactory = Callable[[str], Engine]
