@@ -6,7 +6,7 @@ from typing import Sequence
 
 from pydantic import Field
 
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from .cdc import (
     CDCCheckpoint,
     CDCEvidenceError,

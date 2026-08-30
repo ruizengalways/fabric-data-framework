@@ -16,7 +16,7 @@ from fabric_data_framework.recovery.fabric_warehouse import (
     build_fabric_warehouse_operation_marker_table,
 )
 from fabric_data_framework.recovery.target_probe import TargetCommitProbeRequest
-from fabric_data_framework.target_operations import (
+from fabric_data_framework.contracts.target_operation import (
     TargetOperationIntent,
     TargetOperationStatus,
 )

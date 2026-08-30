@@ -20,7 +20,7 @@ from fabric_data_framework.control_plane.target_operation_journal import (
     read_target_operation_events,
     reconcile_target_operation,
 )
-from fabric_data_framework.target_operations import (
+from fabric_data_framework.contracts.target_operation import (
     TargetOperationAction,
     TargetOperationIntent,
     TargetOperationStatus,

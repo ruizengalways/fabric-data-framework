@@ -25,7 +25,7 @@ from fabric_data_framework.quality import (
     classify_schema_evolution,
     require_compatible_schema,
 )
-from fabric_data_framework.schema_contract import (
+from fabric_data_framework.contracts.schema import (
     LogicalType,
     SchemaCompatibilityPolicy,
     SchemaContract,

@@ -77,7 +77,7 @@ Provider terminal status is transport evidence, not framework semantic success.
 
 | Area | Primary owner | Critical invariant |
 |---|---|---|
-| Stable logical target operation | `target_operations.py` | operation identity independent of physical retry/run ID |
+| Stable logical target operation | `contracts/target_operation.py` | operation identity independent of physical retry/run ID |
 | Persistent target-operation CAS | `control_plane/target_operation_journal.py` | UNKNOWN/IN_PROGRESS cannot blind retry |
 | Generic target probes | `recovery/target_probe.py` | tri-state COMMITTED/NOT_COMMITTED/UNRESOLVED |
 | Fabric Warehouse marker store/probe | `recovery/fabric_warehouse.py` | target mutation + marker in same transaction |

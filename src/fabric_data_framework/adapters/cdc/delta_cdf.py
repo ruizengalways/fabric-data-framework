@@ -30,7 +30,8 @@ from ...capture.cdc import (
     build_cdc_checkpoint,
     normalize_cdc_batch,
 )
-from ...config import FrozenModel, canonical_hash
+from fabric_data_framework.config import canonical_hash
+from fabric_data_framework.contracts.base import FrozenModel
 
 
 DELTA_CDF_PROFILE = "delta_cdf_v1"

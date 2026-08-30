@@ -22,7 +22,11 @@ from ...adapters.fabric.rest import FabricJobInstance, FabricJobStatus, FabricRe
 from ...config import DatasetStatus, EffectiveDatasetConfig, RunMode
 from ...contracts.dispatch import DatasetDispatchOutcome
 from ...contracts.execution_plan import compile_execution_plan
-from ...operations import DatasetRunAudit, StepRunAudit, StepStatus
+from fabric_data_framework.contracts.audit import (
+    DatasetRunAudit,
+    StepRunAudit,
+    StepStatus,
+)
 from ...control_plane.repository import ControlPlaneRepository
 from ...evidence.safety import assert_safe_retained_text
 

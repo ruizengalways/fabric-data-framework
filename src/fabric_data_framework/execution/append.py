@@ -16,16 +16,20 @@ from ..apply.append import (
 from ..bronze import BronzeRecord, normalize_bronze
 from ..config import ApplyStrategy, DatasetStatus, RunMode
 from ..data_plane.staging import StagedBatch, stage_rows
-from ..operations import (
+from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
     MutationCounts,
-    QuarantineBatch,
-    QuarantineScope,
-    ReconciliationResult,
-    ReconciliationStatus,
     RowAccounting,
     StepRunAudit,
     StepStatus,
+)
+from fabric_data_framework.contracts.quarantine import (
+    QuarantineBatch,
+    QuarantineScope,
+)
+from fabric_data_framework.contracts.reconciliation import (
+    ReconciliationResult,
+    ReconciliationStatus,
 )
 from ..quality import QuarantinedRecord, RowRule, reconcile_append, validate_records
 from ..control_plane.repository import ControlPlaneRepository

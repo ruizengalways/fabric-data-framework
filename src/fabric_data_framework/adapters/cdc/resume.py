@@ -15,7 +15,7 @@ from typing import Mapping
 from pydantic import Field, model_validator
 
 from ...capture.cdc import CDCCheckpoint, build_cdc_checkpoint
-from ...config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from .debezium_kafka import DebeziumKafkaAdapterError
 
 

@@ -18,16 +18,20 @@ from ..bronze import BronzeRecord, normalize_bronze
 from ..capture.snapshot import SnapshotEvidence, SnapshotEvidenceError, capture_snapshot
 from ..config import ApplyStrategy, CaptureStrategy, DatasetStatus, RunMode
 from ..data_plane.staging import StagedBatch, stage_rows
-from ..operations import (
+from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
     MutationCounts,
-    QuarantineBatch,
-    QuarantineScope,
-    ReconciliationResult,
-    ReconciliationStatus,
     RowAccounting,
     StepRunAudit,
     StepStatus,
+)
+from fabric_data_framework.contracts.quarantine import (
+    QuarantineBatch,
+    QuarantineScope,
+)
+from fabric_data_framework.contracts.reconciliation import (
+    ReconciliationResult,
+    ReconciliationStatus,
 )
 from ..quality import QuarantinedRecord, RowRule, validate_records
 from ..quality.snapshot_diff import reconcile_snapshot_diff

@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .schema import apply_baseline_schema, target_operation, target_operation_event
 from ..contracts.recovery import UnknownOutcomeResolution
-from ..target_operations import (
+from fabric_data_framework.contracts.target_operation import (
     TargetOperationAction,
     TargetOperationClaim,
     TargetOperationEvent,

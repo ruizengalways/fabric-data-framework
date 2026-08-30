@@ -50,7 +50,7 @@ from .integration_runner import (
     IntegrationCheckPhysicalBinding,
     build_approved_integration_run_plan,
 )
-from ..operations import PipelineRunAudit
+from fabric_data_framework.contracts.audit import PipelineRunAudit
 from ..control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
 from .safety import assert_safe_retained_text
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from .patterns import BronzeWriteMode, CapturePattern, HistoryFidelity
 
 

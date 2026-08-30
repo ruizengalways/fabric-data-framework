@@ -1,4 +1,4 @@
-"""Audit, reconciliation and quarantine contracts."""
+"""Pipeline, dataset and step execution audit contracts."""
 
 from __future__ import annotations
 
@@ -6,13 +6,10 @@ from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
 
-from .config import DatasetStatus, PipelineStatus, RunMode
-
-
-class FrozenModel(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+from ..config import DatasetStatus, PipelineStatus, RunMode
+from .base import FrozenModel
 
 
 def _utcnow() -> datetime:
@@ -30,17 +27,6 @@ class StepStatus(str, Enum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
-
-
-class ReconciliationStatus(str, Enum):
-    PASS = "PASS"
-    WARN = "WARN"
-    FAIL = "FAIL"
-
-
-class QuarantineScope(str, Enum):
-    ROW = "ROW"
-    BATCH = "BATCH"
 
 
 class RowAccounting(FrozenModel):
@@ -131,42 +117,7 @@ class StepRunAudit(FrozenModel):
                 raise ValueError("completed_at cannot be before started_at")
         return self
 
-
-class ReconciliationMetric(FrozenModel):
-    name: str = Field(min_length=1)
-    expected: str | int | float
-    actual: str | int | float
-    passed: bool
-
-
-class ReconciliationResult(FrozenModel):
-    reconciliation_id: UUID = Field(default_factory=uuid4)
-    dataset_run_id: UUID
-    dataset_id: str = Field(min_length=1)
-    policy_name: str = Field(min_length=1)
-    status: ReconciliationStatus
-    metrics: tuple[ReconciliationMetric, ...] = ()
-    blocks_state_advance: bool = True
-    created_at: datetime = Field(default_factory=_utcnow)
-
-    @model_validator(mode="after")
-    def validate_status(self) -> "ReconciliationResult":
-        _require_aware(self.created_at, "created_at")
-        if self.status is ReconciliationStatus.PASS and any(
-            not metric.passed for metric in self.metrics
-        ):
-            raise ValueError("PASS reconciliation cannot contain failed metrics")
-        return self
-
-
-class QuarantineBatch(FrozenModel):
-    quarantine_id: UUID = Field(default_factory=uuid4)
-    dataset_run_id: UUID
-    dataset_id: str = Field(min_length=1)
-    scope: QuarantineScope
-    row_count: int = Field(ge=1)
-    reason_code: str = Field(min_length=1)
-    reason_detail: str | None = None
-    source_reference: str | None = None
-    created_at: datetime = Field(default_factory=_utcnow)
-    replayed_by_dataset_run_id: UUID | None = None
+__all__ = [
+    "DatasetRunAudit", "MutationCounts", "PipelineRunAudit",
+    "RowAccounting", "StepRunAudit", "StepStatus",
+]

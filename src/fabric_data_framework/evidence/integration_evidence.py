@@ -20,7 +20,7 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, field_validator, model_validator
 
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from ..infrastructure import EnvironmentName
 
 

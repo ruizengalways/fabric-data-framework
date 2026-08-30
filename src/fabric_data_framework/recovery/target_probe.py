@@ -15,10 +15,13 @@ from uuid import UUID
 from pydantic import Field, model_validator
 from sqlalchemy import Engine
 
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from ..contracts.recovery import UnknownOutcomeResolution
 from ..control_plane.target_operation_journal import read_target_operation, reconcile_target_operation
-from ..target_operations import TargetOperationRecord, TargetOperationStatus
+from fabric_data_framework.contracts.target_operation import (
+    TargetOperationRecord,
+    TargetOperationStatus,
+)
 
 
 def _utcnow() -> datetime:

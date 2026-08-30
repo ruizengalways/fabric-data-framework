@@ -23,7 +23,12 @@ from pydantic import Field, model_validator
 from sqlalchemy import Engine, MetaData, create_engine
 from sqlalchemy.engine import Connection
 
-from ..config import DatasetConfig, FrozenModel, canonical_hash, resolve_effective_config
+from fabric_data_framework.config import (
+    DatasetConfig,
+    canonical_hash,
+    resolve_effective_config,
+)
+from fabric_data_framework.contracts.base import FrozenModel
 from ..contracts.recovery import UnknownOutcomeResolution
 from ..control_plane.certification import get_control_plane_backend_profile
 from ..deployment.delivery import config_bundle_hash
@@ -76,7 +81,7 @@ from ..control_plane.target_operation_journal import (
     mark_target_operation_not_committed,
     mark_target_operation_unknown,
 )
-from ..target_operations import (
+from fabric_data_framework.contracts.target_operation import (
     TargetOperationAction,
     TargetOperationIntent,
     TargetOperationStatus,

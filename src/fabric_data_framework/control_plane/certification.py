@@ -22,7 +22,7 @@ from pydantic import Field, computed_field
 from sqlalchemy import Engine, inspect, select
 
 from ..capture.cdc import build_cdc_checkpoint
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from .schema import (
     CONTROL_PLANE_MIGRATIONS,
     CONTROL_PLANE_SCHEMA_VERSION,
@@ -44,7 +44,10 @@ from .target_operation_journal import (
     mark_target_operation_unknown,
     reconcile_target_operation,
 )
-from ..target_operations import TargetOperationIntent, fingerprint_semantic_payload
+from fabric_data_framework.contracts.target_operation import (
+    TargetOperationIntent,
+    fingerprint_semantic_payload,
+)
 
 
 class ControlPlaneBackendClass(str, Enum):

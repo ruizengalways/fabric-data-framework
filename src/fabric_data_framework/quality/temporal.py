@@ -11,7 +11,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 
 
 class TemporalOrderingError(ValueError):

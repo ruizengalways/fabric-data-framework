@@ -13,8 +13,8 @@ from typing import Any, Mapping, Sequence
 
 from pydantic import Field
 
-from ..config import FrozenModel
-from ..operations import MutationCounts
+from fabric_data_framework.contracts.base import FrozenModel
+from fabric_data_framework.contracts.audit import MutationCounts
 from ..quality.temporal import (
     SourceOrderRelation,
     TemporalOrderingError,

@@ -26,7 +26,7 @@ from fabric_data_framework.config import (
 from fabric_data_framework.control_plane.schema import apply_baseline_schema, step_run
 from fabric_data_framework.deployment.delivery import config_bundle_hash
 from fabric_data_framework.execution.backends.fabric_pipeline import FabricPipelineBackend
-from fabric_data_framework.operations import (
+from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
     PipelineRunAudit,
     StepRunAudit,

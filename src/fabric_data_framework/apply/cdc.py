@@ -9,8 +9,9 @@ from typing import Any, Mapping, Sequence
 from pydantic import Field
 
 from ..capture.cdc import CDCNormalizedBatch, CDCOperation, CDCOrderingError
-from ..config import ApplyStrategy, FrozenModel
-from ..operations import MutationCounts
+from fabric_data_framework.config import ApplyStrategy
+from fabric_data_framework.contracts.base import FrozenModel
+from fabric_data_framework.contracts.audit import MutationCounts
 from ..quality.temporal import (
     SourceOrderRelation,
     TemporalOrderingError,

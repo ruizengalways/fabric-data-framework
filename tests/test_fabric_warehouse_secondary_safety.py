@@ -3,7 +3,7 @@ from uuid import uuid4
 from fabric_data_framework.contracts.recovery import UnknownOutcomeResolution
 from fabric_data_framework.recovery.fabric_warehouse import FabricWarehouseTargetCommitProbe
 from fabric_data_framework.recovery.target_probe import TargetCommitProbeRequest
-from fabric_data_framework.target_operations import TargetOperationStatus
+from fabric_data_framework.contracts.target_operation import TargetOperationStatus
 
 
 class _EmptyMarkerStore:

@@ -9,7 +9,8 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
 
-from ..config import FrozenModel, RunMode
+from fabric_data_framework.config import RunMode
+from fabric_data_framework.contracts.base import FrozenModel
 
 
 def _utcnow() -> datetime:

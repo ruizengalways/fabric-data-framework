@@ -9,7 +9,7 @@ from pydantic import Field
 from sqlalchemy import Engine, select
 
 from ..capture.cdc import CDCCheckpoint, CDCCheckpointTransition
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from .schema import (
     apply_baseline_schema,
     capture_receipt,

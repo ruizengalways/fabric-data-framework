@@ -12,7 +12,8 @@ from typing import Any, Mapping, Sequence
 
 from pydantic import Field
 
-from ..config import FrozenModel, canonical_hash
+from fabric_data_framework.config import canonical_hash
+from fabric_data_framework.contracts.base import FrozenModel
 
 
 APPEND_IDENTITY_HASH = "_framework_append_identity_hash"

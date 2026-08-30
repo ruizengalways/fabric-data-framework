@@ -11,9 +11,9 @@ Use this file when browsing source code. It describes the current code organizat
 | Bronze/Silver apply semantics | `apply/`, `execution/` |
 | execution plan / orchestration | `contracts/execution_plan.py`, `orchestration/`, `dispatcher.py` |
 | Fabric / CDC provider adapters | `adapters/` |
-| quality/schema ordering rules | `quality/`, `schema_contract.py` |
+| quality/schema ordering rules | `quality/`, `contracts/schema.py` |
 | control-plane state/runtime repository | `control_plane/` |
-| target idempotency / unknown commit recovery | `target_operations.py`, `control_plane/target_operation_journal.py`, `recovery/` |
+| target idempotency / unknown commit recovery | `contracts/target_operation.py`, `control_plane/target_operation_journal.py`, `recovery/` |
 | approved integration evidence | `evidence/` |
 | release/deployment materialization | `deployment/delivery.py`, `deployment/contracts.py` |
 | command line interface | `cli/` |

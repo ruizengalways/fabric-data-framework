@@ -9,14 +9,12 @@ import json
 from typing import Protocol, runtime_checkable
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
 
+from ..contracts.base import FrozenModel
 from ..control_plane.schema import ENVIRONMENT_LOCAL_STATE_TABLES, PROMOTABLE_DEFINITION_TABLES
 from ..infrastructure import EnvironmentName, ResolvedResource
 
-
-class FrozenModel(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
 
 
 class DeploymentMechanism(str, Enum):

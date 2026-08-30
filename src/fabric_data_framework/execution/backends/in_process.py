@@ -13,7 +13,7 @@ from ...contracts.dispatch import (
     ExecutorResolver,
 )
 from ...contracts.execution_plan import ExecutionKind, build_default_execution_plan
-from ...operations import DatasetRunAudit
+from fabric_data_framework.contracts.audit import DatasetRunAudit
 from ...orchestration.planner import OrchestrationIntegrityError
 from ...control_plane.repository import ControlPlaneRepository
 

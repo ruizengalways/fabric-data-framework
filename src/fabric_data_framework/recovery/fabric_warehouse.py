@@ -22,9 +22,9 @@ from pydantic import Field, model_validator
 from sqlalchemy import Column, DateTime, Engine, Integer, MetaData, String, Table, inspect, select
 from sqlalchemy.engine import Connection
 
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from ..contracts.recovery import UnknownOutcomeResolution
-from ..target_operations import TargetOperationIntent
+from fabric_data_framework.contracts.target_operation import TargetOperationIntent
 from .target_probe import TargetCommitProbeEvidence, TargetCommitProbeRequest
 
 

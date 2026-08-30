@@ -10,7 +10,7 @@ from fabric_data_framework.recovery.fabric_warehouse_session_absence import (
     capture_fabric_warehouse_session_binding,
 )
 from fabric_data_framework.recovery.target_probe import TargetCommitProbeRequest
-from fabric_data_framework.target_operations import TargetOperationStatus
+from fabric_data_framework.contracts.target_operation import TargetOperationStatus
 
 
 CONNECTION_ID = UUID("11111111-2222-3333-4444-555555555555")

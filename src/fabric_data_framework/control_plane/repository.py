@@ -11,13 +11,13 @@ from ..config import DatasetConfig
 from ..contracts.capture_receipt import CaptureReceipt
 from ..contracts.dispatch import DatasetDispatchOutcome
 from ..contracts.recovery import DatasetAttemptLineage, ReprocessRequest
-from ..operations import (
+from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
     PipelineRunAudit,
-    QuarantineBatch,
-    ReconciliationResult,
     StepRunAudit,
 )
+from fabric_data_framework.contracts.quarantine import QuarantineBatch
+from fabric_data_framework.contracts.reconciliation import ReconciliationResult
 from ..runtime import WatermarkPosition
 
 

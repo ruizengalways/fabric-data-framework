@@ -5,11 +5,11 @@ from __future__ import annotations
 from uuid import UUID
 
 from ..capture.full import FullSnapshotEvidence
-from ..operations import (
+from fabric_data_framework.contracts.audit import RowAccounting
+from fabric_data_framework.contracts.reconciliation import (
     ReconciliationMetric,
     ReconciliationResult,
     ReconciliationStatus,
-    RowAccounting,
 )
 
 

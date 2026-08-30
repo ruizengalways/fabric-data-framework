@@ -11,7 +11,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from .operations import MutationCounts
+from fabric_data_framework.contracts.audit import MutationCounts
 
 
 VALID_FROM = "_framework_valid_from"

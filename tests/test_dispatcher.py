@@ -25,7 +25,7 @@ from fabric_data_framework.dispatcher import (
     OrchestrationIntegrityError,
     dispatch_datasets,
 )
-from fabric_data_framework.operations import DatasetRunAudit
+from fabric_data_framework.contracts.audit import DatasetRunAudit
 from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 
 

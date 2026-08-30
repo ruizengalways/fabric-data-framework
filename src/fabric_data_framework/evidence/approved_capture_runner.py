@@ -35,16 +35,16 @@ from ..adapters.fabric.capture_transports import (
 )
 from ..adapters.fabric.contracts import FabricCaptureRequest, FabricNativeRunEvidence
 from ..adapters.fabric.rest import FabricJobInstance, FabricRestClient
-from ..config import (
+from fabric_data_framework.config import (
     CaptureStrategy,
     DatasetConfig,
     ExecutionEngine,
-    FrozenModel,
     ProgressOwner,
     RunMode,
     canonical_hash,
     resolve_effective_config,
 )
+from fabric_data_framework.contracts.base import FrozenModel
 from ..contracts.capture_receipt import CaptureReceipt
 from ..contracts.execution_plan import (
     ExecutionKind,

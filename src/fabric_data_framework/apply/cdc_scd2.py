@@ -12,8 +12,8 @@ from uuid import UUID
 from pydantic import Field
 
 from ..capture.cdc import CDCNormalizedBatch, CDCOperation
-from ..config import FrozenModel
-from ..operations import MutationCounts
+from fabric_data_framework.contracts.base import FrozenModel
+from fabric_data_framework.contracts.audit import MutationCounts
 from ..quality.temporal import (
     EventTimeRelation,
     TemporalOrderingError,

@@ -14,7 +14,7 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from ..config import FrozenModel
+from fabric_data_framework.contracts.base import FrozenModel
 from ..control_plane.certification import CONTROL_PLANE_BACKEND_PROFILES
 from ..infrastructure import EnvironmentName
 from .integration_evidence import (

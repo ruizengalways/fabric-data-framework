@@ -52,7 +52,7 @@ from fabric_data_framework.recovery.warehouse_fault_injection import (
     WarehouseCommitFaultPhase,
 )
 from fabric_data_framework.control_plane.target_operation_journal import read_target_operation
-from fabric_data_framework.target_operations import TargetOperationStatus
+from fabric_data_framework.contracts.target_operation import TargetOperationStatus
 
 
 NOW = datetime(2026, 8, 30, 11, 0, tzinfo=timezone.utc)

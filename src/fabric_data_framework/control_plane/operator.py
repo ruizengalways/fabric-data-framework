@@ -14,7 +14,8 @@ from uuid import UUID
 from pydantic import Field
 from sqlalchemy import Engine, func, select
 
-from ..config import FrozenModel, RunMode
+from fabric_data_framework.config import RunMode
+from fabric_data_framework.contracts.base import FrozenModel
 from ..contracts.recovery import ReprocessRequestStatus
 from .schema import (
     apply_baseline_schema,

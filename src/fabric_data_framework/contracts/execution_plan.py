@@ -11,15 +11,15 @@ from enum import Enum
 
 from pydantic import Field, model_validator
 
-from ..config import (
+from fabric_data_framework.config import (
     ApplyStrategy,
     CaptureStrategy,
     EffectiveDatasetConfig,
     ExecutionEngine,
-    FrozenModel,
     RunMode,
     canonical_hash,
 )
+from fabric_data_framework.contracts.base import FrozenModel
 from ..metadata.capabilities import CapabilityRegistry, DEFAULT_CAPABILITY_REGISTRY
 
 
