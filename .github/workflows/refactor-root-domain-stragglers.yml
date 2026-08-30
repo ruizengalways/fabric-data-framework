@@ -1,0 +1,119 @@
+name: refactor-root-domain-stragglers
+
+on:
+  push:
+    branches:
+      - codex/root-domain-stragglers
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/root-domain-stragglers
+          fetch-depth: 0
+      - name: Move root stragglers to existing domain owners
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import subprocess
+
+          root = Path('.')
+          pkg = root / 'src' / 'fabric_data_framework'
+          moves = {
+              'watermark.py': 'capture/watermark.py',
+              'scd2.py': 'apply/scd2.py',
+              'bronze.py': 'data_plane/bronze.py',
+              'reconciliation.py': 'quality/reconciliation.py',
+              'fabric_auth.py': 'adapters/fabric/auth.py',
+          }
+          module_map = {
+              'watermark': 'capture.watermark',
+              'scd2': 'apply.scd2',
+              'bronze': 'data_plane.bronze',
+              'reconciliation': 'quality.reconciliation',
+              'fabric_auth': 'adapters.fabric.auth',
+          }
+
+          for old, new in moves.items():
+              subprocess.run(['git', 'mv', str(pkg / old), str(pkg / new)], check=True)
+
+          # Fix imports inside modules that gained package depth.
+          watermark = pkg / 'capture' / 'watermark.py'
+          text = watermark.read_text(encoding='utf-8')
+          text = text.replace('from .config import ', 'from ..config import ')
+          text = text.replace('from .runtime import ', 'from ..runtime import ')
+          watermark.write_text(text, encoding='utf-8')
+
+          # Rewrite all executable callers to one explicit canonical owner path.
+          for base in (pkg, root / 'tests'):
+              for path in base.rglob('*.py'):
+                  text = path.read_text(encoding='utf-8')
+                  updated = text
+                  for old, new in module_map.items():
+                      updated = updated.replace(
+                          f'fabric_data_framework.{old}',
+                          f'fabric_data_framework.{new}',
+                      )
+                      updated = re.sub(
+                          rf'from \.{{1,5}}{re.escape(old)} import ',
+                          f'from fabric_data_framework.{new} import ',
+                          updated,
+                      )
+                  if updated != text:
+                      path.write_text(updated, encoding='utf-8')
+
+          # Current navigation docs use canonical paths; historical Git provenance is untouched.
+          doc_paths = (
+              pkg / 'README.md',
+              root / 'docs' / 'human' / 'REPOSITORY_GUIDE.md',
+              root / 'docs' / 'machine' / 'IMPLEMENTATION_MAP.md',
+          )
+          replacements = {
+              '`watermark.py`': '`capture/watermark.py`',
+              '`scd2.py`': '`apply/scd2.py`',
+              '`bronze.py`': '`data_plane/bronze.py`',
+              '`reconciliation.py`': '`quality/reconciliation.py`',
+              '`fabric_auth.py`': '`adapters/fabric/auth.py`',
+          }
+          for path in doc_paths:
+              text = path.read_text(encoding='utf-8')
+              updated = text
+              for old, new in replacements.items():
+                  updated = updated.replace(old, new)
+              if updated != text:
+                  path.write_text(updated, encoding='utf-8')
+
+          boundary = root / 'tests' / 'test_root_domain_ownership.py'
+          boundary.write_text('''from __future__ import annotations\n\nimport importlib\nfrom pathlib import Path\n\nimport pytest\n\n\nREPO_ROOT = Path(__file__).parents[1]\nPACKAGE_ROOT = REPO_ROOT / "src" / "fabric_data_framework"\n\nCANONICAL = {\n    "watermark": "capture.watermark",\n    "scd2": "apply.scd2",\n    "bronze": "data_plane.bronze",\n    "reconciliation": "quality.reconciliation",\n    "fabric_auth": "adapters.fabric.auth",\n}\n\n\n@pytest.mark.parametrize(("old", "new"), CANONICAL.items())\ndef test_root_domain_stragglers_have_one_canonical_owner(old: str, new: str):\n    assert importlib.import_module(f"fabric_data_framework.{new}") is not None\n    assert not (PACKAGE_ROOT / f"{old}.py").exists()\n    with pytest.raises(ModuleNotFoundError):\n        importlib.import_module(f"fabric_data_framework.{old}")\n\n\ndef test_source_and_tests_do_not_reintroduce_removed_root_domain_imports():\n    forbidden = tuple(f"fabric_data_framework.{old}" for old in CANONICAL)\n    offenders: list[str] = []\n    current = Path(__file__).resolve()\n    for base in (REPO_ROOT / "src", REPO_ROOT / "tests"):\n        for path in sorted(base.rglob("*.py")):\n            if path.resolve() == current:\n                continue\n            text = path.read_text(encoding="utf-8")\n            for value in forbidden:\n                if value in text:\n                    offenders.append(f"{path.relative_to(REPO_ROOT)}: {value}")\n    assert offenders == []\n''', encoding='utf-8')
+
+          # Fail the refactor immediately if any old executable import remains.
+          offenders = []
+          for base in (pkg, root / 'tests'):
+              for path in base.rglob('*.py'):
+                  if path == boundary:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  for old in module_map:
+                      if f'fabric_data_framework.{old}' in text:
+                          offenders.append(f'{path}: fabric_data_framework.{old}')
+                      if re.search(rf'from \.{{1,5}}{re.escape(old)} import ', text):
+                          offenders.append(f'{path}: relative {old}')
+          if offenders:
+              raise RuntimeError('removed root-domain imports remain:\n' + '\n'.join(offenders))
+
+          (root / '.github' / 'workflows' / 'refactor-root-domain-stragglers.yml').unlink()
+          PY
+      - name: Commit canonical owner moves
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor: move root modules to domain owners"
+          git push origin HEAD:codex/root-domain-stragglers
