@@ -46,7 +46,8 @@ Extension families include:
 - specialized apply adapter — only when no standard APPEND/REPLACE/UPSERT/SCD strategy is sufficient;
 - capture observer — item-specific post-run facts required to turn provider completion into framework capture evidence;
 - Spark execution-data resolver — translation of already-frozen framework bounds/parameters into one Spark Job Definition `executionData` contract;
-- Warehouse mutation extension — one bounded representative target mutation executed inside the framework-owned same transaction as the commit marker.
+- Warehouse mutation extension — one bounded representative target mutation executed inside the framework-owned same transaction as the commit marker;
+- Warehouse COMMIT fault injector — provider/session-specific machinery for one explicitly authorized ambiguous-COMMIT evidence drill.
 
 Each extension receives typed immutable/framework-owned inputs and returns typed data/evidence. It does not control the entire run lifecycle.
 
@@ -133,9 +134,69 @@ the customer package.
 
 Canonical runbook: `docs/APPROVED_WAREHOUSE_EVIDENCE.md`.
 
+## Approved Warehouse COMMIT fault injector
+
+Stable entry-point group:
+
+```text
+fabric_data_framework.warehouse_commit_fault_injectors
+```
+
+Customer/provider registration:
+
+```toml
+[project.entry-points."fabric_data_framework.warehouse_commit_fault_injectors"]
+"sales.order.commit-ack-fault" = "fabric_customer.warehouse_faults:create_commit_ack_fault"
+```
+
+The registered callable is a bounded controller factory:
+
+```python
+(
+    warehouse_engine: sqlalchemy.Engine,
+    request: FabricWarehouseCommitFaultRequest,
+    payload: Mapping[str, object],
+) -> FabricWarehouseCommitFaultInjector
+```
+
+The returned controller exposes:
+
+```python
+arm(request) -> FabricWarehouseCommitFaultArmEvidence
+disarm(request) -> None
+verify(
+    request,
+    *,
+    observed_exception_type: str | None,
+    probe_evidence: TargetCommitProbeEvidence,
+) -> FabricWarehouseCommitFaultVerification
+```
+
+The framework still owns the target-operation semantic identity, target transaction,
+marker, UNKNOWN transition, read-only probe, journal reconciliation, re-entry decision
+and final PASS/FAIL.
+
+The injector can only install/remove/verify the provider-specific fault mechanism for the
+explicitly approved drill. It cannot claim that an exception occurred; the framework
+must actually observe `execute_atomic()` raising. It cannot turn marker absence into
+`NOT_COMMITTED`, and it cannot make a normal transaction return count as a real ambiguous
+COMMIT drill.
+
+The first supported fault phase is:
+
+```text
+COMMIT_ACKNOWLEDGEMENT
+```
+
+Arm and verification evidence must correlate to the same provider fault identity or
+retained evidence reference. Both the mutation-extension artifact and fault-injector
+artifact must be fingerprinted in the exact release manifest.
+
+Canonical runbook: `docs/APPROVED_WAREHOUSE_FAULT_DRILL.md`.
+
 ## Exact extension artifact provenance
 
-For approved evidence, the customer extension wheel or source artifact used by the run must be fingerprinted in `ReleaseManifest.artifact_sha256`.
+For approved evidence, every customer extension wheel or source artifact used by the run must be fingerprinted in `ReleaseManifest.artifact_sha256`.
 
 ```text
 logical extension name alone          -> insufficient
@@ -159,13 +220,17 @@ Custom code may not directly own or override:
 - semantic strategy changes at runtime;
 - approved evidence status or certification level;
 - target-operation CAS/retry authority;
-- Warehouse transaction commit or same-transaction marker semantics.
+- Warehouse transaction commit or same-transaction marker semantics;
+- marker-absence retry safety;
+- whether an ambiguous-COMMIT fault drill qualifies as PASS.
 
 Where custom code performs a physical write, it must do so through a declared extension contract and participate in the same recovery/idempotency model.
 
 A capture observer cannot claim success independently; its output must pass through `FabricCaptureAdapter` validation before a `CaptureReceipt` exists.
 
 A Warehouse mutation extension cannot claim commit independently; the framework marker and durable target-operation reconciliation remain authoritative evidence.
+
+A Warehouse fault injector cannot self-certify the drill. The framework must observe an actual provider/driver exception, verify the fault correlation, resolve the marker as `COMMITTED`, reconcile `SUCCEEDED`, and observe later `SKIP_SUCCEEDED` before PASS is possible.
 
 ## Failure behavior
 
@@ -174,6 +239,8 @@ Extensions must fail explicitly. They must not silently skip malformed records o
 For approved capture evidence, observer exceptions after provider `Completed` become correlated FAIL evidence when native identity is available.
 
 For approved Warehouse evidence, a mutation/provider exception around transaction execution is treated conservatively as an ambiguous target outcome. The journal becomes `UNKNOWN` and the framework probes the marker. Marker absence remains `UNRESOLVED`; it does not authorize retry.
+
+For the approved Warehouse fault drill, `arm=false` prevents target execution and the drill fails. A normal target return also fails the drill even if the target marker committed. A real execution exception with an absent marker remains `UNKNOWN/UNRESOLVED` and cannot be retried blindly.
 
 ## Why this is preferred over framework edits
 
@@ -191,6 +258,9 @@ provider/item-specific observation
 
 representative Warehouse mutation evidence
   -> run config + registered customer Warehouse mutation
+
+approved provider-specific ambiguous-COMMIT drill
+  -> run config + registered bounded fault injector
 
 true exception
   -> metadata + registered bounded domain extension
