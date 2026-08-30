@@ -9,22 +9,33 @@ release_allowed: false
 feature_freeze: true
 candidate_status: not_frozen
 code_baseline:
-  pull_request: 80
-  merge_sha: 353b43c37077a1ffc9e22b6c76ae5494a164306e
-  milestone: fail-closed 0.4 exact-candidate release-readiness aggregation
-  pr_ci_actions: 33309737895
-  main_ci_actions: 33309805619
-  tests: 636
+  pull_request: 82
+  merge_sha: 7f7849b9319df43ef382574747bfe27ee6378403
+  milestone: exact candidate wheel identity + certified-byte release promotion contract
+  pr_ci_actions: 33310317289
+  main_ci_actions: 33310363412
+  tests: 644
   python_3_11: success
   python_3_13: success
   wheel_build: success
+  candidate_artifact_contract: success
   readiness_contract: success
   readiness_release_ready: false
   readiness_required_blockers: 15
-  readiness_artifact_id: 9731622350
-  readiness_artifact_archive_digest: sha256:81fe0bf1345859b512c2e4385aecccac154939325ef9c5677031aa4d7451f33a
-  wheel_ci_artifact_id: 9731620873
-  wheel_ci_artifact_archive_digest: sha256:5b33c71d75f7b962535bd79cf1619d3c456a7a6b727f0139a9e3f419f6bc8335
+  candidate_capable_main_artifact:
+    selected_as_frozen_candidate: false
+    workflow_run_id: 33310363412
+    workflow_run_attempt: 1
+    candidate_git_sha: 7f7849b9319df43ef382574747bfe27ee6378403
+    wheel_filename: fabric_data_framework-0.4.0-py3-none-any.whl
+    wheel_inner_sha256: b62ec28ddeff0cd07cc955537e82523d40706a756f4e3d458d89b51d11390d6f
+    artifact_id: 9731784760
+    artifact_archive_digest: sha256:5b716ee3a10f33aa82b8ae8e0df8accd78c264c569b9625a1c7f8cfeb0fe699f
+    artifact_expires_at: 2026-11-28T12:01:00Z
+  blocked_readiness_artifact:
+    artifact_id: 9731785652
+    artifact_archive_digest: sha256:77711f6c7324925ca29bcea41d378cc214361911316a3a043953cc9585dde908
+    artifact_expires_at: 2026-09-13T12:01:13Z
 documentation_model:
   human: docs/human
   machine: docs/machine
@@ -34,11 +45,15 @@ documentation_model:
 
 ## Release decision
 
-`0.4.0` remains **UNRELEASED** and feature-frozen. PR #80 adds the release-readiness contract; it does not make the source releasable. The current main CI deliberately supplied no retained release proofs, therefore all 15 required gates remained blockers and `release_ready=false`.
+`0.4.0` remains **UNRELEASED** and feature-frozen. PR #82 closes the release-time rebuild gap: main CI now creates an exact candidate identity manifest and the release workflow may only promote an already-certified candidate wheel. It cannot rebuild the wheel or publish merely from a tag push.
 
-The two GitHub artifact digests above are archive-upload digests reported by Actions. They are **not** substitutes for the inner wheel SHA256 that must be frozen and certified for the eventual candidate. No exact 0.4 candidate artifact has been frozen yet.
+Main run `33310363412` produced a valid candidate-capable artifact for source SHA `7f7849b9319df43ef382574747bfe27ee6378403`, with exact inner wheel SHA256 `b62ec28ddeff0cd07cc955537e82523d40706a756f4e3d458d89b51d11390d6f`. This artifact is **not yet selected/frozen as the 0.4 release candidate** and has no live certification attached.
 
-CI proves portable implementation contracts only. Exact-candidate retained enterprise evidence is still incomplete, so never infer `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN`, `PRODUCTION DB PROVEN`, or an equivalent live claim from this baseline.
+The GitHub artifact archive digest and the inner wheel SHA256 are different identities. Certification/release truth uses the inner wheel SHA256 from `CANDIDATE.json` / `SHA256SUMS`; the archive digest is retained only as GitHub transport evidence.
+
+Ordinary main CI still deliberately supplies no release proof bundle or integration manifest, so all 15 required readiness gates remain blockers and `release_ready=false`.
+
+CI proves portable implementation/release contracts only. Exact-candidate retained enterprise evidence is still incomplete, so never infer `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN`, `PRODUCTION DB PROVEN`, or an equivalent live claim from this baseline.
 
 ## Canonical source ownership
 
@@ -60,7 +75,7 @@ src/fabric_data_framework/
   control_plane/            relational state, repository, schema and certification
   recovery/                 retry/replay/rebuild/target commit recovery
   evidence/                 retained integration evidence, release-readiness aggregation and approved exact-run executors
-  deployment/               release contracts, delivery/materialization and customer project init/validation
+  deployment/               release/delivery contracts, candidate artifact identity, customer project init/validation
   extensions/               bounded extension loading/contracts
   cli/                      removable leaf presentation layer, including project and release-readiness commands
 ```
@@ -158,6 +173,35 @@ release_ready=true iff every required gate is PASS
 
 The 0.4 matrix currently has 15 required gates. Debezium/Kafka remains optional unless it is explicitly promoted into the 0.4 GA-certified release scope.
 
+## Exact candidate artifact and release promotion boundary
+
+Main `framework-ci` now writes these files into the candidate wheel artifact:
+
+```text
+fabric_data_framework-<version>-py3-none-any.whl
+SHA256SUMS
+CANDIDATE.json
+```
+
+`CANDIDATE.json` binds:
+
+```text
+framework version
+candidate source SHA
+workflow run ID
+workflow run attempt
+wheel filename
+exact inner wheel SHA256
+```
+
+The verifier is dependency-light and checks the downloaded bytes before the candidate wheel is installed/trusted.
+
+`framework-release` is manual exact-byte promotion only. It requires version + candidate run/SHA/wheel SHA + certified readiness run, proves the candidate came from successful `main` push CI, downloads the exact artifact, re-verifies the manifest and wheel bytes, verifies a successful `candidate-certification` artifact with `release_ready=true`, then tags the exact candidate SHA and publishes those same wheel bytes.
+
+There is no release-time wheel build and no tag-push auto-release path. A missing/expired/mismatched candidate or certification artifact blocks release.
+
+The certification workflow itself is not yet implemented, therefore no 0.4 release can currently pass the promotion workflow. This is intentional fail-closed behavior.
+
 ## Readability contracts enforced by CI
 
 ```text
@@ -172,6 +216,8 @@ core/control_plane/evidence/deployment do not depend on CLI
 project init/validation reusable logic is outside CLI
 release-readiness reusable logic is outside CLI
 deployment project validation imports canonical deployment.delivery owner path, not a flat/sibling facade
+release workflow does not rebuild candidate wheel
+candidate manifest rejects byte/provenance/version mismatches
 ```
 
 PR 78 initially failed the deployment package-boundary test because `deployment/project.py` used a relative sibling import for delivery loading. The implementation was corrected to the canonical `fabric_data_framework.deployment.delivery` owner path before merge. This remains evidence that package-boundary tests are active architecture controls rather than documentation-only rules.
@@ -194,15 +240,18 @@ IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER C
 IMPLEMENTED + CI PROVEN FABRIC WAREHOUSE SESSION-TERMINATION ABSENCE CERTIFIER CONTRACT
 IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE SESSION-TERMINATION RECOVERY CONTRACT
 IMPLEMENTED + CI PROVEN RELEASE-READINESS AGGREGATION CONTRACT
+IMPLEMENTED + CI PROVEN EXACT CANDIDATE WHEEL IDENTITY CONTRACT
+IMPLEMENTED + CI PROVEN EXACT CERTIFIED-BYTE RELEASE PROMOTION CONTRACT
 ```
 
-`project-init`, `project-validate`, and a green `release-readiness-contract` job are portable developer/CI capabilities. They do **not** mean workspace/item authorization, credentials, physical bindings, provider execution, target commit proof, recovery, or production evidence has been proven.
+`project-init`, `project-validate`, candidate artifact creation, exact-byte promotion workflow contracts, and a green `release-readiness-contract` job are portable developer/CI capabilities. They do **not** mean workspace/item authorization, credentials, physical bindings, provider execution, target commit proof, recovery, or production evidence has been proven.
 
 ## Current real-service / release gaps
 
 ```text
-freeze exact candidate source SHA + inner wheel SHA256
-harden release workflow to consume/prove the exact certified wheel rather than silently rebuild an equivalent-looking artifact
+implement explicit candidate-certification workflow / certified evidence packaging
+select/freeze one exact candidate source SHA + inner wheel SHA256
+bind fabric-customer compatibility proof to that exact frozen candidate
 enterprise Entra token acquisition under selected identity
 real workspace/item authorization smoke
 real production control-plane certification PASS
@@ -242,8 +291,8 @@ project-init
 ## Next engineering order
 
 ```text
-1. harden exact candidate wheel/artifact handoff in the release system
-2. freeze one 0.4 candidate source SHA + exact inner wheel SHA256
+1. implement candidate-certification workflow and exact evidence packaging
+2. select/freeze one successful main candidate run: source SHA + inner wheel SHA256
 3. bind fabric-customer compatibility proof to that exact candidate
 4. read-only Fabric item/identity smoke
 5. production control-plane certification
@@ -255,15 +304,16 @@ project-init
 11. real ambiguous-COMMIT recovery proof
 12. decide whether Debezium/Kafka remains OUT_OF_SCOPE or becomes required
 13. aggregate exact proof bundle + IntegrationEvidenceManifest
-14. run release-readiness with --require-ready; required blockers must be zero
-15. only then create immutable v0.4.0 release
-16. after v0.4.0 release, migrate fabric-customer from v0.3.0/exact-SHA-next lane to the immutable 0.4 wheel
+14. candidate-certification runs release-readiness with --require-ready; required blockers must be zero
+15. framework-release promotes the exact certified wheel without rebuild
+16. only then immutable v0.4.0 exists
+17. after v0.4.0 release, migrate fabric-customer from v0.3.0/exact-SHA-next lane to immutable 0.4
 ```
 
 ## Repository ownership
 
 ```text
-fabric-data-framework = reusable semantics/runtime/adapters/recovery/evidence/package + project init/dry-run + release-readiness contracts
+fabric-data-framework = reusable semantics/runtime/adapters/recovery/evidence/package + project init/dry-run + release-readiness/candidate-promotion contracts
 fabric-customer       = domain DatasetConfig + semantic selections + bounded extensions + Fabric content
 fabric-infra          = optional capacity/workspace/infrastructure lifecycle
 ```
