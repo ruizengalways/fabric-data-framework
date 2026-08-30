@@ -6,6 +6,7 @@
   "fabric_access_token_env_var": "FABRIC_ACCESS_TOKEN",
   "control_plane_database_url_env_var": "FABRIC_CONTROL_PLANE_DATABASE_URL",
   "warehouse_database_url_env_var": "FABRIC_WAREHOUSE_DATABASE_URL",
+  "warehouse_admin_database_url_env_var": "FABRIC_WAREHOUSE_ADMIN_DATABASE_URL",
   "control_plane_profile": "fabric_sql_database_v1",
   "bindings": [
     {
