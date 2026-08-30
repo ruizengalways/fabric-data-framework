@@ -50,6 +50,7 @@ def _proof(
     *,
     status: ReleaseReadinessStatus = ReleaseReadinessStatus.PASS,
     reference: str = "artifact://proof",
+    detail: str | None = None,
 ) -> ReleaseReadinessProofResult:
     refs = () if status is ReleaseReadinessStatus.NOT_RUN else (reference,)
     return ReleaseReadinessProofResult(
@@ -57,6 +58,7 @@ def _proof(
         kind=kind,
         status=status,
         evidence_references=refs,
+        detail=detail,
     )
 
 
@@ -64,8 +66,10 @@ def _bundle(
     *results: ReleaseReadinessProofResult,
     candidate: str = CANDIDATE,
     wheel: str | None = WHEEL,
+    schema: int = 1,
 ) -> ReleaseReadinessProofBundle:
     return ReleaseReadinessProofBundle(
+        readiness_schema_version=schema,
         framework_version="0.4.0",
         candidate_git_sha=candidate,
         artifact_sha256=wheel,
@@ -187,7 +191,10 @@ def test_merge_requires_exact_wheel_binding_on_every_partial_bundle():
         )
 
 
-def test_merge_requires_same_exact_candidate_sha():
+def test_merge_requires_same_schema_and_exact_candidate_sha():
+    with pytest.raises(ValueError, match="schema version"):
+        merge_release_readiness_proof_bundles(_spec(), (_bundle(schema=2),))
+
     with pytest.raises(ValueError, match="candidate git SHA mismatch"):
         merge_release_readiness_proof_bundles(
             _spec(),
@@ -230,6 +237,36 @@ def test_merge_rejects_unknown_kind_drift_and_integration_backed_gate():
                     _proof(
                         "fabric.pipeline",
                         ReleaseReadinessGateKind.FABRIC_PIPELINE,
+                    )
+                ),
+            ),
+        )
+
+
+def test_merge_rejects_credential_like_retained_reference_and_detail():
+    with pytest.raises(ValueError, match="credential material"):
+        merge_release_readiness_proof_bundles(
+            _spec(),
+            (
+                _bundle(
+                    _proof(
+                        "source.tests",
+                        ReleaseReadinessGateKind.SOURCE_VERIFICATION,
+                        reference="https://example.invalid/proof?access_token=secret",
+                    )
+                ),
+            ),
+        )
+
+    with pytest.raises(ValueError, match="credential material"):
+        merge_release_readiness_proof_bundles(
+            _spec(),
+            (
+                _bundle(
+                    _proof(
+                        "source.tests",
+                        ReleaseReadinessGateKind.SOURCE_VERIFICATION,
+                        detail="authorization: bearer redacted",
                     )
                 ),
             ),
