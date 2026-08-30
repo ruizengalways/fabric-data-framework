@@ -4,8 +4,7 @@ This provider-specific contract is intentionally narrow. An absent target marker
 resolve to NOT_COMMITTED only when the framework retained the exact Warehouse session
 identity before target execution, an independent Admin-capable connection observes that
 same session with an open transaction, terminates that exact session, verifies the exact
-connection is no longer observable, and the target commit probe subsequently re-reads
-and still finds no marker.
+connection is no longer observable, and a second target-marker read is still absent.
 
 Session disappearance by itself is not proof: the session might already have committed.
 Query Insights is not used for this proof because its completed-query/session history is
@@ -22,7 +21,7 @@ from sqlalchemy import Engine, text
 from sqlalchemy.engine import Connection
 
 from ..config import FrozenModel
-from .fabric_warehouse import FabricWarehouseAbsenceEvidence
+from .fabric_warehouse import FabricWarehouseAbsenceEvidence, FabricWarehouseMarkerStore
 from .target_probe import TargetCommitProbeRequest
 
 
@@ -34,10 +33,7 @@ class FabricWarehouseSessionBinding(FrozenModel):
 
     @property
     def evidence_reference(self) -> str:
-        return (
-            "fabric-warehouse-session:"
-            f"{self.connection_id}:{self.session_id}"
-        )
+        return f"fabric-warehouse-session:{self.connection_id}:{self.session_id}"
 
 
 class FabricWarehouseSessionState(FrozenModel):
@@ -148,14 +144,14 @@ def capture_fabric_warehouse_session_binding(
 
 
 class FabricWarehouseSessionTerminationAbsenceCertifier:
-    """Certify retry safety only from an observed open transaction that is terminated.
+    """Certify retry safety from exact-session rollback plus a second absent marker read.
 
-    This class does **not** inspect marker rows. ``FabricWarehouseTargetCommitProbe``
-    remains responsible for the primary marker check and, critically, a second marker
-    read after this certifier returns. Therefore ``safe_to_retry=True`` means only that
-    the exact previously captured session had an open transaction and that exact session
-    was terminated and disappeared; final NOT_COMMITTED still requires post-termination
-    marker absence.
+    ``safe_to_retry=True`` is deliberately stronger than merely observing that a session
+    disappeared. The certifier requires the exact retained connection/session identity,
+    an open transaction, successful termination, disappearance of that exact connection,
+    and a second marker read that is still empty. If a marker appears during the race,
+    the certifier returns ``safe_to_retry=False`` so the surrounding target probe remains
+    fail-closed rather than incorrectly producing NOT_COMMITTED.
     """
 
     def __init__(
@@ -163,16 +159,16 @@ class FabricWarehouseSessionTerminationAbsenceCertifier:
         *,
         binding: FabricWarehouseSessionBinding,
         authority: FabricWarehouseSessionAuthority,
+        marker_store: FabricWarehouseMarkerStore,
     ) -> None:
         self._binding = binding
         self._authority = authority
+        self._marker_store = marker_store
 
     def certify_absence(
         self,
         request: TargetCommitProbeRequest,
     ) -> FabricWarehouseAbsenceEvidence:
-        del request  # semantic identity is enforced by the surrounding marker probe
-
         try:
             before = self._authority.observe(self._binding)
         except Exception as exc:
@@ -238,13 +234,38 @@ class FabricWarehouseSessionTerminationAbsenceCertifier:
                 ),
             )
 
+        try:
+            markers = self._marker_store.read_markers(request.operation_key)
+        except Exception as exc:
+            return FabricWarehouseAbsenceEvidence(
+                safe_to_retry=False,
+                evidence_reference=self._binding.evidence_reference,
+                detail=f"post-termination marker read failed: {type(exc).__name__}",
+            )
+        if markers:
+            return FabricWarehouseAbsenceEvidence(
+                safe_to_retry=False,
+                evidence_reference=self._marker_store.marker_reference(request.operation_key),
+                native_operation_id=next(
+                    (
+                        marker.native_operation_id
+                        for marker in markers
+                        if marker.native_operation_id is not None
+                    ),
+                    None,
+                ),
+                detail=(
+                    "target marker appeared during session termination; commit may have won "
+                    "the race and NOT_COMMITTED is forbidden"
+                ),
+            )
+
         return FabricWarehouseAbsenceEvidence(
             safe_to_retry=True,
             evidence_reference=self._binding.evidence_reference,
             detail=(
-                "exact Warehouse session had an open transaction, was terminated, and is "
-                "no longer observable; final retry safety still requires a second absent "
-                "target-marker read"
+                "exact Warehouse session had an open transaction, was terminated, is no "
+                "longer observable, and the post-termination target marker remains absent"
             ),
         )
 
