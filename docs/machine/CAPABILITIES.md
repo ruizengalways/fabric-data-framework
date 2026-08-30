@@ -77,7 +77,7 @@ No row above is a live Fabric claim until retained approved exact-candidate exec
 | Evidence spec/manifest/hash | `evidence/integration_evidence.py` | IMPLEMENTED + CI PROVEN EVIDENCE HARNESS CONTRACT |
 | Credential-safe approved-run preflight | `evidence/integration_runner.py` | IMPLEMENTED + CI PROVEN APPROVED-RUN PREFLIGHT CONTRACT |
 | Read-only Fabric item smoke | integration runner/checks | IMPLEMENTED + CI PROVEN READ-ONLY RUNNER CONTRACT |
-| Strict staged evidence merge | `evidence/integration_evidence_merge.py` | IMPLEMENTED + CI PROVEN EVIDENCE MERGE CONTRACT |
+| Strict staged integration-evidence merge | `evidence/integration_evidence_merge.py` | IMPLEMENTED + CI PROVEN EVIDENCE MERGE CONTRACT |
 | Retained evidence secret scanning | `evidence/safety.py` | IMPLEMENTED + CI PROVEN fail-closed |
 | Approved control-plane certification | `evidence/approved_control_plane_runner.py` | IMPLEMENTED + CI PROVEN APPROVED RUNNER CONTRACT |
 | Approved Pipeline execution evidence | `evidence/approved_pipeline_runner.py` | IMPLEMENTED + CI PROVEN APPROVED RUNNER CONTRACT |
@@ -98,47 +98,57 @@ The runners above are evidence-producing contracts, but this repository still ha
 | Required `NOT_RUN` / `FAIL` / `OUT_OF_SCOPE` blocks release | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN fail-closed |
 | `release_ready=true` iff all required gates PASS | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN |
 | `release-readiness` / `--require-ready` CLI | `cli/release.py` | PRESENTATION + CI PROVEN |
+| Strict partial release-proof merge | `evidence/release_readiness_merge.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| `release-proofs-merge` CLI | `cli/release.py` | PRESENTATION + CI PROVEN |
+| Partial proof requires exact non-null wheel SHA | `evidence/release_readiness_merge.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| Contradictory substantive release proof cannot use precedence | `evidence/release_readiness_merge.py` | IMPLEMENTED + CI PROVEN fail-closed |
 | CI-retained intentionally blocked readiness report | `.github/workflows/ci.yml` | CI PROVEN; ordinary main has 15 blockers |
 | Candidate wheel manifest binds source/run/attempt/inner SHA256 | `deployment/candidate_artifact.py` | IMPLEMENTED + CI PROVEN fail-closed |
 | Candidate manifest rejects wheel-byte/version/provenance mismatch | `deployment/candidate_artifact.py` | IMPLEMENTED + CI PROVEN fail-closed |
 | Main candidate artifact = wheel + SHA256SUMS + CANDIDATE.json | `.github/workflows/ci.yml` | IMPLEMENTED + CI PROVEN WORKFLOW CONTRACT |
-| Main candidate artifact longer retention than PR artifact | `.github/workflows/ci.yml` | IMPLEMENTED + CI PROVEN WORKFLOW POLICY |
 | Exact certified wheel promotion without rebuild | `.github/workflows/release.yml` | IMPLEMENTED + CI PROVEN RELEASE CONTRACT |
 | Release requires certified readiness bound to exact wheel | `.github/workflows/release.yml` | IMPLEMENTED + CI PROVEN fail-closed RELEASE CONTRACT |
 
-Latest verified candidate-capable main artifact from merged PR #84 run `33314977393`:
+Strict partial release-proof merge merged in PR #86:
 
 ```text
-source SHA       bb9b7ed74e2696978c546011c893fb316ffdd57c
+merge SHA       0f70e037806482c677fccae0ce9432504f2a9885
+PR CI           33342779028
+main CI         33342806854
+tests           664
+```
+
+Latest verified candidate-capable main artifact from that merged baseline:
+
+```text
+source SHA       0f70e037806482c677fccae0ce9432504f2a9885
 wheel            fabric_data_framework-0.4.0-py3-none-any.whl
-inner SHA256     ce78ae1bc67b0e68bca360e825d36cf6b0cb171f811de8257cd9ce0225154748
-artifact ID      9733146071
-archive digest   sha256:6a4d45618e64f7bf34b508652ee999b95e37a0f23cdf07927807e593bfabdde4
-retention        90 days / expires 2026-11-28T13:44:16Z
+inner SHA256     edcde5a85ded7a01ec8502d065e7b04c4621f8609ae887c7a479d8b253978656
+artifact ID      9741061544
+archive digest   sha256:9585033dbc4c88b97e6e3877b9e9c647dfab896010c224a2cbfa4f0dfe362782
+retention        90 days / expires 2026-11-28T23:49:01Z
 selected/frozen  false
 ```
 
 That artifact remains candidate-capable only. It has not been selected/frozen and has no live certification attached.
 
-## Candidate certification aggregation — merged PR #84
+## Candidate proof and certification aggregation
 
 | Capability | Implementation owner | Current evidence |
 |---|---|---|
 | Source-controlled 0.4 integration evidence template | `release/0.4.0/integration-evidence-template.json` | CONTRACT + CI PROVEN |
 | Runtime binding of template to environment/domain/exact wheel SHA | `evidence/candidate_certification.py` | IMPLEMENTED + CI PROVEN fail-closed |
-| Integration manifest must be fully certified before candidate certification | `evidence/candidate_certification.py` + `evidence/integration_evidence.py` | IMPLEMENTED + CI PROVEN fail-closed |
-| Release proof references/details reject credential-like retained text | `evidence/candidate_certification.py` + `evidence/safety.py` | IMPLEMENTED + CI PROVEN fail-closed |
-| `candidate-certify` hard certification CLI | `cli/release.py` | PRESENTATION + CI PROVEN |
-| Candidate CI provenance and exact wheel re-verification | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + CI PROVEN WORKFLOW CONTRACT |
-| Evidence run must be successful explicit workflow_dispatch at exact candidate SHA | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + CI PROVEN fail-closed |
-| Certified artifact uploaded only after `release_ready=true`, zero blockers, all required PASS | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + CI PROVEN fail-closed |
-| Certification performs no wheel rebuild/tag/release mutation | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + CI PROVEN WORKFLOW BOUNDARY |
-| Candidate release-proof producer | `.github/workflows/candidate-release-proofs.yml` | NOT YET IMPLEMENTED / NEXT RELEASE BLOCKER |
+| Integration manifest fully certified before candidate certification | `evidence/candidate_certification.py` + `evidence/integration_evidence.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| Candidate certification exact provenance aggregation | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + CI PROVEN WORKFLOW CONTRACT |
+| Static exact-candidate source/wheel/customer proof production | `.github/workflows/candidate-release-proofs.yml` | IMPLEMENTED ON FEATURE BRANCH / CI PENDING |
+| Release-proof producer requires separate live business-path artifact | `.github/workflows/candidate-release-proofs.yml` | IMPLEMENTED ON FEATURE BRANCH / CI PENDING fail-closed |
+| Release-proof producer refuses final artifact unless all 8 required non-integration gates PASS | `.github/workflows/candidate-release-proofs.yml` | IMPLEMENTED ON FEATURE BRANCH / CI PENDING fail-closed |
+| Candidate business-path evidence producer | `.github/workflows/candidate-business-path-evidence.yml` | NOT YET IMPLEMENTED / NEXT RELEASE BLOCKER |
 | Candidate integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | NOT YET IMPLEMENTED / NEXT RELEASE BLOCKER |
 
-PR #84 merge SHA `bb9b7ed74e2696978c546011c893fb316ffdd57c`; final PR CI `33314924064`; main CI `33314977393`. Both Python matrices, wheel and ordinary readiness jobs succeeded; merged-main Python 3.13 reported **653 passed**.
+The release-proof producer directly creates PASS only for `source.tests`, `wheel.integrity`, and `customer.compatibility` after re-verifying the exact candidate. It has no direct PASS implementation for FULL/REPLACE, WATERMARK/SCD1, WATERMARK/SCD2, retry/idempotency, or reconciliation fail-closed; those five must arrive as retained exact-candidate live business-path evidence and survive strict merge.
 
-The certification workflow cannot successfully create `release-readiness-certified-<candidate SHA>` today because its two fixed upstream producer workflows do not yet exist. That is intentional fail-closed behavior, not a bypass to fill with fabricated PASS data.
+Candidate certification from merged PR #84 remains a portable CI-proven contract, not a successful live certification run.
 
 ## Warehouse ambiguity / session recovery boundaries
 
@@ -171,7 +181,8 @@ The certification workflow cannot successfully create `release-readiness-certifi
 | Proof / capability | State |
 |---|---|
 | Frozen exact 0.4 candidate source SHA + inner wheel SHA256 | NOT YET FROZEN; candidate-capable artifact exists |
-| Candidate release-proof producer workflow | NOT YET IMPLEMENTED |
+| Candidate release-proof producer workflow | FEATURE BRANCH IMPLEMENTED / CI PENDING |
+| Candidate business-path evidence producer workflow | NOT YET IMPLEMENTED |
 | Candidate integration-evidence producer workflow | NOT YET IMPLEMENTED |
 | `release-readiness-certified-<candidate SHA>` artifact | NOT YET PRODUCED |
 | Enterprise Fabric identity/token | NOT YET RETAINED |
@@ -187,7 +198,6 @@ The certification workflow cannot successfully create `release-readiness-certifi
 | Real reconciliation fail-closed drill | NOT YET RETAINED |
 | Live Warehouse target+marker transaction | NOT YET RETAINED |
 | Provider-specific real ambiguous COMMIT fault | NOT YET RETAINED |
-| Live exact Warehouse session/Admin DMV/KILL chain where required | NOT YET RETAINED |
 | Complete exact-candidate proof bundle + certified IntegrationEvidenceManifest | NOT YET RETAINED |
 | Release-readiness blockers = 0 | NOT YET; ORDINARY READINESS HAS 15 REQUIRED BLOCKERS |
 | Live Debezium/Kafka certification | OUT OF SCOPE UNLESS 0.4 GA SCOPE PROMOTES IT |
