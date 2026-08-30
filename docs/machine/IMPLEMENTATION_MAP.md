@@ -182,7 +182,7 @@ Ownership:
 | `cli/__init__.py` | public console-script `main` export |
 | `cli/__main__.py` | module execution entrypoint |
 | `cli/README.md` | code-local dependency/ownership rule |
-| `cli_router.py` | deprecated compatibility shim only; no command/business implementation |
+| `cli/` | only CLI import/implementation surface |
 
 Non-negotiable dependency rule:
 
@@ -201,7 +201,7 @@ physical removal of cli/ does not break core package/capture/apply/execution/rec
 
 The console script may cease to function if `cli/` is removed; that is expected. Library/runtime functionality must remain independent.
 
-Do not add new top-level `cli_*.py` implementations. Put command adapters inside `cli/` and keep reusable semantics/runtime outside it.
+Do not add top-level CLI compatibility modules. Put command adapters inside `cli/` and keep reusable semantics/runtime outside it.
 
 ## Readability / future folder extraction rule
 

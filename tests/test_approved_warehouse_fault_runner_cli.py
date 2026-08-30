@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from fabric_data_framework import cli_router
-from fabric_data_framework.approved_warehouse_fault_runner import (
+from fabric_data_framework.evidence.approved_warehouse_fault_runner import (
     ApprovedWarehouseFaultDrillConfig,
 )
 from fabric_data_framework.config import (
@@ -23,7 +23,7 @@ from fabric_data_framework.config import (
 )
 from fabric_data_framework.delivery import build_release_manifest
 from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -31,7 +31,7 @@ from fabric_data_framework.integration_evidence import (
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.integration_runner import ApprovedIntegrationRunnerConfig
+from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
 
 
 MUTATION_ARTIFACT = "fabric-customer-0.4.0.dev1-py3-none-any.whl"

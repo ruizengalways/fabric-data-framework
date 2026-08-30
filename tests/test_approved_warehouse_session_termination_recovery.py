@@ -10,7 +10,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import Column, Integer, MetaData, String, Table, create_engine
 
-from fabric_data_framework.approved_warehouse_fault_runner import (
+from fabric_data_framework.evidence.approved_warehouse_fault_runner import (
     ApprovedWarehouseFaultDrillConfig,
     execute_approved_warehouse_fault_drill,
 )
@@ -28,7 +28,7 @@ from fabric_data_framework.config import (
 from fabric_data_framework.delivery import build_release_manifest, materialize_semantic_metadata
 from fabric_data_framework.extensions import ExtensionKind, ExtensionRegistry
 from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -36,7 +36,7 @@ from fabric_data_framework.integration_evidence import (
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.integration_runner import ApprovedIntegrationRunnerConfig
+from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
 from fabric_data_framework.recovery.fabric_warehouse import (
     FabricWarehouseMarkerStore,
     FabricWarehouseMutationEvidence,

@@ -3,14 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from fabric_data_framework.cli_router import main
+from fabric_data_framework.cli import main
 from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckSpec,
     IntegrationEvidenceSpec,
 )
-from fabric_data_framework.integration_runner import ApprovedIntegrationRunnerConfig
+from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
 
 
 def _write(path: Path, value) -> None:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import importlib
 from pathlib import Path
 
@@ -23,22 +22,14 @@ EVIDENCE_MODULES = (
 
 
 @pytest.mark.parametrize("module_name", EVIDENCE_MODULES)
-def test_legacy_evidence_import_is_same_canonical_module(module_name: str):
-    legacy = importlib.import_module(f"fabric_data_framework.{module_name}")
-    canonical = importlib.import_module(f"fabric_data_framework.evidence.{module_name}")
-    assert legacy is canonical
+def test_root_evidence_legacy_module_file_is_absent(module_name: str):
+    assert not (PACKAGE_ROOT / f"{module_name}.py").exists()
 
 
 @pytest.mark.parametrize("module_name", EVIDENCE_MODULES)
-def test_root_evidence_compatibility_module_contains_no_implementation(module_name: str):
-    path = PACKAGE_ROOT / f"{module_name}.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    implementation_nodes = (
-        ast.FunctionDef,
-        ast.AsyncFunctionDef,
-        ast.ClassDef,
-    )
-    assert not any(isinstance(node, implementation_nodes) for node in tree.body)
+def test_root_evidence_legacy_import_does_not_resolve(module_name: str):
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module(f"fabric_data_framework.{module_name}")
 
 
 def test_evidence_package_exposes_stable_contract_surface():
@@ -49,3 +40,9 @@ def test_evidence_package_exposes_stable_contract_surface():
     assert evidence.ApprovedIntegrationRunnerConfig.__module__ == (
         "fabric_data_framework.evidence.integration_runner"
     )
+
+
+def test_cli_router_legacy_module_is_absent():
+    assert not (PACKAGE_ROOT / "cli_router.py").exists()
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("fabric_data_framework.cli_router")

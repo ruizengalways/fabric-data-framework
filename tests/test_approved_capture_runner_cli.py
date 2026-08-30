@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from fabric_data_framework import cli_router
-from fabric_data_framework.approved_capture_runner import ApprovedCaptureRunConfig
+from fabric_data_framework.evidence.approved_capture_runner import ApprovedCaptureRunConfig
 from fabric_data_framework.config import (
     ApplyStrategy,
     CaptureStrategy,
@@ -25,7 +25,7 @@ from fabric_data_framework.config import (
 )
 from fabric_data_framework.delivery import build_release_manifest
 from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -33,7 +33,7 @@ from fabric_data_framework.integration_evidence import (
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.integration_runner import (
+from fabric_data_framework.evidence.integration_runner import (
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
 )

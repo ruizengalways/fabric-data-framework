@@ -43,8 +43,8 @@ from ..delivery import (
 )
 from ..deployment import CIProvider, DeploymentMechanism, DeploymentProvenance
 from ..fabric_auth import EnvironmentAccessTokenProvider
-from ..integration_checks import run_fabric_item_read_check
-from ..integration_evidence import (
+from ..evidence.integration_checks import run_fabric_item_read_check
+from ..evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceStatus,
     load_integration_evidence_manifest,
@@ -53,7 +53,7 @@ from ..integration_evidence import (
     validate_integration_evidence_manifest,
     write_integration_evidence_manifest,
 )
-from ..integration_runner import (
+from ..evidence.integration_runner import (
     build_approved_integration_run_plan,
     load_approved_integration_runner_config,
 )

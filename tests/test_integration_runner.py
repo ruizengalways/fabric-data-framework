@@ -4,12 +4,12 @@ import pytest
 from pydantic import ValidationError
 
 from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckSpec,
     IntegrationEvidenceSpec,
 )
-from fabric_data_framework.integration_runner import (
+from fabric_data_framework.evidence.integration_runner import (
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
     build_approved_integration_run_plan,

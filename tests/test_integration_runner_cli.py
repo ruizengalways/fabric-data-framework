@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from fabric_data_framework.cli import main
-from fabric_data_framework.integration_evidence import (
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceStatus,
     load_integration_evidence_manifest,
 )
