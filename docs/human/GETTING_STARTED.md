@@ -34,7 +34,7 @@ python -m pip check
 pytest -q
 ```
 
-CI 会在多个 Python 版本上重新验证并构建 wheel。
+CI 会在 Python 3.11 / 3.13 上重新验证并构建 wheel。
 
 ## 3. CLI 是干什么的
 
@@ -71,10 +71,12 @@ fabric-framework <command> --help
 
 生产/共享环境不要依赖 editable install。
 
-构建：
+本地如果需要按 CI 相同方式构建 wheel：
 
 ```bash
-python -m build
+python -m pip install 'setuptools>=77'
+python -m pip wheel . --no-deps --no-build-isolation -w dist
+(cd dist && sha256sum *.whl)
 ```
 
 得到类似：
