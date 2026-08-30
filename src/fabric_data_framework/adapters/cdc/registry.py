@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from typing import Any, Mapping
 
-from ...config import ExecutionEngine
+from fabric_data_framework.metadata.config import ExecutionEngine
 from ...metadata.capabilities import DEBEZIUM_KAFKA_PROFILE
 from .debezium_kafka import (
     DebeziumKafkaBatchResult,

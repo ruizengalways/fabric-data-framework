@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterable
 from uuid import UUID, uuid4
 
-from ...config import DatasetStatus, EffectiveDatasetConfig, RunMode
+from fabric_data_framework.metadata.config import DatasetStatus, EffectiveDatasetConfig, RunMode
 from ...contracts.dispatch import (
     DatasetDispatchOutcome,
     DatasetDispatchRequest,

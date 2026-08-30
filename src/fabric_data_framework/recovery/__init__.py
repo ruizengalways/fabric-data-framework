@@ -45,7 +45,7 @@ from .replay import (
     execute_quarantine_replay,
     prepare_quarantine_replay,
 )
-from .runtime import (
+from fabric_data_framework.contracts.runtime import (
     AttemptContext,
     FailureClassification,
     FailureDisposition,

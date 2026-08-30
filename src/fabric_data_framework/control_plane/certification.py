@@ -36,7 +36,7 @@ from .schema import (
 )
 from .io import CDCCheckpointVersionConflict, commit_cdc_checkpoint
 from ..contracts.recovery import UnknownOutcomeResolution
-from ..runtime import StateCommitGate
+from fabric_data_framework.contracts.runtime import StateCommitGate
 from .target_operation_journal import (
     TargetOperationVersionConflict,
     claim_target_operation,

@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from fabric_data_framework.config import Criticality, DatasetStatus, PipelineStatus, RunMode
-from fabric_data_framework.infrastructure import EnvironmentName
-from fabric_data_framework.runtime import (
+from fabric_data_framework.metadata.config import Criticality, DatasetStatus, PipelineStatus, RunMode
+from fabric_data_framework.contracts.environment import EnvironmentName
+from fabric_data_framework.contracts.runtime import (
     DatasetOutcome,
     RuntimeContext,
     StateCommitGate,

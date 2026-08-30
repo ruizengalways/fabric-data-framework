@@ -53,7 +53,7 @@ src/fabric_data_framework/README.md
 
 | 文件/目录 | 职责 |
 |---|---|
-| `config.py` | `DatasetConfig` 和 source/load/target/orchestration/DQ/reconciliation 等 immutable semantic config |
+| `metadata/config.py` | `DatasetConfig` 和 source/load/target/orchestration/DQ/reconciliation 等 immutable semantic config |
 | `contracts/` | framework 跨模块共享的 typed contracts，例如 capture/recovery outcomes |
 | `capture/semantic_contracts.py` | source semantics、read strategy、delete semantics、Bronze contract，以及 cheatsheet presets |
 | `capture/onboarding.py` | 新 dataset 的语义组合校验，阻止 overclaim |

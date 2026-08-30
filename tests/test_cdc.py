@@ -20,8 +20,8 @@ from fabric_data_framework.capture.cdc import (
     build_cdc_checkpoint,
     normalize_cdc_batch,
 )
-from fabric_data_framework.config import ApplyStrategy
-from fabric_data_framework.runtime import StateCommitGate
+from fabric_data_framework.metadata.config import ApplyStrategy
+from fabric_data_framework.contracts.runtime import StateCommitGate
 
 
 def _position(value: int, *, partition: str = "p0", sequence: int = 0) -> CDCSourcePosition:

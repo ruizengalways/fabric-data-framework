@@ -13,7 +13,7 @@ from fabric_data_framework.capture.patterns import (
     DeleteVisibility,
     HistoryFidelity,
 )
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,

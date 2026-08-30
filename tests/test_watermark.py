@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
-from fabric_data_framework.config import WatermarkConfig
-from fabric_data_framework.runtime import WatermarkPosition
+from fabric_data_framework.metadata.config import WatermarkConfig
+from fabric_data_framework.contracts.runtime import WatermarkPosition
 from fabric_data_framework.capture.watermark import plan_watermark_batch
 
 

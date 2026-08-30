@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 from pydantic import Field
 
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     DatasetStatus,
     RunMode,
 )

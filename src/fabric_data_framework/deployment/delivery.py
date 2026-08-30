@@ -10,7 +10,7 @@ from typing import Iterable
 
 from sqlalchemy import Engine, and_, select, update
 
-from ..config import DatasetConfig, canonical_hash
+from fabric_data_framework.metadata.config import DatasetConfig, canonical_hash
 from ..control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     apply_baseline_schema,

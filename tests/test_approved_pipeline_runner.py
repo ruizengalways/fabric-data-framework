@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, select
 
 from fabric_data_framework.adapters.fabric.rest import FabricJobInstance, FabricJobStatus
 from fabric_data_framework.evidence.approved_pipeline_runner import execute_approved_pipeline
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,
@@ -25,7 +25,7 @@ from fabric_data_framework.config import (
 )
 from fabric_data_framework.control_plane.schema import pipeline_run, step_run
 from fabric_data_framework.deployment.delivery import build_release_manifest, materialize_semantic_metadata
-from fabric_data_framework.infrastructure import EnvironmentName
+from fabric_data_framework.contracts.environment import EnvironmentName
 from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,

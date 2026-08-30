@@ -14,7 +14,7 @@ from ..apply.append import (
     apply_append,
 )
 from fabric_data_framework.data_plane.bronze import BronzeRecord, normalize_bronze
-from ..config import ApplyStrategy, DatasetStatus, RunMode
+from fabric_data_framework.metadata.config import ApplyStrategy, DatasetStatus, RunMode
 from ..data_plane.staging import StagedBatch, stage_rows
 from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,

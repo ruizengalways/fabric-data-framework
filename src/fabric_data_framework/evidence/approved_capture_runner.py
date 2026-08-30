@@ -35,7 +35,7 @@ from ..adapters.fabric.capture_transports import (
 )
 from ..adapters.fabric.contracts import FabricCaptureRequest, FabricNativeRunEvidence
 from ..adapters.fabric.rest import FabricJobInstance, FabricRestClient
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     CaptureStrategy,
     DatasetConfig,
     ExecutionEngine,

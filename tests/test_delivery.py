@@ -3,7 +3,7 @@ from pathlib import Path
 
 from sqlalchemy import create_engine, select
 
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,
@@ -30,7 +30,7 @@ from fabric_data_framework.deployment.contracts import (
     EnvironmentBindings,
     build_deployment_plan,
 )
-from fabric_data_framework.infrastructure import EnvironmentName
+from fabric_data_framework.contracts.environment import EnvironmentName
 
 
 def config(dataset_id: str = "crm.customer") -> DatasetConfig:

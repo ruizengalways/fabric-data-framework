@@ -19,7 +19,7 @@ from ...adapters.fabric.pipeline import (
     FabricPipelineTransport,
 )
 from ...adapters.fabric.rest import FabricJobInstance, FabricJobStatus, FabricRestError
-from ...config import DatasetStatus, EffectiveDatasetConfig, RunMode
+from fabric_data_framework.metadata.config import DatasetStatus, EffectiveDatasetConfig, RunMode
 from ...contracts.dispatch import DatasetDispatchOutcome
 from ...contracts.execution_plan import compile_execution_plan
 from fabric_data_framework.contracts.audit import (

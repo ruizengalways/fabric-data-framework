@@ -12,8 +12,8 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
 
-from .contracts.base import FrozenModel as _FrozenModel
-from .contracts.schema import SchemaContract
+from ..contracts.base import FrozenModel as _FrozenModel
+from ..contracts.schema import SchemaContract
 
 
 

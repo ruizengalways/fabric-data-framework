@@ -8,7 +8,7 @@ from fabric_data_framework.adapters.cdc import (
     DeltaCDFChangeType,
     DeltaCDFRecord,
 )
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,

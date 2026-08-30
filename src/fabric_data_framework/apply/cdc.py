@@ -9,7 +9,7 @@ from typing import Any, Mapping, Sequence
 from pydantic import Field
 
 from ..capture.cdc import CDCNormalizedBatch, CDCOperation, CDCOrderingError
-from fabric_data_framework.config import ApplyStrategy
+from fabric_data_framework.metadata.config import ApplyStrategy
 from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.contracts.audit import MutationCounts
 from ..quality.temporal import (

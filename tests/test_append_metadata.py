@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import JSON, Column, DateTime, Integer, MetaData, String, Table, create_engine, inspect, select
 
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,

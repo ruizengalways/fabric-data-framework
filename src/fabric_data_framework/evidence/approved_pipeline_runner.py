@@ -22,7 +22,7 @@ from ..adapters.fabric.pipeline import (
     FabricRestPipelineTransport,
 )
 from ..adapters.fabric.rest import FabricJobInstance, FabricRestClient
-from ..config import (
+from fabric_data_framework.metadata.config import (
     DatasetConfig,
     DatasetStatus,
     PipelineStatus,

@@ -6,10 +6,10 @@ Use this file when browsing source code. It describes the current code organizat
 
 | You want to understand/change | Start here |
 |---|---|
-| dataset metadata and policy | `config.py`, `metadata/` |
+| dataset metadata and policy | `metadata/config.py`, `metadata/` |
 | source/capture semantics | `capture/` |
 | Bronze/Silver apply semantics | `apply/`, `execution/` |
-| execution plan / orchestration | `contracts/execution_plan.py`, `orchestration/`, `dispatcher.py` |
+| execution plan / orchestration | `contracts/execution_plan.py`, `orchestration/`, `orchestration/dispatcher.py` |
 | Fabric / CDC provider adapters | `adapters/` |
 | quality/schema ordering rules | `quality/`, `contracts/schema.py` |
 | control-plane state/runtime repository | `control_plane/` |

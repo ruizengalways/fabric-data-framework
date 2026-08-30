@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Callable, Generic, TypeVar
 from uuid import UUID
 
-from ..config import RunMode
+from fabric_data_framework.metadata.config import RunMode
 from ..contracts.recovery import ReprocessRequest
 from ..contracts.replay import (
     QuarantineBatchEvidence,
@@ -25,7 +25,7 @@ from ..control_plane.io import (
     read_quarantine_batches,
     read_quarantine_batches_for_run,
 )
-from ..runtime import StateCommitGate
+from fabric_data_framework.contracts.runtime import StateCommitGate
 
 
 T = TypeVar("T")

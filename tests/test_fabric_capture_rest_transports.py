@@ -23,7 +23,7 @@ from fabric_data_framework.adapters.fabric.rest import (
     FabricJobStatus,
     FabricRestClient,
 )
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     CaptureStrategy,
     ExecutionEngine,
     ProgressOwner,

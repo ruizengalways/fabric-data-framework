@@ -21,7 +21,7 @@ from .schema import (
 from ..contracts.capture_receipt import CaptureReceipt
 from ..contracts.recovery import DatasetAttemptLineage, ReprocessRequest
 from ..contracts.replay import QuarantineBatchEvidence
-from ..runtime import StateCommitGate
+from fabric_data_framework.contracts.runtime import StateCommitGate
 
 
 class CDCCheckpointVersionConflict(RuntimeError):

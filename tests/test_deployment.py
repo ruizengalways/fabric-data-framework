@@ -10,7 +10,7 @@ from fabric_data_framework.deployment.contracts import (
     build_deployment_plan,
     classify_control_plane_record,
 )
-from fabric_data_framework.infrastructure import EnvironmentName
+from fabric_data_framework.contracts.environment import EnvironmentName
 
 
 def release_bundle() -> ReleaseBundleIdentity:

@@ -7,7 +7,7 @@ from fabric_data_framework.apply.snapshot_diff import (
     plan_snapshot_diff,
 )
 from fabric_data_framework.capture.snapshot import SnapshotEvidence
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     Criticality,

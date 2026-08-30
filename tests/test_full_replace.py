@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fabric_data_framework.apply.replace import InMemoryReplaceTarget, ReplaceGuardPolicy
 from fabric_data_framework.capture.full import FullSnapshotEvidence
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     Criticality,

@@ -13,7 +13,7 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     CaptureStrategy,
     ExecutionEngine,
     ProgressOwner,

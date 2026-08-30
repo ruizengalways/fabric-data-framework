@@ -19,7 +19,7 @@ from uuid import UUID
 
 from sqlalchemy import Engine, select
 
-from ..config import DatasetConfig, DatasetStatus
+from fabric_data_framework.metadata.config import DatasetConfig, DatasetStatus
 from ..contracts.capture_receipt import CaptureReceipt
 from ..contracts.dispatch import DatasetDispatchOutcome
 from ..contracts.recovery import DatasetAttemptLineage, ReprocessRequest
@@ -45,7 +45,7 @@ from fabric_data_framework.contracts.audit import (
 )
 from fabric_data_framework.contracts.quarantine import QuarantineBatch
 from fabric_data_framework.contracts.reconciliation import ReconciliationResult
-from ..runtime import WatermarkPosition
+from fabric_data_framework.contracts.runtime import WatermarkPosition
 
 
 def _utcnow() -> datetime:

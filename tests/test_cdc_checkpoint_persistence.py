@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import create_engine
 
 from fabric_data_framework.capture.cdc import build_cdc_checkpoint
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,
@@ -29,7 +29,7 @@ from fabric_data_framework.deployment.contracts import (
     ControlPlaneRecordClass,
     classify_control_plane_record,
 )
-from fabric_data_framework.runtime import StateCommitGate
+from fabric_data_framework.contracts.runtime import StateCommitGate
 
 
 def _config() -> DatasetConfig:

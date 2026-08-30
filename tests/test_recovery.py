@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from fabric_data_framework.config import DatasetStatus, RunMode
+from fabric_data_framework.metadata.config import DatasetStatus, RunMode
 from fabric_data_framework.contracts.recovery import (
     DatasetAttemptLineage,
     ReprocessRequest,

@@ -6,14 +6,11 @@ from datetime import datetime, timezone
 from typing import Iterable
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
 
-from .config import Criticality, DatasetStatus, PipelineStatus, RunMode
-from .infrastructure import EnvironmentName
-
-
-class FrozenModel(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+from fabric_data_framework.metadata.config import Criticality, DatasetStatus, PipelineStatus, RunMode
+from .base import FrozenModel
+from .environment import EnvironmentName
 
 
 def _utcnow() -> datetime:

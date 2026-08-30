@@ -13,7 +13,7 @@ from fabric_data_framework.capture.semantic_contracts import (
     CheatsheetPattern,
     DeleteSemantics,
 )
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,

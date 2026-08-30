@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, select
 
 from fabric_data_framework.adapters.fabric.pipeline import FabricPipelineBinding
 from fabric_data_framework.adapters.fabric.rest import FabricJobInstance, FabricJobStatus
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,
