@@ -53,7 +53,7 @@ def test_source_and_tests_do_not_reintroduce_legacy_import_paths():
     forbidden = tuple(
         f"fabric_data_framework.{module_name}" for module_name in EVIDENCE_MODULES
     ) + (
-        "from fabric_data_framework import cli_router",
+        "import fabric_data_framework.cli as cli_router",
         "import fabric_data_framework.cli_router",
     )
     offenders: list[str] = []

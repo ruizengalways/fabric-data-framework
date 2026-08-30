@@ -91,3 +91,5 @@ Do not move them merely for aesthetics. A folder extraction should happen only w
 4. the full contract suite proves behavior did not change.
 
 CLI and evidence were extracted as separate slices. A future control-plane extraction should also be isolated rather than mixed into unrelated feature work.
+
+Package-root imports are intentionally unsupported; import the owning submodule explicitly.
