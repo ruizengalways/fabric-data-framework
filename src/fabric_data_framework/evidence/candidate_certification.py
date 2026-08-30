@@ -22,6 +22,7 @@ from fabric_data_framework.evidence.release_readiness import (
     ReleaseReadinessSpec,
     evaluate_release_readiness,
 )
+from fabric_data_framework.evidence.safety import assert_safe_retained_text
 
 
 def materialize_candidate_integration_spec(
@@ -45,6 +46,7 @@ def materialize_candidate_integration_spec(
     normalized_domain = domain.strip()
     if not normalized_domain:
         raise ValueError("certification domain must be non-empty")
+    assert_safe_retained_text(normalized_domain, "certification domain")
 
     payload = template.model_dump(mode="json")
     payload.update(
@@ -55,6 +57,14 @@ def materialize_candidate_integration_spec(
         }
     )
     return IntegrationEvidenceSpec.model_validate(payload)
+
+
+def _validate_release_proof_safety(proofs: ReleaseReadinessProofBundle) -> None:
+    for result in proofs.results:
+        for reference in result.evidence_references:
+            assert_safe_retained_text(reference, "release evidence reference")
+        if result.detail is not None:
+            assert_safe_retained_text(result.detail, "release evidence detail")
 
 
 def certify_release_candidate(
@@ -86,6 +96,7 @@ def certify_release_candidate(
             "integration template framework version does not match readiness specification"
         )
 
+    _validate_release_proof_safety(proofs)
     validate_integration_evidence_manifest(
         expected_integration_spec,
         integration_evidence,
