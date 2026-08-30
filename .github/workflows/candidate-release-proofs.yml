@@ -113,12 +113,13 @@ jobs:
           fi
           echo "run_attempt=${RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
 
-          JOBS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/jobs?per_page=100")"
-          printf '%s' "${JOBS_JSON}" | python - <<'PY'
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/jobs?per_page=100" \
+            > candidate-ci-jobs.json
+          python - <<'PY'
           import json
-          import sys
+          from pathlib import Path
 
-          payload = json.load(sys.stdin)
+          payload = json.loads(Path("candidate-ci-jobs.json").read_text(encoding="utf-8"))
           jobs = {item["name"]: item["conclusion"] for item in payload["jobs"]}
           required = {
               "test-python-3.11",
