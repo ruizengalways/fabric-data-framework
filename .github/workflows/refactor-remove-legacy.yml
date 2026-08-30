@@ -1,0 +1,145 @@
+name: refactor-remove-legacy
+
+on:
+  push:
+    branches:
+      - codex/remove-evidence-legacy-paths
+
+permissions:
+  contents: write
+
+jobs:
+  codemod:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/remove-evidence-legacy-paths
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Remove legacy module paths and rewrite imports
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+          evidence_modules = (
+              'integration_evidence',
+              'integration_checks',
+              'integration_evidence_merge',
+              'integration_runner',
+              'approved_control_plane_runner',
+              'approved_pipeline_runner',
+              'approved_capture_runner',
+              'approved_warehouse_runner',
+              'approved_warehouse_fault_runner',
+          )
+
+          # Rewrite Python imports to the one canonical package path.
+          for base in (root / 'src', root / 'tests'):
+              for path in base.rglob('*.py'):
+                  text = path.read_text(encoding='utf-8')
+                  original = text
+                  for module in evidence_modules:
+                      text = text.replace(
+                          f'fabric_data_framework.{module}',
+                          f'fabric_data_framework.evidence.{module}',
+                      )
+                      text = text.replace(
+                          f'from ..{module}',
+                          f'from ..evidence.{module}',
+                      )
+                  text = text.replace(
+                      'fabric_data_framework.cli_router',
+                      'fabric_data_framework.cli',
+                  )
+                  if text != original:
+                      path.write_text(text, encoding='utf-8')
+
+          package_root = root / 'src' / 'fabric_data_framework'
+          for module in evidence_modules:
+              (package_root / f'{module}.py').unlink()
+          (package_root / 'cli_router.py').unlink()
+          (root / 'tests' / 'test_cli_router_compat.py').unlink()
+
+          # Replace the old alias-oriented package-boundary test with a breaking-cleanup contract.
+          boundary = root / 'tests' / 'test_evidence_package_boundary.py'
+          boundary.write_text('''from __future__ import annotations\n\nimport importlib\nfrom pathlib import Path\n\nimport pytest\n\n\nPACKAGE_ROOT = Path(__file__).parents[1] / "src" / "fabric_data_framework"\n\nEVIDENCE_MODULES = (\n    "integration_evidence",\n    "integration_checks",\n    "integration_evidence_merge",\n    "integration_runner",\n    "approved_control_plane_runner",\n    "approved_pipeline_runner",\n    "approved_capture_runner",\n    "approved_warehouse_runner",\n    "approved_warehouse_fault_runner",\n)\n\n\n@pytest.mark.parametrize("module_name", EVIDENCE_MODULES)\ndef test_root_evidence_legacy_module_file_is_absent(module_name: str):\n    assert not (PACKAGE_ROOT / f"{module_name}.py").exists()\n\n\n@pytest.mark.parametrize("module_name", EVIDENCE_MODULES)\ndef test_root_evidence_legacy_import_does_not_resolve(module_name: str):\n    with pytest.raises(ModuleNotFoundError):\n        importlib.import_module(f"fabric_data_framework.{module_name}")\n\n\ndef test_evidence_package_exposes_stable_contract_surface():\n    evidence = importlib.import_module("fabric_data_framework.evidence")\n    assert evidence.IntegrationEvidenceSpec.__module__ == (\n        "fabric_data_framework.evidence.integration_evidence"\n    )\n    assert evidence.ApprovedIntegrationRunnerConfig.__module__ == (\n        "fabric_data_framework.evidence.integration_runner"\n    )\n\n\ndef test_cli_router_legacy_module_is_absent():\n    assert not (PACKAGE_ROOT / "cli_router.py").exists()\n    with pytest.raises(ModuleNotFoundError):\n        importlib.import_module("fabric_data_framework.cli_router")\n''', encoding='utf-8')
+
+          # Current code-map docs should describe one path, not compatibility history.
+          replacements = {
+              root / 'src' / 'fabric_data_framework' / 'README.md': (
+                  'Historical root imports such as `fabric_data_framework.integration_evidence` and `fabric_data_framework.approved_capture_runner` remain compatibility aliases. The actual implementation owner is `evidence/`; do not add new logic to the root shims.',
+                  'There are no root-level evidence compatibility modules. Import evidence contracts and approved runners only from `fabric_data_framework.evidence...`.',
+              ),
+              root / 'src' / 'fabric_data_framework' / 'evidence' / 'README.md': (
+                  '''## Compatibility modules\n\nHistorical imports such as:\n\n```python\nfrom fabric_data_framework.integration_evidence import IntegrationEvidenceSpec\nfrom fabric_data_framework.approved_capture_runner import execute_approved_capture\n```\n\nremain supported through thin root-level compatibility aliases. The actual implementation owner is this folder. New internal framework code should import from `fabric_data_framework.evidence...`.''',
+                  '''## Canonical imports\n\nThis folder is the only evidence import surface. Use canonical paths such as:\n\n```python\nfrom fabric_data_framework.evidence.integration_evidence import IntegrationEvidenceSpec\nfrom fabric_data_framework.evidence.approved_capture_runner import execute_approved_capture\n```\n\nRoot-level evidence aliases are intentionally not provided.''',
+              ),
+          }
+          for path, (old, new) in replacements.items():
+              text = path.read_text(encoding='utf-8')
+              if old not in text:
+                  raise RuntimeError(f'expected documentation block not found: {path}')
+              path.write_text(text.replace(old, new), encoding='utf-8')
+
+          # Update current human/machine navigation wording without rewriting historical milestones.
+          current_docs = (
+              root / 'docs' / 'human' / 'REPOSITORY_GUIDE.md',
+              root / 'docs' / 'machine' / 'IMPLEMENTATION_MAP.md',
+              root / 'docs' / 'machine' / 'STATE.md',
+          )
+          phrase_replacements = (
+              ('historical root module paths remain available as same-module-object compatibility aliases only',
+               'root-level legacy evidence module paths are intentionally absent'),
+              ('historical root integration/approved modules are same-module compatibility aliases only',
+               'root-level legacy integration/approved module paths are intentionally absent'),
+              ('`cli_router.py` is deprecated compatibility only and contains no command/business implementation.',
+               '`cli_router.py` has been removed; the CLI import/entrypoint is `fabric_data_framework.cli` only.'),
+              ('`cli_router.py` | deprecated compatibility shim only; no command/business implementation |',
+               '`cli/` | only CLI import/implementation surface |'),
+              ('Do not add new top-level `cli_*.py` implementations. Put command adapters inside `cli/` and keep reusable semantics/runtime outside it.',
+               'Do not add top-level CLI compatibility modules. Put command adapters inside `cli/` and keep reusable semantics/runtime outside it.'),
+          )
+          for path in current_docs:
+              text = path.read_text(encoding='utf-8')
+              original = text
+              for old, new in phrase_replacements:
+                  text = text.replace(old, new)
+              # Current file map rows should point directly at evidence/ paths.
+              for module in evidence_modules:
+                  text = re.sub(rf'(?<!evidence/)`{re.escape(module)}\\.py`', f'`evidence/{module}.py`', text)
+              if text != original:
+                  path.write_text(text, encoding='utf-8')
+
+          # Delete the temporary codemod workflow from the final tree.
+          (root / '.github' / 'workflows' / 'refactor-remove-legacy.yml').unlink()
+
+          # Fail the codemod itself if Python source/tests still import removed paths.
+          forbidden = tuple(f'fabric_data_framework.{m}' for m in evidence_modules) + (
+              'fabric_data_framework.cli_router',
+          )
+          offenders = []
+          for base in (root / 'src', root / 'tests'):
+              for path in base.rglob('*.py'):
+                  text = path.read_text(encoding='utf-8')
+                  for value in forbidden:
+                      if value in text and 'test_evidence_package_boundary.py' not in str(path):
+                          offenders.append(f'{path}: {value}')
+                  for module in evidence_modules:
+                      if f'from ..{module}' in text:
+                          offenders.append(f'{path}: from ..{module}')
+          if offenders:
+              raise RuntimeError('legacy module references remain:\n' + '\n'.join(offenders))
+          PY
+      - name: Commit codemod result
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor: remove legacy evidence and CLI module paths"
+          git push origin HEAD:codex/remove-evidence-legacy-paths
