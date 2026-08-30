@@ -12,7 +12,7 @@ from fabric_data_framework.metadata.config import (
     TargetConfig,
 )
 from fabric_data_framework.execution import execute_append_batch
-from fabric_data_framework.quality import RowRule
+from fabric_data_framework.quality.rules import RowRule
 from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 
 

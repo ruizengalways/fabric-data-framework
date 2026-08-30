@@ -14,7 +14,7 @@ from fabric_data_framework.metadata.config import (
     WatermarkConfig,
 )
 from fabric_data_framework.execution import execute_watermark_scd2
-from fabric_data_framework.quality import RowRule
+from fabric_data_framework.quality.rules import RowRule
 from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 from fabric_data_framework.apply.scd2 import InMemorySCD2Target, IS_CURRENT
 
