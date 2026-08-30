@@ -16,6 +16,7 @@ from fabric_data_framework.evidence.release_readiness import (
     ReleaseReadinessSpec,
     ReleaseReadinessStatus,
 )
+from fabric_data_framework.evidence.safety import assert_safe_retained_text
 
 
 class ReleaseReadinessProofMergeConflict(RuntimeError):
@@ -33,6 +34,8 @@ def _validate_partial_bundle(
     spec: ReleaseReadinessSpec,
     bundle: ReleaseReadinessProofBundle,
 ) -> None:
+    if bundle.readiness_schema_version != spec.readiness_schema_version:
+        raise ValueError("release proof readiness schema version does not match readiness spec")
     if bundle.framework_version != spec.framework_version:
         raise ValueError("release proof framework version does not match readiness spec")
     if bundle.artifact_sha256 is None:
@@ -49,6 +52,10 @@ def _validate_partial_bundle(
             )
         if result.kind is not gate.kind:
             raise ValueError(f"release proof kind mismatch for {result.gate_id}")
+        for reference in result.evidence_references:
+            assert_safe_retained_text(reference, "release evidence reference")
+        if result.detail is not None:
+            assert_safe_retained_text(result.detail, "release evidence detail")
 
 
 def merge_release_readiness_proof_bundles(
@@ -59,9 +66,11 @@ def merge_release_readiness_proof_bundles(
 
     Rules are deliberately strict:
 
-    - every input must bind the same framework version, candidate SHA and wheel SHA;
+    - every input must match the readiness schema/framework and bind the same
+      candidate SHA and exact wheel SHA;
     - every proof result must match the source-controlled readiness spec;
     - integration-backed gates are rejected because IntegrationEvidenceManifest owns them;
+    - retained evidence text is secret-scanned before it can enter merged output;
     - omitted/NOT_RUN results mean no proof and do not override substantive evidence;
     - one substantive PASS/FAIL/OUT_OF_SCOPE result is retained unchanged;
     - model-identical duplicate substantive results are harmless;
