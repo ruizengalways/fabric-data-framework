@@ -15,10 +15,10 @@ Last updated: 2026-08-30
 ## Latest coherent CI baseline
 
 ```text
-code baseline = e7bd8b7c55c5acdf14c58c24085c30e104edf0d6  (PR #47 merge)
-PR #47 head   = 7c5cb2caf83fadb2b363dad7a90c30f2554f4ba3
-Actions       = 33279727906
-501 tests
+code baseline = 264c7547b4e70d24f258bdc3962af83d972e967d  (PR #49 merge)
+PR #49 head   = 37e3a67208ea0b060a68ca8668695a0416adaeeb
+Actions       = 33282725576
+513 tests
 Python 3.11 + 3.13 + static + wheel SUCCESS
 ```
 
@@ -33,6 +33,7 @@ PR #41 / 466 tests  approved production control-plane certification runner
 PR #43 / 477 tests  approved Fabric Pipeline evidence runner
 PR #45 / 490 tests  approved Copy Job + Spark capture runner
 PR #47 / 501 tests  approved Warehouse commit/recovery runner
+PR #49 / 513 tests  approved Warehouse ambiguous-COMMIT fault-drill runner
 ```
 
 ## Core guarantee map
@@ -93,8 +94,22 @@ PR #47 / 501 tests  approved Warehouse commit/recovery runner
 | Marker absence remains UNRESOLVED | target probe + approved Warehouse runner | REFERENCE + CI PROVEN fail-closed |
 | Marker absence alone never authorizes retry | target operation recovery | REFERENCE + CI PROVEN fail-closed |
 | Provider/driver exception retained by type only | target probe + approved Warehouse runner | REFERENCE + CI PROVEN secret-safety guardrail |
+| Warehouse secondary-correlation exception retains type only | Warehouse target probe | REFERENCE + CI PROVEN secret-safety guardrail |
 | Successful deterministic run proves simulated framework ACK-loss recovery | approved Warehouse runner | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT |
 | Simulated ACK loss is not claimed as real network/driver COMMIT disconnect | approved Warehouse evidence model | EXPLICIT EVIDENCE BOUNDARY |
+| Real-fault drill is a separate evidence kind | integration evidence + fault runner | IMPLEMENTED + CI PROVEN EVIDENCE SEPARATION |
+| Fault drill requires normal Warehouse PASS prerequisite | approved fault runner | REFERENCE + CI PROVEN GUARDRAIL |
+| Mutation + fault injector artifacts must be exact-release fingerprinted | approved fault runner + ReleaseManifest | REFERENCE + CI PROVEN provenance guardrail |
+| Fault injection requires separate explicit authorization | approved fault runner + CLI | REFERENCE + CI PROVEN GUARDRAIL |
+| Controlled Warehouse COMMIT fault-injector entry point | extensions + recovery fault contract | IMPLEMENTED + CI PROVEN BOUNDED EXTENSION CONTRACT |
+| Fault injector arm/verify identity must correlate | approved fault runner | REFERENCE + CI PROVEN fail-closed |
+| Fault drill PASS requires observed execution exception | approved fault runner | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT |
+| Normal transaction return can never PASS real-fault drill | approved fault runner | REFERENCE + CI PROVEN false-positive guard |
+| Injector `triggered=true` without observed exception cannot PASS | approved fault runner | REFERENCE + CI PROVEN false-positive guard |
+| Fault drill matching marker reconciles UNKNOWN -> SUCCEEDED -> SKIP | approved fault runner + target probe | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT |
+| Fault drill exception + absent marker remains UNKNOWN/UNRESOLVED | approved fault runner | REFERENCE + CI PROVEN fail-closed |
+| Fault injector cannot convert marker absence into NOT_COMMITTED | approved fault contract | EXPLICIT EVIDENCE BOUNDARY |
+| CI commit-then-raise double is not real network/driver fault proof | approved fault evidence model | EXPLICIT EVIDENCE BOUNDARY |
 | v0.3.0 immutable wheel/checksum | historical release | RELEASE PROVEN for v0.3.0 |
 
 ## Capture/history truth ceilings
@@ -163,6 +178,22 @@ target+marker commit returns
 
 That path proves framework recovery behavior, not occurrence of a real driver/network COMMIT disconnect.
 
+Approved ambiguous-COMMIT fault-drill path:
+
+```text
+normal Warehouse evidence already PASS
+  -> arm provider-specific fault with durable identity
+  -> execute_atomic actually raises
+  -> disarm before probe
+  -> verify intended fault triggered + identity matches
+  -> marker probe COMMITTED
+  -> journal SUCCEEDED
+  -> later SKIP_SUCCEEDED
+  -> eligible for fault-drill PASS
+```
+
+A normal return is always fault-drill FAIL. An absent marker remains UNRESOLVED unless an independent absence certifier supplies a separate no-late-commit proof.
+
 ## Evidence accumulation invariants
 
 ```text
@@ -182,7 +213,7 @@ item PASS prerequisite
 production control-plane PASS prerequisite
 selected mutating check still NOT_RUN
 exact release/config identity before execution
-explicit mutation authorization
+explicit mutation/fault authorization
 provider-specific semantic evidence before PASS
 ```
 
@@ -197,8 +228,8 @@ provider-specific semantic evidence before PASS
 | Copy Job | approved runner ready | retained live job + approved observer + verified receipt |
 | Spark Job Definition | approved runner ready | retained bounded live job + approved observer + verified receipt |
 | Fabric Warehouse commit/recovery | approved runner ready | retained real target+marker transaction and recovery PASS |
-| Real ambiguous Warehouse COMMIT disconnect | not proven | controlled network/driver fault-injection approved run |
-| Production-approved marker absence proof | absent | provider/session-specific certifier evidence |
+| Real ambiguous Warehouse COMMIT disconnect | approved fault-drill runner ready | provider-specific live injector + retained exact-release approved fault-drill PASS |
+| Production-approved marker absence proof | absent | provider/session-specific no-late-commit certifier evidence |
 | Live Kafka coordination | reference adapter/resume only | live broker proof if release scope includes Kafka |
 | Live Delta CDF bounded read/retention | adapter contract only | live Lakehouse proof if release scope includes Delta |
 | Capacity/gateway/throttling/IAM/DR/monitoring/governance | EXTERNAL | retained enterprise controls |

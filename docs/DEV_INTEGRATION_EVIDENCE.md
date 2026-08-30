@@ -15,11 +15,12 @@ Can Pipeline execution retain framework + native IDs?
 Can Copy Job / Spark produce a verified CaptureReceipt plus native job/root evidence?
 Can Warehouse prove a target mutation committed through the same-transaction marker?
 Can ambiguous Warehouse outcomes be reconciled without blind retry?
+If a stronger fault claim is required, did a real provider-specific COMMIT fault actually fire and recover?
 Can the selected relational control plane pass its certification contract?
 Are optional provider profiles such as Kafka/Delta also proven when they are in scope?
 ```
 
-A successful HTTP call by itself is not certification.
+A successful HTTP call by itself is not certification. A deterministic CI commit-then-raise double is not a real provider/network fault claim.
 
 ## Evidence architecture
 
@@ -38,6 +39,7 @@ approved DEV check runners
         +-- Copy Job capture
         +-- Spark Job Definition capture
         +-- Warehouse target commit/recovery
+        +-- optional stronger Warehouse ambiguous-COMMIT fault drill
         +-- control-plane certification
         +-- optional Kafka / Delta drills
         |
@@ -123,7 +125,7 @@ fabric-framework integration-run-preflight \
   --output evidence/preflight.json
 ```
 
-By default this plans every required check. Checks that can start remote execution, write target/control state, change provider cursor state or run conformance mutations are classified as mutating and are **not authorized by default**.
+By default this plans every required check. Checks that can start remote execution, write target/control state, change provider cursor state, inject a provider fault or run conformance mutations are classified as mutating and are **not authorized by default**.
 
 To approve the full mutating DEV plan explicitly:
 
@@ -151,7 +153,7 @@ fabric-framework integration-run-preflight \
   --output evidence/preflight-item-read.json
 ```
 
-For this subset only the Fabric token and the selected item binding are prerequisites. Later stages can select control-plane, Pipeline, Copy, Spark and Warehouse checks separately.
+For this subset only the Fabric token and the selected item binding are prerequisites. Later stages can select control-plane, Pipeline, Copy, Spark, Warehouse and fault-drill checks separately.
 
 Preflight fails closed when exact config/spec identity differs, a selected check is unknown, a required Fabric binding is missing, a runtime env-var is absent/blank, or a mutating check lacks explicit authorization.
 
@@ -258,19 +260,7 @@ fabric-framework integration-warehouse-run \
 
 The exact run requires item-read PASS, control-plane certification PASS, the selected Warehouse check still `NOT_RUN`, exact release/config identity, a fingerprinted bounded mutation extension, a production-eligible relational control plane, runtime control-plane and Warehouse DB URLs, a pre-existing marker table, and explicit execution authorization.
 
-The framework owns:
-
-```text
-TargetOperationIntent
-control-plane target-operation claim/journal
-Warehouse SQL transaction
-target-side framework marker
-commit probe
-reconciliation
-PASS/FAIL decision
-```
-
-The customer/domain extension receives the existing SQLAlchemy `Connection` and may only perform the bounded target mutation. It must not commit, write the framework marker, mutate the journal, or decide PASS.
+The framework owns target-operation identity/journal, Warehouse transaction, target-side marker, commit probe, reconciliation and PASS/FAIL. The customer/domain extension receives the existing SQLAlchemy `Connection` and may only perform the bounded target mutation.
 
 Primary commit truth remains:
 
@@ -286,13 +276,75 @@ The normal deterministic runner path commits target+marker and then deliberately
 UNKNOWN -> marker probe COMMITTED -> SUCCEEDED -> later SKIP_SUCCEEDED
 ```
 
-This is not evidence of a real network/driver COMMIT disconnect. A real fault-injection approved run must be retained separately for that stronger claim.
+This is not evidence of a real network/driver COMMIT disconnect.
 
-If the provider/driver raises around `execute_atomic`, the runner persists UNKNOWN using the exception **type only**, probes the marker, reconciles only when the marker proves COMMITTED, and otherwise leaves the result unresolved/failed. Raw connection/provider diagnostics are not retained.
+## Warehouse ambiguous-COMMIT fault-drill evidence
+
+Use this **only after** the exact-spec normal Warehouse check has already produced PASS and has been merged into prerequisites:
+
+```bash
+fabric-framework integration-warehouse-fault-drill-run \
+  --config dev-integration-runner.json \
+  --spec evidence-spec.json \
+  --prerequisite-manifest evidence/warehouse-prerequisites-merged.json \
+  --release-manifest release-manifest.json \
+  --config-dir config/datasets \
+  --fault-config evidence/warehouse-fault-drill.json \
+  --evidence-reference artifact:warehouse-fault-provider-log \
+  --report-output evidence/warehouse-fault-report.json \
+  --output evidence/warehouse-fault-partial.json \
+  --allow-warehouse-fault-injection
+```
+
+Canonical detailed runbook: `APPROVED_WAREHOUSE_FAULT_DRILL.md`.
+
+The fault-drill check kind is deliberately separate:
+
+```text
+FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL
+```
+
+Required prerequisite state:
+
+```text
+FABRIC_ITEM_READ PASS
+CONTROL_PLANE_CERTIFICATION PASS
+FABRIC_WAREHOUSE_TARGET_COMMIT PASS
+selected FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL NOT_RUN
+```
+
+Both the bounded Warehouse mutation extension artifact and bounded provider-specific fault-injector artifact must be fingerprinted in the exact release manifest. Fault injection has its own explicit authorization and is not implied by normal Warehouse execution authorization.
+
+A fault-drill PASS requires:
+
+```text
+fault arm succeeded with durable fault identity
+execute_atomic() actually raised a provider/driver exception
+fault mechanism disarmed before marker probe
+injector independently verified the intended fault triggered
+arm and verification fault identity matched
+marker probe = COMMITTED
+journal = SUCCEEDED
+later claim = SKIP_SUCCEEDED
+```
+
+Fail-closed rules:
+
+```text
+normal transaction return -> FAIL, even if marker committed
+injector triggered=true without observed execution exception -> FAIL
+fault identity mismatch -> FAIL
+exception + marker absent -> UNRESOLVED / UNKNOWN / FAIL
+fault injector cannot convert marker absence to NOT_COMMITTED
+```
+
+Raw provider/driver exception messages are not retained; the report stores exception types only. Warehouse secondary-correlation lookup exceptions also retain type only.
+
+CI proving this runner does not prove that a real fault occurred. A real provider-specific injector and retained exact-release approved run are required for that stronger evidence claim.
 
 ## Evidence spec
 
-Example:
+A candidate that requires the stronger fault drill can model it independently:
 
 ```json
 {
@@ -307,6 +359,7 @@ Example:
     {"check_id": "fabric.copy", "kind": "FABRIC_COPY_JOB_CAPTURE", "required": true},
     {"check_id": "fabric.spark", "kind": "FABRIC_SPARK_CAPTURE", "required": true},
     {"check_id": "warehouse.commit", "kind": "FABRIC_WAREHOUSE_TARGET_COMMIT", "required": true},
+    {"check_id": "warehouse.ambiguous-commit", "kind": "FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL", "required": false},
     {"check_id": "control.cert", "kind": "CONTROL_PLANE_CERTIFICATION", "required": true},
     {"check_id": "kafka.live", "kind": "KAFKA_PROVIDER", "required": false},
     {"check_id": "delta.live", "kind": "DELTA_CDF_PROVIDER", "required": false}
@@ -314,7 +367,7 @@ Example:
 }
 ```
 
-A source-controlled example is retained at `examples/dev_integration_evidence_spec.json`.
+Whether the fault drill is `required` is a release-scope decision. It must never be satisfied by the normal Warehouse check.
 
 ## Strict staged merge and certification gate
 
@@ -329,8 +382,11 @@ fabric-framework integration-evidence-merge \
   --manifest evidence/copy-partial.json \
   --manifest evidence/spark-partial.json \
   --manifest evidence/warehouse-partial.json \
+  --manifest evidence/warehouse-fault-partial.json \
   --output evidence/evidence-merged.json
 ```
+
+If the stronger fault drill is not in release scope, omit its partial manifest or leave that optional check `NOT_RUN`.
 
 Merge rules are fail closed:
 
@@ -365,13 +421,15 @@ The command exits non-zero unless schema/environment/domain/framework/release/ch
 7. execute representative Copy Job capture
 8. execute representative bounded Spark capture
 9. execute approved Warehouse mutation + same-transaction marker/recovery stage
-10. run required real failure drills, including real ambiguous COMMIT fault injection if claimed
-11. strict-merge sanitized evidence partials
-12. run --require-certified gate
-13. retain manifests, reports and provider correlation artifacts immutably
+10. strict-merge normal Warehouse PASS into prerequisites
+11. if the stronger claim is required, install/fingerprint a provider-specific fault injector
+12. explicitly authorize and execute the separate Warehouse ambiguous-COMMIT fault drill
+13. strict-merge sanitized evidence partials
+14. run --require-certified gate
+15. retain manifests, reports and provider correlation artifacts immutably
 ```
 
-Do not start with destructive or expensive checks before the read-only authorization and backend prerequisites pass.
+Do not start with destructive, expensive or fault-injection checks before read-only authorization and normal backend paths pass.
 
 ## Required failure drills before provider-proven release claims
 
@@ -383,10 +441,11 @@ Pipeline failure or cancellation
 remote Completed with missing framework outcome
 Copy/Spark failed native job
 Copy/Spark success with missing/mismatched observation
-Warehouse real ambiguous client/driver outcome around COMMIT boundary
 Warehouse absent marker remaining UNRESOLVED without independent absence proof
 control-plane transaction rollback/CAS conflict
 ```
+
+If the release explicitly claims real ambiguous-COMMIT recovery, additionally retain the separate provider-specific fault-drill PASS with real fault identity/correlation. CI doubles do not satisfy this.
 
 If Kafka or Delta are part of the release scope, also retain cursor drift/retention-gap drills.
 
@@ -402,6 +461,7 @@ approved control-plane runner         IMPLEMENTED + CI PROVEN APPROVED CONTROL-P
 approved Pipeline runner              IMPLEMENTED + CI PROVEN APPROVED PIPELINE RUNNER CONTRACT
 approved Copy/Spark capture runner    IMPLEMENTED + CI PROVEN APPROVED CAPTURE RUNNER CONTRACT
 approved Warehouse runner             IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT
+approved Warehouse fault-drill runner IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT
 ```
 
 After an approved real DEV run, only the exact exercised capability may be upgraded to a provider-proven DEV label. That still does not prove PROD IAM, private networking, capacity behavior, HA/restore, monitoring or governance controls.
