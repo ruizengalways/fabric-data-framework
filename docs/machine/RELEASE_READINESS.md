@@ -216,7 +216,7 @@ It re-verifies candidate CI provenance and exact candidate bytes, downloads `rel
 
 ## Current 0.4 release-system state
 
-The candidate-certification aggregator/workflow is implemented on the current feature branch and requires CI before it may be described as proven.
+PR #84 validation run `33314693131` proves the candidate-certification code/workflow contract on Python 3.11 and 3.13, exact wheel build and ordinary readiness checks; Python 3.13 reports **651 passed**. The slice is therefore **PR CI PROVEN / PENDING MERGE**, not yet the merged-main baseline and not live Fabric evidence.
 
 The intentionally missing next producers are:
 
@@ -235,5 +235,5 @@ release_allowed = false
 candidate = NOT YET FROZEN
 ordinary readiness blockers = 15
 certified readiness artifact = NOT YET PRODUCED
-next = validate/merge candidate certification -> build trusted evidence producers -> freeze candidate -> collect real evidence
+next = merge/checkpoint candidate certification -> build trusted evidence producers -> freeze candidate -> collect real evidence
 ```
