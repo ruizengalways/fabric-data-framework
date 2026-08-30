@@ -12,7 +12,7 @@ src/fabric_data_framework/
   provider adapters / Fabric transports
   target-operation recovery / Warehouse commit proof
   relational control plane
-  evidence/ integration evidence / approved runners
+  evidence/ integration evidence / release readiness / approved runners
   extensions
   deployment/ release delivery + customer project init/validation
   cli/ presentation layer
@@ -110,6 +110,7 @@ src/fabric_data_framework/evidence/
 | Credential-free preflight/runtime env-var requirements | `evidence/integration_runner.py` |
 | Strict partial manifest merge | `evidence/integration_evidence_merge.py` |
 | Retained evidence secret scanning | `evidence/safety.py` |
+| Exact-candidate release-readiness aggregation | `evidence/release_readiness.py` |
 
 Root-level `integration_*` evidence modules are intentionally absent. `evidence/` is the only import and implementation surface.
 
@@ -124,6 +125,38 @@ semantic/runtime/provider/recovery core
 ```
 
 Evidence proves existing contracts. It must not redefine dataset semantics, capture fidelity, target commit truth, or recovery behavior merely to make an evidence check PASS.
+
+## Release-readiness aggregation
+
+The 0.4 release gate matrix is source-controlled separately from provider execution:
+
+```text
+release/0.4.0/readiness-spec.json
+```
+
+Ownership:
+
+| Area | Primary owner | Boundary |
+|---|---|---|
+| Readiness gate/spec/result models | `evidence/release_readiness.py` | exact framework version + candidate SHA; no provider execution |
+| Non-integration proof bundle | `evidence/release_readiness.py` | source/wheel/customer/representative-path retained references |
+| Integration-backed gate projection | `evidence/release_readiness.py` + `evidence/integration_evidence.py` | cannot be bypassed by generic proof |
+| CLI report/hard-gate adapter | `cli/release.py` | presentation only |
+| 0.4 gate policy | `release/0.4.0/readiness-spec.json` | 15 required gates; Debezium optional until scope promotion |
+| CI blocked-report contract | `.github/workflows/ci.yml` | proves fail-closed aggregation only |
+| Exact certified artifact publication | `.github/workflows/release.yml` | still needs candidate artifact handoff hardening |
+
+Critical identity rule:
+
+```text
+candidate source SHA
+  + exact inner candidate wheel SHA256
+  + retained ReleaseReadinessProofBundle
+  + retained IntegrationEvidenceManifest(release_hash == exact wheel SHA256)
+  -> ReleaseReadinessReport
+```
+
+Do not substitute a GitHub artifact archive digest for the inner wheel SHA256. Do not use evidence from one rebuilt wheel to certify another wheel merely because source/version match.
 
 ## Approved runners
 
@@ -165,6 +198,7 @@ Extension artifact identity must be pinned in exact release provenance where app
 | Per-dataset semantic selection validation used by dry run | `capture/onboarding.py` |
 | Capture/apply capability validation used by dry run | `metadata/capabilities.py` |
 | Project-init / project-validate presentation adapters | `cli/project.py` |
+| Release-readiness presentation adapter | `cli/release.py` |
 | Package metadata/version/console script | `pyproject.toml` |
 | CI | `.github/workflows/ci.yml` |
 | Release artifact workflow | `.github/workflows/release.yml` |
@@ -214,6 +248,7 @@ Ownership:
 |---|---|
 | `cli/main.py` | tiny composition root; routes command family only |
 | `cli/project.py` | developer/CI-time customer/domain project init + static dry-run adapters |
+| `cli/release.py` | release-candidate readiness report + `--require-ready` hard-gate adapter |
 | `cli/base.py` | general validation, metadata, deployment and preflight commands |
 | `cli/approved.py` | approved evidence / real-environment command adapters |
 | `cli/__init__.py` | public console-script `main` export |
@@ -242,7 +277,7 @@ Do not add top-level CLI compatibility modules. Put command adapters inside `cli
 
 ## Readability / future folder extraction rule
 
-The canonical source root and major domain roots are already explicit. Do not move code merely for aesthetics. Extract or move only when:
+The canonical source root and major domain roots are already explicit. Do not move code merely for aesthetics. During 0.4 feature freeze, package-layout work is out of scope unless it fixes a release blocker. Extract or move only when:
 
 ```text
 ownership boundary is clear
@@ -285,6 +320,12 @@ project dry-run dependency reference validation
 project dry-run dependency cycle rejection
 project dry-run complete semantic-selection coverage
 project dry-run capability/semantic validation
+release readiness missing-evidence blocking
+release proof exact candidate SHA matching
+integration evidence exact artifact SHA matching
+integration-backed readiness gates rejecting generic proof substitution
+required readiness gates rejecting OUT_OF_SCOPE
+release-readiness --require-ready non-zero behavior
 canonical deployment.delivery ownership from deployment/project.py
 legacy evidence import paths failing to resolve
 root evidence legacy module files remaining absent
@@ -300,9 +341,12 @@ docs/human/GETTING_STARTED.md              install/package/Fabric consumption
 docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md   new customer/domain repo bootstrap + project dry run + large-project organization
 docs/human/DATASET_ONBOARDING.md           new-data decision guide
 docs/human/OPERATIONS.md                   operational/CLI guide
+docs/human/RELEASE_CANDIDATE.md            feature-freeze/candidate/readiness operator runbook
 
 docs/machine/STATE.md                      exact current engineering state
 docs/machine/CONTEXT.md                    invariants/fail-closed boundaries
+docs/machine/APPROVED_EVIDENCE.md          approved real-run/evidence protocol
+docs/machine/RELEASE_READINESS.md          exact candidate/readiness aggregation contract
 docs/machine/CAPABILITIES.md               guarantee/evidence matrix
 docs/machine/IMPLEMENTATION_MAP.md         code ownership map
 docs/machine/HISTORY.md                    compact merged milestone history
