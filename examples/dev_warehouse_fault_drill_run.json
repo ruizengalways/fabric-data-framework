@@ -1,0 +1,18 @@
+{
+  "check_id": "warehouse.ambiguous-commit",
+  "dataset_id": "sales.order",
+  "operation_kind": "EVIDENCE_AMBIGUOUS_COMMIT_DRILL",
+  "target_reference": "warehouse.dbo.sales_order",
+  "mutation_extension": "sales.order.evidence-mutation",
+  "mutation_extension_artifact_name": "fabric-customer-0.4.0.dev1-py3-none-any.whl",
+  "mutation_payload": {
+    "evidence_key": "candidate-0.4.0-sales-order-fault-drill"
+  },
+  "fault_injector_extension": "sales.order.commit-ack-fault",
+  "fault_injector_artifact_name": "fabric-customer-faults-0.4.0.dev1-py3-none-any.whl",
+  "fault_payload": {
+    "fault_case": "approved-commit-ack-disconnect"
+  },
+  "marker_table_name": "fabric_framework_operation_commit",
+  "marker_schema": "dbo"
+}
