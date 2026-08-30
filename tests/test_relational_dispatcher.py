@@ -17,7 +17,7 @@ from fabric_data_framework.config import (
 )
 from fabric_data_framework.contracts.dispatch import DatasetDispatchOutcome
 from fabric_data_framework.control_plane.schema import apply_baseline_schema, pipeline_run
-from fabric_data_framework.delivery import config_bundle_hash
+from fabric_data_framework.deployment.delivery import config_bundle_hash
 from fabric_data_framework.dispatcher import dispatch_datasets_with_backend
 from fabric_data_framework.control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
 

@@ -28,7 +28,7 @@ from ..evidence.approved_warehouse_runner import (
     load_approved_warehouse_run_config,
 )
 from ..control_plane.certification import ControlPlaneExternalEvidence
-from ..delivery import load_dataset_configs, load_release_manifest, write_json_model
+from ..deployment.delivery import load_dataset_configs, load_release_manifest, write_json_model
 from ..evidence.integration_evidence import (
     IntegrationEvidenceStatus,
     load_integration_evidence_manifest,

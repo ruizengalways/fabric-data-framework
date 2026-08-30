@@ -4,7 +4,7 @@ from fabric_data_framework.capture import (
     load_capture_selections,
     validate_capture_selection,
 )
-from fabric_data_framework.delivery import load_dataset_configs
+from fabric_data_framework.deployment.delivery import load_dataset_configs
 from fabric_data_framework.metadata import DEFAULT_CAPABILITY_REGISTRY
 
 

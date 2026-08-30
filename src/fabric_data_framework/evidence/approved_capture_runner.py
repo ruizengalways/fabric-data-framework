@@ -52,8 +52,8 @@ from ..contracts.execution_plan import (
     ExecutionUnit,
     compile_execution_plan,
 )
-from ..delivery import config_bundle_hash
-from ..deployment import ReleaseManifest
+from ..deployment.delivery import config_bundle_hash
+from ..deployment.contracts import ReleaseManifest
 from ..extensions import ExtensionKind, ExtensionRegistry
 from ..fabric_auth import EnvironmentAccessTokenProvider
 from .integration_checks import build_fabric_capture_check_result

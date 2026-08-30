@@ -15,7 +15,7 @@ Use this file when browsing source code. It describes the current code organizat
 | control-plane state/runtime repository | `control_plane/` |
 | target idempotency / unknown commit recovery | `target_operations.py`, `control_plane/target_operation_journal.py`, `recovery/` |
 | approved integration evidence | `evidence/` |
-| release/deployment materialization | `delivery.py`, `deployment.py` |
+| release/deployment materialization | `deployment/delivery.py`, `deployment/contracts.py` |
 | command line interface | `cli/` |
 
 ## Dependency shape

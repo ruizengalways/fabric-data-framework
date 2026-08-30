@@ -158,7 +158,7 @@ Extension artifact identity must be pinned in exact release provenance where app
 
 | Area | Primary owner |
 |---|---|
-| Config bundle hashing/materialization | `delivery.py` and related modules |
+| Config bundle hashing/materialization | `deployment/delivery.py` and related modules |
 | Release manifest/provenance | deployment/delivery modules |
 | Package metadata/version/console script | `pyproject.toml` |
 | CI | `.github/workflows/ci.yml` |

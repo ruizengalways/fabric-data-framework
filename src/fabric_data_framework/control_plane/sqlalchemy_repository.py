@@ -37,7 +37,7 @@ from .schema import (
     step_run,
     watermark,
 )
-from ..delivery import materialize_semantic_metadata
+from ..deployment.delivery import materialize_semantic_metadata
 from ..operations import (
     DatasetRunAudit,
     PipelineRunAudit,

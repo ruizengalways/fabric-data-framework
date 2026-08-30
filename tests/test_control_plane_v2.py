@@ -30,7 +30,7 @@ from fabric_data_framework.control_plane.schema import (
 )
 from fabric_data_framework.control_plane.io import record_capture_receipt
 from fabric_data_framework.contracts.capture_receipt import CaptureReceipt
-from fabric_data_framework.delivery import materialize_semantic_metadata
+from fabric_data_framework.deployment.delivery import materialize_semantic_metadata
 
 
 def _config() -> DatasetConfig:

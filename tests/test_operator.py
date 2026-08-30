@@ -28,7 +28,7 @@ from fabric_data_framework.control_plane.schema import (
     schema_change,
     watermark,
 )
-from fabric_data_framework.delivery import materialize_semantic_metadata
+from fabric_data_framework.deployment.delivery import materialize_semantic_metadata
 from fabric_data_framework.control_plane.operator import (
     get_dataset_operational_snapshot,
     list_dataset_operational_snapshots,

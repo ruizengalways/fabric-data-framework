@@ -30,8 +30,8 @@ from ..config import (
     resolve_effective_config,
 )
 from ..control_plane.certification import get_control_plane_backend_profile
-from ..delivery import config_bundle_hash
-from ..deployment import ReleaseManifest
+from ..deployment.delivery import config_bundle_hash
+from ..deployment.contracts import ReleaseManifest
 from ..fabric_auth import EnvironmentAccessTokenProvider
 from ..execution.backends.fabric_pipeline import FabricPipelineBackend
 from .integration_checks import build_fabric_pipeline_check_result

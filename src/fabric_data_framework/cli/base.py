@@ -30,7 +30,7 @@ from ..control_plane.certification import (
     certify_control_plane_backend,
     get_control_plane_backend_profile,
 )
-from ..delivery import (
+from ..deployment.delivery import (
     build_release_manifest,
     load_dataset_configs,
     load_environment_bindings,
@@ -41,7 +41,7 @@ from ..delivery import (
     validate_release_tag,
     write_json_model,
 )
-from ..deployment import CIProvider, DeploymentMechanism, DeploymentProvenance
+from ..deployment.contracts import CIProvider, DeploymentMechanism, DeploymentProvenance
 from ..fabric_auth import EnvironmentAccessTokenProvider
 from ..evidence.integration_checks import run_fabric_item_read_check
 from ..evidence.integration_evidence import (
