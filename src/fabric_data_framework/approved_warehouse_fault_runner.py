@@ -4,6 +4,10 @@ This runner is separate from the normal approved Warehouse commit runner. PASS r
 an actually observed provider/driver exception, verified provider-specific fault
 injection, committed target-side marker evidence, journal reconciliation to SUCCEEDED,
 and later SKIP_SUCCEEDED re-entry. A normal transaction return can never PASS this drill.
+
+Optional session-termination recovery is a separate operational outcome. It may prove an
+ambiguous mutation NOT_COMMITTED and make a later retry safe, but it never upgrades the
+COMMITTED fault-drill evidence check to PASS.
 """
 
 from __future__ import annotations
@@ -47,7 +51,17 @@ from .recovery.fabric_warehouse import (
     FabricWarehouseTargetCommitProbe,
     build_fabric_warehouse_operation_marker_table,
 )
-from .recovery.target_probe import probe_and_reconcile_target_operation
+from .recovery.fabric_warehouse_session_absence import (
+    FabricWarehouseSessionAuthority,
+    FabricWarehouseSessionBinding,
+    FabricWarehouseSessionTerminationAbsenceCertifier,
+    SqlAlchemyFabricWarehouseSessionAuthority,
+    capture_fabric_warehouse_session_binding,
+)
+from .recovery.target_probe import (
+    TargetCommitProbeEvidence,
+    probe_and_reconcile_target_operation,
+)
 from .recovery.warehouse_fault_injection import (
     FabricWarehouseCommitFaultArmEvidence,
     FabricWarehouseCommitFaultInjector,
@@ -86,6 +100,7 @@ class ApprovedWarehouseFaultDrillConfig(FrozenModel):
     fault_injector_extension: str = Field(pattern=_EXTENSION_PATTERN)
     fault_injector_artifact_name: str = Field(min_length=1, max_length=512)
     fault_payload: dict[str, Any] = Field(default_factory=dict)
+    enable_session_termination_recovery: bool = False
     marker_table_name: str = Field(
         default=FABRIC_WAREHOUSE_DEFAULT_MARKER_TABLE,
         pattern=_SQL_IDENTIFIER_PATTERN,
@@ -110,6 +125,9 @@ class ApprovedWarehouseFaultDrillConfig(FrozenModel):
 
     @property
     def input_fingerprint(self) -> str:
+        # Recovery mechanism is deliberately excluded. The semantic target mutation and
+        # fault case remain the same operation regardless of whether an independently
+        # authorized recovery authority is available after ambiguity.
         return canonical_hash(
             {
                 "mutation_payload": self.mutation_payload,
@@ -140,12 +158,32 @@ class ApprovedWarehouseFaultDrillReport(FrozenModel):
     probe_resolution: UnknownOutcomeResolution | None = None
     final_status: TargetOperationStatus | None = None
     reentry_action: str | None = None
+    session_termination_recovery_enabled: bool = False
+    session_termination_authorized: bool = False
+    session_binding_captured: bool = False
+    session_id: int | None = Field(default=None, ge=1)
+    connection_id: UUID | None = None
+    session_binding_capture_exception_type: str | None = Field(default=None, max_length=256)
+    session_termination_recovery_attempted: bool = False
+    session_recovery_exception_type: str | None = Field(default=None, max_length=256)
+    absence_safe_to_retry: bool | None = None
+    retry_eligible: bool = False
     evidence_status: IntegrationEvidenceStatus
     failure_reason: str | None = Field(default=None, max_length=512)
     evidence_references: tuple[str, ...]
 
     @model_validator(mode="after")
     def validate_report(self) -> "ApprovedWarehouseFaultDrillReport":
+        if self.session_binding_captured != (
+            self.session_id is not None and self.connection_id is not None
+        ):
+            raise ValueError(
+                "session binding capture flag must match retained session_id + connection_id"
+            )
+        if self.retry_eligible and self.final_status is not TargetOperationStatus.NOT_COMMITTED:
+            raise ValueError("retry_eligible requires durable NOT_COMMITTED target state")
+        if self.absence_safe_to_retry is True and not self.retry_eligible:
+            raise ValueError("safe-to-retry absence evidence requires retry_eligible state")
         if self.evidence_status is IntegrationEvidenceStatus.PASS:
             passed = (
                 self.fault_armed
@@ -159,6 +197,7 @@ class ApprovedWarehouseFaultDrillReport(FrozenModel):
                 and self.final_status is TargetOperationStatus.SUCCEEDED
                 and self.reentry_action == TargetOperationAction.SKIP_SUCCEEDED.value
                 and self.marker_reference is not None
+                and not self.retry_eligible
                 and self.failure_reason is None
             )
             if not passed:
@@ -193,6 +232,8 @@ MarkerStoreFactory = Callable[
     [Engine, ApprovedWarehouseFaultDrillConfig],
     FabricWarehouseMarkerStore,
 ]
+SessionBindingCapture = Callable[[Connection], FabricWarehouseSessionBinding]
+SessionAuthorityFactory = Callable[[Engine], FabricWarehouseSessionAuthority]
 
 
 def _default_marker_store_factory(
@@ -205,6 +246,10 @@ def _default_marker_store_factory(
         schema=run_config.marker_schema,
     )
     return FabricWarehouseMarkerStore(engine, marker)
+
+
+def _default_session_authority_factory(engine: Engine) -> FabricWarehouseSessionAuthority:
+    return SqlAlchemyFabricWarehouseSessionAuthority(engine)
 
 
 def load_approved_warehouse_fault_drill_config(
@@ -379,6 +424,7 @@ def _report(
     arm: FabricWarehouseCommitFaultArmEvidence,
     status: IntegrationEvidenceStatus,
     references: tuple[str, ...],
+    session_termination_authorized: bool,
     provider_exception_observed: bool = False,
     execution_exception_type: str | None = None,
     disarm_exception_type: str | None = None,
@@ -389,6 +435,12 @@ def _report(
     probe_resolution: UnknownOutcomeResolution | None = None,
     final_status: TargetOperationStatus | None = None,
     reentry_action: str | None = None,
+    session_binding: FabricWarehouseSessionBinding | None = None,
+    session_binding_capture_exception_type: str | None = None,
+    session_termination_recovery_attempted: bool = False,
+    session_recovery_exception_type: str | None = None,
+    absence_safe_to_retry: bool | None = None,
+    retry_eligible: bool = False,
     failure_reason: str | None = None,
 ) -> ApprovedWarehouseFaultDrillReport:
     return ApprovedWarehouseFaultDrillReport(
@@ -421,10 +473,48 @@ def _report(
         probe_resolution=probe_resolution,
         final_status=final_status,
         reentry_action=reentry_action,
+        session_termination_recovery_enabled=run_config.enable_session_termination_recovery,
+        session_termination_authorized=session_termination_authorized,
+        session_binding_captured=session_binding is not None,
+        session_id=session_binding.session_id if session_binding is not None else None,
+        connection_id=(
+            session_binding.connection_id if session_binding is not None else None
+        ),
+        session_binding_capture_exception_type=session_binding_capture_exception_type,
+        session_termination_recovery_attempted=session_termination_recovery_attempted,
+        session_recovery_exception_type=session_recovery_exception_type,
+        absence_safe_to_retry=absence_safe_to_retry,
+        retry_eligible=retry_eligible,
         evidence_status=status,
         failure_reason=failure_reason,
         evidence_references=references,
     )
+
+
+def _validate_session_termination_preflight(
+    *,
+    config: ApprovedIntegrationRunnerConfig,
+    run_config: ApprovedWarehouseFaultDrillConfig,
+    environ: Mapping[str, str],
+    allow_warehouse_session_termination: bool,
+) -> None:
+    if not run_config.enable_session_termination_recovery:
+        return
+    if not allow_warehouse_session_termination:
+        raise ValueError(
+            "Warehouse session termination recovery is not explicitly authorized"
+        )
+    env_var = config.warehouse_admin_database_url_env_var
+    if env_var is None:
+        raise ValueError(
+            "session termination recovery requires warehouse_admin_database_url_env_var"
+        )
+    value = environ.get(env_var)
+    if not value or not value.strip():
+        raise ValueError(
+            "approved Warehouse fault-drill preflight is not ready: missing runtime env vars="
+            + env_var
+        )
 
 
 def execute_approved_warehouse_fault_drill(
@@ -438,12 +528,23 @@ def execute_approved_warehouse_fault_drill(
     environ: Mapping[str, str],
     evidence_references: Iterable[str],
     allow_warehouse_fault_injection: bool,
+    allow_warehouse_session_termination: bool = False,
     extension_registry: ExtensionRegistry | None = None,
     control_engine_factory: EngineFactory = create_engine,
     warehouse_engine_factory: EngineFactory = create_engine,
+    warehouse_admin_engine_factory: EngineFactory = create_engine,
     marker_store_factory: MarkerStoreFactory = _default_marker_store_factory,
+    session_binding_capture: SessionBindingCapture = capture_fabric_warehouse_session_binding,
+    session_authority_factory: SessionAuthorityFactory = _default_session_authority_factory,
 ) -> ApprovedWarehouseFaultDrillExecution:
-    """Execute one approved real-fault drill and retain fail-closed recovery evidence."""
+    """Execute one approved real-fault drill and retain fail-closed recovery evidence.
+
+    When ``enable_session_termination_recovery`` is true, the runner additionally
+    captures exact target session identity before mutation. Admin/session-control
+    credentials are presence-checked up front but their value is not read until an
+    actual execution exception has occurred, the first marker probe is UNRESOLVED, the
+    injected fault is independently verified, and the exact session binding exists.
+    """
 
     config_tuple = tuple(configs)
     check_id = run_config.check_id
@@ -492,6 +593,13 @@ def execute_approved_warehouse_fault_drill(
             "approved Warehouse fault runner requires a production-eligible control-plane profile"
         )
 
+    _validate_session_termination_preflight(
+        config=config,
+        run_config=run_config,
+        environ=environ,
+        allow_warehouse_session_termination=allow_warehouse_session_termination,
+    )
+
     references = tuple(evidence_references)
     if not references:
         raise ValueError("approved Warehouse fault drill requires retained evidence references")
@@ -508,7 +616,7 @@ def execute_approved_warehouse_fault_drill(
         input_fingerprint=run_config.input_fingerprint,
     )
 
-    # Secret-bearing values are retrieved only after all non-secret gates pass.
+    # Secret-bearing ordinary runtime values are retrieved only after all non-secret gates pass.
     control_database_url = environ[config.control_plane_database_url_env_var]
     warehouse_database_url = environ[config.warehouse_database_url_env_var]
     reports: list[ApprovedWarehouseFaultDrillReport] = []
@@ -516,6 +624,7 @@ def execute_approved_warehouse_fault_drill(
     def runner() -> IntegrationEvidenceCheckResult:
         control_engine = control_engine_factory(control_database_url)
         warehouse_engine = warehouse_engine_factory(warehouse_database_url)
+        admin_engine: Engine | None = None
         dataset_run_id = uuid4()
         try:
             repository = SqlAlchemyControlPlaneRepository(
@@ -532,7 +641,7 @@ def execute_approved_warehouse_fault_drill(
                 )
 
             marker_store = marker_store_factory(warehouse_engine, run_config)
-            probe = FabricWarehouseTargetCommitProbe(marker_store=marker_store)
+            plain_probe = FabricWarehouseTargetCommitProbe(marker_store=marker_store)
             claim = claim_target_operation(
                 control_engine,
                 intent=intent,
@@ -584,7 +693,9 @@ def execute_approved_warehouse_fault_drill(
                         arm=arm,
                         status=IntegrationEvidenceStatus.FAIL,
                         references=retained,
+                        session_termination_authorized=allow_warehouse_session_termination,
                         final_status=current.status,
+                        retry_eligible=True,
                         failure_reason="FAULT_NOT_ARMED",
                     )
                 )
@@ -599,10 +710,19 @@ def execute_approved_warehouse_fault_drill(
                 )
 
             atomic_result: FabricWarehouseAtomicMutationResult | None = None
+            session_binding: FabricWarehouseSessionBinding | None = None
+            session_binding_capture_exception_type: str | None = None
             execution_exception_type: str | None = None
             disarm_exception_type: str | None = None
 
             def mutation(connection: Connection, observed_intent: TargetOperationIntent):
+                nonlocal session_binding, session_binding_capture_exception_type
+                if run_config.enable_session_termination_recovery and session_binding is None:
+                    try:
+                        session_binding = session_binding_capture(connection)
+                    except Exception as exc:
+                        session_binding_capture_exception_type = type(exc).__name__
+                        raise
                 return mutation_extension(
                     connection,
                     observed_intent,
@@ -645,9 +765,9 @@ def execute_approved_warehouse_fault_drill(
                 operation_key=intent.operation_key,
                 dataset_run_id=uuid4(),
                 attempt=max(2, unknown.attempt + 1),
-                probe=probe,
+                probe=plain_probe,
             )
-            probe_evidence = reconciled.evidence
+            probe_evidence: TargetCommitProbeEvidence = reconciled.evidence
             current = reconciled.record
             if (
                 atomic_result is None
@@ -670,6 +790,88 @@ def execute_approved_warehouse_fault_drill(
                 verification_exception_type = "FaultPhaseMismatch"
 
             identity_matches = _fault_identity_matches(arm, verification)
+            fault_verified = bool(verification and verification.triggered)
+            session_recovery_attempted = False
+            session_recovery_exception_type: str | None = None
+            absence_safe_to_retry: bool | None = None
+
+            eligible_for_session_recovery = (
+                run_config.enable_session_termination_recovery
+                and execution_exception_type is not None
+                and session_binding_capture_exception_type is None
+                and session_binding is not None
+                and disarm_exception_type is None
+                and verification_exception_type is None
+                and fault_verified
+                and identity_matches
+                and probe_evidence.resolution is UnknownOutcomeResolution.UNRESOLVED
+                and current.status is TargetOperationStatus.UNKNOWN
+            )
+            if eligible_for_session_recovery:
+                session_recovery_attempted = True
+                admin_env_var = config.warehouse_admin_database_url_env_var
+                assert admin_env_var is not None
+                try:
+                    # Read the Admin credential value only at the exact point where an
+                    # independently verified unresolved fault requires session control.
+                    admin_database_url = environ[admin_env_var]
+                    admin_engine = warehouse_admin_engine_factory(admin_database_url)
+                    authority = session_authority_factory(admin_engine)
+                    if not isinstance(authority, FabricWarehouseSessionAuthority):
+                        raise TypeError(
+                            "Warehouse session authority factory returned an invalid controller"
+                        )
+                    absence_certifier = FabricWarehouseSessionTerminationAbsenceCertifier(
+                        binding=session_binding,
+                        authority=authority,
+                        marker_store=marker_store,
+                    )
+                    recovery_probe = FabricWarehouseTargetCommitProbe(
+                        marker_store=marker_store,
+                        absence_certifier=absence_certifier,
+                    )
+                    recovered = probe_and_reconcile_target_operation(
+                        control_engine,
+                        operation_key=intent.operation_key,
+                        dataset_run_id=uuid4(),
+                        attempt=max(2, current.attempt + 1),
+                        probe=recovery_probe,
+                    )
+                    probe_evidence = recovered.evidence
+                    current = recovered.record
+                    absence_safe_to_retry = (
+                        probe_evidence.resolution is UnknownOutcomeResolution.NOT_COMMITTED
+                        and current.status is TargetOperationStatus.NOT_COMMITTED
+                    )
+
+                    # If the certifier stayed unresolved because a marker won the KILL
+                    # race, immediately run one plain read-only marker probe. This can
+                    # only upgrade observed committed evidence; it cannot infer absence.
+                    if (
+                        probe_evidence.resolution is UnknownOutcomeResolution.UNRESOLVED
+                        and current.status is TargetOperationStatus.UNKNOWN
+                    ):
+                        final_probe = probe_and_reconcile_target_operation(
+                            control_engine,
+                            operation_key=intent.operation_key,
+                            dataset_run_id=uuid4(),
+                            attempt=max(2, current.attempt + 1),
+                            probe=plain_probe,
+                        )
+                        probe_evidence = final_probe.evidence
+                        current = final_probe.record
+                        if (
+                            atomic_result is None
+                            and probe_evidence.resolution
+                            is UnknownOutcomeResolution.COMMITTED
+                        ):
+                            atomic_result = _atomic_from_committed_marker(
+                                marker_store,
+                                intent,
+                            )
+                except Exception as exc:
+                    session_recovery_exception_type = type(exc).__name__
+
             reentry_action: str | None = None
             if current.status is TargetOperationStatus.SUCCEEDED:
                 reentry = claim_target_operation(
@@ -680,6 +882,7 @@ def execute_approved_warehouse_fault_drill(
                 )
                 reentry_action = reentry.action.value
 
+            retry_eligible = current.status is TargetOperationStatus.NOT_COMMITTED
             retained = _dedupe_references(
                 references,
                 (arm.evidence_reference,),
@@ -693,10 +896,16 @@ def execute_approved_warehouse_fault_drill(
                     if atomic_result is not None
                     else probe_evidence.evidence_reference,
                 ),
+                (
+                    session_binding.evidence_reference
+                    if session_binding is not None
+                    and session_recovery_attempted
+                    else None,
+                ),
             )
-            fault_verified = bool(verification and verification.triggered)
             passed = (
                 execution_exception_type is not None
+                and session_binding_capture_exception_type is None
                 and disarm_exception_type is None
                 and verification_exception_type is None
                 and fault_verified
@@ -706,7 +915,10 @@ def execute_approved_warehouse_fault_drill(
                 and reentry_action == TargetOperationAction.SKIP_SUCCEEDED.value
                 and atomic_result is not None
             )
-            if execution_exception_type is None:
+
+            if session_binding_capture_exception_type is not None:
+                failure_reason = "SESSION_BINDING_CAPTURE_FAILED"
+            elif execution_exception_type is None:
                 failure_reason = "NO_PROVIDER_OR_DRIVER_EXCEPTION"
             elif disarm_exception_type is not None:
                 failure_reason = "FAULT_DISARM_FAILED"
@@ -716,6 +928,16 @@ def execute_approved_warehouse_fault_drill(
                 failure_reason = "FAULT_NOT_VERIFIED"
             elif not identity_matches:
                 failure_reason = "FAULT_IDENTITY_MISMATCH"
+            elif session_recovery_exception_type is not None:
+                failure_reason = "SESSION_TERMINATION_RECOVERY_FAILED"
+            elif retry_eligible and absence_safe_to_retry:
+                failure_reason = "SAFE_NOT_COMMITTED_AFTER_SESSION_TERMINATION"
+            elif (
+                run_config.enable_session_termination_recovery
+                and probe_evidence.resolution is UnknownOutcomeResolution.UNRESOLVED
+                and session_binding is None
+            ):
+                failure_reason = "SESSION_BINDING_NOT_CAPTURED"
             elif probe_evidence.resolution is not UnknownOutcomeResolution.COMMITTED:
                 failure_reason = f"MARKER_{probe_evidence.resolution.value}"
             elif current.status is not TargetOperationStatus.SUCCEEDED:
@@ -740,6 +962,7 @@ def execute_approved_warehouse_fault_drill(
                     arm=arm,
                     status=status,
                     references=retained,
+                    session_termination_authorized=allow_warehouse_session_termination,
                     provider_exception_observed=execution_exception_type is not None,
                     execution_exception_type=execution_exception_type,
                     disarm_exception_type=disarm_exception_type,
@@ -750,6 +973,14 @@ def execute_approved_warehouse_fault_drill(
                     probe_resolution=probe_evidence.resolution,
                     final_status=current.status,
                     reentry_action=reentry_action,
+                    session_binding=session_binding,
+                    session_binding_capture_exception_type=(
+                        session_binding_capture_exception_type
+                    ),
+                    session_termination_recovery_attempted=session_recovery_attempted,
+                    session_recovery_exception_type=session_recovery_exception_type,
+                    absence_safe_to_retry=absence_safe_to_retry,
+                    retry_eligible=retry_eligible,
                     failure_reason=failure_reason,
                 )
             )
@@ -763,6 +994,8 @@ def execute_approved_warehouse_fault_drill(
                 detail_code=failure_reason or "REAL_FAULT_COMMITTED_RECOVERED",
             )
         finally:
+            if admin_engine is not None:
+                admin_engine.dispose()
             warehouse_engine.dispose()
             control_engine.dispose()
 
