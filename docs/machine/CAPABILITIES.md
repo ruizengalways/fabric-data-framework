@@ -4,8 +4,7 @@ Evidence vocabulary:
 
 ```text
 REFERENCE / CONTRACT       deterministic semantic/runtime implementation
-CI PROVEN                  static/tests/build succeeded
-PR CI PROVEN               current branch/PR contract suite succeeded; merge/main checkpoint pending
+CI PROVEN                  static/tests/build succeeded on merged baseline
 RELEASE PROVEN             immutable published artifact/checksum evidence
 FABRIC/PRODUCTION PROVEN   retained approved real-service evidence for exact release
 EXTERNAL                   enterprise/platform control outside this repository
@@ -107,38 +106,39 @@ The runners above are evidence-producing contracts, but this repository still ha
 | Exact certified wheel promotion without rebuild | `.github/workflows/release.yml` | IMPLEMENTED + CI PROVEN RELEASE CONTRACT |
 | Release requires certified readiness bound to exact wheel | `.github/workflows/release.yml` | IMPLEMENTED + CI PROVEN fail-closed RELEASE CONTRACT |
 
-Verified candidate-capable main artifact from run `33310363412`:
+Latest verified candidate-capable main artifact from merged PR #84 run `33314977393`:
 
 ```text
-source SHA       7f7849b9319df43ef382574747bfe27ee6378403
+source SHA       bb9b7ed74e2696978c546011c893fb316ffdd57c
 wheel            fabric_data_framework-0.4.0-py3-none-any.whl
-inner SHA256     b62ec28ddeff0cd07cc955537e82523d40706a756f4e3d458d89b51d11390d6f
-artifact ID      9731784760
-retention        90 days / expires 2026-11-28T12:01:00Z
+inner SHA256     ce78ae1bc67b0e68bca360e825d36cf6b0cb171f811de8257cd9ce0225154748
+artifact ID      9733146071
+archive digest   sha256:6a4d45618e64f7bf34b508652ee999b95e37a0f23cdf07927807e593bfabdde4
+retention        90 days / expires 2026-11-28T13:44:16Z
 selected/frozen  false
 ```
 
 That artifact remains candidate-capable only. It has not been selected/frozen and has no live certification attached.
 
-## Candidate certification aggregation — PR #84 state
+## Candidate certification aggregation — merged PR #84
 
 | Capability | Implementation owner | Current evidence |
 |---|---|---|
-| Source-controlled 0.4 integration evidence template | `release/0.4.0/integration-evidence-template.json` | CONTRACT + PR CI PROVEN |
-| Runtime binding of template to environment/domain/exact wheel SHA | `evidence/candidate_certification.py` | IMPLEMENTED + PR CI PROVEN fail-closed |
-| Integration manifest must be fully certified before candidate certification | `evidence/candidate_certification.py` + `evidence/integration_evidence.py` | IMPLEMENTED + PR CI PROVEN fail-closed |
-| Release proof references/details reject credential-like retained text | `evidence/candidate_certification.py` + `evidence/safety.py` | IMPLEMENTED + PR CI PROVEN fail-closed |
-| `candidate-certify` hard certification CLI | `cli/release.py` | PRESENTATION + PR CI PROVEN |
-| Candidate CI provenance and exact wheel re-verification | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + PR CI PROVEN WORKFLOW CONTRACT |
-| Evidence run must be successful explicit workflow_dispatch at exact candidate SHA | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + PR CI PROVEN fail-closed |
-| Certified artifact uploaded only after `release_ready=true`, zero blockers, all required PASS | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + PR CI PROVEN fail-closed |
-| Certification performs no wheel rebuild/tag/release mutation | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + PR CI PROVEN WORKFLOW BOUNDARY |
+| Source-controlled 0.4 integration evidence template | `release/0.4.0/integration-evidence-template.json` | CONTRACT + CI PROVEN |
+| Runtime binding of template to environment/domain/exact wheel SHA | `evidence/candidate_certification.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| Integration manifest must be fully certified before candidate certification | `evidence/candidate_certification.py` + `evidence/integration_evidence.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| Release proof references/details reject credential-like retained text | `evidence/candidate_certification.py` + `evidence/safety.py` | IMPLEMENTED + CI PROVEN fail-closed |
+| `candidate-certify` hard certification CLI | `cli/release.py` | PRESENTATION + CI PROVEN |
+| Candidate CI provenance and exact wheel re-verification | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + CI PROVEN WORKFLOW CONTRACT |
+| Evidence run must be successful explicit workflow_dispatch at exact candidate SHA | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + CI PROVEN fail-closed |
+| Certified artifact uploaded only after `release_ready=true`, zero blockers, all required PASS | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + CI PROVEN fail-closed |
+| Certification performs no wheel rebuild/tag/release mutation | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + CI PROVEN WORKFLOW BOUNDARY |
 | Candidate release-proof producer | `.github/workflows/candidate-release-proofs.yml` | NOT YET IMPLEMENTED / NEXT RELEASE BLOCKER |
 | Candidate integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | NOT YET IMPLEMENTED / NEXT RELEASE BLOCKER |
 
-PR #84 validation run `33314693131` passed Python 3.11/3.13, wheel build and ordinary readiness contract; Python 3.13 reported **651 passed**. This is portable PR evidence only. Until PR #84 is merged and its main push is green, treat it as PR CI proven, not merged-main baseline.
+PR #84 merge SHA `bb9b7ed74e2696978c546011c893fb316ffdd57c`; final PR CI `33314924064`; main CI `33314977393`. Both Python matrices, wheel and ordinary readiness jobs succeeded; merged-main Python 3.13 reported **653 passed**.
 
-The certification workflow cannot successfully create `release-readiness-certified-<candidate SHA>` today because its two fixed upstream producer workflows do not yet exist. That is intentional fail-closed behavior, not a missing bypass.
+The certification workflow cannot successfully create `release-readiness-certified-<candidate SHA>` today because its two fixed upstream producer workflows do not yet exist. That is intentional fail-closed behavior, not a bypass to fill with fabricated PASS data.
 
 ## Warehouse ambiguity / session recovery boundaries
 

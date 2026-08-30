@@ -6,14 +6,12 @@
 
 Once one main-CI wheel is selected as the candidate, stop adding product features. Only release blockers, certification defects, compatibility defects, evidence defects, and documentation defects may change the candidate. Any code fix creates a new candidate SHA and requires new exact-candidate evidence.
 
-## The release chain
-
-The 0.4 path is intentionally split into three stages:
+## Release chain
 
 ```text
 main CI builds exact candidate bytes
         ↓
-approved evidence runs prove the exact candidate
+approved exact-candidate evidence producers retain proof
         ↓
 candidate-certification validates all retained evidence
         ↓
@@ -36,11 +34,11 @@ Approved integration evidence check membership:
 release/0.4.0/integration-evidence-template.json
 ```
 
-The integration template deliberately has no candidate hash. At certification time it is bound to the selected `DEV`, `UAT`, or `PROD` environment, the approved domain, and the exact inner wheel SHA256.
+The integration template deliberately has no candidate hash. At certification time it is bound to the selected `DEV`, `UAT`, or `PROD` environment, approved domain, and exact inner wheel SHA256.
 
-## 0.4 required proof
+## Required proof
 
-Required readiness proof currently covers:
+The 15 required readiness gates currently cover:
 
 ```text
 source tests / architecture / package checks
@@ -60,11 +58,9 @@ semantic reconciliation fail-closed behavior
 real ambiguous-COMMIT recovery drill
 ```
 
-Debezium/Kafka remains optional for 0.4 unless the public GA scope explicitly promotes it to required certification.
+Debezium/Kafka remains optional unless the public 0.4 GA scope explicitly promotes it to required certification.
 
 ## Ordinary readiness report
-
-You can generate a fail-closed report before live proof exists:
 
 ```bash
 fabric-framework release-readiness \
@@ -73,7 +69,7 @@ fabric-framework release-readiness \
   --output build/release-readiness.json
 ```
 
-That command succeeding only means the report was generated. Missing required proof becomes `NOT_RUN`, so the report remains blocked.
+Generating a report does not mean it passed. Missing required proof becomes `NOT_RUN`, so ordinary CI intentionally remains blocked.
 
 ## Exact candidate wheel
 
@@ -85,13 +81,13 @@ SHA256SUMS
 CANDIDATE.json
 ```
 
-`CANDIDATE.json` binds the package version, source SHA, GitHub Actions run ID/attempt, wheel filename, and exact inner wheel SHA256.
+`CANDIDATE.json` binds package version, source SHA, GitHub Actions run ID/attempt, wheel filename, and exact inner wheel SHA256.
 
-Do not use GitHub's uploaded ZIP digest as the wheel identity. Certification and release use the inner wheel SHA256 from `CANDIDATE.json` / `SHA256SUMS`.
+Do not use GitHub's uploaded ZIP/archive digest as wheel identity. Certification and release use the inner wheel SHA256 from `CANDIDATE.json` / `SHA256SUMS`.
 
 ## Candidate certification
 
-Once the two retained evidence producers have completed for the same exact candidate, the certification command is:
+After both retained evidence producers complete for the same exact candidate:
 
 ```bash
 fabric-framework candidate-certify \
@@ -106,39 +102,39 @@ fabric-framework candidate-certify \
   --output build/release-readiness.json
 ```
 
-Unlike ordinary `release-readiness`, `candidate-certify` is a hard certification command. It fails unless:
+`candidate-certify` fails unless:
 
 ```text
 release-proofs.json matches version + candidate SHA + exact wheel SHA
 release proof references/details are safe to retain
 integration-evidence.json matches the source-controlled integration template
-environment/domain match the selected certification scope
-integration release_hash equals the exact wheel SHA
+environment/domain match certification scope
+integration release_hash equals exact wheel SHA
 all required integration checks are certified PASS
-all 15 required readiness gates are PASS
+all 15 required readiness gates PASS
 release_ready=true
 blockers=[]
 ```
 
 ## GitHub candidate-certification workflow
 
-`.github/workflows/candidate-certification.yml` is manual and performs only certification aggregation. It verifies candidate CI provenance, downloads and authenticates the exact candidate wheel, installs that wheel without rebuilding it, verifies provenance of the two retained evidence runs, then invokes `candidate-certify`.
+`.github/workflows/candidate-certification.yml` is manual certification aggregation only. It verifies candidate CI provenance, authenticates exact candidate bytes, installs that wheel without rebuilding, verifies upstream evidence-run provenance, then invokes `candidate-certify`.
 
-It accepts evidence only from these dedicated producer workflow paths:
+It only accepts evidence from these fixed producer workflow paths:
 
 ```text
 .github/workflows/candidate-release-proofs.yml
 .github/workflows/candidate-integration-evidence.yml
 ```
 
-Both producer runs must be successful explicit `workflow_dispatch` runs whose `head_sha` equals the exact candidate SHA. Their fixed artifact names are:
+Both producer runs must be successful explicit `workflow_dispatch` runs whose `head_sha` equals the candidate SHA. Fixed artifact names are:
 
 ```text
 release-proofs-<candidate SHA>
 integration-evidence-<candidate SHA>
 ```
 
-Only a successful certification uploads:
+Only successful certification can upload:
 
 ```text
 release-readiness-certified-<candidate SHA>/
@@ -147,35 +143,48 @@ release-readiness-certified-<candidate SHA>/
   integration-evidence.json
 ```
 
-The certification workflow does not create tags, GitHub releases, or new wheel bytes.
+The certification workflow does not build wheel bytes, create tags, or publish releases.
 
 ## Exact promotion
 
-`framework-release` then consumes the exact candidate run and the successful candidate-certification run. Before any release mutation it re-verifies source/version/run/wheel identity and checks that the certified readiness report has zero blockers and every required gate is PASS.
+`framework-release` consumes the exact candidate run and successful candidate-certification run. Before mutation it re-verifies source/version/run/wheel identity and verifies zero blockers with every required gate PASS.
 
-Only then does it create the immutable tag at the exact candidate SHA and publish the already-certified wheel plus checksum/candidate/evidence assets.
+Only then does it tag the exact candidate SHA and publish the already-certified wheel plus checksum/candidate/evidence assets.
 
 ## Current state
 
-PR #84 validation run `33314693131` passed Python 3.11/3.13, exact wheel build and ordinary readiness checks; Python 3.13 reported **651 passed**. The candidate-certification aggregator/workflow is therefore **PR CI proven and pending merge/main checkpoint**. That is implementation proof only, not Fabric certification.
+Candidate certification is now merged and CI proven:
 
-The next producer work is intentionally separate:
+```text
+PR                 #84
+merge SHA          bb9b7ed74e2696978c546011c893fb316ffdd57c
+final PR CI        33314924064
+main CI            33314977393
+merged tests       653
+latest wheel SHA   ce78ae1bc67b0e68bca360e825d36cf6b0cb171f811de8257cd9ce0225154748
+candidate frozen   no
+```
+
+This is implementation proof only, not Fabric certification.
+
+The two actual evidence producers are still intentionally missing:
 
 ```text
 candidate-release-proofs.yml
-  -> source/wheel/customer compatibility + representative live business-path proofs
+  -> exact source/wheel/customer proof plus retained representative business-path evidence
 
 candidate-integration-evidence.yml
-  -> Fabric identity/control-plane/Pipeline/Copy/Spark/Warehouse/ambiguous-COMMIT proof
+  -> Fabric identity/control-plane/Pipeline/Copy/Spark/Warehouse/ambiguous-COMMIT evidence
 ```
 
-Those workflows must produce real retained evidence; they must not manufacture PASS JSON.
+Because release proofs mix portable/static checks and live business-path checks, the next framework change should first add strict partial proof merge. That lets independent producers contribute evidence without choosing “latest wins” or inventing a PASS.
 
 Therefore today:
 
 ```text
 public release       v0.3.0
 0.4 source           feature-frozen / unreleased
+release allowed      no
 candidate            not yet frozen
 required blockers    15
 certified artifact   not yet produced

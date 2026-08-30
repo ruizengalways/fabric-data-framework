@@ -15,7 +15,7 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #28 | `67562e4312dc9c37e8b7fb8d79535bb621bd573f` | Fabric Warehouse same-transaction target commit proof |
 | #30 | `732920e214ccdead20c632f7e70c0eb8f1267f0d`, Actions `33250676068` | approved DEV integration evidence harness |
 | #32 | `e42dee86db3d4102c7264bc0d1f01f83fb8aade2`, Actions `33251177339`, 407 | approved-run preflight + read-only item smoke |
-| #34 | `1c7d67bedd125f5fb9e983be791085fd1eaa9b0e`, Actions `33253215030`, 419 | orthogonal capture semantics + exact 14 presets |
+| #34 | `1c7d67bedd125f5fb5e983be791085fd1eaa9b0e`, Actions `33253215030`, 419 | orthogonal capture semantics + exact 14 presets |
 | #35 | `bf215fcb3538f9806b4002d2f154dbd46ae19412`, Actions `33253394201`, 430 | semantic onboarding + CLI |
 | #37 | `d69b2ff49f984331b6753bcd9274ea9a298ce798`, Actions `33253581049`, 441 | full-baseline to WATERMARK bootstrap |
 | #39 | `014cd334105de6f867b6320509b94147a444a2fa`, Actions `33253817758`, 455 | strict staged evidence merge |
@@ -42,8 +42,9 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #74 | `0b82a55981700484e68c5fb9f68de7c94a68b75b`, Actions `33302223695`, 615 | removed quality and orchestration package re-export facades |
 | #76 | `1c3669cad03b2209527d7f0727fd879c45dda4df` | non-destructive customer/domain `project-init` scaffold contract |
 | #78 | `8094e4742507c23ffad16220aebd6862876a3cd0`, Actions `33305885406`, 627 | whole-project fail-closed `project-validate` dry-run contract |
-| #80 | `353b43c37077a1ffc9e22b6c76ae5494a164306e`, PR Actions `33309737895`, main Actions `33309805619`, 636 | 0.4 exact-candidate fail-closed release-readiness aggregation; current readiness intentionally BLOCKED |
+| #80 | `353b43c37077a1ffc9e22b6c76ae5494a164306e`, PR Actions `33309737895`, main Actions `33309805619`, 636 | 0.4 exact-candidate fail-closed release-readiness aggregation; ordinary readiness intentionally BLOCKED |
 | #82 | `7f7849b9319df43ef382574747bfe27ee6378403`, PR Actions `33310317289`, main Actions `33310363412`, 644 | exact candidate wheel identity + exact certified-byte release promotion; no release-time rebuild |
+| #84 | `bb9b7ed74e2696978c546011c893fb316ffdd57c`, final PR Actions `33314924064`, main Actions `33314977393`, 653 | exact-candidate certification aggregation, integration evidence template, credential-safe release proof retention, manual certification workflow |
 
 ## Integrated design decisions
 
@@ -52,15 +53,13 @@ three-repository ownership
 capture semantics separate from apply semantics
 control plane stores runtime/deployment state, not complete DatasetConfig truth
 metadata-driven orchestration and failure isolation
-immutable release artifact + delivery CLI
-Pipeline/Spark execution boundary
 semantic model separate from physical execution engine
 framework-first semantics with bounded provider-native delegation
 CLI is a removable leaf
-evidence/ is the only integration-evidence, release-readiness and approved-runner owner
-control_plane/ is the relational state owner
-deployment/ is the release/promotion/delivery and candidate-artifact identity owner
-contracts/ is the provider-neutral semantic/runtime owner
+evidence/ owns integration evidence, approved exact-run runners, release readiness and candidate certification
+control_plane/ owns relational state
+deployment/ owns release/delivery and candidate artifact identity
+contracts/ owns provider-neutral semantic/runtime contracts
 source root and major package roots are namespace-only
 callers import explicit owner submodules
 unreleased 0.4.0 does not preserve obsolete aliases
@@ -69,9 +68,12 @@ one business/domain repo may contain mixed FULL/WATERMARK/CDC and SCD1/SCD2; exe
 release readiness binds exact candidate source SHA and exact artifact SHA for live evidence
 integration-backed release gates cannot be bypassed by generic/manual PASS proof
 main candidate artifact binds source SHA + CI run/attempt + wheel filename/version + inner SHA256
+candidate certification validates retained proof; it does not execute Fabric or manufacture evidence
+candidate certification accepts only exact-candidate successful explicit producer runs from fixed workflow paths
+release proof references/details are screened for obvious credential material before certified retention
 release workflow promotes already-certified bytes and must never rebuild the wheel
-release accepts candidate artifacts only from successful main push framework-ci runs
 candidate artifact existence does not mean candidate has been selected/frozen
+certification workflow existence does not mean live certification has happened
 0.4 is feature-frozen and remains unreleased until required readiness blockers reach zero
 Debezium/Kafka is optional in the 0.4 certification matrix unless explicitly promoted into GA scope
 ```
@@ -83,11 +85,11 @@ provider REST implementation != live provider proof
 CI commit-then-raise double != real network/driver fault proof
 simulated framework ACK loss != real COMMIT disconnect
 session-termination provider contract != production-approved Admin/KILL proof
-readability/layout refactor != new provider or production evidence
 project-validate PASS != live Fabric readiness
 release-readiness contract PASS != release readiness
 GitHub Actions artifact archive digest != exact inner wheel SHA256
 source/version equality != permission to reuse evidence across rebuilt artifacts
 candidate-capable main artifact != frozen/certified candidate
+candidate-certification contract != retained live certification
 exact-byte promotion contract != live certification
 ```

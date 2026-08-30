@@ -10,13 +10,17 @@ CANONICAL = (
 )
 
 
-def test_candidate_certification_docs_do_not_regress_to_preimplementation_state():
+def test_candidate_certification_docs_do_not_regress_to_stale_state():
     combined = "\n".join(path.read_text(encoding="utf-8") for path in CANONICAL)
 
     forbidden = (
         "future `.github/workflows/candidate-certification.yml`",
         "Candidate-certification workflow / certified readiness artifact | NOT YET IMPLEMENTED",
         "candidate-certification workflow / evidence packaging that consumes",
+        "PR CI PROVEN / PENDING MERGE",
+        "PR CI proven and pending merge/main checkpoint",
+        "PR CI evidence pending merge/main checkpoint",
+        "requires PR CI/merge before it can be called proven",
     )
     for phrase in forbidden:
         assert phrase not in combined
