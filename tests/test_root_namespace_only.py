@@ -29,6 +29,16 @@ def test_remaining_root_modules_have_one_canonical_owner(old: str, new: str):
         importlib.import_module(f"fabric_data_framework.{old}")
 
 
+def test_generic_runtime_and_recovery_runtime_have_distinct_owners():
+    generic_runtime = importlib.import_module("fabric_data_framework.contracts.runtime")
+    recovery_runtime = importlib.import_module("fabric_data_framework.recovery.runtime")
+
+    assert hasattr(generic_runtime, "RuntimeContext")
+    assert not hasattr(generic_runtime, "AttemptContext")
+    assert hasattr(recovery_runtime, "AttemptContext")
+    assert not hasattr(recovery_runtime, "RuntimeContext")
+
+
 def test_source_and_tests_do_not_reintroduce_root_module_imports():
     forbidden = tuple(f"fabric_data_framework.{old}" for old in CANONICAL)
     offenders: list[str] = []
