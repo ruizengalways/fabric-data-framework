@@ -1,0 +1,146 @@
+name: refactor-recovery-explicit-imports
+
+on:
+  push:
+    branches:
+      - codex/recovery-explicit-imports
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/recovery-explicit-imports
+          fetch-depth: 0
+      - name: Replace recovery facade imports with explicit owners
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import ast
+          from pathlib import Path
+
+          root = Path('.')
+          pkg = root / 'src' / 'fabric_data_framework'
+          recovery_init = pkg / 'recovery' / '__init__.py'
+
+          init_tree = ast.parse(recovery_init.read_text(encoding='utf-8'))
+          owner_by_symbol: dict[str, str] = {}
+          for node in init_tree.body:
+              if not isinstance(node, ast.ImportFrom) or node.level != 1 or not node.module:
+                  continue
+              owner = f'fabric_data_framework.recovery.{node.module}'
+              for alias in node.names:
+                  if alias.name == '*':
+                      raise RuntimeError('recovery facade contains wildcard import')
+                  if alias.name in owner_by_symbol and owner_by_symbol[alias.name] != owner:
+                      raise RuntimeError(f'ambiguous recovery symbol owner: {alias.name}')
+                  owner_by_symbol[alias.name] = owner
+
+          if not owner_by_symbol:
+              raise RuntimeError('could not derive recovery facade symbol ownership')
+
+          def current_package(path: Path) -> list[str]:
+              rel = path.relative_to(pkg)
+              parts = ['fabric_data_framework', *rel.parts[:-1]]
+              if path.name == '__init__.py':
+                  parts = ['fabric_data_framework', *rel.parts[:-1]]
+              return parts
+
+          def resolve_import_module(path: Path, node: ast.ImportFrom) -> str | None:
+              if node.level == 0:
+                  return node.module
+              package = current_package(path)
+              up = node.level - 1
+              if up > len(package):
+                  return None
+              base = package[: len(package) - up]
+              if node.module:
+                  base.extend(node.module.split('.'))
+              return '.'.join(base)
+
+          def render_group(owner: str, aliases: list[ast.alias], indent: str) -> str:
+              rendered = [
+                  f'{alias.name} as {alias.asname}' if alias.asname else alias.name
+                  for alias in aliases
+              ]
+              if len(rendered) == 1:
+                  return f'{indent}from {owner} import {rendered[0]}\n'
+              body = ''.join(f'{indent}    {name},\n' for name in rendered)
+              return f'{indent}from {owner} import (\n{body}{indent})\n'
+
+          changed_files = 0
+          for base in (pkg, root / 'tests'):
+              for path in sorted(base.rglob('*.py')):
+                  if path == recovery_init:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  tree = ast.parse(text)
+                  lines = text.splitlines(keepends=True)
+                  replacements: list[tuple[int, int, str]] = []
+                  for node in ast.walk(tree):
+                      if not isinstance(node, ast.ImportFrom):
+                          continue
+                      if resolve_import_module(path, node) != 'fabric_data_framework.recovery':
+                          continue
+                      if node.end_lineno is None:
+                          raise RuntimeError(f'missing end_lineno for {path}')
+                      grouped: dict[str, list[ast.alias]] = {}
+                      for alias in node.names:
+                          owner = owner_by_symbol.get(alias.name)
+                          if owner is None:
+                              raise RuntimeError(
+                                  f'{path}:{node.lineno} imports unknown recovery facade symbol {alias.name}'
+                              )
+                          grouped.setdefault(owner, []).append(alias)
+                      indent = ' ' * node.col_offset
+                      replacement = ''.join(
+                          render_group(owner, aliases, indent)
+                          for owner, aliases in grouped.items()
+                      )
+                      replacements.append((node.lineno - 1, node.end_lineno, replacement))
+
+                  if replacements:
+                      for start, end, replacement in sorted(replacements, reverse=True):
+                          lines[start:end] = [replacement]
+                      path.write_text(''.join(lines), encoding='utf-8')
+                      changed_files += 1
+
+          recovery_init.write_text(
+              '"""Recovery package. Import contracts and implementations from explicit submodules.\n\n'
+              'Examples: ``recovery.runtime``, ``recovery.replay``, ``recovery.rebuild``,\n'
+              '``recovery.target_probe`` and ``recovery.fabric_warehouse``.\n'
+              '"""\n',
+              encoding='utf-8',
+          )
+
+          boundary = root / 'tests' / 'test_recovery_package_boundary.py'
+          boundary.write_text('''from __future__ import annotations\n\nimport ast\nimport importlib\nfrom pathlib import Path\n\n\nREPO_ROOT = Path(__file__).parents[1]\nPACKAGE_ROOT = REPO_ROOT / "src" / "fabric_data_framework"\nRECOVERY_ROOT = PACKAGE_ROOT / "recovery"\n\n\ndef test_recovery_package_root_is_namespace_only():\n    package = importlib.import_module("fabric_data_framework.recovery")\n    tree = ast.parse((RECOVERY_ROOT / "__init__.py").read_text(encoding="utf-8"))\n    assert not any(isinstance(node, (ast.Import, ast.ImportFrom)) for node in tree.body)\n    for former_facade_symbol in (\n        "RetryPolicy",\n        "AttemptContext",\n        "execute_with_retry",\n        "FullRebuildContext",\n        "PreparedQuarantineReplay",\n        "FabricWarehouseTargetCommitProbe",\n    ):\n        assert not hasattr(package, former_facade_symbol)\n\n\ndef test_source_and_tests_do_not_import_recovery_facade_symbols():\n    offenders: list[str] = []\n    current = Path(__file__).resolve()\n    for base in (REPO_ROOT / "src", REPO_ROOT / "tests"):\n        for path in sorted(base.rglob("*.py")):\n            if path.resolve() == current:\n                continue\n            text = path.read_text(encoding="utf-8")\n            if "from fabric_data_framework.recovery import" in text:\n                offenders.append(str(path.relative_to(REPO_ROOT)))\n    assert offenders == []\n\n\ndef test_explicit_recovery_runtime_owner_remains_importable():\n    runtime = importlib.import_module("fabric_data_framework.recovery.runtime")\n    assert hasattr(runtime, "RetryPolicy")\n    assert hasattr(runtime, "AttemptContext")\n''', encoding='utf-8')
+
+          # Fail the one-shot job if an absolute facade import survived.
+          offenders = []
+          for base in (pkg, root / 'tests'):
+              for path in base.rglob('*.py'):
+                  if path == boundary:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  if 'from fabric_data_framework.recovery import' in text:
+                      offenders.append(str(path))
+          if offenders:
+              raise RuntimeError('recovery facade imports remain:\n' + '\n'.join(offenders))
+
+          print(f'migrated recovery facade imports in {changed_files} files')
+          (root / '.github' / 'workflows' / 'refactor-recovery-explicit-imports.yml').unlink()
+          PY
+      - name: Commit explicit recovery imports
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor: remove recovery package re-export facade"
+          git push origin HEAD:codex/recovery-explicit-imports
