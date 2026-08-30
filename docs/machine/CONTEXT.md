@@ -248,6 +248,29 @@ Released immutable artifact remains complete DatasetConfig semantic truth.
 
 SQL control plane stores deployed metadata/config identity plus runtime/evidence state; it does not replace source-controlled config.
 
+## CLI/package dependency boundary
+
+The command-line interface is a leaf presentation layer under:
+
+```text
+src/fabric_data_framework/cli/
+```
+
+Required dependency direction:
+
+```text
+CLI -> reusable framework core
+reusable framework core -X-> CLI
+```
+
+Core semantics/runtime/provider/recovery modules must never import `fabric_data_framework.cli`.
+
+Physical removal of the `cli/` directory is allowed to remove the console command, but must not make the reusable package core unimportable or unusable through Python APIs.
+
+`src/fabric_data_framework/cli_router.py` may exist only as a deprecated import-compatibility shim; it must not regain command/business implementation.
+
+New reusable logic belongs outside `cli/`; command handlers should only parse arguments, call reusable APIs, and render/write results.
+
 ## Evidence vocabulary discipline
 
 Use CI/reference labels for deterministic implementation proof.
