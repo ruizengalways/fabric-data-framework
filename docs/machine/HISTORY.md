@@ -30,7 +30,8 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #54 | `c5baff6318b5facc366fa9466d23041291835fd5`, Actions `33284381347`, 534 | canonical docs checkpoint after PR #53 |
 | #55 | `46c10ab00fefc2ca546fd7f2bea369a7037216da`, Actions `33285255666`, 534 | split stable human docs from exact machine/recovery docs; removed superseded flat docs/ADRs/runbooks and unified examples under root `examples/` |
 | #57 | `3ddbb873029a13985af4e563228629c1efc4f7d4`, Actions `33286548611`, 539 | extracted CLI into removable leaf package; console entrypoint moved to `fabric_data_framework.cli`; added source-code map and CLI-isolation contracts |
-| #59 | `c5471b7a417525e3a73d309b786f331192b22c0f`, Actions `33287715582`, 561 | grouped integration evidence and approved exact-run implementations under canonical `evidence/`; historical root modules became same-module compatibility aliases |
+| #59 | `c5471b7a417525e3a73d309b786f331192b22c0f`, Actions `33287715582`, 561 | grouped integration evidence and approved exact-run implementations under canonical `evidence/` |
+| #61 | `83cc031d542723e42f064259aacff6c11ca8b015`, Actions `33288491628`, 562 | removed root evidence/approved aliases and `cli_router.py`; canonical-only `fabric_data_framework.evidence.*` and `fabric_data_framework.cli` imports; tests forbid legacy paths from returning |
 
 ## Important historical design decisions now integrated into current model
 
@@ -46,8 +47,9 @@ Pipeline/Spark execution boundary
 semantic model separate from physical execution engine
 framework-first semantics with bounded provider-native stage delegation
 CLI is a leaf presentation layer; reusable core must not depend on it
-evidence/ is the canonical implementation owner for integration evidence and approved exact-run executors
-historical root evidence/approved module paths are compatibility aliases only
+evidence/ is the only integration-evidence / approved-runner import and implementation owner
+cli/ is the only CLI import and implementation owner
+legacy evidence and cli_router module paths are intentionally absent
 ```
 
 Current versions of those decisions are summarized in human `CONCEPTS.md` / `REPOSITORY_GUIDE.md` and machine `CONTEXT.md` / `IMPLEMENTATION_MAP.md`.
