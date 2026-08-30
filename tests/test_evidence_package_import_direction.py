@@ -5,7 +5,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).parents[1] / "src" / "fabric_data_framework"
 
-ROOT_COMPATIBILITY_MODULES = {
+REMOVED_ROOT_EVIDENCE_MODULES = {
     "integration_evidence.py",
     "integration_checks.py",
     "integration_evidence_merge.py",
@@ -18,11 +18,13 @@ ROOT_COMPATIBILITY_MODULES = {
 }
 
 
-def test_root_compatibility_modules_point_only_to_evidence_package():
-    for filename in ROOT_COMPATIBILITY_MODULES:
-        text = (PACKAGE_ROOT / filename).read_text(encoding="utf-8")
-        assert ".evidence." in text
-        assert "_sys.modules[__name__] = _module" in text
+def test_root_evidence_compatibility_modules_are_not_present():
+    present = sorted(
+        filename
+        for filename in REMOVED_ROOT_EVIDENCE_MODULES
+        if (PACKAGE_ROOT / filename).exists()
+    )
+    assert present == []
 
 
 def test_evidence_package_has_no_cli_dependency():
