@@ -1,0 +1,176 @@
+name: refactor-capture-apply-explicit-imports
+
+on:
+  push:
+    branches:
+      - codex/capture-apply-explicit-imports
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/capture-apply-explicit-imports
+          fetch-depth: 0
+      - name: Replace capture/apply facade imports with explicit owners
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import ast
+          from pathlib import Path
+
+          root = Path('.')
+          pkg = root / 'src' / 'fabric_data_framework'
+          package_names = ('capture', 'apply')
+
+          owner_maps: dict[str, dict[str, str]] = {}
+          for package_name in package_names:
+              init_path = pkg / package_name / '__init__.py'
+              tree = ast.parse(init_path.read_text(encoding='utf-8'))
+              mapping: dict[str, str] = {}
+              for node in tree.body:
+                  if not isinstance(node, ast.ImportFrom) or node.level != 1 or not node.module:
+                      continue
+                  owner = f'fabric_data_framework.{package_name}.{node.module}'
+                  for alias in node.names:
+                      if alias.name == '*':
+                          raise RuntimeError(f'{package_name} facade contains wildcard import')
+                      existing = mapping.get(alias.name)
+                      if existing is not None and existing != owner:
+                          raise RuntimeError(f'ambiguous {package_name} symbol owner: {alias.name}')
+                      mapping[alias.name] = owner
+              if not mapping:
+                  raise RuntimeError(f'could not derive {package_name} facade ownership')
+              owner_maps[package_name] = mapping
+
+          def current_package(path: Path) -> list[str]:
+              rel = path.relative_to(pkg)
+              return ['fabric_data_framework', *rel.parts[:-1]]
+
+          def resolve_import_module(path: Path, node: ast.ImportFrom) -> str | None:
+              if node.level == 0:
+                  return node.module
+              package = current_package(path)
+              up = node.level - 1
+              if up > len(package):
+                  return None
+              base = package[: len(package) - up]
+              if node.module:
+                  base.extend(node.module.split('.'))
+              return '.'.join(base)
+
+          def render_from(owner: str, aliases: list[ast.alias], indent: str) -> str:
+              rendered = [
+                  f'{alias.name} as {alias.asname}' if alias.asname else alias.name
+                  for alias in aliases
+              ]
+              if len(rendered) == 1:
+                  return f'{indent}from {owner} import {rendered[0]}\n'
+              body = ''.join(f'{indent}    {name},\n' for name in rendered)
+              return f'{indent}from {owner} import (\n{body}{indent})\n'
+
+          changed_files = 0
+          for base in (pkg, root / 'tests'):
+              for path in sorted(base.rglob('*.py')):
+                  if path in {pkg / name / '__init__.py' for name in package_names}:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  tree = ast.parse(text)
+                  lines = text.splitlines(keepends=True)
+                  replacements: list[tuple[int, int, str]] = []
+                  for node in ast.walk(tree):
+                      if not isinstance(node, ast.ImportFrom) or node.end_lineno is None:
+                          continue
+                      resolved = resolve_import_module(path, node)
+                      matched_package = next(
+                          (
+                              name
+                              for name in package_names
+                              if resolved == f'fabric_data_framework.{name}'
+                          ),
+                          None,
+                      )
+                      if matched_package is None:
+                          continue
+                      mapping = owner_maps[matched_package]
+                      grouped: dict[str, list[ast.alias]] = {}
+                      module_aliases: list[tuple[str, ast.alias]] = []
+                      for alias in node.names:
+                          owner = mapping.get(alias.name)
+                          if owner is not None:
+                              grouped.setdefault(owner, []).append(alias)
+                              continue
+                          candidate = pkg / matched_package / f'{alias.name}.py'
+                          candidate_pkg = pkg / matched_package / alias.name / '__init__.py'
+                          if candidate.exists() or candidate_pkg.exists():
+                              module_aliases.append((
+                                  f'fabric_data_framework.{matched_package}.{alias.name}',
+                                  alias,
+                              ))
+                              continue
+                          raise RuntimeError(
+                              f'{path}:{node.lineno} imports unknown {matched_package} facade symbol {alias.name}'
+                          )
+                      indent = ' ' * node.col_offset
+                      replacement = ''.join(
+                          render_from(owner, aliases, indent)
+                          for owner, aliases in grouped.items()
+                      )
+                      for module_name, alias in module_aliases:
+                          local = alias.asname or alias.name
+                          replacement += f'{indent}import {module_name} as {local}\n'
+                      replacements.append((node.lineno - 1, node.end_lineno, replacement))
+
+                  if replacements:
+                      for start, end, replacement in sorted(replacements, reverse=True):
+                          lines[start:end] = [replacement]
+                      path.write_text(''.join(lines), encoding='utf-8')
+                      changed_files += 1
+
+          (pkg / 'capture' / '__init__.py').write_text(
+              '"""Capture package. Import semantics and implementations from explicit submodules.\n\n'
+              'Examples: ``capture.semantic_contracts``, ``capture.patterns``, ``capture.cdc``,\n'
+              '``capture.watermark``, ``capture.full`` and ``capture.onboarding``.\n'
+              '"""\n',
+              encoding='utf-8',
+          )
+          (pkg / 'apply' / '__init__.py').write_text(
+              '"""Apply package. Import apply strategies from explicit submodules.\n\n'
+              'Examples: ``apply.scd1``, ``apply.scd2``, ``apply.cdc``, ``apply.cdc_scd2``,\n'
+              '``apply.append``, ``apply.upsert``, ``apply.replace`` and ``apply.snapshot_diff``.\n'
+              '"""\n',
+              encoding='utf-8',
+          )
+
+          boundary = root / 'tests' / 'test_capture_apply_package_boundaries.py'
+          boundary.write_text('''from __future__ import annotations\n\nimport ast\nimport importlib\nfrom pathlib import Path\n\nimport pytest\n\n\nREPO_ROOT = Path(__file__).parents[1]\nPACKAGE_ROOT = REPO_ROOT / "src" / "fabric_data_framework"\n\n\n@pytest.mark.parametrize(\n    ("package_name", "former_symbols"),\n    (\n        ("capture", ("CapturePattern", "CDCEvent", "CaptureSemanticContract", "capture_full_snapshot")),\n        ("apply", ("apply_scd1", "apply_cdc_scd2", "AppendApplyResult", "SnapshotDiffPlan")),\n    ),\n)\ndef test_capture_and_apply_package_roots_are_namespace_only(package_name: str, former_symbols: tuple[str, ...]):\n    package = importlib.import_module(f"fabric_data_framework.{package_name}")\n    init_path = PACKAGE_ROOT / package_name / "__init__.py"\n    tree = ast.parse(init_path.read_text(encoding="utf-8"))\n    assert not any(isinstance(node, (ast.Import, ast.ImportFrom)) for node in tree.body)\n    for symbol in former_symbols:\n        assert not hasattr(package, symbol)\n\n\ndef test_source_and_tests_do_not_import_capture_or_apply_facades():\n    forbidden = (\n        "from fabric_data_framework.capture import",\n        "from fabric_data_framework.apply import",\n    )\n    offenders: list[str] = []\n    current = Path(__file__).resolve()\n    for base in (REPO_ROOT / "src", REPO_ROOT / "tests"):\n        for path in sorted(base.rglob("*.py")):\n            if path.resolve() == current:\n                continue\n            text = path.read_text(encoding="utf-8")\n            for value in forbidden:\n                if value in text:\n                    offenders.append(f"{path.relative_to(REPO_ROOT)}: {value}")\n    assert offenders == []\n\n\ndef test_representative_explicit_capture_and_apply_owners_are_importable():\n    assert hasattr(importlib.import_module("fabric_data_framework.capture.semantic_contracts"), "CaptureSemanticContract")\n    assert hasattr(importlib.import_module("fabric_data_framework.capture.cdc"), "CDCEvent")\n    assert hasattr(importlib.import_module("fabric_data_framework.apply.scd1"), "apply_scd1")\n    assert hasattr(importlib.import_module("fabric_data_framework.apply.cdc_scd2"), "apply_cdc_scd2")\n''', encoding='utf-8')
+
+          offenders = []
+          for base in (pkg, root / 'tests'):
+              for path in base.rglob('*.py'):
+                  if path == boundary:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  for name in package_names:
+                      value = f'from fabric_data_framework.{name} import'
+                      if value in text:
+                          offenders.append(f'{path}: {value}')
+          if offenders:
+              raise RuntimeError('capture/apply facade imports remain:\n' + '\n'.join(offenders))
+
+          print(f'migrated capture/apply facade imports in {changed_files} files')
+          (root / '.github' / 'workflows' / 'refactor-capture-apply-explicit-imports.yml').unlink()
+          PY
+      - name: Commit explicit capture/apply imports
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor: remove capture and apply re-export facades"
+          git push origin HEAD:codex/capture-apply-explicit-imports
