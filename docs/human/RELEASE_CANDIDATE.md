@@ -66,6 +66,32 @@ fabric-framework release-readiness \
 
 `--require-ready` exits non-zero while any required gate is not `PASS`.
 
+## Exact candidate wheel produced by main CI
+
+`framework-ci` builds one framework wheel and creates:
+
+```text
+dist/
+  fabric_data_framework-<version>-py3-none-any.whl
+  SHA256SUMS
+  CANDIDATE.json
+```
+
+`CANDIDATE.json` binds:
+
+```text
+framework version
+candidate git SHA
+GitHub Actions run ID
+GitHub Actions run attempt
+exact wheel filename
+exact inner wheel SHA256
+```
+
+The manifest is created and re-verified before upload. Main-branch wheel artifacts are retained longer than PR artifacts so a selected candidate can be certified without rebuilding it.
+
+The GitHub artifact ZIP digest is only the digest of GitHub's uploaded archive. It is not the framework wheel SHA256. Certification and release use the inner wheel SHA256 recorded in `CANDIDATE.json` and `SHA256SUMS`.
+
 ## Exact identity rules
 
 The proof bundle must match the exact framework version and 40-character candidate git SHA. If an exact artifact SHA256 is supplied, the proof bundle must match it as well.
@@ -98,20 +124,60 @@ IntegrationEvidenceManifest
 
 This preserves the existing IntegrationEvidence contract instead of creating another provider truth model.
 
-## Current 0.4 state
+## Exact promotion, never release-time rebuild
 
-The repository CI intentionally generates a readiness report with no fabricated proof inputs. Therefore the current report is expected to be `BLOCKED`. This is a successful fail-closed contract test, not evidence that Fabric certification has happened.
+The release workflow is manual exact-candidate promotion. It no longer builds a new wheel and does not publish merely because someone pushes a version tag.
 
-The next engineering stage after this contract is merged is:
+A future release invocation must provide:
 
 ```text
-select/freeze candidate artifact
--> retain exact candidate wheel SHA256
--> run representative real Fabric certification
--> create exact-candidate proof bundle
--> aggregate readiness report
--> require release_ready=true
--> only then create immutable v0.4.0 release
+version
+candidate_run_id
+candidate_git_sha
+candidate_wheel_sha256
+readiness_run_id
 ```
 
-The existing release workflow still needs exact-candidate artifact handoff hardening before 0.4 GA. Do not treat a rebuilt release wheel as automatically equivalent to a wheel that was certified earlier; the exact artifact hash must remain part of the proof chain.
+Before creating a tag or GitHub release it verifies all of the following:
+
+```text
+candidate SHA is reachable from main
+candidate source package version matches requested release
+candidate CI run is a successful main push of framework-ci
+candidate CI run head SHA equals candidate_git_sha
+exact framework-wheel-<candidate SHA> artifact is downloaded from that run
+CANDIDATE.json run/SHA/version/wheel SHA all match
+SHA256SUMS matches the downloaded wheel bytes
+exact downloaded wheel installs and the full test suite passes
+readiness run is a successful explicit candidate-certification workflow
+certified readiness artifact name is release-readiness-certified-<candidate SHA>
+release-readiness.json says release_ready=true and blockers=[]
+every required readiness result is PASS
+release-proofs.json matches version + candidate SHA + wheel SHA
+integration-evidence.json release_hash matches the exact wheel SHA
+```
+
+Only after those checks does the workflow create the immutable tag **at the exact candidate SHA** and publish the already-certified wheel bytes plus candidate/readiness evidence assets.
+
+If the certified readiness artifact does not exist, release is impossible. That is intentional.
+
+## Current 0.4 state
+
+The ordinary repository CI still intentionally generates a readiness report with no fabricated proof inputs. Therefore that report is expected to be `BLOCKED`. This is a successful fail-closed contract test, not evidence that Fabric certification has happened.
+
+Exact artifact promotion is now a framework release contract, but **no candidate is frozen yet and no certified readiness run exists yet**.
+
+The next engineering stage is:
+
+```text
+build candidate-certification workflow / evidence packaging
+-> select one successful main CI run as the candidate
+-> freeze candidate git SHA + inner wheel SHA256
+-> bind fabric-customer compatibility to that exact wheel
+-> run representative real Fabric certification
+-> retain release-proofs.json + integration-evidence.json
+-> generate release-readiness.json with --require-ready
+-> upload release-readiness-certified-<candidate SHA>
+-> only when required blockers are zero invoke framework-release
+-> framework-release promotes the exact certified wheel; it never rebuilds it
+```
