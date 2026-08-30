@@ -41,3 +41,9 @@ def test_source_and_tests_do_not_use_root_symbol_imports():
                 ):
                     offenders.append(str(path.relative_to(REPO_ROOT)))
     assert offenders == []
+
+
+def test_cli_does_not_depend_on_root_package_version_symbol():
+    text = (PACKAGE_ROOT / "cli" / "base.py").read_text(encoding="utf-8")
+    assert "from .. import __version__" not in text
+    assert "version(\"fabric-data-framework\")" in text

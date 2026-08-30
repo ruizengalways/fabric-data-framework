@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+from importlib.metadata import version
 import json
 import os
 from pathlib import Path
@@ -15,7 +16,6 @@ import sys
 
 from sqlalchemy import create_engine
 
-from .. import __version__
 from ..adapters.fabric.rest import FabricRestClient
 from ..capture import (
     load_capture_selections,
@@ -60,13 +60,16 @@ from ..evidence.integration_runner import (
 from ..control_plane.operator import get_dataset_operational_snapshot, list_dataset_operational_snapshots
 
 
+FRAMEWORK_VERSION = version("fabric-data-framework")
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="fabric-framework")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     tag = subparsers.add_parser("validate-tag", help="Verify vX.Y.Z tag matches package version")
     tag.add_argument("--tag", required=True)
-    tag.add_argument("--version", default=__version__)
+    tag.add_argument("--version", default=FRAMEWORK_VERSION)
 
     migrate = subparsers.add_parser("control-plane-migrate")
     migrate.add_argument("--database-url", required=True)
@@ -199,13 +202,13 @@ def _parser() -> argparse.ArgumentParser:
     materialize.add_argument("--config-dir", required=True)
     materialize.add_argument("--domain", required=True)
     materialize.add_argument("--domain-git-sha", required=True)
-    materialize.add_argument("--framework-version", default=__version__)
+    materialize.add_argument("--framework-version", default=FRAMEWORK_VERSION)
 
     release = subparsers.add_parser("release-manifest")
     release.add_argument("--domain", required=True)
     release.add_argument("--domain-release-version", required=True)
     release.add_argument("--domain-git-sha", required=True)
-    release.add_argument("--framework-version", default=__version__)
+    release.add_argument("--framework-version", default=FRAMEWORK_VERSION)
     release.add_argument("--config-dir", required=True)
     release.add_argument("--config-schema-version", type=int, default=1)
     release.add_argument("--fabric-item-manifest-version", default="none-v1")
