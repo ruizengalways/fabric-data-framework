@@ -1,0 +1,38 @@
+{
+  "dataset_id": "vendor.account_files",
+  "source": {
+    "system": "vendor_files",
+    "object": "account/daily/*.parquet",
+    "connection_ref": "vendor_landing"
+  },
+  "target": {
+    "layer": "silver",
+    "object": "account"
+  },
+  "load": {
+    "capture_strategy": "SNAPSHOT",
+    "apply_strategy": "SNAPSHOT_DIFF",
+    "business_key": ["account_id"],
+    "merge_key": ["account_id"],
+    "tracked_columns": ["account_name", "status", "segment"],
+    "delete_policy": "APPLY"
+  },
+  "orchestration": {
+    "execution_group": "vendor_daily_files",
+    "retry_count": 3,
+    "batch_size": 100000,
+    "max_concurrency": 2
+  },
+  "quality": {
+    "policy_name": "standard",
+    "quarantine_policy": "row"
+  },
+  "reconciliation": {
+    "policy_name": "snapshot_diff"
+  },
+  "execution": {
+    "engine": "SPARK",
+    "progress_owner": "FRAMEWORK",
+    "apply_engine": "SPARK"
+  }
+}
