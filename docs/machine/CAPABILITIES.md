@@ -97,9 +97,15 @@ Boundary: project init/validation operates on source-controlled structure and me
 | `release-readiness` report CLI | `cli/release.py` | PRESENTATION + CI PROVEN |
 | `--require-ready` hard non-zero gate | `cli/release.py` | PRESENTATION + CI PROVEN |
 | CI-retained blocked readiness report | `.github/workflows/ci.yml` | CI PROVEN; current main has 15 blockers |
-| Exact certified wheel handoff into immutable release | release workflow | NOT YET IMPLEMENTED / RELEASE BLOCKER |
+| Candidate wheel manifest binds source/run/attempt/inner SHA256 | `deployment/candidate_artifact.py` | IMPLEMENTED CONTRACT; PR CI REQUIRED |
+| Candidate manifest rejects wheel-byte/version/provenance mismatch | `deployment/candidate_artifact.py` | IMPLEMENTED fail-closed; PR CI REQUIRED |
+| Main CI candidate artifact contains wheel + SHA256SUMS + CANDIDATE.json | `.github/workflows/ci.yml` | IMPLEMENTED WORKFLOW CONTRACT; PR CI REQUIRED |
+| Main candidate artifact longer retention than PR artifact | `.github/workflows/ci.yml` | IMPLEMENTED WORKFLOW POLICY; PR CI REQUIRED |
+| Exact certified wheel promotion without rebuild | `.github/workflows/release.yml` | IMPLEMENTED RELEASE CONTRACT; PR CI REQUIRED |
+| Release requires certified readiness artifact bound to exact wheel | `.github/workflows/release.yml` | IMPLEMENTED fail-closed RELEASE CONTRACT; PR CI REQUIRED |
+| Candidate-certification workflow that produces certified readiness artifact | future `.github/workflows/candidate-certification.yml` | NOT YET IMPLEMENTED / NEXT RELEASE BLOCKER |
 
-Boundary: a green readiness-contract CI job proves that the aggregator fails closed. It does not certify Fabric or make 0.4 releasable. Current 0.4 main intentionally has `release_ready=false`. The candidate source SHA and exact inner wheel SHA256 have not yet been frozen for live certification.
+Boundary: ordinary readiness CI proves that the aggregator fails closed; candidate-artifact CI proves candidate identity; neither certifies Fabric or makes 0.4 releasable. The candidate source SHA and exact inner wheel SHA256 have not yet been frozen for live certification, and no `release-readiness-certified-<candidate SHA>` artifact exists yet.
 
 ## Warehouse ambiguity / session recovery
 
@@ -144,7 +150,7 @@ Boundary: a green readiness-contract CI job proves that the aggregator fails clo
 | Proof | State |
 |---|---|
 | Frozen exact 0.4 candidate source SHA + inner wheel SHA256 | NOT YET FROZEN |
-| Exact certified wheel handoff into release workflow | NOT YET IMPLEMENTED |
+| Candidate-certification workflow / certified readiness artifact | NOT YET IMPLEMENTED / NOT YET PRODUCED |
 | Enterprise Fabric identity/token | NOT YET RETAINED |
 | Workspace/item authorization | NOT YET RETAINED |
 | Production Fabric SQL/Azure SQL certification PASS | NOT YET RETAINED |
