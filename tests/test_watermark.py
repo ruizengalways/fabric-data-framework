@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fabric_data_framework.config import WatermarkConfig
 from fabric_data_framework.runtime import WatermarkPosition
-from fabric_data_framework.watermark import plan_watermark_batch
+from fabric_data_framework.capture.watermark import plan_watermark_batch
 
 
 def dt(hour: int):

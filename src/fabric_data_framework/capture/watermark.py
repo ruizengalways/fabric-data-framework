@@ -7,8 +7,8 @@ from typing import Any, Mapping, Sequence
 
 from pydantic import BaseModel, ConfigDict
 
-from .config import WatermarkConfig
-from .runtime import WatermarkPosition
+from ..config import WatermarkConfig
+from ..runtime import WatermarkPosition
 
 
 class FrozenModel(BaseModel):

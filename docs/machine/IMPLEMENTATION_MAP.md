@@ -36,7 +36,7 @@ Code-browser entrypoint: `src/fabric_data_framework/README.md`.
 
 | Area | Primary owner |
 |---|---|
-| Bronze lineage/record | `bronze.py` |
+| Bronze lineage/record | `data_plane/bronze.py` |
 | Capture source types | `capture/` |
 | File/API replay guardrails | `capture/` file/API modules |
 | Apply strategies | `apply/` |

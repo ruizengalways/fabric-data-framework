@@ -42,7 +42,7 @@ from ..deployment.delivery import (
     write_json_model,
 )
 from ..deployment.contracts import CIProvider, DeploymentMechanism, DeploymentProvenance
-from ..fabric_auth import EnvironmentAccessTokenProvider
+from fabric_data_framework.adapters.fabric.auth import EnvironmentAccessTokenProvider
 from ..evidence.integration_checks import run_fabric_item_read_check
 from ..evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,

@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from fabric_data_framework.scd2 import (
+from fabric_data_framework.apply.scd2 import (
     IS_CURRENT,
     VALID_FROM,
     VALID_TO,

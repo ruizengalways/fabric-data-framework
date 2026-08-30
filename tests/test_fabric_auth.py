@@ -1,6 +1,6 @@
 import pytest
 
-from fabric_data_framework.fabric_auth import (
+from fabric_data_framework.adapters.fabric.auth import (
     FABRIC_REST_SCOPE,
     AzureIdentityTokenProvider,
     EnvironmentAccessTokenProvider,

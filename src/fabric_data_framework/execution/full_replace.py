@@ -13,7 +13,7 @@ from ..apply.replace import (
     ReplaceGuardPolicy,
     plan_replace,
 )
-from ..bronze import BronzeRecord, normalize_bronze
+from fabric_data_framework.data_plane.bronze import BronzeRecord, normalize_bronze
 from ..capture.full import (
     FullSnapshotEvidence,
     FullSnapshotEvidenceError,

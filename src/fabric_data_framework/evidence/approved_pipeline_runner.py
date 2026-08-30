@@ -32,7 +32,7 @@ from ..config import (
 from ..control_plane.certification import get_control_plane_backend_profile
 from ..deployment.delivery import config_bundle_hash
 from ..deployment.contracts import ReleaseManifest
-from ..fabric_auth import EnvironmentAccessTokenProvider
+from fabric_data_framework.adapters.fabric.auth import EnvironmentAccessTokenProvider
 from ..execution.backends.fabric_pipeline import FabricPipelineBackend
 from .integration_checks import build_fabric_pipeline_check_result
 from .integration_evidence import (

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 from uuid import UUID, uuid4
 
-from ..bronze import BronzeRecord, normalize_bronze
+from fabric_data_framework.data_plane.bronze import BronzeRecord, normalize_bronze
 from ..config import ApplyStrategy, CaptureStrategy, DatasetStatus, RunMode
 from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
@@ -24,11 +24,11 @@ from fabric_data_framework.contracts.reconciliation import (
     ReconciliationStatus,
 )
 from ..quality import QuarantinedRecord, RowRule, validate_records
-from ..reconciliation import reconcile_scd2_batch
+from fabric_data_framework.quality.reconciliation import reconcile_scd2_batch
 from ..control_plane.repository import ControlPlaneRepository
 from ..runtime import StateCommitGate, WatermarkPosition, WatermarkTransition
-from ..scd2 import InMemorySCD2Target, SCD2ApplyResult, apply_scd2
-from ..watermark import WatermarkBatch, plan_watermark_batch
+from fabric_data_framework.apply.scd2 import InMemorySCD2Target, SCD2ApplyResult, apply_scd2
+from fabric_data_framework.capture.watermark import WatermarkBatch, plan_watermark_batch
 
 
 @dataclass(frozen=True)
