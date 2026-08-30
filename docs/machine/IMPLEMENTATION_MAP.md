@@ -1,185 +1,301 @@
 # MACHINE IMPLEMENTATION MAP
 
-Use this file to locate the implementation owner for a framework behavior before editing code.
+Use this file to locate the canonical implementation owner before editing framework behavior. Explicit owner modules are preferred; broad compatibility facades are intentionally absent.
 
 ## Top-level package ownership
 
 ```text
 src/fabric_data_framework/
-  metadata / semantic contracts
-  capture / apply / CDC
-  capability resolution / execution planning
-  provider adapters / Fabric transports
-  target-operation recovery / Warehouse commit proof
-  relational control plane
-  evidence/ integration evidence / release readiness / approved runners
-  extensions
-  deployment/ release delivery + candidate artifact identity + customer project init/validation
-  cli/ presentation layer
+  contracts/       provider-neutral immutable semantic/runtime contracts
+  metadata/        DatasetConfig + capability metadata
+  capture/         source/capture semantics, bounded reads, onboarding/bootstrap
+  apply/           target apply semantics
+  data_plane/      Bronze/staging contracts
+  quality/         reconciliation/schema/temporal quality contracts
+  orchestration/   planning/dispatch/failure isolation
+  execution/       execution plans/backends
+  adapters/        provider transports/auth
+  control_plane/   relational runtime state/schema/certification
+  recovery/        retry/replay/target commit/ambiguous outcome recovery
+  evidence/        integration evidence, approved runners, release readiness, candidate certification
+  deployment/      delivery/release provenance, candidate artifact identity, project init/validation
+  extensions/      bounded plugin loading/contracts
+  cli/             removable presentation leaf
 ```
 
-Code-browser entrypoint: `src/fabric_data_framework/README.md`.
+The package root is namespace-only. Do not reintroduce root facades or old flat module aliases.
 
 ## Semantic configuration
 
-| Area | Primary owner | Notes |
+| Area | Canonical owner | Boundary |
 |---|---|---|
-| Dataset semantic truth | `metadata/config.py` | immutable `DatasetConfig` and nested policies |
-| Shared typed contracts | `contracts/` | capture/recovery/runtime value objects |
-| Orthogonal capture semantics | `capture/semantic_contracts.py` | source/change/read/delete/Bronze/provider dimensions + 14 presets |
-| Semantic onboarding | `capture/onboarding.py` | validates pattern combinations and overclaim constraints |
-| Watermark semantics | watermark/capture modules | checkpoint/lookback/bounds/order rules |
-| Snapshot -> CDC bootstrap | `capture/bootstrap_cdc.py` or corresponding bootstrap module | fenced handoff |
-| Full baseline -> WATERMARK bootstrap | `capture/bootstrap_watermark.py` or corresponding bootstrap module | fenced handoff |
+| Dataset semantic truth | `metadata/config.py` | immutable source-controlled DatasetConfig |
+| Shared typed contracts | `contracts/` | provider-neutral value objects |
+| Orthogonal capture semantics | `capture/semantic_contracts.py` | 14 exact source/Bronze semantic presets |
+| Semantic onboarding / overclaim guards | `capture/onboarding.py` | validates source fidelity, delete/history claims |
+| Capability resolution | `metadata/capabilities.py` | execution compatibility, not business semantics |
+| Full -> WATERMARK / Snapshot -> CDC bootstrap | capture bootstrap modules | no-gap/no-double-apply fenced handoff |
+
+Critical dependency direction:
+
+```text
+business/source semantics
+        ↓
+DatasetConfig + semantic selection
+        ↓
+capability resolver
+        ↓
+immutable ExecutionPlan
+        ↓
+provider/framework execution
+```
+
+Do not encode provider-specific execution details as semantic truth when capability/adapters can own them.
 
 ## Capture / Bronze / Apply
 
-| Area | Primary owner |
+| Area | Canonical owner |
 |---|---|
-| Bronze lineage/record | `data_plane/bronze.py` |
-| Capture source types | `capture/` |
-| File/API replay guardrails | `capture/` file/API modules |
-| Apply strategies | `apply/` |
-| CDC order/dedupe/checkpoint | CDC modules |
-| Debezium/Kafka adapter | CDC adapter modules |
-| Delta CDF adapter | Delta/CDF adapter modules |
+| Bronze record/lineage | `data_plane/bronze.py` |
+| Watermark/file/API/snapshot/stream capture | `capture/` |
+| CDC order/dedupe/checkpoint | CDC modules under capture/data-plane owners |
+| Debezium/Kafka normalization/recovery | CDC adapter modules |
+| Delta CDF bounded recovery | Delta/CDF adapter modules |
+| APPEND/REPLACE/UPSERT/SCD1/SCD2/SNAPSHOT_DIFF | `apply/` |
 
-Rule: do not add engine-specific behavior to semantic config when a capability/adapter layer can own it.
-
-## Execution / capability selection
-
-Implementation includes capability profiles/resolver and immutable execution-plan units.
-
-Expected ownership boundary:
-
-```text
-DatasetConfig semantics
-  -> capability resolver
-  -> immutable ExecutionPlan
-  -> provider/framework execution unit
-```
-
-When engine selection is wrong, inspect capability resolution/plan compilation before modifying business semantics.
+Capture strategy and apply strategy remain orthogonal. SCD2 never upgrades source/capture fidelity.
 
 ## Fabric/provider adapters
 
-| Area | Primary owner |
-|---|---|
-| Fabric REST auth/token-provider abstraction | Fabric auth modules |
-| Data Pipeline execution backend | Fabric Pipeline backend modules |
-| Copy Job REST transport | Fabric Copy transport modules |
-| Spark Job Definition REST transport | Fabric Spark transport modules |
-| Provider-native capture evidence conversion | Fabric capture adapter modules |
-
-Provider terminal status is transport evidence, not framework semantic success.
+| Area | Canonical owner | Boundary |
+|---|---|---|
+| Fabric REST token abstraction | Fabric auth adapter modules | credentials never persisted in retained evidence |
+| Pipeline scheduling/execution transport | Fabric Pipeline backend | provider terminal status != semantic success |
+| Copy Job REST transport | Fabric Copy adapter | transport evidence only until CaptureReceipt/reconciliation succeeds |
+| Spark Job Definition transport | Fabric Spark adapter | bounded execution evidence |
+| Provider-native evidence conversion | Fabric capture/evidence adapters | cannot manufacture framework PASS |
 
 ## Target operations / recovery
 
-| Area | Primary owner | Critical invariant |
+| Area | Canonical owner | Critical invariant |
 |---|---|---|
-| Stable logical target operation | `contracts/target_operation.py` | operation identity independent of physical retry/run ID |
-| Persistent target-operation CAS | `control_plane/target_operation_journal.py` | UNKNOWN/IN_PROGRESS cannot blind retry |
-| Generic target probes | `recovery/target_probe.py` | tri-state COMMITTED/NOT_COMMITTED/UNRESOLVED |
-| Fabric Warehouse marker store/probe | `recovery/fabric_warehouse.py` | target mutation + marker in same transaction |
-| Warehouse session absence proof | `recovery/fabric_warehouse_session_absence.py` | exact session + open tx + Admin KILL + post-KILL marker reread |
-| Warehouse fault injection contract | `recovery/warehouse_fault_injection.py` | bounded arm/disarm/verify, not commit/absence authority |
-| Provider-native downstream recovery | recovery/provider modules | native cursor/state remains separate from semantic checkpoint |
+| Logical target-operation identity | `contracts/target_operation.py` | attempt-independent operation key |
+| Persistent target-operation CAS | control-plane target-operation journal | UNKNOWN/IN_PROGRESS cannot blind retry |
+| Generic commit probes | `recovery/target_probe.py` | COMMITTED / NOT_COMMITTED / UNRESOLVED |
+| Fabric Warehouse same-transaction marker | `recovery/fabric_warehouse.py` | mutation + marker commit together |
+| Exact-session absence proof | `recovery/fabric_warehouse_session_absence.py` | exact connection/session + open tx + Admin KILL + marker reread |
+| Provider fault injection contract | `recovery/warehouse_fault_injection.py` | may cause/verify fault; cannot decide commit truth |
+
+Marker absence alone is UNRESOLVED. Unknown commit outcome never permits blind re-execution.
 
 ## Relational control plane
 
-| Area | Primary owner |
+| Area | Canonical owner |
 |---|---|
-| Production-oriented SQL repository | `control_plane/sqlalchemy_repository.py` |
+| SQLAlchemy runtime repository | `control_plane/sqlalchemy_repository.py` |
 | Backend certification profiles/contracts | control-plane certification modules |
-| Schema materialization/migration tooling | control-plane/delivery/CLI modules |
+| Schema materialization/migration | control-plane/deployment/CLI modules |
 
-Runtime rule: production execution never silently provisions/migrates schema.
+Production runtime never silently provisions or migrates control-plane schema.
 
-## Integration evidence package
+## Integration evidence
 
-Canonical implementation owner:
+Canonical owner:
 
 ```text
 src/fabric_data_framework/evidence/
 ```
 
-| Area | Primary owner |
-|---|---|
-| Evidence check kinds/status/spec/manifest | `evidence/integration_evidence.py` |
-| Safe projection from existing provider/runtime outcomes | `evidence/integration_checks.py` |
-| Credential-free preflight/runtime env-var requirements | `evidence/integration_runner.py` |
-| Strict partial manifest merge | `evidence/integration_evidence_merge.py` |
-| Retained evidence secret scanning | `evidence/safety.py` |
-| Exact-candidate release-readiness aggregation | `evidence/release_readiness.py` |
+| Area | Canonical owner | Boundary |
+|---|---|---|
+| Evidence check/spec/result/manifest/hash | `evidence/integration_evidence.py` | exact environment/domain/framework/release/check membership |
+| Projection from existing runtime/provider outcomes | `evidence/integration_checks.py` | projection only; no semantic redefinition |
+| Credential-free approved-run planning | `evidence/integration_runner.py` | secret env-var names allowed, values not retained |
+| Strict partial manifest merge | `evidence/integration_evidence_merge.py` | conflicting substantive reruns reject; no latest/PASS precedence |
+| Retained text secret scanning | `evidence/safety.py` | fail closed before evidence retention |
+| Approved control-plane runner | `evidence/approved_control_plane_runner.py` | real selected backend certification surface |
+| Approved Pipeline runner | `evidence/approved_pipeline_runner.py` | remote execution + exact durable child outcome |
+| Approved Copy/Spark runner | `evidence/approved_capture_runner.py` | provider evidence + verified CaptureReceipt |
+| Approved Warehouse runner | `evidence/approved_warehouse_runner.py` | target mutation + same-transaction marker |
+| Approved ambiguous-COMMIT runner | `evidence/approved_warehouse_fault_runner.py` | real execution exception/fault identity/recovery proof |
 
-Root-level `integration_*` evidence modules are intentionally absent. `evidence/` is the only import and implementation surface.
+Evidence proves existing core semantics/runtime behavior. It must not modify core truth merely to get PASS.
 
-Merge rule: contradictory substantive reruns conflict; no latest/PASS/FAIL precedence.
+## Release readiness
 
-Evidence ownership rule:
-
-```text
-semantic/runtime/provider/recovery core
-                 ↑
-             evidence
-```
-
-Evidence proves existing contracts. It must not redefine dataset semantics, capture fidelity, target commit truth, or recovery behavior merely to make an evidence check PASS.
-
-## Release-readiness and exact candidate promotion
-
-The 0.4 release gate matrix is source-controlled separately from provider execution:
+Source-controlled readiness policy:
 
 ```text
 release/0.4.0/readiness-spec.json
 ```
 
-Ownership:
-
-| Area | Primary owner | Boundary |
+| Area | Canonical owner | Boundary |
 |---|---|---|
 | Readiness gate/spec/result models | `evidence/release_readiness.py` | exact framework version + candidate SHA; no provider execution |
-| Non-integration proof bundle | `evidence/release_readiness.py` | source/wheel/customer/representative-path retained references |
-| Integration-backed gate projection | `evidence/release_readiness.py` + `evidence/integration_evidence.py` | cannot be bypassed by generic proof |
-| Candidate wheel manifest/hash verifier | `deployment/candidate_artifact.py` | standard-library-only verifier; binds source SHA + workflow run/attempt + exact wheel SHA256 |
-| CLI report/hard-gate adapter | `cli/release.py` | presentation only |
-| 0.4 gate policy | `release/0.4.0/readiness-spec.json` | 15 required gates; Debezium optional until scope promotion |
-| CI blocked-report contract | `.github/workflows/ci.yml` | proves fail-closed aggregation only |
-| CI exact candidate wheel artifact | `.github/workflows/ci.yml` | wheel + `SHA256SUMS` + `CANDIDATE.json`; candidate input, not certification |
-| Exact certified artifact publication | `.github/workflows/release.yml` | manual promotion only; no wheel rebuild; requires certified readiness artifact |
-| Certified readiness artifact producer | future `.github/workflows/candidate-certification.yml` | next release blocker; must consume frozen exact candidate + real evidence |
+| Non-integration proof bundle | `evidence/release_readiness.py` | source/wheel/customer + representative business-path evidence |
+| Integration-backed gate projection | `evidence/release_readiness.py` + `evidence/integration_evidence.py` | generic proof cannot bypass provider/live integration gate |
+| Ordinary readiness CLI | `cli/release.py` -> `release-readiness` | report generation; optional hard `--require-ready` |
+| 0.4 readiness policy | `release/0.4.0/readiness-spec.json` | 15 required gates; Debezium optional unless scope changes |
+| Blocked-report CI contract | `.github/workflows/ci.yml` | deliberately proves fail-closed behavior with missing evidence |
 
-Critical identity rule:
+Exact readiness identity:
 
 ```text
-candidate source SHA
-  + successful main framework-ci run ID/attempt
-  + exact inner candidate wheel SHA256
-  + retained ReleaseReadinessProofBundle
-  + retained IntegrationEvidenceManifest(release_hash == exact wheel SHA256)
-  -> ReleaseReadinessReport
-  -> exact-byte promotion only when release_ready=true
+framework version
++ exact candidate source SHA
++ exact inner wheel SHA256
++ ReleaseReadinessProofBundle
++ IntegrationEvidenceManifest(release_hash == wheel SHA256)
+-> ReleaseReadinessReport
 ```
 
-Do not substitute a GitHub artifact archive digest for the inner wheel SHA256. Do not use evidence from one rebuilt wheel to certify another wheel merely because source/version match. The release workflow may publish only the already-certified wheel bytes; release-time rebuild is forbidden.
+## Candidate artifact identity
 
-## Approved runners
+Canonical reusable owner:
 
-| File | Exact responsibility |
+```text
+src/fabric_data_framework/deployment/candidate_artifact.py
+```
+
+Main CI `.github/workflows/ci.yml` builds one candidate wheel and retains:
+
+```text
+wheel
+SHA256SUMS
+CANDIDATE.json
+```
+
+`CANDIDATE.json` binds source SHA, framework version, workflow run ID/attempt, wheel filename and inner wheel SHA256. Verification is standard-library only so candidate bytes are authenticated before installation.
+
+A GitHub artifact archive digest is not the inner wheel SHA256.
+
+## Candidate certification — PR #84
+
+Source-controlled integration check template:
+
+```text
+release/0.4.0/integration-evidence-template.json
+```
+
+Reusable certification owner:
+
+```text
+src/fabric_data_framework/evidence/candidate_certification.py
+```
+
+Presentation/workflow owners:
+
+```text
+cli/release.py -> candidate-certify
+.github/workflows/candidate-certification.yml
+```
+
+Ownership table:
+
+| Area | Canonical owner | Boundary |
+|---|---|---|
+| Bind integration template to exact env/domain/wheel hash | `evidence/candidate_certification.py` | template check membership is source-controlled; exact candidate identity supplied at runtime |
+| Require fully certified IntegrationEvidenceManifest | `evidence/candidate_certification.py` | calls canonical integration evidence validator with `require_certified=True` |
+| Reject credential-like release proof text | `evidence/candidate_certification.py` + `evidence/safety.py` | certification artifact must be safe to retain/publish |
+| Final zero-blocker readiness aggregation | `evidence/candidate_certification.py` -> `evidence/release_readiness.py` | all required readiness gates must PASS |
+| Hard certification CLI | `cli/release.py` | presentation only |
+| Candidate/run/wheel/evidence provenance orchestration | `.github/workflows/candidate-certification.yml` | no Fabric execution, no wheel build, no release mutation |
+| Release-proof producer | `.github/workflows/candidate-release-proofs.yml` | NOT YET IMPLEMENTED; must retain exact-candidate source/wheel/customer/business-path proofs |
+| Integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | NOT YET IMPLEMENTED; must run approved exact-candidate live integration checks |
+
+PR #84 CI `33314693131` proves the certification contract and workflow structure on Python 3.11/3.13, wheel and ordinary readiness jobs; Python 3.13 reports 651 tests. This is PR CI evidence pending merge/main checkpoint, not live Fabric evidence.
+
+The certification workflow accepts upstream evidence only when the producer run is:
+
+```text
+workflow_dispatch
++ conclusion=success
++ head_sha == exact candidate SHA
++ exact approved workflow path
++ exact artifact name
+```
+
+Only after `candidate-certify` returns `release_ready=true`, blockers are empty and all required results PASS may it upload:
+
+```text
+release-readiness-certified-<candidate SHA>/
+  release-readiness.json
+  release-proofs.json
+  integration-evidence.json
+```
+
+## Exact immutable release promotion
+
+Canonical workflow:
+
+```text
+.github/workflows/release.yml
+```
+
+It is manual promotion only. It does not build wheel bytes. Before tag/release mutation it re-verifies:
+
+```text
+candidate source/version/main-CI provenance
+CANDIDATE.json + SHA256SUMS + exact wheel bytes
+successful candidate-certification workflow provenance
+certified report exact version/SHA/wheel identity
+release_ready=true, blockers=[]
+all required readiness results PASS
+proof bundle exact version/SHA/wheel
+integration evidence release_hash == exact wheel SHA
+```
+
+Then and only then it tags the exact candidate SHA and publishes the already-certified wheel and evidence assets.
+
+## Project initialization / validation / delivery
+
+| Area | Canonical owner |
 |---|---|
-| `evidence/approved_control_plane_runner.py` | exact-spec production-eligible control-plane conformance + external enterprise evidence references |
-| `evidence/approved_pipeline_runner.py` | remote Pipeline execution + exact durable child `DatasetDispatchOutcome` requirement |
-| `evidence/approved_capture_runner.py` | Copy/Spark exact-release execution + observation/native evidence/`CaptureReceipt` validation |
-| `evidence/approved_warehouse_runner.py` | target operation claim + same-transaction Warehouse marker + UNKNOWN reconciliation |
-| `evidence/approved_warehouse_fault_runner.py` | real ambiguous-COMMIT evidence drill; optional separately-authorized session-termination recovery |
+| Config bundle hashing/loading/materialization | `deployment/delivery.py` |
+| Release manifest/provenance | deployment delivery modules |
+| Customer/domain project scaffold | `deployment/project.py` |
+| Whole-project static dry run/report | `deployment/project.py` |
+| Per-dataset semantic validation | `capture/onboarding.py` |
+| Capture/apply capability validation | `metadata/capabilities.py` |
+| Project CLI adapters | `cli/project.py` |
 
-Root-level `approved_*_runner.py` modules are intentionally absent; approved runners are imported only from `fabric_data_framework.evidence`.
+Dependency rule:
 
-Do not collapse approved runners into a single high-privilege command. Their separate authorization/evidence surfaces are intentional.
+```text
+cli/project.py -> deployment/project.py
+
+deployment/project.py
+  -> fabric_data_framework.deployment.delivery
+  -> capture/onboarding.py
+  -> metadata/capabilities.py
+
+reusable project logic -X-> cli
+```
+
+Project init never guesses keys/watermarks/delete/history semantics, overwrites existing files, creates Fabric resources, or persists secrets. Project validate is local/static and never upgrades portable validation to live proof.
+
+## CLI presentation boundary
+
+All CLI code lives under `src/fabric_data_framework/cli/`.
+
+| File | Responsibility |
+|---|---|
+| `cli/main.py` | tiny composition root |
+| `cli/project.py` | project init/validate presentation |
+| `cli/release.py` | release-readiness + candidate-certify presentation |
+| `cli/base.py` | general validation/metadata/deployment/preflight |
+| `cli/approved.py` | approved evidence-run adapters |
+
+Non-negotiable direction:
+
+```text
+cli -> reusable core/evidence/deployment
+core/evidence/deployment -X-> cli
+```
+
+Removing `cli/` may remove the console script, but reusable package semantics/runtime/evidence APIs must still import and operate.
 
 ## Extension registry
-
-Primary owner: `extensions/registry.py` and `extensions/`.
 
 Known controlled entry points:
 
@@ -190,180 +306,57 @@ fabric_data_framework.warehouse_mutations
 fabric_data_framework.warehouse_commit_fault_injectors
 ```
 
-Extension artifact identity must be pinned in exact release provenance where approved runners require it.
-
-## Delivery / deployment / customer project init + validation
-
-| Area | Primary owner |
-|---|---|
-| Config bundle hashing/materialization and canonical bundle loading | `deployment/delivery.py` and related modules |
-| Release manifest/provenance | deployment/delivery modules |
-| Exact candidate wheel manifest/hash verification | `deployment/candidate_artifact.py` |
-| Customer/domain source-control scaffold contract/API | `deployment/project.py` |
-| Whole-project static dry-run orchestration/report | `deployment/project.py` |
-| Per-dataset semantic selection validation used by dry run | `capture/onboarding.py` |
-| Capture/apply capability validation used by dry run | `metadata/capabilities.py` |
-| Project-init / project-validate presentation adapters | `cli/project.py` |
-| Release-readiness presentation adapter | `cli/release.py` |
-| Package metadata/version/console script | `pyproject.toml` |
-| CI / exact candidate artifact production | `.github/workflows/ci.yml` |
-| Exact certified artifact promotion | `.github/workflows/release.yml` |
-| Exact candidate certification/evidence packaging | future `.github/workflows/candidate-certification.yml` |
-
-Project command dependency/behavior boundary:
-
-```text
-cli/project.py -> deployment/project.py
-
-deployment/project.py
-  -> fabric_data_framework.deployment.delivery       canonical DatasetConfig bundle loader
-  -> capture/onboarding.py                           semantic selection validation
-  -> metadata/capabilities.py                        capture/apply engine capability validation
-
-reusable project init/validation -X-> cli
-
-project-init creates source-controlled structure only
-project-init never guesses keys/watermarks/delete/history semantics
-project-init never creates or mutates Fabric resources
-project-init never persists secret values
-existing files are never overwritten
-
-project-validate is a local/CI static dry run
-project-validate rejects unknown dependencies and dependency cycles
-project-validate requires semantic selection coverage for every DatasetConfig
-project-validate rejects semantic selections for unknown datasets
-project-validate validates capture/apply capability compatibility
-project-validate runs semantic overclaim guardrails
-project-validate never connects to Fabric or upgrades portable validation to live evidence
-```
-
-Candidate artifact verification is deliberately dependency-light and is invoked by workflow path, not by the public framework CLI. It authenticates downloaded candidate bytes before the candidate wheel is installed/trusted.
-
-Use the canonical fully-qualified `fabric_data_framework.deployment.delivery` owner path from `deployment/project.py`. A package-boundary test intentionally rejects flat/facade-like delivery/deployment imports; PR 78 exercised this guard before merge.
-
-Repo-layout guidance is intentionally independent of apply strategy. One business/domain repository may contain mixed FULL, WATERMARK, CDC, SCD1, SCD2 and other supported DatasetConfig combinations; use `orchestration.execution_group` for operational grouping.
-
-## CLI presentation boundary
-
-All active CLI implementation lives under:
-
-```text
-src/fabric_data_framework/cli/
-```
-
-Ownership:
-
-| File | Exact responsibility |
-|---|---|
-| `cli/main.py` | tiny composition root; routes command family only |
-| `cli/project.py` | developer/CI-time customer/domain project init + static dry-run adapters |
-| `cli/release.py` | release-candidate readiness report + `--require-ready` hard-gate adapter |
-| `cli/base.py` | general validation, metadata, deployment and preflight commands |
-| `cli/approved.py` | approved evidence / real-environment command adapters |
-| `cli/__init__.py` | public console-script `main` export |
-| `cli/__main__.py` | module execution entrypoint |
-| `cli/README.md` | code-local dependency/ownership rule |
-| `cli/` | only CLI import/implementation surface |
-
-Non-negotiable dependency rule:
-
-```text
-cli -> evidence/core
-evidence -X-> cli
-core -X-> cli
-```
-
-`tests/test_cli_isolation.py` proves both:
-
-```text
-non-CLI source does not import the CLI package
-physical removal of cli/ does not break core package/capture/apply/execution/recovery/runtime imports
-```
-
-The console script may cease to function if `cli/` is removed; that is expected. Library/runtime functionality must remain independent.
-
-Do not add top-level CLI compatibility modules. Put command adapters inside `cli/` and keep reusable semantics/runtime outside it.
-
-## Readability / future folder extraction rule
-
-The canonical source root and major domain roots are already explicit. Do not move code merely for aesthetics. During 0.4 feature freeze, package-layout work is out of scope unless it fixes a release blocker. Extract or move only when:
-
-```text
-ownership boundary is clear
-public/import compatibility is preserved or intentionally versioned
-dependency direction improves
-full contract suite proves no behavior regression
-```
-
-Do not combine a future package-layout cleanup with unrelated feature/evidence/CLI changes.
+Extensions may provide bounded provider behavior/evidence observations. They cannot redefine framework semantic truth or manufacture commit/evidence PASS.
 
 ## Tests as executable specification
 
-`tests/` mirrors contracts rather than only code coverage.
-
-When changing a semantic/recovery/evidence guarantee:
+When changing a semantic, recovery, evidence or release invariant:
 
 ```text
-1. identify the contract/invariant
-2. add/change fail-closed tests
+1. identify exact contract
+2. add/change fail-closed test
 3. change implementation
 4. run full suite
 5. update machine docs
-6. only then update human docs if user-facing behavior changed
+6. update human docs if user/operator-facing behavior changed
 ```
 
-Especially preserve tests for:
+Release-critical tests must preserve at least:
 
 ```text
-semantic overclaim rejection
-bootstrap gap/double-apply guards
-provider Completed insufficient for PASS
-UNKNOWN target outcome blocking retry
-marker absence remaining UNRESOLVED
-credential/evidence redaction
-strict evidence merge conflicts
-separate mutation/fault/Admin authorization
-core library independent from CLI presentation layer
-project scaffold no-overwrite/domain-match behavior
-project dry-run dependency reference validation
-project dry-run dependency cycle rejection
-project dry-run complete semantic-selection coverage
-project dry-run capability/semantic validation
-release readiness missing-evidence blocking
-release proof exact candidate SHA matching
-integration evidence exact artifact SHA matching
-integration-backed readiness gates rejecting generic proof substitution
-required readiness gates rejecting OUT_OF_SCOPE
-release-readiness --require-ready non-zero behavior
-candidate manifest exact source/run/attempt/wheel SHA binding
-candidate wheel byte tamper rejection
-candidate manifest strict key/path validation
-release workflow contains no wheel rebuild
-release workflow requires exact candidate + certified readiness artifacts
-canonical deployment.delivery ownership from deployment/project.py
-legacy evidence import paths failing to resolve
-root evidence legacy module files remaining absent
+missing readiness evidence blocks
+proof candidate/artifact identity matching
+integration-backed gates reject generic proof substitution
+required OUT_OF_SCOPE blocks
+candidate artifact rejects changed bytes/provenance/version
+release workflow never rebuilds certified wheel
+candidate certification requires fully certified integration evidence
+candidate certification rejects other-wheel evidence
+candidate certification rejects credential-like proof text
+candidate certification workflow never builds/tags/releases
+candidate certification workflow environment choices match EnvironmentName
+machine docs cannot regress candidate-certification to future/not-implemented state
 ```
 
-## Documentation ownership after reorganization
+## Documentation ownership
 
 ```text
 docs/human/README.md                       human reading order
 docs/human/CONCEPTS.md                     stable conceptual model
-docs/human/REPOSITORY_GUIDE.md             human repo/file map
-docs/human/GETTING_STARTED.md              install/package/Fabric consumption
-docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md   new customer/domain repo bootstrap + project dry run + large-project organization
+docs/human/REPOSITORY_GUIDE.md             repo/file map
+docs/human/GETTING_STARTED.md              install/use
+docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md   domain repo bootstrap/dry run
 docs/human/DATASET_ONBOARDING.md           new-data decision guide
-docs/human/OPERATIONS.md                   operational/CLI guide
-docs/human/RELEASE_CANDIDATE.md            feature-freeze/candidate/readiness operator runbook
+docs/human/OPERATIONS.md                   operations/CLI
+docs/human/RELEASE_CANDIDATE.md            release candidate operator flow
 
-docs/machine/STATE.md                      exact current engineering state
-docs/machine/CONTEXT.md                    invariants/fail-closed boundaries
-docs/machine/APPROVED_EVIDENCE.md          approved real-run/evidence protocol
-docs/machine/RELEASE_READINESS.md          exact candidate/readiness/promotion contract
+docs/machine/STATE.md                      exact current merged engineering state
+docs/machine/CONTEXT.md                    durable invariants
+docs/machine/APPROVED_EVIDENCE.md          approved real-run protocol
+docs/machine/RELEASE_READINESS.md          exact release/certification contract
 docs/machine/CAPABILITIES.md               guarantee/evidence matrix
-docs/machine/IMPLEMENTATION_MAP.md         code ownership map
-docs/machine/HISTORY.md                    compact merged milestone history
+docs/machine/IMPLEMENTATION_MAP.md         canonical code ownership
+docs/machine/HISTORY.md                    compact merged milestones
 ```
 
-Do not reintroduce one historical markdown file per implementation PR unless there is a durable standalone protocol that cannot be represented in the canonical machine docs.
+`STATE.md` should not claim an unmerged PR as the merged baseline. Post-merge checkpoint it with exact merge SHA, PR/main CI IDs and test count.
