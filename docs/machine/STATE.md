@@ -7,10 +7,12 @@ public_release: v0.3.0
 source_version: 0.4.0-development-unreleased
 release_allowed: false
 code_baseline:
-  merge_sha: b9187d93015d921614147831da1336b2d91f3e22
-  milestone: approved Warehouse session-termination recovery wiring
-  ci_actions: 33284190041
-  tests: 534
+  pull_request: 57
+  merge_sha: 3ddbb873029a13985af4e563228629c1efc4f7d4
+  exact_candidate_head: faf109101e1eaedce2121512ad67ab2569a5808c
+  milestone: CLI extracted as removable leaf package plus source-code navigation boundary
+  ci_actions: 33286548611
+  tests: 539
   python_3_11: success
   python_3_13: success
   wheel: success
@@ -19,7 +21,6 @@ documentation_baseline:
   merge_sha: 46c10ab00fefc2ca546fd7f2bea369a7037216da
   exact_candidate_head: bc791829c2f3e5be82d012f2b425adf7efab7a5e
   ci_actions: 33285255666
-  tests: 534
   human: docs/human
   machine: docs/machine
   examples: examples
@@ -33,6 +34,32 @@ documentation_baseline:
 Reason: portable semantics/runtime/approved-runner contracts are broad, but exact-candidate retained real enterprise evidence is incomplete.
 
 Never infer live proof from CI.
+
+## Current package readability boundary
+
+Active command-line implementation is isolated under:
+
+```text
+src/fabric_data_framework/cli/
+  main.py       tiny composition/router
+  base.py       general CLI adapters
+  approved.py   approved evidence / real-environment CLI adapters
+```
+
+Core dependency invariant:
+
+```text
+cli -> framework core
+framework core -X-> cli
+```
+
+`tests/test_cli_isolation.py` physically removes `cli/` from a copied package and proves reusable core imports still work. Removing `cli/` is allowed to remove the console command; it must not remove Python library/runtime functionality.
+
+`src/fabric_data_framework/cli_router.py` is deprecated compatibility only and contains no command/business implementation.
+
+Source-code reading map: `src/fabric_data_framework/README.md`.
+
+Do not broadly move mature flat modules only for aesthetics. Future folder extraction requires a clear ownership boundary, preserved/versioned import compatibility, improved dependency direction, and full contract-suite proof.
 
 ## Current highest evidence labels
 
@@ -48,6 +75,8 @@ IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER C
 IMPLEMENTED + CI PROVEN FABRIC WAREHOUSE SESSION-TERMINATION ABSENCE CERTIFIER CONTRACT
 IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE SESSION-TERMINATION RECOVERY CONTRACT
 ```
+
+The CLI refactor does not add or promote any live-service evidence label.
 
 Do not use `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN`, `PRODUCTION DB PROVEN`, or equivalent without retained exact-release approved real-service evidence.
 
@@ -105,6 +134,8 @@ exact-candidate release/evidence preparation
 or
 provider-specific live fault/identity integration when the actual enterprise mechanism is known
 ```
+
+For readability work, prefer isolated leaf/ownership refactors over broad directory churn. Potential future clusters such as control-plane or evidence modules should be separate, contract-preserving slices only if their dependency boundaries are demonstrably clearer.
 
 Avoid broadening provider surface only to increase feature count.
 
