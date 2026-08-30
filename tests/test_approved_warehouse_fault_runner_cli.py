@@ -6,7 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
-from fabric_data_framework import cli_router
+from fabric_data_framework import cli
+from fabric_data_framework.cli import approved as cli_approved
 from fabric_data_framework.evidence.approved_warehouse_fault_runner import (
     ApprovedWarehouseFaultDrillConfig,
 )
@@ -255,11 +256,11 @@ def test_fault_drill_cli_routes_exact_inputs_and_writes_report_and_manifest(
         )
 
     monkeypatch.setattr(
-        cli_router,
+        cli_approved,
         "execute_approved_warehouse_fault_drill",
         fake_execute,
     )
-    rc = cli_router.main(_argv(paths, config_dir, output, report))
+    rc = cli.main(_argv(paths, config_dir, output, report))
 
     assert rc == 0
     assert observed["run_config"].check_id == "warehouse.ambiguous-commit"
@@ -279,11 +280,11 @@ def test_fault_drill_cli_preflight_failure_does_not_write_outputs(tmp_path, monk
         raise ValueError("approved Warehouse fault-drill preflight is not ready")
 
     monkeypatch.setattr(
-        cli_router,
+        cli_approved,
         "execute_approved_warehouse_fault_drill",
         fake_execute,
     )
-    rc = cli_router.main(_argv(paths, config_dir, output, report, allow=False))
+    rc = cli.main(_argv(paths, config_dir, output, report, allow=False))
 
     assert rc == 2
     assert not output.exists()
