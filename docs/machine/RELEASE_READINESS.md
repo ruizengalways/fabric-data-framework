@@ -54,7 +54,7 @@ wheel_filename
 wheel_sha256
 ```
 
-The standard-library verifier authenticates the downloaded wheel before that wheel is installed. It rejects manifest key drift, path traversal, wrong package/version, source/run/attempt mismatch, expected-hash mismatch, and changed wheel bytes.
+The standard-library verifier authenticates downloaded candidate bytes before installation. It rejects manifest key drift, path traversal, wrong package/version, source/run/attempt mismatch, expected-hash mismatch and changed wheel bytes.
 
 ## Readiness evidence ownership
 
@@ -90,15 +90,15 @@ The approved integration check membership is source controlled at:
 release/0.4.0/integration-evidence-template.json
 ```
 
-The template intentionally has `release_hash=null`. `candidate-certify` materializes the exact spec at certification time by binding:
+The template intentionally has `release_hash=null`. `candidate-certify` materializes the exact spec by binding:
 
 ```text
 environment = DEV | UAT | PROD
-domain      = exact approved domain
+domain       = exact approved domain
 release_hash = exact inner candidate wheel SHA256
 ```
 
-The retained `IntegrationEvidenceManifest` must match that materialized spec exactly and must be certified under the existing integration evidence contract. Optional Kafka evidence may remain not run while its 0.4 readiness gate remains optional.
+The retained `IntegrationEvidenceManifest` must match that materialized spec exactly and must be certified under the canonical integration evidence contract. Optional Kafka evidence may remain not run while its 0.4 readiness gate remains optional.
 
 ## Candidate certification contract
 
@@ -115,46 +115,46 @@ fabric-framework candidate-certify
 .github/workflows/candidate-certification.yml
 ```
 
-Certification is stricter than ordinary readiness reporting. It requires all of the following before `release-readiness-certified-<candidate SHA>` may be uploaded:
+Certification requires all of the following before `release-readiness-certified-<candidate SHA>` may be uploaded:
 
 ```text
-exact candidate source SHA is reachable from main
+exact candidate source SHA reachable from main
 candidate CI provenance = successful main push framework-ci run
-CANDIDATE.json matches candidate run/SHA/version/inner wheel SHA
-SHA256SUMS verifies the downloaded wheel bytes
-exact candidate wheel is installed; no rebuild occurs
+CANDIDATE.json matches run/SHA/version/inner wheel SHA
+SHA256SUMS verifies downloaded wheel bytes
+exact candidate wheel installed; no rebuild
 release proof artifact comes from successful explicit candidate-release-proofs workflow
 integration evidence artifact comes from successful explicit candidate-integration-evidence workflow
-both evidence workflow head SHAs equal the candidate SHA
+both producer head SHAs equal exact candidate SHA
 release proof bundle matches framework version + candidate SHA + wheel SHA
 release proof references/details reject obvious credential material
-integration manifest matches the materialized source-controlled integration spec
+integration manifest matches runtime-bound source-controlled template
 integration manifest is certified for all required integration checks
 integration release_hash equals exact inner wheel SHA
 release-readiness aggregation returns release_ready=true
 blockers=[]
-every required readiness result is PASS
+every required readiness result PASS
 ```
 
-If any condition fails, the workflow exits before the certified artifact upload step.
+If any condition fails, the workflow exits before certified artifact upload.
 
-The certification workflow performs no release mutation: no tag creation, no GitHub release creation, and no wheel build.
+Certification itself performs no release mutation: no tag, no GitHub release, no wheel build.
 
 ## Readiness fail-closed rules
 
 ```text
-missing proof                     -> NOT_RUN
-required NOT_RUN                  -> blocker
-required FAIL                     -> blocker
-required OUT_OF_SCOPE             -> FAIL/blocker
-optional OUT_OF_SCOPE             -> allowed
-unknown proof gate                -> reject
-proof kind mismatch               -> reject
-proof candidate SHA mismatch      -> reject
-proof artifact SHA mismatch       -> reject
-integration spec mismatch         -> reject
-integration release_hash mismatch -> reject
-integration not certified         -> reject certification
+missing proof                      -> NOT_RUN
+required NOT_RUN                   -> blocker
+required FAIL                      -> blocker
+required OUT_OF_SCOPE              -> FAIL/blocker
+optional OUT_OF_SCOPE              -> allowed
+unknown proof gate                 -> reject
+proof kind mismatch                -> reject
+proof candidate SHA mismatch       -> reject
+proof artifact SHA mismatch        -> reject
+integration spec mismatch          -> reject
+integration release_hash mismatch  -> reject
+integration not certified          -> reject certification
 credential-like release proof text -> reject certification
 ```
 
@@ -190,16 +190,14 @@ external.cdc.debezium
 
 ## Ordinary CI meaning
 
-Framework CI intentionally runs `release-readiness` without fabricated proof inputs. Therefore current main readiness is expected to remain:
+Framework CI intentionally runs `release-readiness` without fabricated proof inputs. Current ordinary main readiness therefore remains:
 
 ```text
 release_ready = false
 15 required blockers
 ```
 
-A green readiness-contract job proves only that the aggregator fails closed. It is not live Fabric proof and does not make 0.4 releasable.
-
-Likewise a main CI candidate artifact proves exact wheel identity, not certification.
+A green readiness-contract job proves only that the aggregator fails closed. It is not live Fabric proof and does not make 0.4 releasable. A main CI candidate artifact similarly proves exact wheel identity, not certification.
 
 ## Immutable release promotion
 
@@ -212,22 +210,34 @@ candidate_wheel_sha256
 readiness_run_id
 ```
 
-It re-verifies candidate CI provenance and exact candidate bytes, downloads `release-readiness-certified-<candidate SHA>`, verifies the report/proof/integration identities, then and only then creates the immutable tag at the exact candidate SHA and publishes those already-certified wheel bytes and evidence assets.
+It re-verifies exact candidate CI provenance/bytes, downloads `release-readiness-certified-<candidate SHA>`, verifies report/proof/integration identities, then and only then tags the exact candidate SHA and publishes those already-certified bytes/evidence assets.
 
-## Current 0.4 release-system state
+## Merged candidate-certification baseline
 
-PR #84 validation run `33314693131` proves the candidate-certification code/workflow contract on Python 3.11 and 3.13, exact wheel build and ordinary readiness checks; Python 3.13 reports **651 passed**. The slice is therefore **PR CI PROVEN / PENDING MERGE**, not yet the merged-main baseline and not live Fabric evidence.
+```text
+PR                #84
+merge SHA         bb9b7ed74e2696978c546011c893fb316ffdd57c
+final PR CI       33314924064
+main CI           33314977393
+merged tests      653
+main wheel SHA256 ce78ae1bc67b0e68bca360e825d36cf6b0cb171f811de8257cd9ce0225154748
+candidate frozen  false
+```
 
-The intentionally missing next producers are:
+Candidate certification is now **IMPLEMENTED + CI PROVEN** as a portable fail-closed contract. This is not a claim that a successful certification run exists; no `release-readiness-certified-<candidate SHA>` artifact has been produced.
+
+The intentionally missing upstream producers are:
 
 ```text
 .github/workflows/candidate-release-proofs.yml
 .github/workflows/candidate-integration-evidence.yml
 ```
 
-Those producers must generate retained evidence from approved exact-candidate tests/live runs. They must not manufacture PASS records simply to satisfy certification.
+Those producers must generate retained evidence from approved exact-candidate static/tests/live runs. They must not manufacture PASS records merely to satisfy certification.
 
-Therefore current truth remains:
+Because `ReleaseReadinessProofBundle` contains both portable/static gates and representative live business-path gates, the next implementation should add strict partial proof merge so independent producers can contribute without contradictory-result precedence or evidence laundering.
+
+## Current truth
 
 ```text
 0.4.0 = UNRELEASED
@@ -235,5 +245,5 @@ release_allowed = false
 candidate = NOT YET FROZEN
 ordinary readiness blockers = 15
 certified readiness artifact = NOT YET PRODUCED
-next = merge/checkpoint candidate certification -> build trusted evidence producers -> freeze candidate -> collect real evidence
+next = strict release-proof partial merge -> trusted proof producers -> freeze candidate -> collect real evidence
 ```
