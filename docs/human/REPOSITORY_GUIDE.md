@@ -159,16 +159,7 @@ approved_*_runner.py
 
 Evidence 的职责是**证明已有 contract**，不是重新定义 dataset semantics、capture fidelity、target commit truth 或 recovery semantics。
 
-根目录仍然保留例如：
-
-```text
-integration_evidence.py
-integration_runner.py
-approved_capture_runner.py
-approved_warehouse_runner.py
-```
-
-这些现在只是 deprecated compatibility alias。它们和 `evidence/` 中的 canonical module 指向同一个 module object，确保已有 import/monkeypatch 不因为整理目录而突然失效。**不要再往这些根目录 shim 里新增 implementation。**
+Evidence 只有一个 import surface：`fabric_data_framework.evidence`。根目录不再保留 `integration_*` 或 `approved_*_runner.py` alias；旧 import 应直接迁移到 canonical evidence 路径。
 
 ### 7. `cli/` — 可以单独忽略的 presentation layer
 
@@ -208,7 +199,7 @@ evidence -X-> cli
 
 更强的 CLI 约束是：**把 `src/fabric_data_framework/cli/` 物理删除后，核心 library import、capture/apply/execution/recovery/runtime 仍必须可用。** CI 有专门的 isolation test 钉住这个边界。
 
-`cli_router.py` 只保留为旧 import 的 deprecated compatibility shim；实际 CLI implementation 不再放在顶层。
+`cli_router.py` 已删除；CLI 只通过 `fabric_data_framework.cli` 暴露和实现。
 
 ## `extensions/` 是什么
 
@@ -257,7 +248,7 @@ provider Completed + missing framework outcome -> FAIL
 marker absent -> UNRESOLVED
 fault injection permission != Admin KILL permission
 core library must not depend on CLI
-legacy evidence import == canonical evidence module
+legacy evidence import path must not resolve
 ```
 
 对应测试应该明确钉住这个行为。

@@ -111,7 +111,7 @@ src/fabric_data_framework/evidence/
 | Strict partial manifest merge | `evidence/integration_evidence_merge.py` |
 | Retained evidence secret scanning | `retained_evidence_safety.py` |
 
-Historical root modules named `integration_evidence.py`, `integration_checks.py`, `integration_evidence_merge.py`, and `integration_runner.py` are compatibility aliases only. New implementation belongs under `evidence/`.
+Root-level `integration_*` evidence modules are intentionally absent. `evidence/` is the only import and implementation surface.
 
 Merge rule: contradictory substantive reruns conflict; no latest/PASS/FAIL precedence.
 
@@ -135,7 +135,7 @@ Evidence proves existing contracts. It must not redefine dataset semantics, capt
 | `evidence/approved_warehouse_runner.py` | target operation claim + same-transaction Warehouse marker + UNKNOWN reconciliation |
 | `evidence/approved_warehouse_fault_runner.py` | real ambiguous-COMMIT evidence drill; optional separately-authorized session-termination recovery |
 
-Historical root `approved_*_runner.py` modules are compatibility aliases to these canonical modules and contain no business implementation.
+Root-level `approved_*_runner.py` modules are intentionally absent; approved runners are imported only from `fabric_data_framework.evidence`.
 
 Do not collapse approved runners into a single high-privilege command. Their separate authorization/evidence surfaces are intentional.
 
@@ -250,8 +250,8 @@ credential/evidence redaction
 strict evidence merge conflicts
 separate mutation/fault/Admin authorization
 core library independent from CLI presentation layer
-legacy evidence import resolving to the same canonical module object
-root evidence compatibility modules containing no implementation
+legacy evidence import paths failing to resolve
+root evidence legacy module files remaining absent
 ```
 
 ## Documentation ownership after reorganization
