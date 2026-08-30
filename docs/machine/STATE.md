@@ -7,12 +7,12 @@ public_release: v0.3.0
 source_version: 0.4.0-development-unreleased
 release_allowed: false
 code_baseline:
-  pull_request: 68
-  merge_sha: a117c27a32b4e4f9c4bf1a7dcf6a35e9d3f6d16b
-  exact_candidate_head: 930c1b22f9901d447250db0799b3f7e855d38303
-  milestone: canonical-only explicit package ownership; root package is namespace-only
-  ci_actions: 33291942505
-  tests: 592
+  pull_request: 74
+  merge_sha: 0b82a55981700484e68c5fb9f68de7c94a68b75b
+  exact_candidate_head: 69077c16064591447a08c5924892054e755c7008
+  milestone: canonical-only explicit module ownership; source root and major domain roots are namespace-only
+  ci_actions: 33302223695
+  tests: 615
   python_3_11: success
   python_3_13: success
   wheel: success
@@ -25,121 +25,67 @@ documentation_model:
 
 ## Release decision
 
-`0.4.0` remains **UNRELEASED**. Portable semantics/runtime/approved-runner contracts are broad, but exact-candidate retained real enterprise evidence is incomplete. Never infer live proof from CI.
+`0.4.0` remains **UNRELEASED**. CI proves portable implementation contracts only. Exact-candidate retained enterprise evidence is still incomplete, so never infer `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN`, `PRODUCTION DB PROVEN`, or an equivalent live claim from this baseline.
 
 ## Canonical source ownership
 
-The unreleased 0.4.0 tree intentionally prefers one explicit owner over compatibility aliases or broad package facades.
+The package now has one explicit import path per owner. Compatibility shims and broad re-export facades are intentionally absent.
 
 ```text
 src/fabric_data_framework/
-  __init__.py               namespace marker only; no imports/re-exports/version symbol
+  __init__.py               namespace marker only
 
-  contracts/                provider-neutral immutable semantic/runtime contracts
-    base.py
-    schema.py
-    audit.py
-    reconciliation.py
-    quarantine.py
-    target_operation.py
-    capture_receipt.py
-    dispatch.py
-    execution_plan.py
-    rebuild.py
-    recovery.py
-    replay.py
-
-  control_plane/            relational control-plane implementation
-    schema.py
-    io.py
-    schema_evidence.py
-    certification.py
-    repository.py
-    sqlalchemy_repository.py
-    operator.py
-    target_operation_journal.py
-
-  evidence/                 integration evidence + approved exact-run executors
-    safety.py
-    integration_evidence.py
-    integration_checks.py
-    integration_evidence_merge.py
-    integration_runner.py
-    approved_*_runner.py
-
-  deployment/               release/promotion contracts + delivery/materialization
-    contracts.py
-    delivery.py
-
+  contracts/                immutable provider-neutral semantic/runtime contracts
+  metadata/                 DatasetConfig and metadata validation
+  capture/                  source/capture semantics and bounded-read logic
+  apply/                    SCD1/SCD2/append/upsert/delete application semantics
+  data_plane/               Bronze and staging contracts
+  quality/                  explicit quality/reconciliation/schema/temporal modules
+  orchestration/            explicit planner and dispatcher modules
+  execution/                execution planning/backends
+  adapters/                 provider transports and auth
+  control_plane/            relational state, repository, schema and certification
+  recovery/                 retry/replay/rebuild/target commit recovery
+  evidence/                 retained evidence and approved exact-run executors
+  deployment/               release contracts and delivery/materialization
+  extensions/               bounded extension loading/contracts
   cli/                      removable leaf presentation layer
-    main.py
-    base.py
-    approved.py
-
-  capture/
-  apply/
-  execution/
-  adapters/
-  data_plane/
-  orchestration/
-  quality/
-  recovery/
-  extensions/
-  metadata/
 ```
 
-Package-root and extracted-package `__init__.py` files do not rebuild convenience APIs through large re-export lists. Callers import the concrete owner module.
-
-Examples:
+Representative imports:
 
 ```python
-from fabric_data_framework.config import DatasetConfig
-from fabric_data_framework.contracts.target_operation import TargetOperationIntent
+from fabric_data_framework.metadata.config import DatasetConfig
+from fabric_data_framework.capture.semantic_contracts import SourceSemantics
+from fabric_data_framework.apply.scd2 import apply_scd2
+from fabric_data_framework.quality.schema_evolution import classify_schema_evolution
+from fabric_data_framework.orchestration.planner import build_dispatch_plan
+from fabric_data_framework.orchestration.dispatcher import dispatch_datasets
 from fabric_data_framework.control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
-from fabric_data_framework.deployment.delivery import build_release_manifest
 from fabric_data_framework.evidence.integration_evidence import IntegrationEvidenceManifest
+from fabric_data_framework.deployment.delivery import build_release_manifest
 ```
 
-The root `__version__` symbol is intentionally absent. CLI defaults read the installed distribution version through `importlib.metadata.version("fabric-data-framework")`.
+The root `__version__` symbol is intentionally absent. CLI defaults read the installed distribution version using `importlib.metadata`.
 
-## Readability boundary contracts
-
-CI enforces canonical-only ownership:
+## Readability contracts enforced by CI
 
 ```text
-removed flat evidence modules stay absent
-retained_evidence_safety.py stays absent; evidence/safety.py is the owner
-cli_router.py stays absent
-removed flat control-plane/repository/operator/journal modules stay absent
-root deployment.py and delivery.py stay absent
-root schema_contract.py, operations.py and target_operations.py stay absent
-contracts/__init__.py does not recreate an eager re-export facade
-control_plane/__init__.py does not recreate the old control-plane API
-root fabric_data_framework/__init__.py is namespace-only
-src/tests may not use root symbol imports such as `from fabric_data_framework import DatasetConfig`
+framework source root contains only __init__.py
+root package is namespace-only
+contracts/control_plane/deployment/recovery/capture/apply/quality/orchestration roots do not rebuild broad APIs
+removed flat evidence, control-plane, deployment, contract and domain files remain absent
+old module imports intentionally fail
+src/tests use concrete owner modules
+CLI is a removable leaf
 core/control_plane/evidence/deployment do not depend on CLI
-physical removal of cli/ does not break explicit reusable-core imports
 ```
 
-For further readability work: move only ownership-complete modules into an already-clear domain, migrate all callers/tests/docs in the same slice, delete the old path, prove the old path stays absent, and run full Python 3.11 / 3.13 / wheel CI. Do not add compatibility shims for unreleased 0.4.0.
+Do not continue moving files merely to maximize folder count. Inspect `execution/`, `adapters/`, `extensions/`, `metadata/`, and `data_plane/` independently; remove another facade only where ownership is unambiguous and readability materially improves.
 
-## Dependency direction
+## Evidence boundary
 
-```text
-contracts / config / semantic core
-             ↓
- capture / apply / execution / recovery
-             ↓
- adapters + control_plane
-             ↓
- evidence
-             ↓
- cli
-```
-
-This is conceptual rather than a requirement that every module import exactly downward; the hard rule is that CLI remains a leaf and evidence must not redefine semantic/runtime truth merely to make checks pass.
-
-## Current highest evidence labels
+Highest portable claims remain:
 
 ```text
 IMPLEMENTED + CI PROVEN EVIDENCE HARNESS CONTRACT
@@ -154,69 +100,44 @@ IMPLEMENTED + CI PROVEN FABRIC WAREHOUSE SESSION-TERMINATION ABSENCE CERTIFIER C
 IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE SESSION-TERMINATION RECOVERY CONTRACT
 ```
 
-Readability refactors do not promote any live-service evidence label. Do not use `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN`, `PRODUCTION DB PROVEN`, or equivalent without retained exact-release approved real-service evidence.
-
 ## Current real-service gaps
 
 ```text
 enterprise Entra token acquisition under selected identity
 real workspace/item authorization smoke
-real Fabric SQL Database or Azure SQL Database production-certified PASS
+real production control-plane certification PASS
 real approved Pipeline execution
-real Copy Job execution + approved post-run observation + verified CaptureReceipt
-real bounded Spark execution + approved post-run observation + verified CaptureReceipt
-real Fabric Warehouse target mutation + same-transaction marker
-provider-specific live Warehouse COMMIT fault injector
-retained real ambiguous-COMMIT fault-drill PASS
-live exact Warehouse connection_id + session_id capture using selected SQL driver
-live Admin DMV observation / KILL / rollback chain
-production-approved marker-absence recovery
+real Copy/Spark capture with approved observation and verified CaptureReceipt
+real Warehouse mutation + same-transaction marker
+provider-specific live COMMIT fault injector and retained ambiguous-COMMIT PASS
+live exact Warehouse session identity + Admin DMV/KILL/rollback chain
 capacity/SKU/throttling/gateway evidence
 backup/restore/HA/DR/monitoring/retention/governance evidence
-live Kafka coordination if included in 0.4.0 public scope
-live Delta CDF bounded read/retention if included in 0.4.0 public scope
+live Kafka/Delta evidence if included in the public release promise
 complete exact-release certified IntegrationEvidenceManifest
 ```
 
 ## Preferred real evidence order
 
 ```text
-1. exact candidate release hash / item UUIDs / artifact fingerprints
+1. freeze exact candidate hashes, item IDs and artifact fingerprints
 2. read-only item smoke
 3. production control-plane certification
-4. strict merge item + control-plane prerequisites
+4. strict prerequisite evidence merge
 5. approved Pipeline
-6. approved Copy Job / Spark capture
-7. approved Warehouse target+marker recovery
-8. optional provider-specific real ambiguous-COMMIT fault drill
-9. optional exact-session termination recovery under separate Admin authority
-10. strict merge required evidence
-11. integration-evidence-validate --require-certified
-12. Kafka/Delta live only if in public release promise
-13. exact-candidate release audit
-14. only then consider 0.4.0 release
+6. approved Copy/Spark capture
+7. approved Warehouse target + marker recovery
+8. optional real ambiguous-COMMIT fault drill
+9. optional exact-session termination recovery
+10. strict merge and --require-certified validation
+11. exact-candidate release audit
+12. only then consider 0.4.0 release
 ```
-
-## Next reusable readability work
-
-Do not add another generic Warehouse recovery algorithm. With no real enterprise credentials, the useful source-layout work is to reduce the remaining root stragglers only where an existing owner is obvious. Candidates to inspect/move independently:
-
-```text
-watermark.py       -> capture/
-scd2.py            -> apply/
-bronze.py          -> data_plane/
-reconciliation.py  -> quality/
-fabric_auth.py     -> adapters/fabric/
-```
-
-Inspect `runtime.py` and `infrastructure.py` before deciding ownership; do not create a directory merely to reduce root file count.
 
 ## Repository ownership
 
 ```text
 fabric-data-framework = reusable semantics/runtime/adapters/recovery/evidence/package
-fabric-customer       = business/domain DatasetConfig + bounded extensions + Fabric content
+fabric-customer       = domain DatasetConfig + bounded extensions + Fabric content
 fabric-infra          = optional capacity/workspace/infrastructure lifecycle
 ```
-
-Initial enterprise evaluation may proceed without `fabric-infra`.
