@@ -55,3 +55,47 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 14
+
+  release-readiness-contract:
+    name: release-readiness-contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Generate fail-closed 0.4 readiness report
+        run: |
+          fabric-framework release-readiness \
+            --spec release/0.4.0/readiness-spec.json \
+            --candidate-sha "${GITHUB_SHA}" \
+            --output build/release-readiness.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path("build/release-readiness.json").read_text())
+          assert report["framework_version"] == "0.4.0"
+          assert report["candidate_git_sha"] == os.environ["GITHUB_SHA"]
+          assert report["release_ready"] is False
+          assert report["blockers"]
+          required = [item for item in report["results"] if item["required"]]
+          assert required
+          assert all(item["status"] == "NOT_RUN" for item in required)
+          print(
+              "0.4 readiness intentionally BLOCKED pending retained candidate proofs; "
+              f"blockers={len(report['blockers'])}"
+          )
+          PY
+      - name: Upload readiness report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-readiness-${{ github.sha }}
+          path: build/release-readiness.json
+          if-no-files-found: error
+          retention-days: 14
