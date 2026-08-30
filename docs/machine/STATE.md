@@ -17,6 +17,12 @@ code_baseline:
 latest_pre_reorg_docs_checkpoint:
   merge_sha: c5baff6318b5facc366fa9466d23041291835fd5
   ci_actions: 33284381347
+documentation_model:
+  pull_request: 55
+  human: docs/human
+  machine: docs/machine
+  examples: examples
+  rule: human docs contain stable understanding/usage; machine docs contain exact engineering state/evidence/history
 ```
 
 ## Release decision
