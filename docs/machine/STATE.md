@@ -7,12 +7,12 @@ public_release: v0.3.0
 source_version: 0.4.0-development-unreleased
 release_allowed: false
 code_baseline:
-  pull_request: 59
-  merge_sha: c5471b7a417525e3a73d309b786f331192b22c0f
-  exact_candidate_head: cbd29a1a21cef9ea2592eae9745b979b79ce4ae0
-  milestone: evidence implementations grouped under canonical evidence package with legacy module-object compatibility aliases
-  ci_actions: 33287715582
-  tests: 561
+  pull_request: 61
+  merge_sha: 83cc031d542723e42f064259aacff6c11ca8b015
+  exact_candidate_head: 76288cbd1ca2aa23a152479c739c706516f6f3ca
+  milestone: canonical-only evidence and CLI module surfaces; legacy root module paths physically removed
+  ci_actions: 33288491628
+  tests: 562
   python_3_11: success
   python_3_13: success
   wheel: success
@@ -37,7 +37,7 @@ Never infer live proof from CI.
 
 ## Current package readability boundary
 
-Two mature presentation/operational clusters now have canonical package owners:
+The current source tree uses canonical-only module ownership for the two extracted clusters:
 
 ```text
 src/fabric_data_framework/
@@ -67,17 +67,29 @@ core -X-> cli
 evidence -X-> cli
 ```
 
-`evidence/` is now the only implementation owner for retained integration-evidence contracts, strict merge/preflight and approved exact-run executors. Historical root modules such as `integration_evidence.py`, `integration_runner.py` and `approved_*_runner.py` are compatibility aliases only and resolve to the same canonical module objects. New implementation must not be added to those root shims.
+`evidence/` is the **only** import and implementation surface for retained integration-evidence contracts, strict merge/preflight and approved exact-run executors. Root `integration_*` and `approved_*_runner.py` modules are physically absent. Old root imports intentionally fail with `ModuleNotFoundError`.
+
+`cli/` is the **only** CLI import and implementation surface. `cli_router.py` is physically absent. CLI tests patch canonical `fabric_data_framework.cli` / `fabric_data_framework.cli.approved` modules directly.
+
+Contract tests enforce all of the following:
+
+```text
+removed root evidence files stay absent
+old root evidence imports do not resolve
+cli_router.py stays absent
+old cli_router import does not resolve
+src/ and tests/ may not reintroduce old evidence/cli_router import paths
+evidence/ may not depend on cli/
+cli/ remains removable from reusable core
+```
 
 Evidence proves existing semantic/runtime/provider/recovery truth; it must not redefine dataset semantics, capture fidelity, target commit truth or recovery behavior merely to make a check PASS.
 
 The CLI remains a removable leaf presentation layer. `tests/test_cli_isolation.py` physically removes `cli/` from a copied package and proves reusable core imports still work. Removing `cli/` may remove the console command; it must not remove Python library/runtime functionality.
 
-`src/fabric_data_framework/cli_router.py` is deprecated compatibility only and contains no command/business implementation.
-
 Source-code reading map: `src/fabric_data_framework/README.md`.
 
-Do not broadly move mature flat modules only for aesthetics. Future folder extraction requires a clear ownership boundary, preserved/versioned import compatibility, improved dependency direction, and full contract-suite proof. The next plausible isolated readability cluster is the control-plane/repository surface; it must not be mixed into unrelated feature work.
+For unreleased `0.4.0` readability refactors, prefer one canonical path over legacy aliases. A folder extraction is acceptable only when ownership is clear, all internal imports/tests/docs are migrated together, dependency direction improves, removed paths are intentionally tested as absent, and the full contract suite stays green. The next isolated readability cluster is the control-plane/repository surface; it must not be mixed into unrelated feature work.
 
 ## Current highest evidence labels
 
@@ -153,7 +165,7 @@ or
 provider-specific live fault/identity integration when the actual enterprise mechanism is known
 ```
 
-For readability work, prefer isolated ownership refactors over broad directory churn. CLI and evidence are already separated. A future control-plane extraction must be its own contract-preserving slice with compatibility aliases and full-suite proof.
+For readability work, prefer isolated ownership refactors over broad directory churn. CLI and evidence are canonical-only packages. The next control-plane extraction should follow the same rule: migrate real implementation and all consumers to one new package path, delete the old flat module paths, and prove their absence in CI rather than retaining compatibility shims.
 
 Avoid broadening provider surface only to increase feature count.
 
