@@ -14,7 +14,7 @@ src/fabric_data_framework/
   relational control plane
   evidence/ integration evidence / release readiness / approved runners
   extensions
-  deployment/ release delivery + customer project init/validation
+  deployment/ release delivery + candidate artifact identity + customer project init/validation
   cli/ presentation layer
 ```
 
@@ -126,7 +126,7 @@ semantic/runtime/provider/recovery core
 
 Evidence proves existing contracts. It must not redefine dataset semantics, capture fidelity, target commit truth, or recovery behavior merely to make an evidence check PASS.
 
-## Release-readiness aggregation
+## Release-readiness and exact candidate promotion
 
 The 0.4 release gate matrix is source-controlled separately from provider execution:
 
@@ -141,22 +141,27 @@ Ownership:
 | Readiness gate/spec/result models | `evidence/release_readiness.py` | exact framework version + candidate SHA; no provider execution |
 | Non-integration proof bundle | `evidence/release_readiness.py` | source/wheel/customer/representative-path retained references |
 | Integration-backed gate projection | `evidence/release_readiness.py` + `evidence/integration_evidence.py` | cannot be bypassed by generic proof |
+| Candidate wheel manifest/hash verifier | `deployment/candidate_artifact.py` | standard-library-only verifier; binds source SHA + workflow run/attempt + exact wheel SHA256 |
 | CLI report/hard-gate adapter | `cli/release.py` | presentation only |
 | 0.4 gate policy | `release/0.4.0/readiness-spec.json` | 15 required gates; Debezium optional until scope promotion |
 | CI blocked-report contract | `.github/workflows/ci.yml` | proves fail-closed aggregation only |
-| Exact certified artifact publication | `.github/workflows/release.yml` | still needs candidate artifact handoff hardening |
+| CI exact candidate wheel artifact | `.github/workflows/ci.yml` | wheel + `SHA256SUMS` + `CANDIDATE.json`; candidate input, not certification |
+| Exact certified artifact publication | `.github/workflows/release.yml` | manual promotion only; no wheel rebuild; requires certified readiness artifact |
+| Certified readiness artifact producer | future `.github/workflows/candidate-certification.yml` | next release blocker; must consume frozen exact candidate + real evidence |
 
 Critical identity rule:
 
 ```text
 candidate source SHA
+  + successful main framework-ci run ID/attempt
   + exact inner candidate wheel SHA256
   + retained ReleaseReadinessProofBundle
   + retained IntegrationEvidenceManifest(release_hash == exact wheel SHA256)
   -> ReleaseReadinessReport
+  -> exact-byte promotion only when release_ready=true
 ```
 
-Do not substitute a GitHub artifact archive digest for the inner wheel SHA256. Do not use evidence from one rebuilt wheel to certify another wheel merely because source/version match.
+Do not substitute a GitHub artifact archive digest for the inner wheel SHA256. Do not use evidence from one rebuilt wheel to certify another wheel merely because source/version match. The release workflow may publish only the already-certified wheel bytes; release-time rebuild is forbidden.
 
 ## Approved runners
 
@@ -193,6 +198,7 @@ Extension artifact identity must be pinned in exact release provenance where app
 |---|---|
 | Config bundle hashing/materialization and canonical bundle loading | `deployment/delivery.py` and related modules |
 | Release manifest/provenance | deployment/delivery modules |
+| Exact candidate wheel manifest/hash verification | `deployment/candidate_artifact.py` |
 | Customer/domain source-control scaffold contract/API | `deployment/project.py` |
 | Whole-project static dry-run orchestration/report | `deployment/project.py` |
 | Per-dataset semantic selection validation used by dry run | `capture/onboarding.py` |
@@ -200,8 +206,9 @@ Extension artifact identity must be pinned in exact release provenance where app
 | Project-init / project-validate presentation adapters | `cli/project.py` |
 | Release-readiness presentation adapter | `cli/release.py` |
 | Package metadata/version/console script | `pyproject.toml` |
-| CI | `.github/workflows/ci.yml` |
-| Release artifact workflow | `.github/workflows/release.yml` |
+| CI / exact candidate artifact production | `.github/workflows/ci.yml` |
+| Exact certified artifact promotion | `.github/workflows/release.yml` |
+| Exact candidate certification/evidence packaging | future `.github/workflows/candidate-certification.yml` |
 
 Project command dependency/behavior boundary:
 
@@ -229,6 +236,8 @@ project-validate validates capture/apply capability compatibility
 project-validate runs semantic overclaim guardrails
 project-validate never connects to Fabric or upgrades portable validation to live evidence
 ```
+
+Candidate artifact verification is deliberately dependency-light and is invoked by workflow path, not by the public framework CLI. It authenticates downloaded candidate bytes before the candidate wheel is installed/trusted.
 
 Use the canonical fully-qualified `fabric_data_framework.deployment.delivery` owner path from `deployment/project.py`. A package-boundary test intentionally rejects flat/facade-like delivery/deployment imports; PR 78 exercised this guard before merge.
 
@@ -326,6 +335,11 @@ integration evidence exact artifact SHA matching
 integration-backed readiness gates rejecting generic proof substitution
 required readiness gates rejecting OUT_OF_SCOPE
 release-readiness --require-ready non-zero behavior
+candidate manifest exact source/run/attempt/wheel SHA binding
+candidate wheel byte tamper rejection
+candidate manifest strict key/path validation
+release workflow contains no wheel rebuild
+release workflow requires exact candidate + certified readiness artifacts
 canonical deployment.delivery ownership from deployment/project.py
 legacy evidence import paths failing to resolve
 root evidence legacy module files remaining absent
@@ -346,7 +360,7 @@ docs/human/RELEASE_CANDIDATE.md            feature-freeze/candidate/readiness op
 docs/machine/STATE.md                      exact current engineering state
 docs/machine/CONTEXT.md                    invariants/fail-closed boundaries
 docs/machine/APPROVED_EVIDENCE.md          approved real-run/evidence protocol
-docs/machine/RELEASE_READINESS.md          exact candidate/readiness aggregation contract
+docs/machine/RELEASE_READINESS.md          exact candidate/readiness/promotion contract
 docs/machine/CAPABILITIES.md               guarantee/evidence matrix
 docs/machine/IMPLEMENTATION_MAP.md         code ownership map
 docs/machine/HISTORY.md                    compact merged milestone history
