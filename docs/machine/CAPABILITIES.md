@@ -14,7 +14,7 @@ EXTERNAL                   enterprise/platform control outside this repository
 
 | Capability | Implementation owner | Current evidence |
 |---|---|---|
-| Immutable DatasetConfig / effective config hashing | `config.py` | REFERENCE + CI PROVEN |
+| Immutable DatasetConfig / effective config hashing | `metadata/config.py` | REFERENCE + CI PROVEN |
 | Exact 14 capture/Bronze semantic presets | `capture/semantic_contracts.py` | REFERENCE + CI PROVEN |
 | Semantic onboarding overclaim guardrails | `capture/onboarding.py` | REFERENCE + CI PROVEN |
 | Full baseline -> WATERMARK fenced bootstrap | capture bootstrap modules | REFERENCE + CI PROVEN |
@@ -25,6 +25,19 @@ EXTERNAL                   enterprise/platform control outside this repository
 | Delta CDF bounded recovery | Delta adapter | ADAPTER/RECOVERY CONTRACT + CI PROVEN |
 | Replay-stable file/API guardrails | capture modules | REFERENCE + CI PROVEN |
 | Typed CaptureReceipt / progress authority | contracts/capabilities | REFERENCE + CI PROVEN |
+
+## Developer / customer project bootstrap
+
+| Capability | Implementation owner | Current evidence |
+|---|---|---|
+| Non-destructive customer/domain repo scaffold | `deployment/project.py` | REFERENCE + CI PROVEN |
+| `project-init` CLI adapter | `cli/project.py` | PRESENTATION + CI PROVEN |
+| Existing-file no-overwrite guard | `deployment/project.py` | REFERENCE + CI PROVEN |
+| Existing manifest domain-match guard | `deployment/project.py` | REFERENCE + CI PROVEN |
+| Mixed FULL/WATERMARK/CDC + SCD1/SCD2 datasets in one domain repo | DatasetConfig + scaffold/runbook | REFERENCE MODEL + CI PROVEN scaffold |
+| Dataset inventory before semantic configuration | generated `docs/dataset-inventory.csv` | DEVELOPER WORKFLOW CONTRACT + CI PROVEN |
+
+Boundary: project scaffolding creates source-controlled structure only. It does not infer source semantics, create Fabric resources, mutate live environments, or persist secrets. It does not raise any live Fabric evidence claim.
 
 ## Fabric/provider execution
 
@@ -42,7 +55,7 @@ EXTERNAL                   enterprise/platform control outside this repository
 |---|---|---|
 | Durable target-operation CAS journal | target operations + IO | IMPLEMENTED + CI PROVEN REFERENCE |
 | UNKNOWN tri-state recovery | recovery modules | IMPLEMENTED + CI PROVEN REFERENCE |
-| SQLAlchemy relational runtime repository | `relational_repository.py` | IMPLEMENTED + CI PROVEN RELATIONAL RUNTIME |
+| SQLAlchemy relational runtime repository | `control_plane/sqlalchemy_repository.py` | IMPLEMENTED + CI PROVEN RELATIONAL RUNTIME |
 | Control-plane backend conformance certification | certification modules | IMPLEMENTED + CI PROVEN CONTRACT |
 | Runtime does not silently migrate production schema | repository/runtime boundary | REFERENCE + CI PROVEN GUARDRAIL |
 
@@ -50,15 +63,15 @@ EXTERNAL                   enterprise/platform control outside this repository
 
 | Capability | Implementation owner | Current evidence |
 |---|---|---|
-| Evidence spec/manifest/hash | `integration_evidence.py` | IMPLEMENTED + CI PROVEN EVIDENCE HARNESS CONTRACT |
-| Credential-safe approved-run preflight | `integration_runner.py` | IMPLEMENTED + CI PROVEN APPROVED-RUN PREFLIGHT CONTRACT |
+| Evidence spec/manifest/hash | `evidence/integration_evidence.py` | IMPLEMENTED + CI PROVEN EVIDENCE HARNESS CONTRACT |
+| Credential-safe approved-run preflight | `evidence/integration_runner.py` | IMPLEMENTED + CI PROVEN APPROVED-RUN PREFLIGHT CONTRACT |
 | Read-only Fabric item smoke | integration runner/checks | IMPLEMENTED + CI PROVEN READ-ONLY RUNNER CONTRACT |
-| Strict staged evidence merge | `integration_evidence_merge.py` | IMPLEMENTED + CI PROVEN EVIDENCE MERGE CONTRACT |
-| Approved control-plane certification | `approved_control_plane_runner.py` | IMPLEMENTED + CI PROVEN APPROVED CONTROL-PLANE CERTIFICATION RUNNER CONTRACT |
-| Approved Pipeline execution evidence | `approved_pipeline_runner.py` | IMPLEMENTED + CI PROVEN APPROVED PIPELINE RUNNER CONTRACT |
-| Approved Copy/Spark capture evidence | `approved_capture_runner.py` | IMPLEMENTED + CI PROVEN APPROVED CAPTURE RUNNER CONTRACT |
-| Approved Warehouse commit/recovery | `approved_warehouse_runner.py` | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT |
-| Approved real ambiguous-COMMIT drill | `approved_warehouse_fault_runner.py` | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT |
+| Strict staged evidence merge | `evidence/integration_evidence_merge.py` | IMPLEMENTED + CI PROVEN EVIDENCE MERGE CONTRACT |
+| Approved control-plane certification | `evidence/approved_control_plane_runner.py` | IMPLEMENTED + CI PROVEN APPROVED CONTROL-PLANE CERTIFICATION RUNNER CONTRACT |
+| Approved Pipeline execution evidence | `evidence/approved_pipeline_runner.py` | IMPLEMENTED + CI PROVEN APPROVED PIPELINE RUNNER CONTRACT |
+| Approved Copy/Spark capture evidence | `evidence/approved_capture_runner.py` | IMPLEMENTED + CI PROVEN APPROVED CAPTURE RUNNER CONTRACT |
+| Approved Warehouse commit/recovery | `evidence/approved_warehouse_runner.py` | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT |
+| Approved real ambiguous-COMMIT drill | `evidence/approved_warehouse_fault_runner.py` | IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT |
 
 ## Warehouse ambiguity / session recovery
 
