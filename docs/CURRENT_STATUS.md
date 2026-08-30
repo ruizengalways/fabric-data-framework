@@ -8,9 +8,9 @@ Last updated: 2026-08-30
 ```text
 latest public release = v0.3.0
 source version        = 0.4.0 development / unreleased
-latest code baseline = e7bd8b7c55c5acdf14c58c24085c30e104edf0d6  (PR #47 merge)
-latest full code CI   = Actions 33279727906
-full test baseline   = 501
+latest code baseline = 264c7547b4e70d24f258bdc3962af83d972e967d  (PR #49 merge)
+latest full code CI   = Actions 33282725576
+full test baseline   = 513
 ```
 
 **Do not publish `0.4.0` yet.** Portable semantics, runtime contracts and approved-runner surfaces are broad. The remaining gate is retained exact-release approved real-environment evidence plus required enterprise controls.
@@ -44,6 +44,8 @@ PR #45  approved Copy Job + Spark capture evidence runner + bounded observer ext
         Actions 33279105627 / 490 tests
 PR #47  approved Fabric Warehouse commit/recovery runner + secret-safe target probe errors
         Actions 33279727906 / 501 tests
+PR #49  approved Warehouse ambiguous-COMMIT fault-drill runner + fault injector contract
+        Actions 33282725576 / 513 tests
 ```
 
 Docs checkpoints keep recovery context synchronized between code slices.
@@ -75,6 +77,8 @@ mutating approved checks require explicit authorization
 contradictory staged reruns are never silently arbitrated
 marker absence alone never proves NOT_COMMITTED
 simulated framework ACK loss != real driver/network COMMIT disconnect evidence
+normal Warehouse transaction return can never prove the real-fault drill
+fault injector != marker-absence certifier
 ```
 
 ## Cheatsheet semantic coverage
@@ -108,6 +112,7 @@ Spark Job Definition REST capture transport
 Fabric capture observation -> verified CaptureReceipt
 Fabric Warehouse target mutation + same-transaction marker
 provider-neutral target commit tri-state
+bounded Warehouse COMMIT fault-injector contract
 Debezium/Kafka normalization + recovery
 Delta CDF normalization + bounded recovery
 ```
@@ -168,6 +173,7 @@ APPROVED_CONTROL_PLANE_CERTIFICATION.md
 APPROVED_PIPELINE_EVIDENCE.md
 APPROVED_CAPTURE_EVIDENCE.md
 APPROVED_WAREHOUSE_EVIDENCE.md
+APPROVED_WAREHOUSE_FAULT_DRILL.md
 INTEGRATION_EVIDENCE_MERGE.md
 ```
 
@@ -257,21 +263,9 @@ ApprovedWarehouseEvidenceReport
 fabric_data_framework.warehouse_mutations
 ```
 
-Exact-run gates require:
+Exact-run gates require item-read PASS, control-plane certification PASS, selected Warehouse check NOT_RUN, exact release/config identity, fingerprinted mutation extension, production-eligible control plane, runtime DB URL env vars, pre-existing marker table and explicit authorization.
 
-```text
-FABRIC_ITEM_READ PASS
-CONTROL_PLANE_CERTIFICATION PASS
-selected FABRIC_WAREHOUSE_TARGET_COMMIT NOT_RUN
-exact release/config bundle identity
-fingerprinted customer mutation extension artifact
-production-eligible control-plane profile
-runtime control-plane + Warehouse DB URL env vars
-pre-existing target-side marker table
-explicit Warehouse execution authorization
-```
-
-The framework opens and commits the transaction. The extension receives an existing SQLAlchemy `Connection` and may perform only the bounded target mutation. It must not commit, create/write the framework marker, alter the target-operation journal, or determine PASS.
+The framework opens and commits the transaction. The extension receives an existing SQLAlchemy `Connection` and may perform only the bounded target mutation.
 
 Normal deterministic recovery proof:
 
@@ -280,24 +274,11 @@ claim -> EXECUTE
   -> same transaction: target mutation + framework marker
   -> commit returns
   -> deliberately simulate framework ACK loss
-  -> mark target operation UNKNOWN
-  -> marker probe = COMMITTED
-  -> reconcile UNKNOWN -> SUCCEEDED
-  -> later claim = SKIP_SUCCEEDED
-  -> approved check may PASS
+  -> journal UNKNOWN
+  -> marker probe COMMITTED
+  -> reconcile SUCCEEDED
+  -> later claim SKIP_SUCCEEDED
 ```
-
-Provider/driver exception path:
-
-```text
-execute_atomic raises
-  -> persist UNKNOWN using exception type only
-  -> marker probe
-      matching marker -> COMMITTED -> reconcile SUCCEEDED
-      marker absent   -> UNRESOLVED -> remain UNKNOWN / FAIL
-```
-
-The simulated ACK-loss path proves the framework recovery contract deterministically. It is **not** evidence that a real network/driver COMMIT disconnect occurred. A real fault-injection approved run is required for that stronger claim.
 
 Correct label:
 
@@ -305,7 +286,63 @@ Correct label:
 IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE COMMIT/RECOVERY RUNNER CONTRACT
 ```
 
-No `FABRIC WAREHOUSE PROVEN` claim exists yet.
+This path proves the recovery contract but does not prove a real network/driver COMMIT disconnect.
+
+### Fabric Warehouse ambiguous-COMMIT fault-drill stage
+
+PR #49 adds:
+
+```text
+FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL
+integration-warehouse-fault-drill-run
+ApprovedWarehouseFaultDrillConfig
+ApprovedWarehouseFaultDrillReport
+fabric_data_framework.warehouse_commit_fault_injectors
+```
+
+The fault drill is a separate stronger evidence claim. It requires the same exact-spec prerequisite manifest already to contain:
+
+```text
+FABRIC_ITEM_READ PASS
+CONTROL_PLANE_CERTIFICATION PASS
+FABRIC_WAREHOUSE_TARGET_COMMIT PASS
+selected FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL NOT_RUN
+```
+
+The mutation-extension artifact and fault-injector artifact must both be fingerprinted in the exact release manifest. The fault drill has a distinct explicit authorization flag and the injector is limited to provider/session-specific arm/disarm/verify behavior.
+
+PASS requires:
+
+```text
+fault armed
+execute_atomic actually raises a provider/driver exception
+disarm succeeds before marker probe
+fault verification says triggered
+arm/verification fault identity matches
+marker probe = COMMITTED
+journal = SUCCEEDED
+later claim = SKIP_SUCCEEDED
+```
+
+False-positive guards:
+
+```text
+normal transaction return -> FAIL even if marker COMMITTED
+injector says triggered but no observed execution exception -> FAIL
+exception + marker absent -> UNRESOLVED / UNKNOWN / FAIL
+fault identity mismatch -> FAIL
+fault injector cannot manufacture NOT_COMMITTED from marker absence
+```
+
+Provider/driver execution/disarm/verification exceptions retain type only. Warehouse secondary-correlation lookup exceptions also retain type only.
+
+Correct label:
+
+```text
+IMPLEMENTED + CI PROVEN APPROVED WAREHOUSE AMBIGUOUS-COMMIT FAULT-DRILL RUNNER CONTRACT
+```
+
+CI reference doubles prove the runner contract only. A provider-specific live injector and retained exact-release approved run are still required for a real fault claim.
 
 ## Still unproven in approved infrastructure
 
@@ -317,7 +354,8 @@ real approved Pipeline execution
 real Copy Job capture + approved post-run observation
 real bounded Spark execution + approved post-run observation
 real Fabric Warehouse target+marker transaction
-real ambiguous Warehouse COMMIT/network-driver failure drill
+provider-specific live Warehouse COMMIT fault injector
+retained real ambiguous Warehouse COMMIT/network-driver fault-drill PASS
 production-approved marker-absence certifier
 live Kafka coordination if release scope includes Kafka
 live Delta CDF bounded read/retention if release scope includes Delta
@@ -339,12 +377,12 @@ Preferred real-evidence path when approved enterprise inputs are available:
 5. run approved Pipeline evidence stage;
 6. run approved Copy Job and bounded Spark capture stages using fingerprinted customer extensions;
 7. run approved Warehouse target+marker transaction/recovery stage;
-8. separately run a real network/driver ambiguous COMMIT fault-injection drill if required;
+8. if the stronger fault claim is required, install/fingerprint a provider-specific live fault injector and run `integration-warehouse-fault-drill-run`;
 9. merge all required evidence and pass `integration-evidence-validate --require-certified`;
 10. prove Kafka/Delta live only if part of the `0.4.0` public promise;
 11. run exact-candidate release audit.
 
-If real enterprise credentials/tenant/database are unavailable, do not duplicate the Warehouse runner. The next reusable slice should close a remaining evidence boundary, such as a controlled real-fault-injection harness or production-approved marker-absence certifier contract.
+If real enterprise credentials/tenant/database are unavailable, do not duplicate the Warehouse/fault runners. The next reusable boundary is most plausibly a production-approved marker-absence certifier contract, but only if a provider/session-specific no-late-commit proof can be defined without weakening `marker absent -> UNRESOLVED`.
 
 ## Repository boundaries
 
@@ -370,6 +408,7 @@ APPROVED_CONTROL_PLANE_CERTIFICATION.md
 APPROVED_PIPELINE_EVIDENCE.md
 APPROVED_CAPTURE_EVIDENCE.md
 APPROVED_WAREHOUSE_EVIDENCE.md
+APPROVED_WAREHOUSE_FAULT_DRILL.md
 INTEGRATION_EVIDENCE_MERGE.md
 GUARANTEE_COVERAGE.md
 EXTENSION_MODEL.md
