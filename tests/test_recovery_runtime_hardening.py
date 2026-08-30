@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from fabric_data_framework.config import RunMode
+from fabric_data_framework.metadata.config import RunMode
 from fabric_data_framework.contracts.recovery import ReprocessRequest, ReprocessRequestStatus
 from fabric_data_framework.recovery import RetryPolicy, execute_with_retry
 from fabric_data_framework.control_plane.repository import InMemoryControlPlane

@@ -11,7 +11,7 @@ from fabric_data_framework.cli import approved as cli_approved
 from fabric_data_framework.evidence.approved_warehouse_fault_runner import (
     ApprovedWarehouseFaultDrillConfig,
 )
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,
@@ -23,7 +23,7 @@ from fabric_data_framework.config import (
     TargetConfig,
 )
 from fabric_data_framework.deployment.delivery import build_release_manifest
-from fabric_data_framework.infrastructure import EnvironmentName
+from fabric_data_framework.contracts.environment import EnvironmentName
 from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,

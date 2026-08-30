@@ -9,8 +9,8 @@ from fabric_data_framework.capture.bootstrap_watermark import (
     plan_first_watermark_batch,
     plan_watermark_bootstrap,
 )
-from fabric_data_framework.config import WatermarkConfig
-from fabric_data_framework.runtime import WatermarkPosition
+from fabric_data_framework.metadata.config import WatermarkConfig
+from fabric_data_framework.contracts.runtime import WatermarkPosition
 
 
 def _evidence(**overrides):

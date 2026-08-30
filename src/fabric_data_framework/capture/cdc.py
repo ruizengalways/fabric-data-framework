@@ -13,9 +13,9 @@ from typing import Any, Mapping, Sequence
 
 from pydantic import Field, model_validator
 
-from fabric_data_framework.config import canonical_hash
+from fabric_data_framework.metadata.config import canonical_hash
 from fabric_data_framework.contracts.base import FrozenModel
-from ..runtime import StateCommitGate
+from fabric_data_framework.contracts.runtime import StateCommitGate
 
 
 class CDCContractError(ValueError):

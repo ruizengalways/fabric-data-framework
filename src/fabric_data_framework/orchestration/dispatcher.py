@@ -1,9 +1,8 @@
-"""Compatibility facade for metadata-driven dataset orchestration.
+"""Metadata-driven dataset dispatch over planner-selected ready waves.
 
 Planning/dependency decisions live in ``orchestration.planner`` while concrete
-execution lives behind a ready-wave backend. The established ``dispatch_datasets``
-API remains the in-process compatibility surface; ``dispatch_datasets_with_backend``
-lets Fabric/native backends consume the same dependency and criticality semantics.
+execution lives behind a ready-wave backend. Both in-process and Fabric/native backends
+consume the same dependency and criticality semantics.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Iterable, Protocol
 from uuid import UUID, uuid4
 
-from .config import (
+from fabric_data_framework.metadata.config import (
     Criticality,
     DatasetStatus,
     EffectiveDatasetConfig,
@@ -20,19 +19,19 @@ from .config import (
     RunMode,
     RuntimeOverride,
 )
-from .contracts.dispatch import (
+from ..contracts.dispatch import (
     DatasetDispatchOutcome,
     DatasetDispatchRequest,
     DatasetExecutor,
     ExecutorResolver,
     PipelineDispatchResult,
 )
-from .execution.backends.in_process import execute_ready_wave
+from ..execution.backends.in_process import execute_ready_wave
 from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
     PipelineRunAudit,
 )
-from .orchestration.planner import (
+from .planner import (
     DEFAULT_REQUIRED_CRITICALITIES,
     OrchestrationIntegrityError,
     aggregate_pipeline_status,
@@ -40,7 +39,7 @@ from .orchestration.planner import (
     build_dispatch_plan,
     ready_dataset_ids,
 )
-from .control_plane.repository import ControlPlaneRepository
+from ..control_plane.repository import ControlPlaneRepository
 
 
 def _utcnow() -> datetime:

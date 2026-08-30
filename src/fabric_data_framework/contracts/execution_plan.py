@@ -11,7 +11,7 @@ from enum import Enum
 
 from pydantic import Field, model_validator
 
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     EffectiveDatasetConfig,

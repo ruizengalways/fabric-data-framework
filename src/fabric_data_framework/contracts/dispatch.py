@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Callable, Protocol
 from uuid import UUID
 
-from ..config import DatasetStatus, EffectiveDatasetConfig, PipelineStatus, RunMode
+from fabric_data_framework.metadata.config import DatasetStatus, EffectiveDatasetConfig, PipelineStatus, RunMode
 from .execution_plan import ExecutionPlan
 
 

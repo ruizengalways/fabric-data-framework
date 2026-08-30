@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,
@@ -18,7 +18,7 @@ from fabric_data_framework.config import (
     TargetConfig,
 )
 from fabric_data_framework.contracts.dispatch import DatasetDispatchOutcome
-from fabric_data_framework.dispatcher import (
+from fabric_data_framework.orchestration.dispatcher import (
     OrchestrationIntegrityError,
     dispatch_datasets_with_backend,
 )

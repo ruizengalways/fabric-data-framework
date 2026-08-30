@@ -5,11 +5,10 @@ from __future__ import annotations
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
 
-class FrozenModel(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+from .base import FrozenModel
 
 
 class EnvironmentName(str, Enum):

@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import create_engine
 
-from fabric_data_framework.config import RunMode
+from fabric_data_framework.metadata.config import RunMode
 from fabric_data_framework.control_plane.io import (
     QuarantineReplayMarkerConflict,
     read_quarantine_batches,
@@ -23,7 +23,7 @@ from fabric_data_framework.recovery import (
     execute_quarantine_replay,
     prepare_quarantine_replay,
 )
-from fabric_data_framework.runtime import StateCommitGate
+from fabric_data_framework.contracts.runtime import StateCommitGate
 
 
 DATASET_ID = "erp.order"

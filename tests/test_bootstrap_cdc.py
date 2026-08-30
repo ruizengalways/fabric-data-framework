@@ -15,7 +15,7 @@ from fabric_data_framework.capture.cdc import (
     CDCSourcePosition,
     build_cdc_checkpoint,
 )
-from fabric_data_framework.config import ApplyStrategy
+from fabric_data_framework.metadata.config import ApplyStrategy
 
 
 def _event(event_id: str, position: int, *, name: str) -> CDCEvent:

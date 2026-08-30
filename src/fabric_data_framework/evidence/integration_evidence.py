@@ -21,7 +21,7 @@ from uuid import UUID, uuid4
 from pydantic import Field, field_validator, model_validator
 
 from fabric_data_framework.contracts.base import FrozenModel
-from ..infrastructure import EnvironmentName
+from fabric_data_framework.contracts.environment import EnvironmentName
 
 
 INTEGRATION_EVIDENCE_SCHEMA_VERSION = 1

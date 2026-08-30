@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from ...config import ExecutionEngine, ProgressOwner
+from fabric_data_framework.metadata.config import ExecutionEngine, ProgressOwner
 from ...contracts.capture_receipt import CaptureReceipt
 from ...contracts.execution_plan import ExecutionKind, ExecutionRole
 from .contracts import (

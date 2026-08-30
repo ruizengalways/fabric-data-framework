@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from fabric_data_framework.config import RunMode
+from fabric_data_framework.metadata.config import RunMode
 from fabric_data_framework.contracts.base import FrozenModel
 from ...contracts.execution_plan import ExecutionPlan
 from .rest import FabricJobInstance, FabricRestClient

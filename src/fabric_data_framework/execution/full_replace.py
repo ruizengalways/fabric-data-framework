@@ -19,7 +19,7 @@ from ..capture.full import (
     FullSnapshotEvidenceError,
     capture_full_snapshot,
 )
-from ..config import ApplyStrategy, CaptureStrategy, DatasetStatus, RunMode
+from fabric_data_framework.metadata.config import ApplyStrategy, CaptureStrategy, DatasetStatus, RunMode
 from ..data_plane.staging import StagedBatch, stage_rows
 from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,

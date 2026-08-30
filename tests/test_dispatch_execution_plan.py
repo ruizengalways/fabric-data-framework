@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     Criticality,
@@ -14,7 +14,7 @@ from fabric_data_framework.config import (
     TargetConfig,
 )
 from fabric_data_framework.contracts.execution_plan import ExecutionKind
-from fabric_data_framework.dispatcher import DatasetDispatchOutcome, dispatch_datasets
+from fabric_data_framework.orchestration.dispatcher import DatasetDispatchOutcome, dispatch_datasets
 from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 
 

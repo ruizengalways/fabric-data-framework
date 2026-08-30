@@ -24,7 +24,7 @@ Code-browser entrypoint: `src/fabric_data_framework/README.md`.
 
 | Area | Primary owner | Notes |
 |---|---|---|
-| Dataset semantic truth | `config.py` | immutable `DatasetConfig` and nested policies |
+| Dataset semantic truth | `metadata/config.py` | immutable `DatasetConfig` and nested policies |
 | Shared typed contracts | `contracts/` | capture/recovery/runtime value objects |
 | Orthogonal capture semantics | `capture/semantic_contracts.py` | source/change/read/delete/Bronze/provider dimensions + 14 presets |
 | Semantic onboarding | `capture/onboarding.py` | validates pattern combinations and overclaim constraints |

@@ -13,7 +13,7 @@ from pydantic import Field, model_validator
 
 from ..contracts.base import FrozenModel
 from ..control_plane.schema import ENVIRONMENT_LOCAL_STATE_TABLES, PROMOTABLE_DEFINITION_TABLES
-from ..infrastructure import EnvironmentName, ResolvedResource
+from fabric_data_framework.contracts.environment import EnvironmentName, ResolvedResource
 
 
 

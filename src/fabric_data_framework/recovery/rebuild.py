@@ -13,14 +13,14 @@ from threading import RLock
 from typing import Callable, Generic, TypeVar
 from uuid import UUID
 
-from ..config import RunMode
+from fabric_data_framework.metadata.config import RunMode
 from ..contracts.rebuild import (
     FullRebuildStateAdapter,
     FullRebuildStateReplacement,
     FullRebuildStateSnapshot,
 )
 from ..contracts.recovery import ReprocessRequest
-from ..runtime import StateCommitGate
+from fabric_data_framework.contracts.runtime import StateCommitGate
 
 
 T = TypeVar("T")

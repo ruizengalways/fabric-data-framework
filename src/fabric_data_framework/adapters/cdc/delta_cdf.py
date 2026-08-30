@@ -30,7 +30,7 @@ from ...capture.cdc import (
     build_cdc_checkpoint,
     normalize_cdc_batch,
 )
-from fabric_data_framework.config import canonical_hash
+from fabric_data_framework.metadata.config import canonical_hash
 from fabric_data_framework.contracts.base import FrozenModel
 
 

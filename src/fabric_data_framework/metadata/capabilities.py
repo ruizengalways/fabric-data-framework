@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DatasetConfig,

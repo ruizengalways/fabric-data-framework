@@ -1,4 +1,4 @@
-from fabric_data_framework.infrastructure import (
+from fabric_data_framework.contracts.environment import (
     EnvironmentName,
     EnvironmentResolver,
     LogicalResourceRef,

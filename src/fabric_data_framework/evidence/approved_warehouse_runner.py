@@ -27,7 +27,7 @@ from pydantic import Field, model_validator
 from sqlalchemy import Engine, MetaData, create_engine
 from sqlalchemy.engine import Connection
 
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     DatasetConfig,
     canonical_hash,
     resolve_effective_config,

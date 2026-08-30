@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from fabric_data_framework.config import RunMode
+from fabric_data_framework.metadata.config import RunMode
 from fabric_data_framework.contracts.rebuild import (
     FullRebuildStateReplacement,
     RebuildProgressKind,
@@ -16,7 +16,7 @@ from fabric_data_framework.recovery import (
     InMemoryFullRebuildStateAdapter,
     execute_full_rebuild,
 )
-from fabric_data_framework.runtime import StateCommitGate
+from fabric_data_framework.contracts.runtime import StateCommitGate
 
 
 DATASET_ID = "erp.order"

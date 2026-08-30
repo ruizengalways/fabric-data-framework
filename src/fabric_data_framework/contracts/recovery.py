@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
 
-from fabric_data_framework.config import RunMode
+from fabric_data_framework.metadata.config import RunMode
 from fabric_data_framework.contracts.base import FrozenModel
 
 

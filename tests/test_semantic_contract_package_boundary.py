@@ -36,7 +36,7 @@ def test_contracts_package_root_has_no_reexport_imports():
 
 
 def test_config_no_longer_owns_frozen_model():
-    config = importlib.import_module("fabric_data_framework.config")
+    config = importlib.import_module("fabric_data_framework.metadata.config")
     base = importlib.import_module("fabric_data_framework.contracts.base")
     assert hasattr(base, "FrozenModel")
     assert not hasattr(config, "FrozenModel")
@@ -75,7 +75,7 @@ def test_source_and_tests_use_explicit_contract_submodules():
                     resolved = _resolve(path, node)
                     if resolved in forbidden:
                         offenders.append(f"{path.relative_to(REPO_ROOT)}: {resolved}")
-                    if resolved == "fabric_data_framework.config" and any(
+                    if resolved == "fabric_data_framework.metadata.config" and any(
                         alias.name == "FrozenModel" for alias in node.names
                     ):
                         offenders.append(f"{path.relative_to(REPO_ROOT)}: config.FrozenModel")

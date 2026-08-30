@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable, Mapping
 
-from ..config import (
+from fabric_data_framework.metadata.config import (
     Criticality,
     DatasetStatus,
     EffectiveDatasetConfig,

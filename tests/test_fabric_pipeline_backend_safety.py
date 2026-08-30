@@ -1,5 +1,5 @@
 from fabric_data_framework.adapters.fabric.pipeline import FabricPipelineBinding
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,

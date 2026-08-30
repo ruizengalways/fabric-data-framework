@@ -10,7 +10,7 @@ from fabric_data_framework.capture.patterns import (
     capture_pattern_catalog,
     capture_pattern_spec,
 )
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     DataQualityPolicy,

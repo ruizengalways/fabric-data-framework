@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from fabric_data_framework.cli import main
-from fabric_data_framework.infrastructure import EnvironmentName
+from fabric_data_framework.contracts.environment import EnvironmentName
 from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckSpec,

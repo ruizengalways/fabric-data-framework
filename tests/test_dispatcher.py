@@ -5,7 +5,7 @@ from time import sleep
 
 import pytest
 
-from fabric_data_framework.config import (
+from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     Criticality,
@@ -20,7 +20,7 @@ from fabric_data_framework.config import (
     SourceConfig,
     TargetConfig,
 )
-from fabric_data_framework.dispatcher import (
+from fabric_data_framework.orchestration.dispatcher import (
     DatasetDispatchOutcome,
     OrchestrationIntegrityError,
     dispatch_datasets,

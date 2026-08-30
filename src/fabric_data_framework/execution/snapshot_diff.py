@@ -16,7 +16,7 @@ from ..apply.snapshot_diff import (
 )
 from fabric_data_framework.data_plane.bronze import BronzeRecord, normalize_bronze
 from ..capture.snapshot import SnapshotEvidence, SnapshotEvidenceError, capture_snapshot
-from ..config import ApplyStrategy, CaptureStrategy, DatasetStatus, RunMode
+from fabric_data_framework.metadata.config import ApplyStrategy, CaptureStrategy, DatasetStatus, RunMode
 from ..data_plane.staging import StagedBatch, stage_rows
 from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,

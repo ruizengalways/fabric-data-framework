@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
 
-from ..config import DatasetStatus, PipelineStatus, RunMode
+from fabric_data_framework.metadata.config import DatasetStatus, PipelineStatus, RunMode
 from .base import FrozenModel
 
 

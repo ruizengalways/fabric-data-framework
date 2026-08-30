@@ -18,7 +18,7 @@ from fabric_data_framework.control_plane.certification import (
     ControlPlaneExternalEvidence,
     FABRIC_SQL_DATABASE_V1,
 )
-from fabric_data_framework.infrastructure import EnvironmentName
+from fabric_data_framework.contracts.environment import EnvironmentName
 from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckSpec,

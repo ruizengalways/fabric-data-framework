@@ -16,7 +16,7 @@ from pydantic import Field, model_validator
 
 from fabric_data_framework.contracts.base import FrozenModel
 from ..control_plane.certification import CONTROL_PLANE_BACKEND_PROFILES
-from ..infrastructure import EnvironmentName
+from fabric_data_framework.contracts.environment import EnvironmentName
 from .integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckSpec,
