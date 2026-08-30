@@ -22,7 +22,7 @@ from fabric_data_framework.config import (
     SourceConfig,
     TargetConfig,
 )
-from fabric_data_framework.delivery import build_release_manifest
+from fabric_data_framework.deployment.delivery import build_release_manifest
 from fabric_data_framework.infrastructure import EnvironmentName
 from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,

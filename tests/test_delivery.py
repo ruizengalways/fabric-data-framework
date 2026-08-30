@@ -16,14 +16,14 @@ from fabric_data_framework.config import (
     WatermarkConfig,
 )
 from fabric_data_framework.control_plane.schema import dataset, deployment_history, watermark
-from fabric_data_framework.delivery import (
+from fabric_data_framework.deployment.delivery import (
     build_release_manifest,
     config_bundle_hash,
     materialize_semantic_metadata,
     record_deployment_history,
     validate_release_tag,
 )
-from fabric_data_framework.deployment import (
+from fabric_data_framework.deployment.contracts import (
     CIProvider,
     DeploymentMechanism,
     DeploymentProvenance,

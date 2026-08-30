@@ -20,7 +20,7 @@ from fabric_data_framework.control_plane.schema import (
     apply_baseline_schema,
     apply_execution_policy,
 )
-from fabric_data_framework.delivery import materialize_semantic_metadata
+from fabric_data_framework.deployment.delivery import materialize_semantic_metadata
 from fabric_data_framework.metadata.capabilities import (
     DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE,
 )

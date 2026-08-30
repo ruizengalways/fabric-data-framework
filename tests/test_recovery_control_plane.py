@@ -31,7 +31,7 @@ from fabric_data_framework.contracts.recovery import (
     ReprocessRequest,
     ReprocessRequestStatus,
 )
-from fabric_data_framework.delivery import materialize_semantic_metadata
+from fabric_data_framework.deployment.delivery import materialize_semantic_metadata
 
 
 def _config() -> DatasetConfig:

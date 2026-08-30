@@ -155,7 +155,7 @@ approved_*_runner.py
 | `evidence/approved_capture_runner.py` | approved Copy Job / Spark capture evidence |
 | `evidence/approved_warehouse_runner.py` | approved Warehouse target+marker commit/recovery |
 | `evidence/approved_warehouse_fault_runner.py` | real ambiguous-COMMIT drill + optional session-termination recovery |
-| `delivery.py` / deployment 相关模块 | config bundle、release manifest、deployment provenance |
+| `deployment/delivery.py` / deployment 相关模块 | config bundle、release manifest、deployment provenance |
 
 Evidence 的职责是**证明已有 contract**，不是重新定义 dataset semantics、capture fidelity、target commit truth 或 recovery semantics。
 

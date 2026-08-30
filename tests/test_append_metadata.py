@@ -24,7 +24,7 @@ from fabric_data_framework.control_plane.schema import (
     current_schema_version,
     load_policy,
 )
-from fabric_data_framework.delivery import materialize_semantic_metadata
+from fabric_data_framework.deployment.delivery import materialize_semantic_metadata
 
 
 def _append_config() -> DatasetConfig:

@@ -24,8 +24,8 @@ from fabric_data_framework.control_plane.io import (
     commit_cdc_checkpoint,
     read_cdc_checkpoint,
 )
-from fabric_data_framework.delivery import materialize_semantic_metadata
-from fabric_data_framework.deployment import (
+from fabric_data_framework.deployment.delivery import materialize_semantic_metadata
+from fabric_data_framework.deployment.contracts import (
     ControlPlaneRecordClass,
     classify_control_plane_record,
 )

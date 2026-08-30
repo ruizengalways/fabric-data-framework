@@ -30,8 +30,8 @@ from sqlalchemy.engine import Connection
 from ..config import DatasetConfig, FrozenModel, canonical_hash, resolve_effective_config
 from ..contracts.recovery import UnknownOutcomeResolution
 from ..control_plane.certification import get_control_plane_backend_profile
-from ..delivery import config_bundle_hash
-from ..deployment import ReleaseManifest
+from ..deployment.delivery import config_bundle_hash
+from ..deployment.contracts import ReleaseManifest
 from ..extensions import ExtensionKind, ExtensionRegistry
 from .integration_checks import build_fabric_warehouse_commit_check_result
 from .integration_evidence import (

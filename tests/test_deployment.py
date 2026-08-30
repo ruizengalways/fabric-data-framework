@@ -1,4 +1,4 @@
-from fabric_data_framework.deployment import (
+from fabric_data_framework.deployment.contracts import (
     CIProvider,
     ControlPlaneRecordClass,
     DeploymentMechanism,
