@@ -11,6 +11,7 @@ readiness_implementation: src/fabric_data_framework/evidence/release_readiness.p
 proof_merge_implementation: src/fabric_data_framework/evidence/release_readiness_merge.py
 certification_implementation: src/fabric_data_framework/evidence/candidate_certification.py
 candidate_artifact_contract: src/fabric_data_framework/deployment/candidate_artifact.py
+candidate_release_proofs_workflow: .github/workflows/candidate-release-proofs.yml
 candidate_certification_workflow: .github/workflows/candidate-certification.yml
 release_promotion_workflow: .github/workflows/release.yml
 readiness_cli: fabric-framework release-readiness
@@ -20,17 +21,19 @@ certification_cli: fabric-framework candidate-certify
 
 ## Purpose
 
-The release system has three deliberately separate layers:
+The release system is deliberately split into independent truth boundaries:
 
 ```text
-candidate artifact identity
-  -> retained evidence certification
+exact candidate artifact identity
+  -> retained non-integration release proof
+  -> retained integration evidence
+  -> candidate certification
   -> immutable exact-byte promotion
 ```
 
-No layer executes Fabric merely to make another layer pass. Provider/business-path evidence is produced by approved evidence workflows, certification validates retained evidence, and release only promotes already-certified bytes.
+No layer may invent PASS merely to satisfy the next layer. Provider/business-path evidence is produced separately, aggregation validates retained facts, and release promotes only already-certified bytes.
 
-## Exact identity
+## Exact candidate identity
 
 ```text
 candidate_git_sha = exact 40-character source commit
@@ -39,183 +42,188 @@ framework_version = exact package version
 candidate_run_id  = successful main framework-ci run that built those bytes
 ```
 
-GitHub's artifact archive digest is transport metadata only. It is not the inner wheel SHA256 and must never replace `artifact_sha256` in certification or release evidence.
+GitHub artifact archive digest is transport metadata only. It is not the inner wheel SHA256 and must not replace `artifact_sha256` in proof, certification, or release.
 
-## Candidate artifact manifest
-
-Main CI creates `CANDIDATE.json` beside the wheel and `SHA256SUMS`. It binds:
+Main CI retains:
 
 ```text
-schema_version
-package_name
-framework_version
-candidate_git_sha
-workflow_run_id
-workflow_run_attempt
-wheel_filename
-wheel_sha256
+fabric_data_framework-<version>-py3-none-any.whl
+SHA256SUMS
+CANDIDATE.json
 ```
 
-The standard-library verifier authenticates downloaded candidate bytes before installation. It rejects manifest key drift, path traversal, wrong package/version, source/run/attempt mismatch, expected-hash mismatch and changed wheel bytes.
+`CANDIDATE.json` binds package/version, source SHA, workflow run ID/attempt, wheel filename and exact inner wheel SHA256. The standard-library verifier authenticates these bytes before installation.
 
 ## Readiness evidence ownership
 
 ```text
 ReleaseReadinessProofBundle
-  -> source tests / architecture / package checks
-  -> exact wheel integrity
-  -> fabric-customer compatibility
-  -> representative live FULL -> REPLACE
-  -> representative live WATERMARK -> SCD1
-  -> representative live WATERMARK -> SCD2
-  -> retry/rerun idempotency drill
-  -> semantic reconciliation fail-closed drill
+  source.tests
+  wheel.integrity
+  customer.compatibility
+  full.replace
+  watermark.scd1
+  watermark.scd2
+  retry.idempotency
+  reconciliation.fail_closed
 
 IntegrationEvidenceManifest
-  -> Fabric item authorization
-  -> control-plane certification
-  -> Fabric Pipeline
-  -> Fabric Copy capture
-  -> Fabric Spark capture
-  -> Warehouse commit/marker
-  -> real ambiguous-COMMIT drill
-  -> optional Kafka/Debezium proof
+  fabric.identity
+  control.certification
+  fabric.pipeline
+  fabric.copy
+  fabric.spark
+  warehouse.commit
+  warehouse.ambiguous_commit
+  optional external.cdc.debezium
 ```
 
-Integration-backed readiness gates cannot be satisfied through generic release proof entries.
+Integration-backed gates cannot be satisfied by generic release proof entries.
 
-## Strict partial ReleaseReadinessProofBundle merge
+## Strict partial release-proof merge
 
-Portable/static proof and representative live business-path proof may be produced independently. They are combined only through:
+Canonical implementation:
 
 ```text
 src/fabric_data_framework/evidence/release_readiness_merge.py
 fabric-framework release-proofs-merge
 ```
 
-The merge is an evidence combiner, not a proof producer. It never turns absence into PASS and never chooses a preferred rerun automatically.
-
-Every input partial bundle must:
+Merged PR #86 established fail-closed partial proof merge:
 
 ```text
-match readiness-spec framework_version
-bind exact candidate_git_sha
-bind exact non-null inner artifact_sha256
-reference only known non-integration readiness gates
-match each gate kind exactly
+PR        #86
+merge SHA 0f70e037806482c677fccae0ce9432504f2a9885
+PR CI     33342779028
+main CI   33342806854
+tests     664
 ```
+
+Every partial bundle must match readiness schema/framework version and bind the same exact candidate SHA plus non-null inner wheel SHA256. Only known non-integration gates with exact gate kind are accepted. Retained references/details are secret-scanned.
 
 Merge semantics:
 
 ```text
-omitted gate          -> no proof
-NOT_RUN               -> no proof
-one PASS/FAIL/OOS     -> retain unchanged
-identical duplicate substantive result -> allowed
-PASS vs FAIL          -> conflict
-PASS vs OUT_OF_SCOPE  -> conflict
-different PASS evidence references -> conflict
-different substantive detail/references -> conflict
-candidate SHA mismatch -> reject
-wheel SHA mismatch     -> reject
-unknown gate           -> reject
-kind mismatch          -> reject
-integration-backed gate -> reject
+omitted / NOT_RUN                        -> no proof
+one substantive PASS/FAIL/OUT_OF_SCOPE  -> retain unchanged
+model-identical duplicate substantive   -> allowed
+different substantive result            -> conflict
+different PASS evidence                  -> conflict
+candidate SHA mismatch                   -> reject
+wheel SHA mismatch                       -> reject
+unknown gate / kind drift                -> reject
+integration-backed gate                  -> reject
 ```
 
-There is deliberately no latest-wins, timestamp-wins, FAIL-wins or PASS-wins rule. When a real check is rerun and produces different substantive evidence, the operator must explicitly select the intended retained result before merge. This prevents evidence laundering by ordering or overwrite.
+There is no latest-wins, PASS-wins, FAIL-wins, or timestamp precedence. A conflicting rerun must be explicitly selected before merge.
 
-Example:
+A successful merge proves only that supplied retained evidence is compatible. It does not create PASS and does not make the candidate releasable.
 
-```bash
-fabric-framework release-proofs-merge \
-  --spec release/0.4.0/readiness-spec.json \
-  --input evidence/static-release-proofs.json \
-  --input evidence/live-business-path-proofs.json \
-  --output evidence/release-proofs.json
+## Candidate release-proof producer
+
+Workflow:
+
+```text
+.github/workflows/candidate-release-proofs.yml
 ```
 
-A successful merge only proves that the supplied retained proof is internally compatible for one exact candidate. It does not mean any missing readiness gate has passed and does not make the candidate releasable.
+Current feature-branch state: **IMPLEMENTED / CI PENDING**.
 
-## 0.4 integration evidence template
+The workflow is manual and must be dispatched at the exact candidate ref. It requires:
 
-The approved integration check membership is source controlled at:
+```text
+candidate_run_id
+candidate_git_sha
+candidate_wheel_sha256
+customer_git_sha
+business_path_evidence_run_id
+```
+
+It independently verifies:
+
+```text
+GITHUB_SHA == candidate_git_sha
+candidate source is reachable from framework main
+candidate run is successful main push framework-ci
+candidate run head SHA equals candidate_git_sha
+required CI jobs test-python-3.11 / test-python-3.13 / build-wheel / release-readiness-contract are success
+CANDIDATE.json + SHA256SUMS + downloaded wheel bytes match exact inputs
+exact candidate wheel installs successfully
+customer_git_sha is exact and reachable from fabric-customer main
+customer project-validate passes against exact candidate wheel
+100-table Health framework-next project generation/validation passes exact workload counts
+```
+
+Only after those observations does it create static PASS results for:
+
+```text
+source.tests
+wheel.integrity
+customer.compatibility
+```
+
+It does **not** contain code that directly marks the five live business-path gates PASS.
+
+Those five gates must come from a successful exact-candidate run of:
+
+```text
+.github/workflows/candidate-business-path-evidence.yml
+```
+
+Expected artifact:
+
+```text
+business-path-release-proofs-<candidate SHA>/business-path-release-proofs.json
+```
+
+Required live business-path gates:
+
+```text
+full.replace
+watermark.scd1
+watermark.scd2
+retry.idempotency
+reconciliation.fail_closed
+```
+
+`candidate-release-proofs.yml` verifies that producer run is `workflow_dispatch`, successful, uses the exact workflow path, and has `head_sha == candidate_git_sha`. It then strict-merges static + business-path partial bundles and refuses final publication unless the merged bundle contains exactly every required non-integration gate and all are PASS.
+
+Successful output:
+
+```text
+release-proofs-<candidate SHA>/
+  release-proofs.json
+  customer-project-validation.json
+  health-project-validation.json
+```
+
+Retention is 90 days. The workflow builds no wheel, creates no tag/release, and cannot substitute old customer compatibility or old business-path evidence for the exact candidate.
+
+## Integration evidence template
+
+Approved integration check membership is source controlled at:
 
 ```text
 release/0.4.0/integration-evidence-template.json
 ```
 
-The template intentionally has `release_hash=null`. `candidate-certify` materializes the exact spec by binding:
+The template has `release_hash=null`; `candidate-certify` binds environment/domain and exact inner wheel SHA256 at certification time. The retained `IntegrationEvidenceManifest` must exactly match that materialized spec and be certified for every required integration check.
 
-```text
-environment = DEV | UAT | PROD
-domain       = exact approved domain
-release_hash = exact inner candidate wheel SHA256
-```
+## Candidate certification
 
-The retained `IntegrationEvidenceManifest` must match that materialized spec exactly and must be certified under the canonical integration evidence contract. Optional Kafka evidence may remain not run while its 0.4 readiness gate remains optional.
-
-## Candidate certification contract
-
-Reusable implementation:
+Reusable implementation/workflow:
 
 ```text
 src/fabric_data_framework/evidence/candidate_certification.py
-```
-
-Presentation/workflow surfaces:
-
-```text
 fabric-framework candidate-certify
 .github/workflows/candidate-certification.yml
 ```
 
-Certification requires all of the following before `release-readiness-certified-<candidate SHA>` may be uploaded:
+Candidate certification is merged and CI proven from PR #84. It accepts only a successful exact-SHA `candidate-release-proofs.yml` run and successful exact-SHA `candidate-integration-evidence.yml` run, re-verifies exact candidate bytes, validates proof/integration identity and safety, and uploads `release-readiness-certified-<candidate SHA>` only when every required readiness gate is PASS and blockers are empty.
 
-```text
-exact candidate source SHA reachable from main
-candidate CI provenance = successful main push framework-ci run
-CANDIDATE.json matches run/SHA/version/inner wheel SHA
-SHA256SUMS verifies downloaded wheel bytes
-exact candidate wheel installed; no rebuild
-release proof artifact comes from successful explicit candidate-release-proofs workflow
-integration evidence artifact comes from successful explicit candidate-integration-evidence workflow
-both producer head SHAs equal exact candidate SHA
-release proof bundle matches framework version + candidate SHA + wheel SHA
-release proof references/details reject obvious credential material
-integration manifest matches runtime-bound source-controlled template
-integration manifest is certified for all required integration checks
-integration release_hash equals exact inner wheel SHA
-release-readiness aggregation returns release_ready=true
-blockers=[]
-every required readiness result PASS
-```
+Certification performs no wheel build, tag creation, or release creation.
 
-If any condition fails, the workflow exits before certified artifact upload.
-
-Certification itself performs no release mutation: no tag, no GitHub release, no wheel build.
-
-## Readiness fail-closed rules
-
-```text
-missing proof                      -> NOT_RUN
-required NOT_RUN                   -> blocker
-required FAIL                      -> blocker
-required OUT_OF_SCOPE              -> FAIL/blocker
-optional OUT_OF_SCOPE              -> allowed
-unknown proof gate                 -> reject
-proof kind mismatch                -> reject
-proof candidate SHA mismatch       -> reject
-proof artifact SHA mismatch        -> reject
-integration spec mismatch          -> reject
-integration release_hash mismatch  -> reject
-integration not certified          -> reject certification
-credential-like release proof text -> reject certification
-```
-
-`release_ready=true` if and only if every required readiness gate is `PASS`.
-
-## 0.4 readiness matrix
+## Readiness matrix
 
 Required:
 
@@ -237,67 +245,50 @@ reconciliation.fail_closed
 warehouse.ambiguous_commit
 ```
 
-Optional unless scope changes:
+Optional unless 0.4 scope changes:
 
 ```text
 external.cdc.debezium
 ```
 
-## Ordinary CI meaning
-
-Framework CI intentionally runs `release-readiness` without fabricated proof inputs. Current ordinary main readiness therefore remains:
+Ordinary framework CI deliberately supplies no proof bundle or integration manifest, so its readiness report remains:
 
 ```text
 release_ready = false
 15 required blockers
 ```
 
-A green readiness-contract job proves only that the aggregator fails closed. It is not live Fabric proof and does not make 0.4 releasable. A main CI candidate artifact similarly proves exact wheel identity, not certification.
+That is expected fail-closed behavior, not a failed CI contract and not live Fabric evidence.
 
-## Immutable release promotion
+## Immutable promotion
 
-`framework-release` is manual promotion only and contains no wheel build step. It consumes:
-
-```text
-candidate_run_id
-candidate_git_sha
-candidate_wheel_sha256
-readiness_run_id
-```
-
-It re-verifies exact candidate CI provenance/bytes, downloads `release-readiness-certified-<candidate SHA>`, verifies report/proof/integration identities, then and only then tags the exact candidate SHA and publishes those already-certified bytes/evidence assets.
-
-## Merged candidate-certification baseline
-
-```text
-PR                #84
-merge SHA         bb9b7ed74e2696978c546011c893fb316ffdd57c
-final PR CI       33314924064
-main CI           33314977393
-merged tests      653
-main wheel SHA256 ce78ae1bc67b0e68bca360e825d36cf6b0cb171f811de8257cd9ce0225154748
-candidate frozen  false
-```
-
-Candidate certification is now **IMPLEMENTED + CI PROVEN** as a portable fail-closed contract. This is not a claim that a successful certification run exists; no `release-readiness-certified-<candidate SHA>` artifact has been produced.
-
-The intentionally missing upstream producers are:
-
-```text
-.github/workflows/candidate-release-proofs.yml
-.github/workflows/candidate-integration-evidence.yml
-```
-
-Those producers must generate retained evidence from approved exact-candidate static/tests/live runs. They must not manufacture PASS records merely to satisfy certification.
+`framework-release` is manual exact-byte promotion only. It downloads the exact candidate artifact and exact certified readiness artifact, verifies all identities and PASS state, then tags the exact candidate SHA and publishes those same wheel bytes plus evidence assets. There is no release-time rebuild.
 
 ## Current truth
 
 ```text
-0.4.0 = UNRELEASED
-release_allowed = false
-candidate = NOT YET FROZEN
-ordinary readiness blockers = 15
-certified readiness artifact = NOT YET PRODUCED
-strict partial proof merge = IMPLEMENTED ON FEATURE BRANCH / CI PENDING
-next = validate merge contract -> trusted proof producers -> freeze candidate -> collect real evidence
+public release                     v0.3.0
+0.4.0                              UNRELEASED / FEATURE FROZEN
+release_allowed                    false
+candidate                          NOT YET FROZEN
+ordinary readiness blockers        15
+strict partial proof merge         MERGED + MAIN CI PROVEN
+candidate-release-proofs workflow  FEATURE BRANCH IMPLEMENTED / CI PENDING
+candidate-business-path-evidence   NOT YET IMPLEMENTED
+candidate-integration-evidence     NOT YET IMPLEMENTED
+certified readiness artifact       NOT YET PRODUCED
+```
+
+Next order:
+
+```text
+1. validate/merge candidate-release-proofs workflow
+2. implement real candidate-business-path-evidence producer
+3. implement candidate-integration-evidence orchestration
+4. select/freeze one exact main candidate SHA + inner wheel SHA256
+5. run exact customer/static proof
+6. run representative live business-path proof
+7. run approved Fabric integration evidence
+8. candidate-certify must reach blockers=[]
+9. framework-release promotes exact certified bytes
 ```
