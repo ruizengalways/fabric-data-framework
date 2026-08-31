@@ -47,6 +47,7 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #84 | `bb9b7ed74e2696978c546011c893fb316ffdd57c`, final PR Actions `33314924064`, main Actions `33314977393`, 653 | exact-candidate certification aggregation, integration evidence template, credential-safe release proof retention, manual certification workflow |
 | #86 | `0f70e037806482c677fccae0ce9432504f2a9885`, PR Actions `33342779028`, main Actions `33342806854`, 664 | strict exact-candidate partial `ReleaseReadinessProofBundle` merge; contradictory substantive proof has no precedence |
 | #87 | `5a2edffe5930e9b8a2a79f66f4580ca4d9df2b4e`, PR Actions `33343182775`, main Actions `33343223496`, 670 | exact-candidate non-integration release-proof producer; direct PASS limited to source/wheel/customer observations and live business-path proof remains external |
+| #88 | `1632aefe8c1fd71098200c434a1648d0385f4967`, PR Actions `33346419772`, main Actions `33346470401`, 717 | representative five-gate business-path evidence contract/producer, explicit Pipeline rerun, canonical plan-path guard and distinct framework-wheel/domain-release identities |
 
 ## Integrated design decisions
 
@@ -76,6 +77,10 @@ release proof references/details are screened for obvious credential material be
 release workflow promotes already-certified bytes and must never rebuild the wheel
 candidate artifact existence does not mean candidate has been selected/frozen
 certification workflow existence does not mean live certification has happened
+framework wheel SHA256 and customer/domain release hash are independent exact identities
+representative business-path PASS belongs only to the framework evaluator over driver/observer/provider/durable-outcome facts
+explicit Pipeline rerun starts from separately retained fully certified integration evidence and never mutates it
+cleanup failure blocks business-path proof publication
 0.4 is feature-frozen and remains unreleased until required readiness blockers reach zero
 Debezium/Kafka is optional in the 0.4 certification matrix unless explicitly promoted into GA scope
 ```
@@ -93,5 +98,6 @@ GitHub Actions artifact archive digest != exact inner wheel SHA256
 source/version equality != permission to reuse evidence across rebuilt artifacts
 candidate-capable main artifact != frozen/certified candidate
 candidate-certification contract != retained live certification
+business-path producer contract != retained live business-path proof
 exact-byte promotion contract != live certification
 ```
