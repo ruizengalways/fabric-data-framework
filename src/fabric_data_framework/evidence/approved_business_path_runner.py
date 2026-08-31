@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any
 
 from pydantic import Field, model_validator
 
@@ -216,14 +215,23 @@ def execute_approved_business_path(
 ) -> ApprovedBusinessPathExecutionReport:
     """Execute and evaluate one exact-release representative live business path."""
 
+    config_tuple = tuple(configs)
     if release_manifest.bundle.framework_version != runner_config.framework_version:
         raise ValueError("business path release/framework version mismatch")
     if release_manifest.bundle.release_hash != runner_config.release_hash:
         raise ValueError("business path release hash mismatch")
-    if scenario.dataset_id not in {item.dataset_id for item in configs}:
+    if scenario.dataset_id not in {item.dataset_id for item in config_tuple}:
         raise ValueError("business path dataset is absent from exact release config bundle")
     if driver_config.scenario_hash != scenario.scenario_hash:
         raise ValueError("business path driver/scenario hash mismatch")
+    if scenario.extension_artifact_name not in release_manifest.artifact_sha256:
+        raise ValueError(
+            "business path observer extension is not fingerprinted in exact release manifest"
+        )
+    if driver_config.extension_artifact_name not in release_manifest.artifact_sha256:
+        raise ValueError(
+            "business path driver extension is not fingerprinted in exact release manifest"
+        )
     if not allow_scenario_mutation:
         raise ValueError("business path scenario mutation is not explicitly authorized")
     if not allow_pipeline_execution:
@@ -235,7 +243,6 @@ def execute_approved_business_path(
     for index, reference in enumerate(references):
         assert_safe_retained_text(reference, f"business path evidence_references[{index}]")
 
-    config_tuple = tuple(configs)
     extension_registry = _registry_with_business_extensions(
         registry,
         scenario=scenario,
