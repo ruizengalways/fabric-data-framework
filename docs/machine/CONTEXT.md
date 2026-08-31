@@ -19,73 +19,21 @@ provider/native cursor != framework downstream semantic checkpoint
 provider Completed != framework semantic success
 ```
 
-## Cheatsheet acceptance model
-
-Exact semantic presets exist for fourteen common patterns:
-
-```text
-1  Full Snapshot -> Current Bronze
-2  Full Snapshot -> Snapshot Bronze
-3  Watermark -> Current
-4  Watermark + Lookback -> Current
-5  Watermark + Lookback -> Raw Append
-6  Watermark + Soft Delete -> Current
-7  Watermark + Lookback + Soft Delete -> Raw Append
-8  Net Changes -> Current
-9  Net Changes -> Append
-10 Full/All Changes -> Event
-11 Full Changes -> Current Bronze, intentionally lossy
-12 Business Events -> Event
-13 Snapshot Diff -> Current
-14 Snapshot Diff -> Append Changes
-```
-
-“All 14 supported” means semantic representation/onboarding acceptance, not live provider proof for every physical implementation.
-
-## Watermark / bootstrap
+## Capture / bootstrap / delete truth
 
 Generic `updated_at` is not automatically a safe no-gap cursor.
 
-Full-baseline -> WATERMARK requires:
-
-```text
-complete authoritative baseline
-exact/frozen handoff boundary
-post-boundary changes remain visible
-deterministic ordering/dedup semantics
-```
-
-Snapshot -> CDC similarly requires a fenced no-gap/no-double-apply handoff.
+Full-baseline -> WATERMARK requires a complete authoritative baseline, exact/frozen handoff boundary, continued visibility of post-boundary changes, and deterministic ordering/dedup semantics. Snapshot -> CDC similarly requires a fenced no-gap/no-double-apply handoff.
 
 Lookback improves late-observation/boundary safety; it does not create hard-delete visibility.
 
-## Delete truth
-
-Hard delete is invisible to current-state watermark extraction unless another signal exists.
-
-Possible valid delete signals:
-
-```text
-soft-delete/tombstone retained long enough
-CDC delete event
-snapshot disappearance/diff
-source-defined audit/delete feed
-```
-
-Never infer delete visibility from target behavior.
+Valid hard-delete truth requires an actual signal such as a retained soft-delete/tombstone, CDC delete event, snapshot disappearance/diff, or source-defined audit/delete feed. Never infer delete visibility from target behavior.
 
 ## Provider/native progress
 
-Provider-native progress is transport/provider state unless explicitly defined otherwise.
+Provider-native progress is transport/provider state unless explicitly defined otherwise. Framework downstream checkpoints advance only after framework semantic success.
 
-Examples:
-
-```text
-Copy Job native cursor tracks provider capture progress
-framework checkpoint advances only after framework semantic success
-```
-
-A failed provider run must not be described as semantic checkpoint advancement.
+A provider terminal success therefore cannot substitute for semantic reconciliation or durable framework outcome.
 
 ## Target-operation recovery
 
@@ -105,7 +53,7 @@ Unknown commit outcome never permits blind re-execution.
 
 ## Warehouse commit truth
 
-Framework preferred transaction:
+Preferred target transaction:
 
 ```text
 BEGIN TRAN
@@ -114,7 +62,7 @@ BEGIN TRAN
 COMMIT TRAN
 ```
 
-Primary probe semantics:
+Probe semantics:
 
 ```text
 matching marker -> COMMITTED
@@ -124,87 +72,34 @@ marker absent + independent no-late-commit proof -> NOT_COMMITTED
 
 Marker table is commit evidence, not a distributed lock. Control-plane target-operation CAS remains retry/execution authority.
 
-## Simulated ACK loss vs real fault
+Normal approved Warehouse execution may simulate framework ACK loss after successful transaction return. That proves deterministic recovery logic only; it does not prove a real driver/network COMMIT disconnect.
 
-Normal approved Warehouse runner may deliberately simulate **framework ACK loss after transaction return** to prove recovery behavior.
-
-That is not evidence that a real driver/network COMMIT disconnect occurred.
-
-Real ambiguous-COMMIT evidence is a separate check kind and requires:
-
-```text
-actual execution exception
-verified provider-specific fault identity
-matching marker -> COMMITTED
-journal -> SUCCEEDED
-later claim -> SKIP_SUCCEEDED
-```
-
-Normal return can never PASS that check.
+Real ambiguous-COMMIT evidence requires an actual execution exception, verified provider-specific fault identity, matching marker COMMITTED, journal SUCCEEDED and later SKIP_SUCCEEDED.
 
 ## Session-termination absence proof
 
-A narrow Fabric-specific path can establish `NOT_COMMITTED` only when all facts hold:
+A Fabric-specific absence path can establish `NOT_COMMITTED` only when all facts hold:
 
 ```text
 exact target connection_id + session_id captured before mutation
-same exact session is still observable after ambiguity
+same exact session observable after ambiguity
 open_transaction_count > 0
-independent Admin-capable authority KILLs exact session
-exact connection/session is no longer observable
-marker is re-read after termination
+independent Admin-capable authority terminates exact session
+exact connection/session no longer observable
+marker re-read after termination
 marker remains absent
 ```
 
-Fail closed:
+Anything ambiguous remains `UNRESOLVED`. Session termination authorization is separate from ordinary Warehouse execution and fault-injection authorization.
 
-```text
-session already gone before inspection -> UNRESOLVED
-open_transaction_count == 0            -> UNRESOLVED
-identity mismatch                      -> UNRESOLVED
-DMV/KILL/post-check exception           -> UNRESOLVED; exception type only
-session remains visible                 -> UNRESOLVED
-post-KILL marker read failure           -> UNRESOLVED
-marker appears during race              -> NOT_COMMITTED forbidden
-```
-
-Query Insights is secondary correlation only; eventual completed-query visibility cannot prove immediate no-late-commit absence.
-
-## Approved session-termination wiring
-
-Admin authority is separate from ordinary Warehouse execution.
-
-Required separation:
-
-```text
-ordinary Warehouse DB URL env-var name != Admin Warehouse DB URL env-var name
-fault-injection authorization != session-termination authorization
-```
-
-Admin URL value may be read only on:
-
-```text
-actual execution exception
-+ session binding captured
-+ fault disarmed
-+ fault verified
-+ fault identity matched
-+ first marker probe UNRESOLVED
-+ journal UNKNOWN
-```
-
-If marker is already COMMITTED, do not read Admin credential and do not construct Admin authority.
-
-If session termination proves safe absence:
+If safe absence is proven:
 
 ```text
 UNKNOWN -> NOT_COMMITTED
 retry_eligible = true
 ```
 
-Do not automatically re-claim/re-execute in the same runner.
-
-This operational recovery does not PASS the committed ambiguous-COMMIT evidence check.
+Do not automatically re-execute in the same runner. This recovery result does not PASS the committed ambiguous-COMMIT evidence check.
 
 ## Evidence system
 
@@ -219,7 +114,7 @@ EXTERNAL_REQUIRED
 
 Required checks certify only on PASS.
 
-Strict merge semantics:
+Strict integration merge semantics:
 
 ```text
 NOT_RUN = absence
@@ -232,6 +127,60 @@ failed/conflicting merge must not clobber output
 
 Exact spec/environment/domain/framework/release/check list must match.
 
+## Exact framework vs customer/domain release identity
+
+Framework binary identity and customer/domain release identity are independent and must never be conflated:
+
+```text
+candidate_git_sha
+  = exact framework source commit
+
+framework wheel SHA256
+  = IntegrationEvidence.release_hash
+  = ApprovedIntegrationRunnerConfig.framework_artifact_sha256
+
+customer/domain ReleaseManifest.bundle.release_hash
+  = IntegrationEvidence.domain_release_hash
+  = ApprovedIntegrationRunnerConfig.release_hash
+```
+
+A candidate integration manifest from one customer/domain release must not be merged, certified or reused for another domain release even when the framework candidate wheel is identical.
+
+Before immutable 0.4 promotion, complete non-integration release proof must also be machine-bound to the same `domain_release_hash`; references alone are not sufficient.
+
+## Customer owns representative physical business bindings
+
+Framework owns execution/evidence HOW; the customer/domain repository owns business WHAT.
+
+Therefore the exact candidate `fabric.pipeline` physical binding carries the customer-selected representative `dataset_id`. The framework candidate integration workflow may validate that binding, but it must not choose a business dataset via an ad hoc workflow input.
+
+The same ownership principle applies to customer DatasetConfig, exact business-path plan/scenarios, run recipes and bounded extension artifacts.
+
+## Candidate integration producer
+
+`.github/workflows/candidate-integration-evidence.yml` is orchestration around existing approved runners. It may authenticate inputs, execute approved commands, strict-merge partial manifests, and validate an already-produced PASS.
+
+It must never synthesize provider truth or construct `IntegrationEvidenceCheckResult(PASS)` directly.
+
+Required staged order:
+
+```text
+read-only item identity
+-> production control-plane certification
+-> base prerequisite merge
+-> Pipeline / Copy / Spark
+-> normal Warehouse target+marker
+-> fault prerequisite merge
+-> real ambiguous-COMMIT drill
+-> strict certified merge
+-> certified validation
+-> upload
+```
+
+General live mutation permission and Admin-level Warehouse session-termination permission remain separate.
+
+A merged/green producer workflow is not live Fabric evidence.
+
 ## Release-readiness identity and scope
 
 Release readiness is a separate aggregation layer over retained proof. It never executes Fabric and never invents missing evidence.
@@ -243,8 +192,9 @@ framework version
 + exact 40-character candidate source SHA
 + successful main candidate workflow run ID/attempt
 + exact inner candidate wheel SHA256
++ exact customer/domain release hash
 + retained ReleaseReadinessProofBundle
-+ retained IntegrationEvidenceManifest whose release_hash == exact wheel SHA256
++ retained IntegrationEvidenceManifest
 ```
 
 Non-negotiable rules:
@@ -255,17 +205,16 @@ required NOT_RUN or FAIL -> release blocker
 required OUT_OF_SCOPE -> FAIL/blocker
 optional OUT_OF_SCOPE -> allowed only when release scope explicitly excludes that capability
 release_ready=true iff every required gate is PASS
-integration-backed readiness gate cannot be satisfied by a generic/manual proof entry
-proof from one candidate source SHA cannot certify another candidate
-integration evidence from one wheel SHA cannot certify a rebuilt/different wheel
+integration-backed readiness gate cannot be satisfied by generic/manual proof
+proof from one candidate source/wheel cannot certify another candidate
+integration evidence from one framework wheel or domain release cannot certify another
 GitHub artifact archive digest is not the inner wheel SHA256
-same source version or same git SHA does not authorize evidence reuse across different artifact bytes
 provider Completed does not satisfy semantic/business-path readiness gates
 ```
 
-The source-controlled 0.4 matrix currently keeps Debezium/Kafka optional. If the public 0.4 GA promise is changed to include live Debezium/Kafka certification, that gate must become required **before** final evidence review and release.
+Debezium/Kafka remains optional in the 0.4 matrix unless explicitly promoted into GA scope before final evidence review.
 
-A green CI job that generates an intentionally blocked readiness report proves only the fail-closed aggregator contract. It does not make the candidate release-ready.
+A green ordinary CI job that generates an intentionally blocked readiness report proves only the fail-closed aggregator contract.
 
 ## Exact candidate artifact promotion
 
@@ -277,82 +226,40 @@ Required invariant:
 main CI builds exact wheel
 -> CANDIDATE.json binds source SHA + workflow run/attempt + inner wheel SHA256
 -> certification consumes that exact wheel
--> IntegrationEvidenceManifest.release_hash == that exact inner wheel SHA256
+-> integration evidence binds exact wheel SHA256 + exact domain release hash
 -> release-readiness required blockers == 0
--> release workflow downloads and verifies that same wheel
--> immutable tag is created at the exact candidate source SHA
--> the same certified wheel bytes are published
+-> release workflow downloads/verifies same wheel
+-> immutable tag is created at exact candidate source SHA
+-> same certified wheel bytes are published
 ```
 
-Fail closed:
+Fail closed on candidate provenance mismatch, byte/hash mismatch, missing/expired artifact, missing/mismatched certified readiness, non-zero blockers, any required gate not PASS, or existing immutable tag/release.
 
-```text
-release workflow must not rebuild the wheel
-release workflow must not publish from tag-push alone
-candidate must come from successful main push CI
-candidate run head SHA must equal selected candidate SHA
-candidate manifest run/SHA/version/hash mismatch -> refuse release
-wheel byte/hash mismatch -> refuse release
-missing/expired candidate artifact -> refuse release; never rebuild
-missing/mismatched certified readiness artifact -> refuse release
-release_ready != true or blockers != [] -> refuse release
-any required readiness result != PASS -> refuse release
-existing tag/release -> refuse overwrite/reuse
-```
+The release workflow must never rebuild the wheel.
 
-Candidate artifact verification is intentionally standard-library-only so downloaded bytes can be authenticated before installing/trusting the candidate wheel itself.
-
-A main CI candidate artifact is only a releasable **input**. It is not a frozen candidate and is not evidence of live Fabric certification until it is explicitly selected and bound to retained certification evidence.
+A main CI candidate artifact is only a releasable input. It is not automatically selected/frozen or live-certified.
 
 ## Credential/evidence safety
 
-Source-controlled approved-run config may store env-var **names**, never secret values.
-
-Retained reports/manifests must reject credential-like material.
-
-Provider/driver exceptions stored in durable evidence should retain exception type/stable code only, not arbitrary raw provider text.
+Source-controlled approved-run config may store env-var **names**, never secret values. Retained reports/manifests must reject credential-like material. Provider exceptions retained as evidence should keep stable type/code, not arbitrary secret-bearing raw text.
 
 ## Production runtime
 
 Runtime never silently migrates/provisions production control-plane schema or Warehouse marker schema.
 
-Released immutable artifact remains complete DatasetConfig semantic truth.
-
-SQL control plane stores deployed metadata/config identity plus runtime/evidence state; it does not replace source-controlled config.
+Released immutable artifact remains complete DatasetConfig semantic truth. SQL control plane stores deployed metadata/config identity plus runtime/evidence state; it does not replace source-controlled config.
 
 ## CLI/package dependency boundary
 
-The command-line interface is a leaf presentation layer under:
-
-```text
-src/fabric_data_framework/cli/
-```
-
-Required dependency direction:
+The CLI is a leaf presentation layer under `src/fabric_data_framework/cli/`:
 
 ```text
 CLI -> reusable framework core
 reusable framework core -X-> CLI
 ```
 
-Core semantics/runtime/provider/recovery/evidence/deployment modules must never import `fabric_data_framework.cli`.
-
-Physical removal of the `cli/` directory is allowed to remove the console command, but must not make the reusable package core unimportable or unusable through Python APIs.
-
-The removed root `src/fabric_data_framework/cli_router.py` compatibility path must remain absent. Do not reintroduce root-level CLI shims or command/business implementation.
-
-New reusable logic belongs outside `cli/`; command handlers should only parse arguments, call reusable APIs, and render/write results.
+Core semantics/runtime/provider/recovery/evidence/deployment modules must never import the CLI. Removed root compatibility shims must remain absent.
 
 ## Evidence vocabulary discipline
 
-Use CI/reference labels for deterministic implementation proof.
-
-Only use live labels such as:
-
-```text
-FABRIC PROVEN
-FABRIC WAREHOUSE PROVEN
-PRODUCTION DB PROVEN
-```
-
-after retained approved real-service execution for the exact release candidate and exact certified artifact.
+Use CI/reference labels for deterministic implementation proof. Only use `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN`, `PRODUCTION DB PROVEN`, or equivalent live labels after retained approved real-service execution for the exact framework candidate and exact customer/domain release.

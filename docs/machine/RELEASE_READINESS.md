@@ -41,7 +41,7 @@ candidate-certification combines complete release proofs + the same certified in
 framework-release promotes the exact already-certified bytes
 ```
 
-The business-path stage intentionally comes **after** certified integration evidence because its reruns reuse already-proven Fabric identity, control-plane, and Pipeline prerequisites.
+The business-path stage intentionally comes **after** certified integration evidence because its reruns reuse already-proven Fabric identity, control-plane and Pipeline prerequisites.
 
 ## Exact identities
 
@@ -73,33 +73,21 @@ ApprovedIntegrationRunnerConfig.release_hash
 
 These SHA256 values are independent. GitHub artifact ZIP digest is transport metadata only and cannot substitute for either.
 
-## Candidate artifact identity
+## Latest merged candidate-capable artifact
 
-Main CI retains:
-
-```text
-fabric_data_framework-<version>-py3-none-any.whl
-SHA256SUMS
-CANDIDATE.json
-```
-
-`CANDIDATE.json` binds source SHA, version, main workflow run ID/attempt, wheel filename and exact inner wheel SHA256. The candidate verifier authenticates those bytes before installation.
-
-Latest **merged-main** candidate-capable baseline remains PR #88:
+PR #90 is the current merged-main baseline:
 
 ```text
-merge SHA         1632aefe8c1fd71098200c434a1648d0385f4967
-PR CI             33346419772
-main CI           33346470401
-tests             717
-wheel SHA256      9c813a2c23344c55409ac5f4f7e879d4515196987835bee6473d54ff3a1e027f
-artifact ID       9742145456
+merge SHA         7e12a320e73aa06f3e80f57e3deed14a6cc7add0
+final PR CI       33349005817
+main CI           33349064335
+tests             728
+wheel SHA256      dbc9b0cbcc73598c94ae67c4798ba9eefdf6ba203a6169ff61088a9d1757c3b8
+artifact ID       9742969993
 selected/frozen   false
 ```
 
-This artifact is candidate-capable only. It is neither selected/frozen nor live-certified.
-
-PR #90 is newer feature-branch release-blocker work. Its PR CI run `33347382522` is green with **727 passed**, Python 3.11/3.13 success, wheel success and fail-closed readiness success. Until merge plus independent main CI, #90 is **PR CI PROVEN / PENDING MERGE**.
+Main CI retains the exact wheel, `SHA256SUMS`, and `CANDIDATE.json`. The artifact is candidate-capable only; it is neither selected/frozen nor live-certified.
 
 ## Readiness evidence ownership
 
@@ -131,7 +119,7 @@ optional external.cdc.debezium
 
 Generic release proof cannot satisfy an integration-backed gate.
 
-## Strict partial release-proof merge
+## Strict partial release-proof merge — merged PR #86
 
 Canonical implementation:
 
@@ -140,7 +128,7 @@ src/fabric_data_framework/evidence/release_readiness_merge.py
 fabric-framework release-proofs-merge
 ```
 
-Merged PR #86 established:
+Rules:
 
 ```text
 exact schema/version/candidate/wheel identity required
@@ -152,11 +140,10 @@ two different PASS records = conflict
 unknown gate/kind drift = reject
 integration-backed gate injection = reject
 credential-like retained text = reject
+no latest/PASS/FAIL/timestamp precedence
 ```
 
-There is no latest/PASS/FAIL/timestamp precedence.
-
-## Candidate integration evidence — PR #90
+## Candidate integration evidence — merged PR #90
 
 Workflow:
 
@@ -164,7 +151,7 @@ Workflow:
 .github/workflows/candidate-integration-evidence.yml
 ```
 
-State: **PR CI PROVEN / PENDING MERGE**. PR CI run `33347382522` completed successfully with 727 tests. No live Fabric run or certified integration artifact has been retained.
+State: **MERGED + MAIN CI PROVEN** as a portable workflow contract. Final PR CI `33349005817` and main CI `33349064335` succeeded with 728 tests. There is no retained live Fabric integration artifact yet.
 
 The workflow is manual exact-candidate orchestration. It authenticates the framework candidate source/main run/wheel bytes and exact customer SHA/input-producer run before executing any provider mutation. It materializes `release/0.4.0/integration-evidence-template.json` with:
 
@@ -179,25 +166,25 @@ domain_release_hash = exact customer/domain ReleaseManifest.bundle.release_hash
 It then reuses only existing approved commands for:
 
 ```text
-fabric.item.read          -> integration-item-smoke-run
-control.cert              -> integration-control-plane-certify-run
-fabric.pipeline           -> integration-pipeline-run
-fabric.copy               -> integration-capture-run
-fabric.spark              -> integration-capture-run
-warehouse.commit          -> integration-warehouse-run
-warehouse.ambiguous_commit-> integration-warehouse-fault-drill-run
+fabric.item.read           -> integration-item-smoke-run
+control.cert               -> integration-control-plane-certify-run
+fabric.pipeline            -> integration-pipeline-run
+fabric.copy                -> integration-capture-run
+fabric.spark               -> integration-capture-run
+warehouse.commit           -> integration-warehouse-run
+warehouse.ambiguous_commit -> integration-warehouse-fault-drill-run
 ```
 
-Partial manifests are strict-merged. The final producer must pass both:
+Partial manifests are strict-merged. Final publication requires:
 
 ```text
 integration-evidence-merge --require-certified
 integration-evidence-validate --require-certified
 ```
 
-before upload. The workflow does not construct integration PASS results. Reading an already-produced PASS from the final manifest is permitted only for final identity/membership validation.
+The workflow does not construct integration PASS results. Reading an approved runner's finished PASS result is allowed only for final validation.
 
-The producer requires exact customer-owned inputs:
+The exact customer input artifact must own:
 
 ```text
 ReleaseManifest
@@ -212,7 +199,7 @@ control-plane external evidence references
 fingerprinted customer extension wheels
 ```
 
-`IntegrationCheckPhysicalBinding.dataset_id` is optional generally but required by the candidate integration workflow for the representative `fabric.pipeline` binding. This keeps the business dataset choice in the customer/domain repo rather than in framework workflow inputs.
+`IntegrationCheckPhysicalBinding.dataset_id` is optional generally but required by the candidate integration producer for the representative `fabric.pipeline` binding. This keeps business dataset selection in the customer/domain repository rather than framework workflow inputs.
 
 Mutation authorization remains layered:
 
@@ -228,7 +215,7 @@ Optional Debezium/Kafka remains outside required 0.4 scope unless promoted.
 
 ## Explicit Pipeline rerun prerequisite — merged PR #88
 
-Approved provider runners reject silent reruns when a selected check already has substantive evidence. Representative business paths deliberately rerun a Pipeline, so they must not mutate or overwrite the original certified integration manifest.
+Representative business paths deliberately rerun a Pipeline but must not mutate or overwrite the original certified integration manifest.
 
 Canonical projection:
 
@@ -252,8 +239,6 @@ source certified manifest remains unchanged
 result is intentionally no longer certified
 ```
 
-The projected prerequisite still requires retained PASS Fabric item and control-plane evidence before the business-path runner may execute.
-
 ## Candidate business-path evidence — merged PR #88
 
 Workflow:
@@ -262,18 +247,9 @@ Workflow:
 .github/workflows/candidate-business-path-evidence.yml
 ```
 
-Portable workflow/runner contract state: **MERGED + MAIN CI PROVEN**.
+State: **MERGED + MAIN CI PROVEN** as a portable contract, with no live retained run.
 
-PR #88 provenance:
-
-```text
-merge SHA   1632aefe8c1fd71098200c434a1648d0385f4967
-PR CI       33346419772
-main CI     33346470401
-tests       717
-```
-
-It authenticates exact framework candidate/run/wheel, exact customer SHA + customer input producer run, exact certified integration producer run, exact domain release, exact five-gate plan/scenario/driver/plugin bytes, and invokes the approved framework runner for exactly:
+It authenticates exact framework candidate/run/wheel, exact customer SHA/input-producer run, exact certified integration producer run, exact domain release, exact five-gate plan/scenario/driver/plugin bytes, then invokes the approved framework runner for exactly:
 
 ```text
 full.replace
@@ -283,7 +259,7 @@ retry.idempotency
 reconciliation.fail_closed
 ```
 
-The workflow contains no direct construction of business-gate PASS proof. PASS belongs only to the framework evaluator after provider/outcome/state facts satisfy the contract. There is **no successful live business-path run retained yet**.
+The workflow cannot directly construct business-gate PASS. PASS belongs only to the framework evaluator after provider/outcome/state facts satisfy the contract.
 
 ## Candidate release-proof producer — merged PR #87
 
@@ -292,8 +268,6 @@ Workflow:
 ```text
 .github/workflows/candidate-release-proofs.yml
 ```
-
-State: **MERGED + MAIN CI PROVEN**.
 
 It directly creates PASS only for facts it re-verifies itself:
 
@@ -315,7 +289,7 @@ fabric-framework candidate-certify
 .github/workflows/candidate-certification.yml
 ```
 
-Candidate certification is aggregation only. It accepts exact successful producer runs, re-authenticates candidate bytes, validates proof safety and identity, requires fully certified integration evidence, runs final readiness aggregation, and uploads a certified artifact only when:
+Candidate certification is aggregation only. It re-authenticates exact candidate bytes, validates proof safety/identity, requires fully certified integration evidence, and accepts only when:
 
 ```text
 release_ready = true
@@ -325,11 +299,13 @@ every required readiness gate = PASS
 
 Certification does not execute Fabric or build/tag/release.
 
-### Remaining identity hardening before freeze
+## Remaining domain identity hardening before freeze
 
-The final non-integration `ReleaseReadinessProofBundle` currently binds framework version, candidate source SHA and exact wheel SHA256, while the certified integration manifest independently carries `domain_release_hash`.
+The current `ReleaseReadinessProofBundle` machine identity binds framework version, candidate source SHA and exact wheel SHA256. The certified integration manifest separately carries `domain_release_hash`.
 
-Before selecting/freezing a 0.4 candidate, the final release-proof/certification path must machine-bind the same exact customer/domain release identity instead of relying only on indirect retained references. This is a release blocker, not an optional enhancement.
+Before selecting/freezing a 0.4 candidate, the final release-proof/certification path must machine-bind the same exact customer/domain release identity. A complete non-integration proof bundle must not be pairable with integration evidence from a different domain release merely because retained references appear compatible.
+
+This is a required release blocker, not a new product feature.
 
 ## Required readiness matrix
 
@@ -382,8 +358,8 @@ candidate                          NOT YET FROZEN
 ordinary readiness blockers        15
 strict partial proof merge         MERGED + MAIN CI PROVEN (#86)
 candidate-release-proofs           MERGED + MAIN CI PROVEN (#87)
-candidate-business-path-evidence   MERGED + MAIN CI PROVEN contract (#88); no live run
-candidate-integration-evidence     PR CI PROVEN / PENDING MERGE (#90); no live run
+candidate-business-path-evidence   MERGED + MAIN CI PROVEN (#88); no live run
+candidate-integration-evidence     MERGED + MAIN CI PROVEN (#90); no live run
 customer business-path inputs      NOT YET IMPLEMENTED / NOT RETAINED
 release-proof/domain hash binding  REQUIRED BEFORE CANDIDATE FREEZE
 certified readiness artifact       NOT YET PRODUCED
@@ -392,9 +368,9 @@ certified readiness artifact       NOT YET PRODUCED
 ## Next order
 
 ```text
-1. finish PR #90 docs/final CI, merge and verify main CI
-2. implement exact fabric-customer business-path/integration input producer and bounded live extensions
-3. hard-bind domain_release_hash across final release proof/candidate certification
+1. implement exact fabric-customer business-path/integration input producer and bounded live extensions
+2. hard-bind domain_release_hash across final release proof/candidate certification
+3. validate both contracts fail closed
 4. only then select/freeze one exact candidate
 5. produce certified integration evidence for exact wheel + exact domain release
 6. execute five representative live business-path gates

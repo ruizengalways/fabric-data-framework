@@ -5,7 +5,6 @@ Evidence vocabulary:
 ```text
 REFERENCE / CONTRACT       deterministic semantic/runtime implementation
 CI PROVEN                  tests/build succeeded on merged baseline
-PR CI PROVEN               feature branch passed PR CI but is not yet merged-main proven
 RELEASE PROVEN             immutable published artifact/checksum evidence
 FABRIC/PRODUCTION PROVEN   retained approved real-service evidence for exact release
 EXTERNAL                   enterprise/platform control outside this repository
@@ -16,7 +15,7 @@ EXTERNAL                   enterprise/platform control outside this repository
 | Capability | Implementation owner | Current evidence |
 |---|---|---|
 | Immutable DatasetConfig / effective config hashing | `metadata/config.py` | REFERENCE + CI PROVEN |
-| Exact capture/Bronze semantic presets | `capture/semantic_contracts.py` | REFERENCE + CI PROVEN |
+| Capture/Bronze semantic presets | `capture/semantic_contracts.py` | REFERENCE + CI PROVEN |
 | Semantic onboarding overclaim guardrails | `capture/onboarding.py` | REFERENCE + CI PROVEN |
 | FULL/WATERMARK/CDC and SCD1/SCD2 orthogonality | metadata/capture/apply | REFERENCE MODEL + CI PROVEN |
 | APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF | `apply/` | REFERENCE + CI PROVEN |
@@ -32,7 +31,7 @@ Semantic or adapter support is not live provider certification. Capture fidelity
 | Capability | Implementation owner | Current evidence |
 |---|---|---|
 | Non-destructive project scaffold | `deployment/project.py` | REFERENCE + CI PROVEN |
-| `project-init` / `project-validate` | `cli/project.py` + `deployment/project.py` | PRESENTATION/REFERENCE + CI PROVEN |
+| `project-init` / `project-validate` | CLI + deployment project | PRESENTATION/REFERENCE + CI PROVEN |
 | Dependency/cycle/capability validation | `deployment/project.py` | REFERENCE + CI PROVEN fail-closed |
 | Exact semantic-selection coverage / overclaim guard | deployment + capture onboarding | REFERENCE + CI PROVEN fail-closed |
 | Mixed FULL/WATERMARK/CDC + SCD1/SCD2 in one domain repo | DatasetConfig + project contract | REFERENCE MODEL + CI PROVEN |
@@ -66,9 +65,9 @@ No row above is a live Fabric claim until retained exact-candidate execution evi
 
 | Capability | Implementation owner | Current evidence |
 |---|---|---|
-| Evidence spec/result/manifest/hash | `evidence/integration_evidence.py` | IMPLEMENTED + CI PROVEN; framework/domain identity split merged in PR #88 |
-| Approved-run preflight | `evidence/integration_runner.py` | merged dual-identity contract; PR #90 optional Pipeline `dataset_id` is PR CI PROVEN / PENDING MERGE |
-| Strict staged evidence merge | `evidence/integration_evidence_merge.py` | IMPLEMENTED + CI PROVEN; domain hash propagated fail-closed |
+| Evidence spec/result/manifest/hash | `evidence/integration_evidence.py` | IMPLEMENTED + CI PROVEN; framework/domain identity split |
+| Approved-run preflight | `evidence/integration_runner.py` | IMPLEMENTED + CI PROVEN; exact candidate + customer-owned Pipeline dataset binding |
+| Strict staged evidence merge | `evidence/integration_evidence_merge.py` | IMPLEMENTED + CI PROVEN; both exact release identities propagated fail-closed |
 | Explicit Pipeline rerun projection | `evidence/integration_evidence_rerun.py` | IMPLEMENTED + CI PROVEN; source must already be fully certified |
 | Read-only Fabric item smoke | integration runner/checks | IMPLEMENTED + CI PROVEN RUNNER CONTRACT |
 | Control-plane certification runner | `evidence/approved_control_plane_runner.py` | IMPLEMENTED + CI PROVEN RUNNER CONTRACT |
@@ -77,17 +76,19 @@ No row above is a live Fabric claim until retained exact-candidate execution evi
 | Warehouse commit runner | `evidence/approved_warehouse_runner.py` | IMPLEMENTED + CI PROVEN RUNNER CONTRACT |
 | Real ambiguous-COMMIT runner contract | `evidence/approved_warehouse_fault_runner.py` | IMPLEMENTED + CI PROVEN RUNNER CONTRACT |
 | Retained text secret scanning | `evidence/safety.py` | IMPLEMENTED + CI PROVEN fail-closed |
-| Exact candidate integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | PR #90 PR CI PROVEN / PENDING MERGE; no live run |
+| Exact candidate integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | MERGED + MAIN CI PROVEN PR #90; no live run |
 
-PR #90 producer PR CI provenance:
+PR #90 provenance:
 
 ```text
-run        33347382522
-tests      727
-python311  success
-python313  success
-wheel      success
-readiness  success
+merge SHA      7e12a320e73aa06f3e80f57e3deed14a6cc7add0
+final PR CI    33349005817
+main CI        33349064335
+tests          728
+python 3.11    success
+python 3.13    success
+wheel          success
+readiness      success
 ```
 
 The producer reuses existing approved commands; it does not define alternate provider semantics or construct integration PASS results.
@@ -126,7 +127,7 @@ exact framework/domain identity checks
 credential-safe retained JSON
 ```
 
-PR #90 adds optional `dataset_id` to `IntegrationCheckPhysicalBinding`; exact candidate certification requires the customer-owned `fabric.pipeline` binding to select the representative dataset. General mutation authorization and Admin Warehouse session-termination authorization remain separate.
+`IntegrationCheckPhysicalBinding.dataset_id` is optional generally; the exact candidate producer requires it for the customer-owned `fabric.pipeline` binding. General mutation authorization and Admin Warehouse session-termination authorization remain separate.
 
 A green workflow contract is not live Fabric evidence. No retained exact-0.4 real-service run currently upgrades these surfaces to FABRIC/PRODUCTION PROVEN.
 
@@ -144,19 +145,19 @@ A green workflow contract is not live Fabric evidence. No retained exact-0.4 rea
 | Exact certified wheel promotion without rebuild | `.github/workflows/release.yml` | IMPLEMENTED + CI PROVEN RELEASE CONTRACT |
 | Candidate certification aggregation | `.github/workflows/candidate-certification.yml` | IMPLEMENTED + CI PROVEN WORKFLOW CONTRACT |
 | Candidate non-integration release-proof producer | `.github/workflows/candidate-release-proofs.yml` | MERGED + MAIN CI PROVEN PR #87 |
-| Candidate representative business-path producer | `.github/workflows/candidate-business-path-evidence.yml` | MERGED + MAIN CI PROVEN PR #88 workflow contract |
-| Candidate integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | PR CI PROVEN / PENDING MERGE PR #90 |
+| Candidate representative business-path producer | `.github/workflows/candidate-business-path-evidence.yml` | MERGED + MAIN CI PROVEN PR #88; no live run |
+| Candidate integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | MERGED + MAIN CI PROVEN PR #90; no live run |
 
-Latest **merged-main** candidate-capable baseline:
+Latest merged-main candidate-capable baseline:
 
 ```text
-PR                #88
-merge SHA          1632aefe8c1fd71098200c434a1648d0385f4967
-PR CI              33346419772
-main CI            33346470401
-tests              717
-wheel SHA256       9c813a2c23344c55409ac5f4f7e879d4515196987835bee6473d54ff3a1e027f
-candidate artifact 9742145456
+PR                #90
+merge SHA          7e12a320e73aa06f3e80f57e3deed14a6cc7add0
+final PR CI        33349005817
+main CI            33349064335
+tests              728
+wheel SHA256       dbc9b0cbcc73598c94ae67c4798ba9eefdf6ba203a6169ff61088a9d1757c3b8
+candidate artifact 9742969993
 selected/frozen    false
 ```
 
@@ -173,7 +174,7 @@ That wheel is candidate-capable only. It is not frozen, certified, or release-pr
 | Explicit rerun projection from certified integration evidence | `evidence/integration_evidence_rerun.py` | IMPLEMENTED + CI PROVEN PR #88 |
 | Approved business-path runner | `evidence/approved_business_path_runner.py` | IMPLEMENTED + CI PROVEN PR #88 |
 | `candidate-business-path-run` CLI | `cli/business_path.py` | PRESENTATION + CI PROVEN PR #88 |
-| Candidate business-path producer workflow | `.github/workflows/candidate-business-path-evidence.yml` | MERGED + MAIN CI PROVEN WORKFLOW CONTRACT PR #88 |
+| Candidate business-path producer workflow | `.github/workflows/candidate-business-path-evidence.yml` | MERGED + MAIN CI PROVEN PR #88; no live run |
 | Customer business-path/integration input producer | `fabric-customer/.github/workflows/candidate-business-path-inputs.yml` | NOT YET IMPLEMENTED |
 
 The framework contains no retained live business-path PASS evidence.
@@ -194,16 +195,16 @@ ApprovedIntegrationRunnerConfig.release_hash
   = exact customer/domain ReleaseManifest.bundle.release_hash
 ```
 
-Candidate mode must match both independently. These hashes are not interchangeable. Legacy/reference runner configs remain compatible only when `domain_release_hash` is absent.
+Candidate mode must match both independently. These hashes are not interchangeable. Legacy/reference runner configs remain compatibility-only when `domain_release_hash` is absent.
 
 ## Real proof / release work still missing
 
 | Proof / capability | State |
 |---|---|
 | Frozen exact 0.4 candidate | NOT YET |
-| Candidate integration-evidence workflow | PR CI PROVEN / PENDING MERGE PR #90; NO LIVE RUN |
+| Candidate integration-evidence workflow | MERGED + MAIN CI PROVEN PR #90; NO LIVE RUN |
 | Customer business-path/integration input workflow/artifacts | NOT YET IMPLEMENTED / NOT RETAINED |
-| Candidate business-path harness/workflow | MERGED + MAIN CI PROVEN; no live retained run |
+| Candidate business-path workflow | MERGED + MAIN CI PROVEN; no live retained run |
 | `release-readiness-certified-<candidate SHA>` | NOT YET PRODUCED |
 | Enterprise Fabric identity/workspace authorization | NOT YET RETAINED |
 | Production control-plane certification | NOT YET RETAINED |
