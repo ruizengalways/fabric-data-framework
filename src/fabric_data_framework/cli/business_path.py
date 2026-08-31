@@ -22,6 +22,9 @@ from ..evidence.integration_evidence import (
     load_integration_evidence_manifest,
     load_integration_evidence_spec,
 )
+from ..evidence.integration_evidence_rerun import (
+    prepare_explicit_pipeline_rerun_prerequisite,
+)
 from ..evidence.integration_runner import load_approved_integration_runner_config
 
 
@@ -32,7 +35,14 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="fabric-framework candidate-business-path-run")
     parser.add_argument("--runner-config", required=True)
     parser.add_argument("--integration-spec", required=True)
-    parser.add_argument("--prerequisite-manifest", required=True)
+    parser.add_argument(
+        "--certified-integration-evidence",
+        required=True,
+        help=(
+            "Fully certified exact-release IntegrationEvidenceManifest. The command creates "
+            "a new explicit Pipeline-rerun prerequisite; it never mutates this source artifact."
+        ),
+    )
     parser.add_argument("--release-manifest", required=True)
     parser.add_argument("--config-dir", required=True)
     parser.add_argument("--scenario", required=True)
@@ -67,8 +77,13 @@ def _run(argv: list[str]) -> int:
     try:
         runner_config = load_approved_integration_runner_config(args.runner_config)
         integration_spec = load_integration_evidence_spec(args.integration_spec)
-        prerequisite_manifest = load_integration_evidence_manifest(
-            args.prerequisite_manifest
+        certified_integration = load_integration_evidence_manifest(
+            args.certified_integration_evidence
+        )
+        prerequisite_manifest = prepare_explicit_pipeline_rerun_prerequisite(
+            integration_spec,
+            certified_integration,
+            check_id=args.pipeline_check_id,
         )
         release_manifest = load_release_manifest(args.release_manifest)
         configs = load_dataset_configs(args.config_dir)
