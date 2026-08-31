@@ -96,7 +96,7 @@ These hashes must never be assumed equal.
 | Exact candidate source/wheel readiness binding | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN fail-closed |
 | Exact customer/domain readiness binding | `evidence/release_readiness.py` | MERGED + MAIN CI PROVEN PR #92 |
 | Generic proof cannot bypass integration-backed gate | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN fail-closed |
-| Strict partial release-proof merge | `evidence/release_readiness_merge.py` | MERGED PR #86; exact domain identity extension MAIN CI PROVEN PR #92 |
+| Strict partial release-proof merge | `evidence/release_readiness_merge.py` | MERGED PR #86; exact domain identity MAIN CI PROVEN PR #92 |
 | `release-readiness` / `release-proofs-merge` | `cli/release.py` | PRESENTATION + CI PROVEN |
 | Exact candidate wheel manifest | `deployment/candidate_artifact.py` | IMPLEMENTED + CI PROVEN fail-closed |
 | Main CI wheel + SHA256SUMS + CANDIDATE.json | `.github/workflows/ci.yml` | IMPLEMENTED + CI PROVEN |
@@ -105,8 +105,9 @@ These hashes must never be assumed equal.
 | Candidate non-integration release-proof producer | `.github/workflows/candidate-release-proofs.yml` | MERGED baseline PR #87; domain hardening MAIN CI PROVEN PR #92 |
 | Candidate representative business-path producer | `.github/workflows/candidate-business-path-evidence.yml` | MERGED + MAIN CI PROVEN PR #88; no live run |
 | Candidate integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | MERGED + MAIN CI PROVEN PR #90; no live run |
+| Obsolete runner-level unbound business proof path | `evidence/approved_business_path_runner.py` | REMOVED + MAIN CI PROVEN PR #94 |
 
-Regression context:
+Key release milestones:
 
 ```text
 strict proof merge PR #86:
@@ -118,10 +119,16 @@ candidate release-proof PR #87:
   main CI   33343223496
 
 exact domain binding PR #92:
-  merge SHA d5eed17f2ec2f869b4e3a448597e6d8d600568ea
-  final PR CI 33356959856
-  main CI     33357032461
-  tests       734
+  merge SHA     d5eed17f2ec2f869b4e3a448597e6d8d600568ea
+  final PR CI   33356959856
+  main CI       33357032461
+  tests         734
+
+unbound proof cleanup PR #94:
+  merge SHA     abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
+  final PR CI   33357795244
+  main CI       33357846835
+  tests         738
 ```
 
 Ordinary CI remains intentionally `release_ready=false` with 15 required blockers.
@@ -133,20 +140,31 @@ Ordinary CI remains intentionally `release_ready=false` with 15 required blocker
 | Five-gate semantic evidence evaluator | `evidence/business_path_evidence.py` | IMPLEMENTED + CI PROVEN PR #88 |
 | Mutating fixture/fault driver with no PASS field | `evidence/business_path_driver.py` | IMPLEMENTED + CI PROVEN PR #88 |
 | Exact five-gate source-controlled plan | `evidence/business_path_plan.py` | IMPLEMENTED + CI PROVEN |
-| Approved business-path runner | `evidence/approved_business_path_runner.py` | IMPLEMENTED + CI PROVEN PR #88 |
-| Exact domain-bound business-path proof packaging | `evidence/business_path_release_proof.py` | MERGED + MAIN CI PROVEN PR #92 |
-| `candidate-business-path-run` CLI | `cli/business_path.py` | PRESENTATION + CI PROVEN |
+| Approved business-path runner | `evidence/approved_business_path_runner.py` | IMPLEMENTED + CI PROVEN; report-only boundary MAIN CI PROVEN PR #94 |
+| Exact domain-bound business-path proof packaging | `evidence/business_path_release_proof.py` | MERGED + MAIN CI PROVEN PR #92; sole packaging owner enforced PR #94 |
+| `candidate-business-path-run` CLI | `cli/business_path.py` | PRESENTATION + CI PROVEN; always supplies exact ReleaseManifest |
 | Candidate business-path producer workflow | `.github/workflows/candidate-business-path-evidence.yml` | MERGED + MAIN CI PROVEN PR #88; no live run |
 | Customer business-path/integration input producer | `fabric-customer/.github/workflows/candidate-business-path-inputs.yml` | MERGED + CUSTOMER MAIN CI PROVEN PR #10/#11; no selected-candidate artifact retained |
 
-PR #88 regression context:
+The runner does not construct `ReleaseReadinessProofBundle`. Candidate proof packaging is owned by `business_path_release_proof.py`, which requires the exact customer `ReleaseManifest`. `release_readiness_merge.py` rejects missing candidate `domain_release_hash` and requires the same value across all partial bundles.
+
+Exact-wheel scan of the PR #94 main artifact found only those two bundle construction owners.
+
+The framework contains no retained live business-path PASS evidence.
+
+## Current candidate-capable main artifact
 
 ```text
-source SHA 1632aefe8c1fd71098200c434a1648d0385f4967
-main CI    33346470401
+source SHA       abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
+main CI          33357846835
+wheel SHA256     d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7
+artifact ID      9745697101
+selected/frozen  false
 ```
 
-Customer input contract context:
+This is candidate-capable only, not a selected/frozen candidate.
+
+## Customer input contract context
 
 ```text
 PR #10 merge                 cda90f1c02fc9606aa64d2d1bd13f2ab89628aab
@@ -154,36 +172,6 @@ PR #11 checkpoint            31f3f506bc1c16a445652de2ad48fe512cfec10a
 customer main CI             33353960915
 customer certification CI    33353960906
 production runtime pin       fabric-data-framework==0.3.0
-```
-
-The framework contains no retained live business-path PASS evidence.
-
-## Exact domain-release identity chain — PR #92
-
-Candidate evidence uses independent framework and domain machine identities all the way to promotion:
-
-```text
-framework identity:
-  candidate_git_sha
-  artifact_sha256 / IntegrationEvidence.release_hash
-
-domain identity:
-  ReleaseManifest.bundle.release_hash
-  ReleaseReadinessProofBundle.domain_release_hash
-  ReleaseReadinessReport.domain_release_hash
-  IntegrationEvidence.domain_release_hash
-```
-
-`candidate-release-proofs` cannot accept domain identity directly from workflow input. It authenticates `customer-release-manifest.json` retained by the business-path producer, then creates static proof with that same hash. Candidate certification rejects mismatch, and release promotion re-checks report/proofs/integration equality before tag creation.
-
-Latest candidate-capable main wheel after PR #92:
-
-```text
-source SHA       d5eed17f2ec2f869b4e3a448597e6d8d600568ea
-main CI          33357032461
-wheel SHA256     5aa82d6befa3d5abe5d212d875721e6ae9e3e4bc4d67fd5b4cdd1a32d9e16701
-artifact ID      9745451533
-selected/frozen  false
 ```
 
 ## Real proof / release work still missing
