@@ -135,19 +135,35 @@ def test_domain_release_binding_docs_keep_pr92_as_merged_identity_milestone():
         assert phrase not in combined
 
 
-def test_pr94_is_current_code_and_candidate_capable_artifact_baseline():
+def test_pr97_is_current_code_and_candidate_capable_artifact_baseline():
     combined = _combined()
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
 
-    assert "pull_request: 94" in state
-    assert "abc8b3a2b80b3f6babf88fdc2347a3bfe69be356" in combined
-    assert "33357795244" in combined
-    assert "33357846835" in combined
-    assert "738" in combined
-    assert "d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7" in combined
-    assert "9745697101" in combined
+    assert "pull_request: 97" in state
+    assert "3b39448fcefbeba7a66469c847542c3255e462ff" in combined
+    assert "33377064054" in combined
+    assert "33377208722" in combined
+    assert "748" in combined
+    assert "5d0c2f1f4348543bb8b9da0748788cc68b3ccbfed96fd73cec11ad7f475c0517" in combined
+    assert "9752314929" in combined
     assert "selected_as_frozen_candidate: false" in state
     assert "readiness_required_blockers: 15" in state
+
+    # PR #94 remains a historical identity-chain baseline, but is no longer current.
+    assert "pull_request: 94" in state
+    assert "abc8b3a2b80b3f6babf88fdc2347a3bfe69be356" in combined
+    assert "d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7" in combined
+
+
+def test_manual_admin_certification_boundary_is_explicit():
+    state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
+    assert ".github/workflows/candidate-admin-certification.yml" in state
+    assert "candidate_manifest_auto_identity: true" in state
+    assert "github_admin_override_requires_fabric_connectivity: false" in state
+    assert "admin_override_record_retained: false" in state
+    assert "admin_override_fabricates_missing_live_evidence: false" in state
+    assert "existing_framework_release_accepts_admin_override_as_release_readiness: false" in state
+    assert "existing_evidence_based_candidate_certification_unchanged: true" in state
 
 
 def test_business_path_runner_cannot_be_documented_as_candidate_proof_packager():
