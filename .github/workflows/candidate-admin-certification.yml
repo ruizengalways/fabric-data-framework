@@ -1,0 +1,194 @@
+name: candidate-admin-certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: "Successful main framework-ci run; SHA/version/wheel hash are auto-resolved"
+        required: true
+        type: string
+      environment:
+        description: "Optional environment label, for example DEV/UAT/PROD"
+        required: false
+        default: ""
+        type: string
+      notebook_reference:
+        description: "Optional non-secret Fabric notebook/run reference"
+        required: false
+        default: ""
+        type: string
+      notes:
+        description: "Optional non-secret certification notes"
+        required: false
+        default: ""
+        type: string
+      override_reason:
+        description: "Why administrator certification is accepted without the normal retained evidence chain"
+        required: true
+        type: string
+      confirm_admin_override:
+        description: "I understand this is an explicit administrator override, not evidence-based certification"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: candidate-admin-certification-${{ inputs.candidate_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      CERTIFICATION_ENVIRONMENT: ${{ inputs.environment }}
+      NOTEBOOK_REFERENCE: ${{ inputs.notebook_reference }}
+      CERTIFICATION_NOTES: ${{ inputs.notes }}
+      OVERRIDE_REASON: ${{ inputs.override_reason }}
+      CONFIRM_ADMIN_OVERRIDE: ${{ inputs.confirm_admin_override }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate explicit administrator action
+        run: |
+          python - <<'PY'
+          import os
+
+          run_id = os.environ["CANDIDATE_RUN_ID"]
+          if not run_id.isdigit() or int(run_id) < 1:
+              raise SystemExit("candidate_run_id must be a positive GitHub Actions run ID")
+          if os.environ["CONFIRM_ADMIN_OVERRIDE"].lower() != "true":
+              raise SystemExit("confirm_admin_override=true is required")
+          if not os.environ["OVERRIDE_REASON"].strip():
+              raise SystemExit("override_reason is required")
+          PY
+
+      - name: Resolve exact candidate identity from CI run
+        id: candidate_run
+        run: |
+          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}")"
+          export RUN_JSON
+          python - <<'PY'
+          import json
+          import os
+
+          run = json.loads(os.environ["RUN_JSON"])
+          if run["head_branch"] != "main" or run["event"] != "push":
+              raise SystemExit("admin certification candidate must come from a main push CI run")
+          if run["conclusion"] != "success":
+              raise SystemExit("candidate CI run must be successful")
+          if run["path"] != ".github/workflows/ci.yml":
+              raise SystemExit("candidate_run_id must reference framework ci.yml")
+          print(run["head_sha"])
+          PY
+          CANDIDATE_SHA="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["head_sha"])')"
+          RUN_ATTEMPT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["run_attempt"])')"
+          echo "candidate_sha=${CANDIDATE_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "run_attempt=${RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout exact candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.candidate_run.outputs.candidate_sha }}
+          fetch-depth: 0
+
+      - name: Verify candidate remains reachable from main
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate_run.outputs.candidate_sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${CANDIDATE_SHA}"
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor "${CANDIDATE_SHA}" origin/main
+
+      - name: Download exact candidate artifact
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate_run.outputs.candidate_sha }}
+        run: |
+          rm -rf candidate-dist certified-evidence
+          mkdir -p certified-evidence
+          gh run download "${CANDIDATE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "framework-wheel-${CANDIDATE_SHA}" \
+            --dir candidate-dist
+          test -f candidate-dist/CANDIDATE.json
+          test -f candidate-dist/SHA256SUMS
+
+      - name: Verify exact wheel bytes and auto-resolve long identifiers
+        id: candidate
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate_run.outputs.candidate_sha }}
+          CANDIDATE_RUN_ATTEMPT: ${{ steps.candidate_run.outputs.run_attempt }}
+        run: |
+          python src/fabric_data_framework/deployment/candidate_artifact.py verify \
+            --dist-dir candidate-dist \
+            --manifest candidate-dist/CANDIDATE.json \
+            --candidate-sha "${CANDIDATE_SHA}" \
+            --workflow-run-id "${CANDIDATE_RUN_ID}" \
+            --workflow-run-attempt "${CANDIDATE_RUN_ATTEMPT}"
+          (cd candidate-dist && sha256sum -c SHA256SUMS)
+          python - <<'PY' >> "${GITHUB_OUTPUT}"
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("candidate-dist/CANDIDATE.json").read_text())
+          print(f"framework_version={manifest['framework_version']}")
+          print(f"wheel_sha256={manifest['wheel_sha256']}")
+          PY
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+
+      - name: Install exact candidate wheel
+        run: |
+          python -m pip install candidate-dist/*.whl
+          python -m pip check
+
+      - name: Create explicit admin certification record
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate_run.outputs.candidate_sha }}
+          CANDIDATE_WHEEL_SHA256: ${{ steps.candidate.outputs.wheel_sha256 }}
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.framework_version }}
+        run: |
+          python - <<'PY'
+          import os
+          from fabric_data_framework.evidence.manual_certification import (
+              create_admin_override_record,
+              write_manual_certification_record,
+          )
+
+          record = create_admin_override_record(
+              framework_version=os.environ["FRAMEWORK_VERSION"],
+              candidate_git_sha=os.environ["CANDIDATE_SHA"],
+              artifact_sha256=os.environ["CANDIDATE_WHEEL_SHA256"],
+              environment=os.environ["CERTIFICATION_ENVIRONMENT"] or None,
+              operator=os.environ["GITHUB_ACTOR"],
+              notebook_reference=os.environ["NOTEBOOK_REFERENCE"] or None,
+              notes=os.environ["CERTIFICATION_NOTES"] or None,
+              override_reason=os.environ["OVERRIDE_REASON"],
+              request_release_authorization=True,
+          )
+          if record.status.value != "CERTIFIED":
+              raise SystemExit("administrator override did not produce CERTIFIED status")
+          if not record.release_authorized:
+              raise SystemExit("exact candidate identity was not retained for admin certification")
+          write_manual_certification_record(
+              record, "certified-evidence/manual-certification.json"
+          )
+          print(f"CERTIFIED {record.candidate_git_sha}")
+          print(f"wheel_sha256={record.artifact_sha256}")
+          print(f"missing_fields={list(record.missing_fields)}")
+          PY
+          cp candidate-dist/CANDIDATE.json certified-evidence/CANDIDATE.json
+          cp candidate-dist/SHA256SUMS certified-evidence/SHA256SUMS
+
+      - name: Upload admin certification artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: admin-certification-${{ steps.candidate_run.outputs.candidate_sha }}
+          path: certified-evidence/
+          if-no-files-found: error
+          retention-days: 90
