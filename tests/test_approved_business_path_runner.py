@@ -178,6 +178,7 @@ def _runner_config(release: ReleaseManifest) -> ApprovedIntegrationRunnerConfig:
                 check_id="fabric.pipeline",
                 workspace_id=uuid4(),
                 item_id=uuid4(),
+                dataset_id=DATASET_ID,
             ),
         ),
     )
@@ -353,11 +354,12 @@ def _execute(
         BusinessPathGate.WATERMARK_SCD2,
     ),
 )
-def test_single_attempt_paths_publish_one_exact_partial_proof_and_cleanup(monkeypatch, gate):
+def test_single_attempt_paths_return_evaluated_report_and_cleanup(monkeypatch, gate):
     result, calls = _execute(monkeypatch, gate, [_report()])
     assert result.proof.gate_id == gate.value
-    assert result.partial_proof_bundle.candidate_git_sha == CANDIDATE_SHA
-    assert result.partial_proof_bundle.artifact_sha256 == WHEEL_SHA
+    assert result.candidate_git_sha == CANDIDATE_SHA
+    assert result.artifact_sha256 == WHEEL_SHA
+    assert not hasattr(result, "partial_proof_bundle")
     assert calls == [
         BusinessPathDriverPhase.PREPARE_BASELINE,
         BusinessPathDriverPhase.PREPARE_ATTEMPT_1,
