@@ -20,6 +20,9 @@ def test_release_workflow_promotes_exact_candidate_and_never_rebuilds_wheel():
     assert 'report.get("release_ready") is not True' in workflow
     assert 'report.get("blockers") != []' in workflow
     assert 'integration.get("release_hash") != expected_wheel' in workflow
+    assert 'domain_hash = report.get("domain_release_hash")' in workflow
+    assert 'proofs.get("domain_release_hash") != domain_hash' in workflow
+    assert 'integration.get("domain_release_hash") != domain_hash' in workflow
     assert 'git tag -a "${RELEASE_TAG}" "${CANDIDATE_SHA}"' in workflow
 
 
