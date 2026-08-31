@@ -45,6 +45,8 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #80 | `353b43c37077a1ffc9e22b6c76ae5494a164306e`, PR Actions `33309737895`, main Actions `33309805619`, 636 | 0.4 exact-candidate fail-closed release-readiness aggregation; ordinary readiness intentionally BLOCKED |
 | #82 | `7f7849b9319df43ef382574747bfe27ee6378403`, PR Actions `33310317289`, main Actions `33310363412`, 644 | exact candidate wheel identity + exact certified-byte release promotion; no release-time rebuild |
 | #84 | `bb9b7ed74e2696978c546011c893fb316ffdd57c`, final PR Actions `33314924064`, main Actions `33314977393`, 653 | exact-candidate certification aggregation, integration evidence template, credential-safe release proof retention, manual certification workflow |
+| #86 | `0f70e037806482c677fccae0ce9432504f2a9885`, PR Actions `33342779028`, main Actions `33342806854`, 664 | strict exact-candidate partial `ReleaseReadinessProofBundle` merge; contradictory substantive proof has no precedence |
+| #87 | `5a2edffe5930e9b8a2a79f66f4580ca4d9df2b4e`, PR Actions `33343182775`, main Actions `33343223496`, 670 | exact-candidate non-integration release-proof producer; direct PASS limited to source/wheel/customer observations and live business-path proof remains external |
 
 ## Integrated design decisions
 

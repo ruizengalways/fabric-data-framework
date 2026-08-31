@@ -4,6 +4,11 @@ The runner deliberately reuses :class:`FabricPipelineBackend` rather than treati
 remote Fabric ``Completed`` state as framework semantic success. A PASS result is built
 only after the backend has read the exact durable ``DatasetDispatchOutcome`` for the
 same generated ``dataset_run_id`` from the relational control plane.
+
+The safe evidence report deliberately retains provider/native status and framework
+outcome separately. This allows later business-path certification to prove cases such
+as "Fabric Completed but framework reconciliation FAILED" without trusting a customer
+observer to self-report provider success.
 """
 
 from __future__ import annotations
@@ -13,6 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
+from pydantic import Field, model_validator
 from sqlalchemy import Engine, create_engine
 
 from ..adapters.fabric.pipeline import (
@@ -21,7 +27,7 @@ from ..adapters.fabric.pipeline import (
     FabricPipelineTransport,
     FabricRestPipelineTransport,
 )
-from ..adapters.fabric.rest import FabricJobInstance, FabricRestClient
+from ..adapters.fabric.rest import FabricJobInstance, FabricJobStatus, FabricRestClient
 from fabric_data_framework.metadata.config import (
     DatasetConfig,
     DatasetStatus,
@@ -51,6 +57,8 @@ from .integration_runner import (
     build_approved_integration_run_plan,
 )
 from fabric_data_framework.contracts.audit import PipelineRunAudit
+from fabric_data_framework.contracts.base import FrozenModel
+from fabric_data_framework.contracts.dispatch import DatasetDispatchOutcome
 from ..control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
 from .safety import assert_safe_retained_text
 
@@ -59,12 +67,42 @@ EngineFactory = Callable[[str], Engine]
 PipelineTransportFactory = Callable[[FabricRestClient], FabricPipelineTransport]
 
 
+class ApprovedPipelineEvidenceReport(FrozenModel):
+    """Credential-free provider/framework correlation for one approved Pipeline run."""
+
+    check_id: str = Field(min_length=1, max_length=128)
+    dataset_id: str = Field(min_length=1, max_length=256)
+    framework_pipeline_run_id: UUID
+    dataset_run_id: UUID
+    workspace_id: UUID
+    item_id: UUID
+    native_job_instance_id: UUID
+    root_activity_id: UUID
+    remote_status: FabricJobStatus
+    framework_status: DatasetStatus
+    retryable: bool | None = None
+    error_code: str | None = Field(default=None, max_length=1024)
+    execution_plan_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    evidence_references: tuple[str, ...]
+
+    @model_validator(mode="after")
+    def validate_safe_report(self) -> "ApprovedPipelineEvidenceReport":
+        if not self.evidence_references:
+            raise ValueError("approved Pipeline evidence report requires evidence references")
+        for index, reference in enumerate(self.evidence_references):
+            assert_safe_retained_text(reference, f"evidence_references[{index}]")
+        if self.error_code is not None:
+            assert_safe_retained_text(self.error_code, "Pipeline outcome error_code")
+        return self
+
+
 @dataclass(frozen=True)
 class ApprovedPipelineExecution:
     """Credential-free result wrapper for one approved Pipeline stage."""
 
     plan: ApprovedIntegrationRunPlan
     manifest: IntegrationEvidenceManifest
+    report: ApprovedPipelineEvidenceReport | None
 
 
 def _utcnow() -> datetime:
@@ -182,6 +220,15 @@ class _RecordingPipelineTransport:
         return job
 
 
+def _safe_error_code(error_code: str | None) -> str | None:
+    if error_code is None:
+        return None
+    try:
+        return assert_safe_retained_text(error_code, "Pipeline outcome error_code")
+    except ValueError:
+        return "UNSAFE_PROVIDER_ERROR_CODE_REDACTED"
+
+
 def _safe_failure_result(
     *,
     check_id: str,
@@ -191,11 +238,7 @@ def _safe_failure_result(
     error_code: str | None,
     evidence_references: tuple[str, ...],
 ) -> IntegrationEvidenceCheckResult:
-    safe_code = error_code or "UNSPECIFIED"
-    try:
-        assert_safe_retained_text(safe_code, "Pipeline outcome error_code")
-    except ValueError:
-        safe_code = "UNSAFE_PROVIDER_ERROR_CODE_REDACTED"
+    safe_code = _safe_error_code(error_code) or "UNSPECIFIED"
     now = _utcnow()
     started_at = job.start_time_utc if job and job.start_time_utc else now
     completed_at = job.end_time_utc if job and job.end_time_utc else now
@@ -216,6 +259,36 @@ def _safe_failure_result(
             "approved Pipeline execution did not produce framework semantic success; "
             f"dataset_status={outcome_status.value}; error_code={safe_code}"
         ),
+    )
+
+
+def _build_report(
+    *,
+    check_id: str,
+    dataset_id: str,
+    recording: _RecordingPipelineTransport,
+    outcome: DatasetDispatchOutcome,
+    references: tuple[str, ...],
+) -> ApprovedPipelineEvidenceReport | None:
+    invocation = recording.invocation
+    job = recording.job
+    if invocation is None or job is None or job.root_activity_id is None:
+        return None
+    return ApprovedPipelineEvidenceReport(
+        check_id=check_id,
+        dataset_id=dataset_id,
+        framework_pipeline_run_id=invocation.pipeline_run_id,
+        dataset_run_id=outcome.dataset_run_id,
+        workspace_id=invocation.binding.workspace_id,
+        item_id=invocation.binding.pipeline_item_id,
+        native_job_instance_id=job.job_instance_id,
+        root_activity_id=job.root_activity_id,
+        remote_status=job.status,
+        framework_status=outcome.status,
+        retryable=outcome.retryable,
+        error_code=_safe_error_code(outcome.error_code),
+        execution_plan_hash=invocation.execution_plan.plan_hash,
+        evidence_references=references,
     )
 
 
@@ -286,6 +359,7 @@ def execute_approved_pipeline(
     # Actual secret-bearing values are retrieved only after exact-release artifacts,
     # prerequisite evidence, physical binding and mutation authorization have passed.
     database_url = environ[config.control_plane_database_url_env_var]
+    reports: list[ApprovedPipelineEvidenceReport] = []
 
     def runner() -> IntegrationEvidenceCheckResult:
         engine = engine_factory(database_url)
@@ -341,6 +415,16 @@ def execute_approved_pipeline(
                 effective=effective,
                 run_mode=RunMode.NORMAL,
             )
+            report = _build_report(
+                check_id=check_id,
+                dataset_id=dataset_id,
+                recording=recording,
+                outcome=outcome,
+                references=references,
+            )
+            if report is not None:
+                reports.append(report)
+
             final_status = (
                 PipelineStatus.SUCCESS
                 if outcome.status is DatasetStatus.SUCCEEDED
@@ -394,7 +478,14 @@ def execute_approved_pipeline(
             engine.dispose()
 
     manifest = run_integration_evidence(spec, runners={check_id: runner})
-    return ApprovedPipelineExecution(plan=plan, manifest=manifest)
+    if len(reports) > 1:
+        raise RuntimeError("approved Pipeline execution produced multiple retained reports")
+    report = reports[0] if reports else None
+    return ApprovedPipelineExecution(plan=plan, manifest=manifest, report=report)
 
 
-__all__ = ["ApprovedPipelineExecution", "execute_approved_pipeline"]
+__all__ = [
+    "ApprovedPipelineEvidenceReport",
+    "ApprovedPipelineExecution",
+    "execute_approved_pipeline",
+]

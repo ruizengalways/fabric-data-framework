@@ -99,6 +99,7 @@ def merge_integration_evidence_manifests(
         domain=spec.domain,
         framework_version=spec.framework_version,
         release_hash=spec.release_hash,
+        domain_release_hash=spec.domain_release_hash,
         started_at=min(manifest.started_at for manifest in items),
         completed_at=merged_completed_at,
         checks=spec.checks,

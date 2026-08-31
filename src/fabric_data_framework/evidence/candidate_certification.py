@@ -31,18 +31,20 @@ def materialize_candidate_integration_spec(
     environment: EnvironmentName | str,
     domain: str,
     artifact_sha256: str,
+    domain_release_hash: str | None = None,
 ) -> IntegrationEvidenceSpec:
-    """Bind a credential-free integration evidence template to one exact wheel.
-
-    The template owns the approved check membership/kinds/required flags. Runtime
-    identity values are supplied only at certification time and are validated by the
-    canonical IntegrationEvidenceSpec model.
-    """
+    """Bind the integration template to exact framework and domain release identities."""
 
     if template.release_hash is not None:
         raise ValueError("integration evidence template release_hash must be null")
+    if template.domain_release_hash is not None:
+        raise ValueError("integration evidence template domain_release_hash must be null")
     if re.fullmatch(r"[0-9a-f]{64}", artifact_sha256) is None:
         raise ValueError("artifact_sha256 must be a 64-character lowercase SHA256")
+    if domain_release_hash is not None and re.fullmatch(
+        r"[0-9a-f]{64}", domain_release_hash
+    ) is None:
+        raise ValueError("domain_release_hash must be a 64-character lowercase SHA256")
     normalized_domain = domain.strip()
     if not normalized_domain:
         raise ValueError("certification domain must be non-empty")
@@ -54,6 +56,7 @@ def materialize_candidate_integration_spec(
             "environment": EnvironmentName(environment).value,
             "domain": normalized_domain,
             "release_hash": artifact_sha256,
+            "domain_release_hash": domain_release_hash,
         }
     )
     return IntegrationEvidenceSpec.model_validate(payload)
@@ -90,6 +93,7 @@ def certify_release_candidate(
         environment=environment,
         domain=domain,
         artifact_sha256=artifact_sha256,
+        domain_release_hash=integration_evidence.domain_release_hash,
     )
     if expected_integration_spec.framework_version != readiness_spec.framework_version:
         raise ValueError(

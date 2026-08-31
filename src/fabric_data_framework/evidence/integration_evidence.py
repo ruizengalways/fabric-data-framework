@@ -86,7 +86,10 @@ class IntegrationEvidenceSpec(FrozenModel):
     environment: EnvironmentName
     domain: str = Field(min_length=1, max_length=128)
     framework_version: str = Field(min_length=1, max_length=64)
+    # release_hash is the exact framework artifact SHA256 used by candidate readiness.
     release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    # domain_release_hash is the independent DatasetConfig/domain release identity.
+    domain_release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     checks: tuple[IntegrationEvidenceCheckSpec, ...] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -197,6 +200,7 @@ class IntegrationEvidenceManifest(FrozenModel):
     domain: str = Field(min_length=1, max_length=128)
     framework_version: str = Field(min_length=1, max_length=64)
     release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    domain_release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     started_at: datetime
     completed_at: datetime
     checks: tuple[IntegrationEvidenceCheckSpec, ...]
@@ -334,6 +338,7 @@ def run_integration_evidence(
         domain=spec.domain,
         framework_version=spec.framework_version,
         release_hash=spec.release_hash,
+        domain_release_hash=spec.domain_release_hash,
         started_at=started_at,
         completed_at=completed_at,
         checks=spec.checks,
@@ -358,7 +363,9 @@ def validate_integration_evidence_manifest(
     if manifest.framework_version != spec.framework_version:
         raise ValueError("evidence framework version mismatch")
     if manifest.release_hash != spec.release_hash:
-        raise ValueError("evidence release hash mismatch")
+        raise ValueError("evidence framework artifact release hash mismatch")
+    if manifest.domain_release_hash != spec.domain_release_hash:
+        raise ValueError("evidence domain release hash mismatch")
     if manifest.checks != spec.checks:
         raise ValueError("retained evidence check specification does not match requested spec")
     if require_certified and not manifest.certified:
