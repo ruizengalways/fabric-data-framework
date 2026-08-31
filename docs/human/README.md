@@ -15,7 +15,24 @@
 | [`DATASET_ONBOARDING.md`](DATASET_ONBOARDING.md) | 来了一个新数据源/新表，到底该选哪种 capture/Bronze/Silver 模式 |
 | [`OPERATIONS.md`](OPERATIONS.md) | CLI 是干什么的，release/evidence/approved run 怎么执行 |
 | [`MANUAL_CERTIFICATION.md`](MANUAL_CERTIFICATION.md) | 公司 Fabric 不允许 GitHub 直连时，如何用 Notebook + Admin Override 做可追溯 certification |
+| [`FIRST_FABRIC_NOTEBOOK_TEST.md`](FIRST_FABRIC_NOTEBOOK_TEST.md) | 第一次在公司 Fabric 里怎么逐 cell 验证 exact wheel、Lakehouse、FULL/SCD1/SCD2、retry、reconciliation，并正确登记 PASS/FAIL/NOT_RUN |
 | [`RELEASE_CANDIDATE.md`](RELEASE_CANDIDATE.md) | 0.4 feature freeze 后如何聚合 exact-candidate evidence、判断是否允许 release |
+
+## 第一次公司 Fabric 测试从哪里开始
+
+不要只打开 certification 表单然后勾选结果。表单是**登记结果**，不是测试执行器。
+
+第一次实际测试按这个顺序：
+
+```text
+FIRST_FABRIC_NOTEBOOK_TEST.md
+  -> 真正运行 bounded Fabric + framework checks
+  -> MANUAL_CERTIFICATION.md
+  -> 登记 PASS / FAIL / NOT_RUN
+  -> 如确有企业权限/导出限制，再显式选择 Admin Override
+```
+
+没有权限的 Warehouse / ambiguous-COMMIT 项保持 `NOT_RUN`；不要用 synthetic PASS 填满表格。
 
 ## 你通常应该改哪个 repo
 
