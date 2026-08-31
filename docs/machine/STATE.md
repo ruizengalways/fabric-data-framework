@@ -9,12 +9,12 @@ release_allowed: false
 feature_freeze: true
 candidate_status: not_frozen
 code_baseline:
-  pull_request: 92
-  merge_sha: d5eed17f2ec2f869b4e3a448597e6d8d600568ea
-  milestone: exact customer/domain release identity bound through proof, certification and promotion
-  final_pr_ci_actions: 33356959856
-  main_ci_actions: 33357032461
-  tests: 734
+  pull_request: 94
+  merge_sha: abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
+  milestone: removed obsolete unbound business-path proof API; candidate business-path proof packaging now requires exact customer ReleaseManifest
+  final_pr_ci_actions: 33357795244
+  main_ci_actions: 33357846835
+  tests: 738
   python_3_11: success
   python_3_13: success
   wheel_build: success
@@ -24,18 +24,18 @@ code_baseline:
   live_fabric_evidence_retained: false
   candidate_capable_main_artifact:
     selected_as_frozen_candidate: false
-    workflow_run_id: 33357032461
+    workflow_run_id: 33357846835
     workflow_run_attempt: 1
-    candidate_git_sha: d5eed17f2ec2f869b4e3a448597e6d8d600568ea
+    candidate_git_sha: abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
     wheel_filename: fabric_data_framework-0.4.0-py3-none-any.whl
-    wheel_inner_sha256: 5aa82d6befa3d5abe5d212d875721e6ae9e3e4bc4d67fd5b4cdd1a32d9e16701
-    artifact_id: 9745451533
-    artifact_archive_digest: sha256:716b1ba26267c748a449dacfd8e723eb21bc39a1414ac60eeb82596bc2afb618
-    artifact_expires_at: 2026-11-29T04:25:31Z
+    wheel_inner_sha256: d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7
+    artifact_id: 9745697101
+    artifact_archive_digest: sha256:c4a729c7da97185d27ff4b3cb50b48a106715fd6a4d2ef850e18fc6966ccf4ae
+    artifact_expires_at: 2026-11-29T04:39:29Z
 release_readiness_artifact:
-  artifact_id: 9745453012
-  artifact_archive_digest: sha256:6f0cd23569f3395a92e1940286207ecc9d9e467a810e243fd1ba7fc4fb973227
-  artifact_expires_at: 2026-09-14T04:25:47Z
+  artifact_id: 9745698588
+  artifact_archive_digest: sha256:bc6e2b9c9e7c3c584b3d2a31c37d9c0fb5220a3e6922b02f8200243970e674c6
+  artifact_expires_at: 2026-09-14T04:39:34Z
 customer_input_contract:
   feature_pr_10_merge: cda90f1c02fc9606aa64d2d1bd13f2ab89628aab
   checkpoint_pr_11_merge: 31f3f506bc1c16a445652de2ad48fe512cfec10a
@@ -49,7 +49,7 @@ customer_input_contract:
 
 `0.4.0` remains **UNRELEASED**, feature-frozen, not release-allowed and without a selected/frozen exact candidate. Ordinary CI deliberately has no complete release proof or live certified integration manifest, so `release_ready=false` with 15 required blockers remains correct.
 
-PR #92 is now **MERGED + MAIN CI PROVEN**. Final PR CI `33356959856` and independent main push CI `33357032461` both succeeded with **734 tests**. Main re-proved Python 3.11/3.13, exact wheel build and the ordinary fail-closed readiness contract.
+PR #94 is **MERGED + MAIN CI PROVEN**. Final PR CI `33357795244` and independent main push CI `33357846835` both succeeded with **738 tests**. The change removes the obsolete `ApprovedBusinessPathExecutionReport.partial_proof_bundle` / `write_business_path_partial_proof_bundle` path that could create a `ReleaseReadinessProofBundle` without `domain_release_hash`.
 
 No current claim is `FABRIC PROVEN`, `PRODUCTION DB PROVEN`, `FABRIC WAREHOUSE PROVEN`, or `RELEASE PROVEN` for 0.4.
 
@@ -58,18 +58,18 @@ No current claim is `FABRIC PROVEN`, `PRODUCTION DB PROVEN`, `FABRIC WAREHOUSE P
 Main source:
 
 ```text
-d5eed17f2ec2f869b4e3a448597e6d8d600568ea
+abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
 ```
 
 Exact inner framework wheel SHA256:
 
 ```text
-5aa82d6befa3d5abe5d212d875721e6ae9e3e4bc4d67fd5b4cdd1a32d9e16701
+d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7
 ```
 
-Artifact ID `9745451533` is retained through `2026-11-29T04:25:31Z`. It is **candidate-capable only**. It is not selected/frozen, certified, or release-proven. The uploaded ZIP digest is transport metadata and is never interchangeable with the inner wheel SHA256.
+Artifact ID `9745697101` is retained through `2026-11-29T04:39:29Z`. It is **candidate-capable only**. It is not selected/frozen, certified, or release-proven. The uploaded ZIP digest is transport metadata and is never interchangeable with the inner wheel SHA256.
 
-## Merged exact domain identity chain — PR #92
+## Exact domain identity chain — PR #92 plus PR #94 cleanup
 
 The framework and customer release identities remain independent:
 
@@ -93,7 +93,7 @@ customer/domain release:
 
 These SHA256 values must never be assumed equal.
 
-PR #92 permanently closes the previous machine-binding gap:
+PR #92 established the machine identity chain:
 
 ```text
 business-path evaluator result
@@ -105,6 +105,8 @@ business-path evaluator result
 -> ReleaseReadinessReport carries the same domain_release_hash
 -> framework-release requires report == proofs == integration domain_release_hash before tag creation
 ```
+
+PR #94 removes the last obsolete public runner-level proof packaging path. `approved_business_path_runner.py` now returns only the evaluated execution report. Candidate proof packaging is exclusively owned by `business_path_release_proof.py` and requires the exact customer `ReleaseManifest`. Exact-wheel scan of the PR #94 main artifact found only two `ReleaseReadinessProofBundle` construction owners: `business_path_release_proof.py` and `release_readiness_merge.py`; both bind or require non-empty `domain_release_hash` for candidate proof.
 
 No step above authors live PASS on its own.
 
@@ -143,7 +145,7 @@ customer production dependency migration             NOT ALLOWED YET
 ## Next engineering order
 
 ```text
-1. finish this merged-main documentation checkpoint
+1. finish this PR #94 merged-main documentation checkpoint
 2. replace customer live placeholders only with reviewed real enterprise bindings/evidence
 3. only then explicitly select/freeze one NEW exact framework main candidate
 4. produce exact customer certification input artifact for that candidate
@@ -157,4 +159,4 @@ customer production dependency migration             NOT ALLOWED YET
 
 ## Evidence vocabulary boundary
 
-Portable contract CI proves implementation and fail-closed behavior only. Green CI, workflow existence, or a candidate-capable wheel does not prove real Fabric execution, real Warehouse failure recovery, zero blockers, or release readiness.
+Portable contract CI proves implementation and fail-closed behavior only. Green CI, workflow existence, a source scan, or a candidate-capable wheel does not prove real Fabric execution, real Warehouse failure recovery, zero blockers, or release readiness.

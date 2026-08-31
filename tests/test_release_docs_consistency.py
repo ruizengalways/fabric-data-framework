@@ -106,7 +106,7 @@ def test_release_docs_keep_framework_and_domain_release_identity_distinct():
     assert "must never be assumed equal" in combined or "not expected to be equal" in combined
 
 
-def test_domain_release_binding_docs_match_merged_pr92_main_state():
+def test_domain_release_binding_docs_keep_pr92_as_merged_identity_milestone():
     combined = _combined()
     assert "PR #92" in combined
     assert "d5eed17f2ec2f869b4e3a448597e6d8d600568ea" in combined
@@ -115,8 +115,6 @@ def test_domain_release_binding_docs_match_merged_pr92_main_state():
     assert "734" in combined
     assert "business_path_release_proof.py" in combined
     assert "MERGED + MAIN CI PROVEN" in combined
-    assert "5aa82d6befa3d5abe5d212d875721e6ae9e3e4bc4d67fd5b4cdd1a32d9e16701" in combined
-    assert "9745451533" in combined
 
     stale = (
         "release-proof/domain identity machine binding  REQUIRED BEFORE CANDIDATE FREEZE",
@@ -129,6 +127,31 @@ def test_domain_release_binding_docs_match_merged_pr92_main_state():
     )
     for phrase in stale:
         assert phrase not in combined
+
+
+def test_pr94_is_current_code_and_candidate_capable_artifact_baseline():
+    combined = _combined()
+    state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
+
+    assert "pull_request: 94" in state
+    assert "abc8b3a2b80b3f6babf88fdc2347a3bfe69be356" in combined
+    assert "33357795244" in combined
+    assert "33357846835" in combined
+    assert "738" in combined
+    assert "d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7" in combined
+    assert "9745697101" in combined
+    assert "selected_as_frozen_candidate: false" in state
+    assert "readiness_required_blockers: 15" in state
+
+
+def test_business_path_runner_cannot_be_documented_as_candidate_proof_packager():
+    combined = _combined()
+    assert "business_path_release_proof.py" in combined
+    assert "sole business-path candidate proof packaging owner" in combined or "exclusively owned by `business_path_release_proof.py`" in combined
+    assert "partial_proof_bundle" in combined
+    assert "write_business_path_partial_proof_bundle" in combined
+    assert "removed" in combined.lower()
+    assert "runner execution report -> candidate proof without exact ReleaseManifest" in combined
 
 
 def test_latest_candidate_capable_artifact_is_not_frozen():
