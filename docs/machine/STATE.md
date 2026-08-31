@@ -9,12 +9,12 @@ release_allowed: false
 feature_freeze: true
 candidate_status: not_frozen
 code_baseline:
-  pull_request: 97
-  merge_sha: 3b39448fcefbeba7a66469c847542c3255e462ff
-  milestone: added traceable Fabric Notebook manual certification and explicit GitHub administrator override certification without requiring GitHub-to-Fabric connectivity
-  final_pr_ci_actions: 33377064054
-  main_ci_actions: 33377208722
-  tests: 748
+  pull_request: 99
+  merge_sha: 303683729c4915d78200d463a6def01c8de9eae6
+  milestone: hardened the first company-Fabric Notebook certification path with Fabric-supported widgets, explicit PASS/FAIL/NOT_RUN capture, and an executable bounded first-test runbook
+  final_pr_ci_actions: 33381590800
+  main_ci_actions: 33381666892
+  tests: 753
   python_3_11: success
   python_3_13: success
   wheel_build: success
@@ -22,17 +22,27 @@ code_baseline:
   readiness_release_ready: false
   readiness_required_blockers: 15
   live_fabric_evidence_retained: false
+  first_company_fabric_test_ready: true
+  first_company_fabric_test_runbook: docs/human/FIRST_FABRIC_NOTEBOOK_TEST.md
   candidate_capable_main_artifact:
     selected_as_frozen_candidate: false
-    workflow_run_id: 33377208722
+    workflow_run_id: 33381666892
     workflow_run_attempt: 1
-    candidate_git_sha: 3b39448fcefbeba7a66469c847542c3255e462ff
+    candidate_git_sha: 303683729c4915d78200d463a6def01c8de9eae6
     wheel_filename: fabric_data_framework-0.4.0-py3-none-any.whl
-    wheel_inner_sha256: 5d0c2f1f4348543bb8b9da0748788cc68b3ccbfed96fd73cec11ad7f475c0517
-    artifact_id: 9752314929
-    artifact_archive_digest: sha256:b53943452d4f985135aa3ce06a3f55a0dd87195676e539b7af970bbfb48b8bed
-    artifact_expires_at: 2026-11-29T09:20:52Z
+    wheel_inner_sha256: 0638c95c19ebcc43ec4ec462b7f960a164209874223517e3f74b951264b0eaf6
+    artifact_id: 9753976212
+    artifact_archive_digest: sha256:cd790310378d8aa11e950b004c9183125c52bbbc0ddf484d7749faa675e7171b
+    artifact_expires_at: 2026-11-29T10:16:35Z
 previous_code_baseline:
+  pull_request: 97
+  merge_sha: 3b39448fcefbeba7a66469c847542c3255e462ff
+  final_pr_ci_actions: 33377064054
+  main_ci_actions: 33377208722
+  tests: 748
+  candidate_capable_wheel_inner_sha256: 5d0c2f1f4348543bb8b9da0748788cc68b3ccbfed96fd73cec11ad7f475c0517
+  candidate_capable_artifact_id: 9752314929
+historical_identity_baseline:
   pull_request: 94
   merge_sha: abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
   final_pr_ci_actions: 33357795244
@@ -41,6 +51,12 @@ previous_code_baseline:
   candidate_capable_wheel_inner_sha256: d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7
   candidate_capable_artifact_id: 9745697101
 documentation_checkpoint:
+  pull_request: 98
+  merge_sha: cc3f16099f5d9dc6c42189ec281a4d9d1a11e565
+  final_pr_ci_actions: 33377525790
+  main_ci_actions: 33377589383
+  milestone: canonical machine-state checkpoint for Notebook/manual and administrator certification after PR 97
+historical_documentation_checkpoint:
   pull_request: 95
   merge_sha: 4006afb409c81c5510690c8c4dbeadd5e002fd0b
   final_pr_ci_actions: 33363382792
@@ -48,14 +64,23 @@ documentation_checkpoint:
   tests: 740
   milestone: canonical PR 94 release-proof cleanup documentation and consistency lock
 release_readiness_artifact:
-  artifact_id: 9752317358
-  artifact_archive_digest: sha256:23a336390abade0de17ecf044ecec24be418da0cb587609a8256d5394559475e
-  artifact_expires_at: 2026-09-14T09:21:07Z
+  artifact_id: 9753979589
+  artifact_archive_digest: sha256:6d47510240f5c3422ca08fa5955e21b7c67c9c743810a315f8861988f071f858
+  artifact_expires_at: 2026-09-14T10:16:54Z
   release_ready: false
   required_blockers: 15
 manual_certification_contract:
-  framework_pr: 97
+  framework_pr: 99
+  original_manual_certification_feature_pr: 97
   notebook_form_supported: true
+  notebook_output_widget_used: false
+  notebook_result_surface: disabled_textarea
+  notebook_check_result_control: dropdown
+  notebook_check_result_states:
+    - NOT_RUN
+    - PASS
+    - FAIL
+  form_executes_tests: false
   candidate_manifest_auto_identity: true
   optional_wheel_byte_hash_verification: true
   github_admin_override_workflow: .github/workflows/candidate-admin-certification.yml
@@ -63,6 +88,7 @@ manual_certification_contract:
   github_admin_override_resolves_candidate_identity_from_main_ci_run: true
   admin_override_record_retained: false
   admin_override_can_mark_manual_status_certified: true
+  failed_checks_remain_explicit_under_admin_override: true
   missing_fields_remain_explicit: true
   admin_override_fabricates_missing_live_evidence: false
   existing_framework_release_accepts_admin_override_as_release_readiness: false
@@ -73,14 +99,11 @@ customer_input_contract:
   compatibility_pr_12_merge: 9ddc11405de329fb647fb21b1217d1015e0fa3f5
   release_hardening_pr_14_merge: c4097dcc1319f382eb370e9c4d46dcbed7bb383b
   recovery_checkpoint_pr_15_merge: f83dc722da479971cdfd68d883291646c433ec15
-  customer_pr_14_ci: 33367986684
-  customer_pr_14_certification_contract_ci: 33367986688
-  customer_pr_14_main_ci: 33368063581
-  customer_pr_14_main_certification_contract_ci: 33368063590
-  customer_pr_15_ci: 33368220306
-  customer_pr_15_certification_contract_ci: 33368220330
-  customer_main_ci: 33368266794
-  customer_certification_contract_ci: 33368266793
+  manual_admin_checkpoint_pr_16_merge: 0c6cb0afd662f61082b41d34ef245ec2b055c97d
+  customer_pr_16_ci: 33378015885
+  customer_pr_16_certification_contract_ci: 33378015947
+  customer_main_ci: 33378071077
+  customer_certification_contract_ci: 33378071142
   certification_framework_sha: abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
   released_runtime_pin: fabric-data-framework==0.3.0
   actual_selected_candidate_input_artifact_retained: false
@@ -91,51 +114,86 @@ customer_input_contract:
 
 ## Release decision
 
-`0.4.0` remains **UNRELEASED**, feature-frozen again after the explicitly requested manual-certification capability, not release-allowed, and without a selected/frozen exact candidate. Ordinary CI deliberately has no complete release proof or live certified integration manifest, so `release_ready=false` with 15 required blockers remains correct.
+`0.4.0` remains **UNRELEASED**, feature-frozen after the explicitly requested manual-certification capability and its pre-test Fabric Notebook hardening, not release-allowed, and without a selected/frozen exact candidate. Ordinary CI deliberately has no complete release proof or live certified integration manifest, so `release_ready=false` with 15 required blockers remains correct.
 
-PR #97 is the current substantive code baseline and is **MERGED + MAIN CI PROVEN**. Final PR CI `33377064054` and independent main push CI `33377208722` both succeeded; the main Python 3.11 lane reported **748 passed**. PR #97 adds a Notebook/manual certification record and UI plus `.github/workflows/candidate-admin-certification.yml`. It does not contact Fabric, does not manufacture live evidence, does not freeze a candidate, and does not publish `v0.4.0`.
+PR #99 is the current substantive code baseline and is **MERGED + MAIN CI PROVEN**. Final PR CI `33381590800` and independent main push CI `33381666892` both succeeded; the main Python 3.11 lane reported **753 passed**. PR #99 fixes the first-test Notebook UI to avoid Fabric's unsupported Output widget, records check outcomes with `NOT RUN / PASS / FAIL` dropdowns, and adds `docs/human/FIRST_FABRIC_NOTEBOOK_TEST.md`. It does not contact Fabric, does not manufacture live evidence, does not freeze a candidate, and does not publish `v0.4.0`.
 
-PR #94 remains the previous release-proof/domain-binding cleanup baseline: merge SHA `abc8b3a2b80b3f6babf88fdc2347a3bfe69be356`, PR CI `33357795244`, main CI `33357846835`, 738 tests, candidate-capable wheel SHA256 `d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7`, artifact `9745697101`. Its identity-chain guarantees remain part of current source.
+PR #97 remains the original Notebook/manual certification and GitHub Admin Override feature baseline: merge SHA `3b39448fcefbeba7a66469c847542c3255e462ff`, PR CI `33377064054`, main CI `33377208722`, 748 tests, candidate-capable wheel SHA256 `5d0c2f1f4348543bb8b9da0748788cc68b3ccbfed96fd73cec11ad7f475c0517`, artifact `9752314929`.
 
-PR #95 remains a historical Framework documentation checkpoint. Documentation-only checkpoints do not constitute candidate freeze.
+PR #94 remains the historical release-proof/domain-binding cleanup baseline: merge SHA `abc8b3a2b80b3f6babf88fdc2347a3bfe69be356`, PR CI `33357795244`, main CI `33357846835`, 738 tests, candidate-capable wheel SHA256 `d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7`, artifact `9745697101`. Its identity-chain guarantees remain part of current source.
+
+PR #98 is the latest prior machine-state documentation checkpoint; PR #95 remains an older historical documentation checkpoint. Documentation-only checkpoints do not constitute candidate freeze.
 
 No current claim is `FABRIC PROVEN`, `PRODUCTION DB PROVEN`, `FABRIC WAREHOUSE PROVEN`, or evidence-based `RELEASE PROVEN` for 0.4.
 
-## Current candidate-capable main artifact
+## Exact artifact to use for the first company Fabric test
 
-Current substantive candidate-capable source:
-
-```text
-3b39448fcefbeba7a66469c847542c3255e462ff
-```
-
-Exact inner framework wheel SHA256:
+Use the current PR #99 main artifact, not the older PR #97 artifact, because PR #99 contains the Fabric Notebook compatibility fix.
 
 ```text
-5d0c2f1f4348543bb8b9da0748788cc68b3ccbfed96fd73cec11ad7f475c0517
+framework-ci main run          33381666892
+candidate_git_sha              303683729c4915d78200d463a6def01c8de9eae6
+artifact name                  framework-wheel-303683729c4915d78200d463a6def01c8de9eae6
+artifact ID                    9753976212
+wheel filename                 fabric_data_framework-0.4.0-py3-none-any.whl
+wheel inner SHA256             0638c95c19ebcc43ec4ec462b7f960a164209874223517e3f74b951264b0eaf6
+artifact ZIP digest            sha256:cd790310378d8aa11e950b004c9183125c52bbbc0ddf484d7749faa675e7171b
+artifact expires               2026-11-29T10:16:35Z
 ```
 
-Artifact ID `9752314929` is retained through `2026-11-29T09:20:52Z`. It is **candidate-capable only**. `selected_as_frozen_candidate: false`. Artifact existence, Notebook availability, or the presence of an administrator-override workflow does not silently select/freeze/certify this candidate.
+The artifact contains the exact wheel plus `CANDIDATE.json` and `SHA256SUMS`. Keep all three together when moving the bounded test package into the company Fabric environment.
 
-The uploaded ZIP digest `sha256:b53943452d4f985135aa3ce06a3f55a0dd87195676e539b7af970bbfb48b8bed` is transport metadata and is never interchangeable with the inner wheel SHA256.
+This artifact is **candidate-capable only**. `selected_as_frozen_candidate: false`. Downloading it, uploading it to Fabric, or executing the bounded first test does not silently freeze/select it and does not change `release_allowed=false`.
 
-## Notebook / manual / administrator certification — PR #97
+The uploaded ZIP digest is transport metadata and is never interchangeable with the inner wheel SHA256.
 
-PR #97 adds an operationally separate certification transport for enterprises where GitHub cannot or should not authenticate into the corporate Fabric tenant.
+## First company Fabric Notebook test boundary — PR #99
+
+Canonical human runbook:
+
+```text
+docs/human/FIRST_FABRIC_NOTEBOOK_TEST.md
+```
+
+Recommended first bounded real-company test:
+
+```text
+exact candidate identity / wheel-byte verification
+Lakehouse write/read smoke
+FULL -> REPLACE guard + result
+WATERMARK -> SCD1
+WATERMARK -> SCD2
+retry / idempotency
+reconciliation fail-closed
+manual-certification.json generation
+```
+
+Unless the company has explicitly approved the required Warehouse resources/permissions, keep these as `NOT_RUN`:
+
+```text
+warehouse.commit
+warehouse.ambiguous_commit
+```
+
+The form is a **result recorder**, not a test executor. The operator must run the real bounded cells first, then select the observed `PASS`, `FAIL`, or `NOT RUN` state. A real `FAIL` remains retained even when an administrator later makes an explicit overall override decision.
+
+The first bounded test may be run against this candidate-capable main artifact **without candidate freeze**, because it is a pre-freeze smoke/compatibility validation. It must not be described as selected-candidate certification or immutable-release evidence.
+
+## Notebook / manual / administrator certification — PR #97 plus PR #99 hardening
 
 Company-Fabric Notebook path:
 
 ```text
 exact framework wheel + CANDIDATE.json
--> Fabric Notebook / Environment
--> framework manual-certification UI/API
--> operator records observed checks
+-> isolated company Fabric DEV Notebook / default Lakehouse
+-> run FIRST_FABRIC_NOTEBOOK_TEST.md cells
+-> framework manual-certification UI/API records observed PASS/FAIL/NOT_RUN
 -> manual-certification.json
 ```
 
 When `CANDIDATE.json` is available, Framework auto-fills `framework_version`, the 40-character `candidate_git_sha`, and the 64-character wheel SHA256. Supplying the actual wheel path additionally hashes the wheel bytes and rejects an identity mismatch. This avoids requiring an operator to manually copy long hashes from a locked-down corporate environment.
 
-Normal Notebook semantics are fail-closed: without administrator override, an incomplete identity yields `PARTIAL`; `CERTIFIED` requires exact candidate identity plus at least one supplied check and all supplied checks PASS.
+Normal Notebook semantics are fail-closed: without administrator override, an incomplete identity yields `PARTIAL`; a supplied failed check also yields `PARTIAL`; `CERTIFIED` requires exact candidate identity plus at least one supplied check and all supplied checks PASS.
 
 Explicit administrator override semantics are different and intentionally visible:
 
@@ -144,11 +202,12 @@ status = CERTIFIED
 admin_override = true
 override_reason = required
 missing_fields = retained exactly
+executed FAIL checks remain retained as FAIL
 ```
 
-An administrator may accept a manual candidate even when some optional context/evidence cannot be exported. Missing evidence is not rewritten as evidence and unrun checks are not claimed to have run.
+An administrator may accept a manual candidate when some optional context/evidence cannot be exported. Missing evidence is not rewritten as evidence and unrun checks are not claimed to have run. The default operational policy is to investigate a known functional FAIL rather than use override to erase it.
 
-The GitHub-side convenience workflow is:
+The GitHub-side convenience workflow remains:
 
 ```text
 .github/workflows/candidate-admin-certification.yml
@@ -156,13 +215,13 @@ The GitHub-side convenience workflow is:
 
 It requires no Fabric token, Service Principal, SQL connection string, or GitHub-to-company-Fabric connectivity. The operator supplies a successful Framework `main` CI `candidate_run_id`, an override reason, and explicit confirmation; environment/notebook reference/notes are optional. GitHub resolves and verifies candidate SHA, run attempt, framework version, exact wheel bytes, `CANDIDATE.json`, `SHA256SUMS`, and wheel SHA256 automatically.
 
-No administrator override record has been run/retained yet. The presence of this capability therefore changes no current release truth.
+No administrator override record or company-Fabric manual certification record has been run/retained yet. The presence of this capability therefore changes no current release truth.
 
 ### Release boundary for administrator override
 
-PR #97 deliberately does **not** modify the existing evidence-based release workflow. `framework-release` still requires the existing successful `.github/workflows/candidate-certification.yml` provenance and the normal exact release-readiness/proof/integration artifacts. An Admin Override record can say `CERTIFIED` under the explicit manual governance lane, and an exact-identity GitHub override record can retain `release_authorized=true` as the administrator decision, but the existing `release.yml` does not consume that record as a substitute for evidence-based readiness.
+PR #97 and PR #99 deliberately do **not** modify the existing evidence-based release workflow. `framework-release` still requires the existing successful `.github/workflows/candidate-certification.yml` provenance and the normal exact release-readiness/proof/integration artifacts. An Admin Override record can say `CERTIFIED` under the explicit manual governance lane, and an exact-identity GitHub override record can retain `release_authorized=true` as the administrator decision, but the existing `release.yml` does not consume that record as a substitute for evidence-based readiness.
 
-If policy later chooses to let an administrator override directly authorize tag/release creation, that must be a separate explicit release-policy change; it is not implied by PR #97.
+If policy later chooses to let an administrator override directly authorize tag/release creation, that must be a separate explicit release-policy change; it is not implied by PR #97 or PR #99.
 
 ## Exact domain identity chain — PR #92 plus PR #94 cleanup
 
@@ -221,8 +280,10 @@ PR #14 release hardening
                    c4097dcc1319f382eb370e9c4d46dcbed7bb383b
 PR #15 recovery checkpoint
                    f83dc722da479971cdfd68d883291646c433ec15
-PR #15 main CI      33368266794 SUCCESS
-PR #15 main cert CI 33368266793 SUCCESS
+PR #16 manual/admin recovery checkpoint
+                   0c6cb0afd662f61082b41d34ef245ec2b055c97d
+PR #16 main CI      33378071077 SUCCESS
+PR #16 main cert CI 33378071142 SUCCESS
 ```
 
 Customer PR #14 hardened the control-plane external-evidence prerequisite. Seven arbitrary non-empty evidence reference strings are no longer sufficient to clear the Customer pre-candidate live-prerequisite boundary. Once all seven real external-evidence references exist, Customer additionally requires a credential-free source-controlled review binding that exactly matches the protected `DEV`/`UAT`/`PROD` environment and selected production-candidate control-plane profile.
@@ -263,20 +324,26 @@ customer production dependency migration             NOT ALLOWED YET
 
 Two paths now coexist.
 
-### A. Company Fabric manual / Notebook validation
+### A. First company Fabric bounded manual / Notebook validation — NEXT ACTION
+
+Use exact main run `33381666892` / artifact `9753976212` and follow `docs/human/FIRST_FABRIC_NOTEBOOK_TEST.md`.
 
 ```text
-1. choose/download one exact candidate-capable main artifact; artifact existence does not itself freeze it
-2. bring the exact wheel and, when possible, CANDIDATE.json into the isolated company Fabric environment
-3. install the wheel in a Notebook/Environment and run the bounded real checks that corporate permissions allow
-4. use display_notebook_certification_form() to record observed checks; identity auto-fills from CANDIDATE.json when available
-5. if evidence/context cannot leave the corporate tenant, an administrator may explicitly use Admin override with a non-secret reason; missing_fields remains visible
-6. if a GitHub-side exact administrator record is wanted, run candidate-admin-certification with the successful main candidate_run_id; GitHub does not connect to Fabric
+1. create/use an isolated company Fabric DEV workspace with an attached disposable/default Lakehouse
+2. download framework-wheel-303683729c4915d78200d463a6def01c8de9eae6 from successful main run 33381666892
+3. keep the wheel, CANDIDATE.json and SHA256SUMS together
+4. install the exact wheel in the Notebook and verify actual wheel bytes against CANDIDATE.json
+5. run the bounded Lakehouse + FULL/SCD1/SCD2/retry/reconciliation cells
+6. keep Warehouse checks NOT_RUN unless real approved permissions/resources exist
+7. open display_notebook_certification_form() and record the observed PASS/FAIL/NOT_RUN values
+8. retain manual-certification.json if company policy allows it
+9. use Admin Override only as an explicit governance decision for unavailable/export-restricted coverage; do not hide a known product FAIL
+10. optional: create a GitHub-side exact admin record using candidate_run_id=33381666892; GitHub still does not connect to company Fabric
 ```
 
-This path may create an explicit manual `CERTIFIED` governance record. It does not fabricate checks that were not run and does not currently satisfy `release.yml`'s evidence-based release inputs.
+No candidate freeze is required for this bounded pre-freeze compatibility test. Completion of the test does not by itself make the evidence-based release lane ready.
 
-### B. Full evidence-based automated release certification
+### B. Full evidence-based automated release certification — LATER
 
 ```text
 1. obtain reviewed real control-plane external evidence for the intended protected environment and production-candidate profile
@@ -293,6 +360,6 @@ This path may create an explicit manual `CERTIFIED` governance record. It does n
 
 ## Evidence vocabulary boundary
 
-Portable contract CI proves implementation and fail-closed behavior only. Green CI, workflow existence, source scan, candidate-capable wheel, Customer review-binding metadata, source-controlled evidence reference, Notebook checkbox, or Administrator Override does not by itself prove an unexecuted Fabric/control-plane/Warehouse check.
+Portable contract CI proves implementation and fail-closed behavior only. Green CI, workflow existence, source scan, candidate-capable wheel, Customer review-binding metadata, source-controlled evidence reference, Notebook dropdown, or Administrator Override does not by itself prove an unexecuted Fabric/control-plane/Warehouse check.
 
 The manual lane may legitimately record `CERTIFIED` as an administrator governance decision; that provenance must remain distinguishable from `FABRIC PROVEN`, `PRODUCTION DB PROVEN`, `FABRIC WAREHOUSE PROVEN`, and evidence-based `RELEASE PROVEN`.
