@@ -24,6 +24,8 @@ def _validate_relative_project_path(value: str, label: str) -> str:
         raise ValueError(f"{label} must be project-relative")
     if not value or value in {".", "./"}:
         raise ValueError(f"{label} must name a file")
+    if "\\" in value or value != path.as_posix():
+        raise ValueError(f"{label} must use canonical project-relative POSIX syntax")
     if any(part in {"", ".", ".."} for part in path.parts):
         raise ValueError(f"{label} contains unsafe path traversal")
     return value
