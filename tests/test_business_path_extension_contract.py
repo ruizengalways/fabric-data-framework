@@ -10,7 +10,10 @@ def test_business_path_observer_has_dedicated_entry_point_group():
 
 def test_business_path_observer_resolves_only_through_controlled_registry():
     registry = ExtensionRegistry()
-    observer = lambda request: request
+
+    def observer(request):
+        return request
+
     registry.register(
         ExtensionKind.BUSINESS_PATH_OBSERVER,
         "health.business_path_observer_v1",
