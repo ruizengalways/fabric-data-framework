@@ -9,44 +9,43 @@ release_allowed: false
 feature_freeze: true
 candidate_status: not_frozen
 code_baseline:
-  pull_request: 86
-  merge_sha: 0f70e037806482c677fccae0ce9432504f2a9885
-  milestone: strict exact-candidate partial ReleaseReadinessProofBundle merge
-  pr_ci_actions: 33342779028
-  main_ci_actions: 33342806854
-  tests: 664
+  pull_request: 87
+  merge_sha: 5a2edffe5930e9b8a2a79f66f4580ca4d9df2b4e
+  milestone: exact-candidate non-integration release-proof producer
+  pr_ci_actions: 33343182775
+  main_ci_actions: 33343223496
+  tests: 670
   python_3_11: success
   python_3_13: success
   wheel_build: success
   readiness_contract: success
   release_proof_merge_contract: success
-  candidate_certification_contract: success
+  candidate_release_proofs_workflow_contract: success
   readiness_release_ready: false
   readiness_required_blockers: 15
   candidate_capable_main_artifact:
     selected_as_frozen_candidate: false
-    workflow_run_id: 33342806854
+    workflow_run_id: 33343223496
     workflow_run_attempt: 1
-    candidate_git_sha: 0f70e037806482c677fccae0ce9432504f2a9885
+    candidate_git_sha: 5a2edffe5930e9b8a2a79f66f4580ca4d9df2b4e
     wheel_filename: fabric_data_framework-0.4.0-py3-none-any.whl
-    wheel_inner_sha256: edcde5a85ded7a01ec8502d065e7b04c4621f8609ae887c7a479d8b253978656
-    artifact_id: 9741061544
-    artifact_archive_digest: sha256:9585033dbc4c88b97e6e3877b9e9c647dfab896010c224a2cbfa4f0dfe362782
-    artifact_expires_at: 2026-11-28T23:49:01Z
-feature_branch_release_blocker:
-  branch: codex/candidate-release-proofs-workflow
-  capability: exact-candidate non-integration release-proof producer
+    wheel_inner_sha256: e6c0cda41ebdb3c356c087a79a3e6b0fe8b353867b8c06c0e89d4381fb23db35
+    artifact_id: 9741187950
+    artifact_archive_digest: sha256:b2461b7336bc4097fe37e30d1d23bffe98d564b6fc4f3bdcb791ee1d970149ba
+    artifact_expires_at: 2026-11-28T23:59:09Z
+feature_branch:
+  branch: codex/business-path-evidence
+  capability: representative live business-path evidence contract and producer workflow
   state: implemented_ci_pending
-  direct_pass_scope:
-    - source.tests
-    - wheel.integrity
-    - customer.compatibility
-  external_live_scope:
+  live_gate_scope:
     - full.replace
     - watermark.scd1
     - watermark.scd2
     - retry.idempotency
     - reconciliation.fail_closed
+external_producer_gaps:
+  framework_integration_evidence: .github/workflows/candidate-integration-evidence.yml
+  customer_business_path_inputs: .github/workflows/candidate-business-path-inputs.yml
 documentation_model:
   human: docs/human
   machine: docs/machine
@@ -55,117 +54,29 @@ documentation_model:
 
 ## Release decision
 
-`0.4.0` remains **UNRELEASED**, feature-frozen and not release-allowed. No exact candidate has been selected/frozen.
+`0.4.0` remains **UNRELEASED**, feature-frozen, not release-allowed, and without a selected/frozen exact candidate. Ordinary CI deliberately provides no complete release proof and no certified live integration manifest, so the readiness contract still reports 15 required blockers and `release_ready=false`.
 
-Ordinary CI deliberately supplies no complete exact-candidate release proof bundle and no certified live `IntegrationEvidenceManifest`, so all 15 required readiness gates remain blockers and `release_ready=false`.
-
-Main run `33342806854` produced a candidate-capable wheel for source SHA `0f70e037806482c677fccae0ce9432504f2a9885` with inner SHA256:
+PR #87 is now the exact merged engineering baseline. Main run `33343223496` produced a candidate-capable wheel for source SHA `5a2edffe5930e9b8a2a79f66f4580ca4d9df2b4e` with inner SHA256:
 
 ```text
-edcde5a85ded7a01ec8502d065e7b04c4621f8609ae887c7a479d8b253978656
+e6c0cda41ebdb3c356c087a79a3e6b0fe8b353867b8c06c0e89d4381fb23db35
 ```
 
-It is **not selected/frozen**. The GitHub artifact archive digest is transport metadata only and is not interchangeable with the inner wheel SHA256 used by proof/certification/release truth.
+That wheel is **not frozen** and has no live Fabric certification attached. GitHub's artifact archive digest is transport metadata and is never interchangeable with the inner wheel SHA256.
 
-## Canonical ownership
+## Merged release system through PR #87
+
+Merged/proven portable contracts now include:
 
 ```text
-src/fabric_data_framework/
-  __init__.py       namespace marker only
-  contracts/        provider-neutral immutable contracts
-  metadata/         DatasetConfig + capability metadata
-  capture/          capture semantics/onboarding/bootstrap/bounded reads
-  apply/            target apply semantics
-  data_plane/       Bronze/staging contracts
-  quality/          reconciliation/schema/temporal quality
-  orchestration/    planning/dispatch/failure isolation
-  execution/        execution plans/backends
-  adapters/         provider transports/auth
-  control_plane/    relational state/schema/certification
-  recovery/         retry/replay/target commit ambiguity recovery
-  evidence/         integration evidence + approved runners + readiness + proof merge + candidate certification
-  deployment/       delivery/release provenance + candidate identity + project init/validation
-  extensions/       bounded extension loading/contracts
-  cli/              removable presentation leaf
+main CI exact wheel candidate identity
+strict partial ReleaseReadinessProofBundle merge
+candidate-release-proofs exact static/customer producer
+candidate-certification retained-evidence aggregation
+exact-byte release promotion without rebuild
 ```
 
-No broad root-level compatibility facades should be reintroduced during the 0.4 freeze.
-
-Representative current imports:
-
-```python
-from fabric_data_framework.metadata.config import DatasetConfig
-from fabric_data_framework.capture.semantic_contracts import SourceSemantics
-from fabric_data_framework.control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
-from fabric_data_framework.evidence.integration_evidence import IntegrationEvidenceManifest
-from fabric_data_framework.evidence.release_readiness import evaluate_release_readiness
-from fabric_data_framework.evidence.release_readiness_merge import merge_release_readiness_proof_bundles
-from fabric_data_framework.evidence.candidate_certification import certify_release_candidate
-from fabric_data_framework.deployment.project import initialize_customer_project, validate_customer_project
-```
-
-## Customer project contract
-
-Reusable project logic is in `deployment/project.py`; `cli/project.py` is presentation only.
-
-```text
-project-init never guesses PK/watermark/delete/history semantics
-project-init never overwrites existing files
-project-init never creates Fabric resources or persists secrets
-one domain repo may mix FULL/WATERMARK/CDC and SCD1/SCD2
-execution_group handles operational grouping
-project-validate rejects unknown dependencies/cycles/capability mismatch/semantic overclaim
-project-validate requires exact semantic-selection coverage
-project-validate is local/static and never upgrades PASS to live Fabric proof
-```
-
-## Release readiness and strict partial proof merge
-
-Source-controlled readiness matrix:
-
-```text
-release/0.4.0/readiness-spec.json
-```
-
-Required gates: 15. Debezium/Kafka remains optional unless the 0.4 GA promise explicitly promotes it.
-
-Fail-closed readiness invariants:
-
-```text
-missing proof -> NOT_RUN
-required NOT_RUN/FAIL/OUT_OF_SCOPE -> blocker
-proof framework/candidate/artifact mismatch -> reject
-integration-backed gate cannot be satisfied by generic proof
-IntegrationEvidenceManifest release_hash must equal exact inner wheel SHA256
-release_ready=true iff every required gate PASS
-```
-
-Strict partial non-integration proof merge is canonical in:
-
-```text
-src/fabric_data_framework/evidence/release_readiness_merge.py
-fabric-framework release-proofs-merge
-```
-
-PR #86 proves:
-
-```text
-every partial bundle binds exact schema/version/candidate SHA/non-null wheel SHA
-unknown or integration-backed gates reject
-NOT_RUN/omitted means no proof
-identical duplicate substantive proof may merge
-different substantive proof conflicts, including two different PASS records
-no latest/PASS/FAIL/timestamp precedence
-credential-like retained text rejects before merged output
-```
-
-A successful proof merge does not create live evidence or make the release ready.
-
-## Candidate release-proof producer — feature branch
-
-`.github/workflows/candidate-release-proofs.yml` is implemented on the current feature branch and is **CI pending**.
-
-Its direct PASS scope is deliberately limited to facts it observes itself:
+`candidate-release-proofs.yml` directly creates PASS only for evidence it re-verifies itself:
 
 ```text
 source.tests
@@ -173,103 +84,150 @@ wheel.integrity
 customer.compatibility
 ```
 
-It re-verifies exact successful main framework CI and required jobs, re-authenticates exact candidate wheel bytes, installs that wheel, verifies an explicit `fabric-customer` SHA from customer main history, runs customer `project-validate`, and regenerates/validates the 100-table Health framework-next contract against the exact candidate.
+It cannot directly create PASS for the five representative live business-path gates. Those must come from `candidate-business-path-evidence.yml` and survive strict merge.
 
-It does not directly create PASS for:
+## Current business-path feature branch
 
-```text
-full.replace
-watermark.scd1
-watermark.scd2
-retry.idempotency
-reconciliation.fail_closed
-```
+`codex/business-path-evidence` is implementing the missing live business-path producer. Until its PR CI/merge succeeds, the highest claim is **IMPLEMENTED / CI PENDING**, not CI proven and not Fabric proven.
 
-Those five gates must come from a successful exact-candidate `.github/workflows/candidate-business-path-evidence.yml` retained artifact. The final producer verifies that run provenance, strict-merges static + live partial proof, and refuses `release-proofs-<candidate SHA>` unless exactly all eight required non-integration gates exist and PASS.
-
-## Candidate certification — merged PR #84
-
-Source-controlled integration policy:
+Current branch surfaces:
 
 ```text
-release/0.4.0/integration-evidence-template.json
+src/fabric_data_framework/evidence/business_path_evidence.py
+  typed five-gate evaluator; sole readiness PASS authority
+
+src/fabric_data_framework/evidence/business_path_driver.py
+  bounded mutating fixture/fault driver contract; no PASS/status field
+
+src/fabric_data_framework/evidence/business_path_plan.py
+  exact five-gate source-controlled certification plan
+
+src/fabric_data_framework/evidence/approved_business_path_runner.py
+  driver -> read-only observation -> approved Pipeline -> framework evaluator -> cleanup
+
+src/fabric_data_framework/evidence/integration_evidence_rerun.py
+  explicit Pipeline rerun projection from separately retained certified integration evidence
+
+src/fabric_data_framework/cli/business_path.py
+  removable presentation leaf: candidate-business-path-run
+
+.github/workflows/candidate-business-path-evidence.yml
+  exact-candidate live producer; cannot author readiness PASS JSON directly
 ```
 
-Reusable implementation/presentation:
+The runner reuses `execute_approved_pipeline`; it does not create a second Fabric execution truth path. Provider/native state and durable framework `DatasetDispatchOutcome` are retained separately, so `Fabric Completed` can still result in framework `FAILED`.
+
+## Critical exact-identity invariant
+
+A release-significant bug was found while wiring real producer inputs: one hash had previously been used for two different identities. The current branch separates them explicitly.
 
 ```text
-src/fabric_data_framework/evidence/candidate_certification.py
-fabric-framework candidate-certify
-.github/workflows/candidate-certification.yml
+framework candidate source identity
+  candidate_git_sha
+
+framework candidate binary identity
+  candidate wheel SHA256
+  = IntegrationEvidenceSpec.release_hash
+  = IntegrationEvidenceManifest.release_hash
+  = ApprovedIntegrationRunnerConfig.framework_artifact_sha256 in candidate mode
+
+customer/domain release identity
+  ReleaseManifest.bundle.release_hash
+  = IntegrationEvidenceSpec.domain_release_hash
+  = IntegrationEvidenceManifest.domain_release_hash
+  = ApprovedIntegrationRunnerConfig.release_hash
 ```
 
-Certification requires exact candidate/run/wheel identity, a successful exact-SHA release-proof producer run, a successful exact-SHA integration-evidence producer run, safe retained proof text, a fully certified exact integration manifest, and final readiness with `release_ready=true`, `blockers=[]`, every required gate PASS.
+These two SHA256 values are independent and must never be assumed equal. Existing development/reference runner configs remain compatible with the historical single-hash form only when `domain_release_hash` is absent. Exact 0.4 candidate evidence must supply both identities.
 
-Candidate certification itself does not execute Fabric, build wheels, create tags, or publish releases.
+## Business-path PASS boundary
 
-## Exact release promotion
-
-`.github/workflows/release.yml` is manual promotion only. It re-verifies the exact candidate and successful candidate-certification artifact, then tags the exact candidate SHA and publishes the already-certified wheel/evidence assets. There is no release-time wheel rebuild and no tag-push auto-release.
-
-## Current release blockers
+The five readiness gates are evaluated only from independently sourced facts:
 
 ```text
-candidate-release-proofs workflow      FEATURE BRANCH IMPLEMENTED / CI PENDING
-candidate-business-path-evidence       NOT YET IMPLEMENTED
-candidate-integration-evidence         NOT YET IMPLEMENTED
-exact candidate freeze                 NOT YET
-certified readiness artifact           NOT YET PRODUCED
-release-readiness blockers             15 in ordinary CI
+exact source-controlled scenario expectation
++ exact fingerprinted mutating driver receipt
++ read-only target/progress semantic observation
++ framework-owned Pipeline native/provider report
++ durable framework outcome
+-> framework evaluator
+-> one ReleaseReadinessProofResult
 ```
 
-Real evidence still missing includes:
+Rules include:
 
 ```text
-fabric-customer exact frozen-candidate compatibility artifact
-enterprise Entra identity + workspace/item authorization
-production control-plane certification
-approved Pipeline
-approved Copy + Spark capture
-representative live FULL -> REPLACE
-representative live WATERMARK -> SCD1
-representative live WATERMARK -> SCD2
-retry/rerun idempotency + no-unsafe-progress drill
-semantic reconciliation fail-closed drill
-Warehouse mutation + same-transaction marker
-provider-specific real ambiguous-COMMIT drill
-exact Warehouse session/Admin recovery chain where required
-complete release proof bundle + certified IntegrationEvidenceManifest
-capacity/SKU/network/DR/monitoring/governance evidence
-Debezium/Kafka live certification only if promoted into 0.4 GA scope
+FULL / SCD1 / SCD2:
+  Fabric Completed
+  framework SUCCEEDED
+  final target/progress equals expected source-controlled semantic digest
+  state must actually change
+
+SCD2 additionally:
+  history digest equals expectation
+  exactly one current row per business key
+
+retry.idempotency:
+  first attempt framework FAILED + retryable + expected failure code
+  target/progress unchanged after failed attempt
+  second attempt Fabric Completed + framework SUCCEEDED
+  same execution-plan hash, distinct dataset_run_id
+  expected final state reached
+
+reconciliation.fail_closed:
+  Fabric Completed
+  framework FAILED with expected reconciliation error
+  target/progress unchanged
 ```
+
+Cleanup failure blocks publication even if the evaluator had already computed PASS.
+
+## Explicit rerun rule
+
+Business-path evidence is a deliberate Pipeline rerun, but existing approved Pipeline evidence correctly rejects automatic reruns of a check that already has a substantive result. Therefore the business-path command requires a **fully certified exact integration manifest first** and creates a new non-certified prerequisite where only the selected Pipeline check is explicitly reset to `NOT_RUN`. Other certified prerequisites remain unchanged; the original manifest is immutable.
+
+This establishes the release-system ordering:
+
+```text
+exact main candidate
+  -> certified candidate integration evidence
+  -> representative business-path reruns
+  -> candidate-release-proofs static + business-path merge
+  -> candidate-certification over release proofs + same certified integration evidence
+  -> exact-byte promotion
+```
+
+## Current blockers
+
+The branch cannot create live business-path evidence today because required upstream/downstream domain artifacts do not yet exist:
+
+```text
+.github/workflows/candidate-integration-evidence.yml        NOT YET IMPLEMENTED
+fabric-customer candidate-business-path-inputs.yml          NOT YET IMPLEMENTED
+fabric-customer exact five-gate certification plan          NOT YET RETAINED
+fabric-customer driver/observer extension artifacts         NOT YET RETAINED
+enterprise Fabric credentials/environment evidence          NOT YET RETAINED
+```
+
+Real evidence still missing includes Fabric identity/authorization, production control-plane certification, approved Pipeline/Copy/Spark, representative FULL/SCD1/SCD2, retry and reconciliation drills, Warehouse target+marker, real ambiguous COMMIT recovery, and capacity/IAM/network/DR/monitoring/governance evidence. Debezium/Kafka remains out of 0.4 required scope unless explicitly promoted.
 
 ## Next engineering order
 
 ```text
-1. validate/merge candidate-release-proofs workflow
-2. implement candidate-business-path-evidence using real retained path observations, not authored PASS JSON
-3. implement candidate-integration-evidence around existing approved exact-run surfaces
-4. select/freeze one exact 0.4 candidate only when both producer paths are ready
-5. run exact customer/static proof
-6. collect representative FULL/REPLACE, WATERMARK/SCD1, WATERMARK/SCD2, retry and reconciliation evidence
-7. collect Fabric identity/control-plane/Pipeline/Copy/Spark/Warehouse/ambiguous-COMMIT evidence
-8. aggregate exact release proof + certified IntegrationEvidenceManifest
-9. candidate-certification must produce zero blockers
-10. framework-release promotes exact certified bytes
-11. only then immutable v0.4.0 exists
-12. after release migrate fabric-customer from v0.3.0/exact-SHA-next to immutable 0.4
+1. PR + full CI for codex/business-path-evidence
+2. merge only if identity split, runner, workflow and docs contracts are green
+3. implement candidate-integration-evidence producer around existing approved runners
+4. implement fabric-customer candidate-business-path-inputs and exact driver/observer/plan artifacts
+5. only then select/freeze an exact 0.4 candidate
+6. collect certified integration evidence for exact framework wheel + exact domain release
+7. run five representative live business-path gates
+8. run candidate-release-proofs
+9. candidate-certification must reach blockers=[]
+10. release workflow promotes exact certified bytes
+11. only then publish immutable v0.4.0
+12. then migrate fabric-customer from v0.3.0/exact-SHA-next to immutable 0.4.0
 ```
 
 ## Evidence vocabulary boundary
 
-Highest current claim is **IMPLEMENTED + CI PROVEN** for merged portable contracts including project init/validation, approved evidence runners, release readiness, exact candidate identity, strict proof merge, candidate certification and exact-byte promotion.
-
-The current `candidate-release-proofs` feature branch is not yet part of that merged claim. Do not use `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN` or `PRODUCTION DB PROVEN` until retained approved real-service evidence exists for the exact frozen candidate/artifact.
-
-## Repository ownership
-
-```text
-fabric-data-framework = reusable semantics/runtime/adapters/recovery/evidence/package + project/release contracts
-fabric-customer       = domain DatasetConfig + semantic selections + bounded extensions + Fabric content
-fabric-infra          = optional capacity/workspace/infrastructure lifecycle
-```
+Current merged-main claim is **IMPLEMENTED + CI PROVEN** through PR #87 for portable release contracts. Current business-path branch is **IMPLEMENTED / CI PENDING**. Do not use `FABRIC PROVEN`, `FABRIC WAREHOUSE PROVEN`, `PRODUCTION DB PROVEN`, or `RELEASE PROVEN` for 0.4 until retained real-service evidence and immutable release artifacts exist.
