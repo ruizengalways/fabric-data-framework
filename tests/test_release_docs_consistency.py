@@ -100,15 +100,48 @@ def test_candidate_integration_producer_docs_match_merged_pr90_state():
         assert phrase not in combined
 
 
+def test_customer_input_contract_docs_match_merged_customer_state():
+    combined = _combined()
+    assert "candidate-business-path-inputs.yml" in combined
+    assert "cda90f1c02fc9606aa64d2d1bd13f2ab89628aab" in combined
+    assert "31f3f506bc1c16a445652de2ad48fe512cfec10a" in combined
+    assert "33353960915" in combined
+    assert "33353960906" in combined
+    assert "fabric-data-framework==0.3.0" in combined
+    assert "actual_selected_candidate_input_artifact_retained: false" in combined
+
+
 def test_release_docs_keep_framework_and_domain_release_identity_distinct():
     combined = _combined()
     assert "domain_release_hash" in combined
     assert "framework_artifact_sha256" in combined
     assert "exact framework candidate wheel SHA256" in combined
     assert "ReleaseManifest.bundle.release_hash" in combined
+    assert "ReleaseReadinessProofBundle.domain_release_hash" in combined
+    assert "ReleaseReadinessReport.domain_release_hash" in combined
     assert "IntegrationEvidence.release_hash" in combined
     assert "IntegrationEvidence.domain_release_hash" in combined
     assert "must never be assumed equal" in combined or "not expected to be equal" in combined
+
+
+def test_domain_release_binding_docs_match_pr92_pr_ci_state():
+    combined = _combined()
+    assert "PR #92" in combined
+    assert "f07c464fefaec2f1533a67549382549613823253" in combined
+    assert "33356673686" in combined
+    assert "732 passed" in combined
+    assert "business_path_release_proof.py" in combined
+    assert "PR CI PROVEN / PENDING MERGE" in combined
+    assert "report/proofs/integration" in combined or "release-readiness.json.domain_release_hash" in combined
+
+    stale = (
+        "release-proof/domain identity machine binding  REQUIRED BEFORE CANDIDATE FREEZE",
+        "release-proof/domain hash binding  REQUIRED BEFORE CANDIDATE FREEZE",
+        "customer_business_path_inputs: fabric-customer/.github/workflows/candidate-business-path-inputs.yml",
+        "fabric-customer candidate-business-path-inputs NOT YET IMPLEMENTED",
+    )
+    for phrase in stale:
+        assert phrase not in combined
 
 
 def test_release_docs_keep_actual_live_and_release_gaps_explicit():
@@ -120,4 +153,4 @@ def test_release_docs_keep_actual_live_and_release_gaps_explicit():
     assert "not yet frozen" in combined.lower() or "not_frozen" in combined.lower()
     assert "not yet produced" in combined.lower()
     assert "no live run" in combined.lower() or "no retained live" in combined.lower()
-    assert "release-proof/domain" in combined.lower()
+    assert "immutable v0.4.0" in combined
