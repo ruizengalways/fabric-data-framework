@@ -77,17 +77,21 @@ class IntegrationCheckPhysicalBinding(FrozenModel):
 class ApprovedIntegrationRunnerConfig(FrozenModel):
     """Source-controlled configuration for one exact approved-environment run.
 
+    ``release_hash`` identifies the exact framework candidate artifact. The independent
+    ``domain_release_hash`` identifies the exact customer/domain ReleaseManifest bundle.
+    Legacy/dev configs may omit ``domain_release_hash``; approved runners then use the
+    historical release_hash-as-domain fallback. Candidate workflows must supply both.
+
     ``warehouse_admin_database_url_env_var`` is deliberately separate from the ordinary
     Warehouse target connection. It names the runtime credential used only for explicit
-    Admin/session-control evidence such as ``KILL``. Supplying the same environment
-    variable name for both paths is rejected so routine Warehouse mutation credentials
-    cannot silently inherit session-termination authority.
+    Admin/session-control evidence such as ``KILL``.
     """
 
     environment: EnvironmentName
     domain: str = Field(min_length=1, max_length=128)
     framework_version: str = Field(min_length=1, max_length=64)
     release_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    domain_release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     fabric_access_token_env_var: str = Field(
         default="FABRIC_ACCESS_TOKEN", pattern=_ENV_NAME_PATTERN
     )
@@ -150,6 +154,10 @@ class ApprovedIntegrationRunnerConfig(FrozenModel):
             )
         return self
 
+    @property
+    def effective_domain_release_hash(self) -> str:
+        return self.domain_release_hash or self.release_hash
+
 
 class RuntimeEnvironmentRequirement(FrozenModel):
     purpose: str = Field(min_length=1, max_length=256)
@@ -164,6 +172,7 @@ class ApprovedIntegrationRunPlan(FrozenModel):
     domain: str
     framework_version: str
     release_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    domain_release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     check_ids: tuple[str, ...]
     bindings: tuple[IntegrationCheckPhysicalBinding, ...]
     runtime_requirements: tuple[RuntimeEnvironmentRequirement, ...]
@@ -189,7 +198,11 @@ def _require_same_release(
     if config.framework_version != spec.framework_version:
         raise ValueError("integration runner config and evidence spec framework version differ")
     if config.release_hash != spec.release_hash:
-        raise ValueError("integration runner config and evidence spec release hash differ")
+        raise ValueError("integration runner config and framework artifact release hash differ")
+    if config.domain_release_hash != spec.domain_release_hash:
+        # Legacy/dev specs/configs keep both fields null and remain valid. Candidate
+        # evidence sets both independently and must match exactly.
+        raise ValueError("integration runner config and domain release hash differ")
 
 
 def _selected_checks(
@@ -323,6 +336,7 @@ def build_approved_integration_run_plan(
         domain=config.domain,
         framework_version=config.framework_version,
         release_hash=config.release_hash,
+        domain_release_hash=config.domain_release_hash,
         check_ids=tuple(item.check_id for item in checks),
         bindings=selected_bindings,
         runtime_requirements=runtime_requirements,
