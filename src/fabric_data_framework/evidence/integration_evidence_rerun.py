@@ -75,6 +75,7 @@ def prepare_explicit_pipeline_rerun_prerequisite(
         domain=certified_manifest.domain,
         framework_version=certified_manifest.framework_version,
         release_hash=certified_manifest.release_hash,
+        domain_release_hash=certified_manifest.domain_release_hash,
         started_at=at,
         completed_at=at,
         checks=certified_manifest.checks,
