@@ -48,10 +48,7 @@ from fabric_data_framework.evidence.integration_runner import (
     ApprovedIntegrationRunnerConfig,
     build_approved_integration_run_plan,
 )
-from fabric_data_framework.evidence.release_readiness import (
-    ReleaseReadinessProofBundle,
-    ReleaseReadinessProofResult,
-)
+from fabric_data_framework.evidence.release_readiness import ReleaseReadinessProofResult
 from fabric_data_framework.evidence.safety import assert_safe_retained_text
 from fabric_data_framework.extensions import ExtensionKind, ExtensionRegistry
 from fabric_data_framework.metadata.config import DatasetConfig
@@ -82,15 +79,6 @@ class ApprovedBusinessPathExecutionReport(FrozenModel):
             raise ValueError("business path execution report scenario hash mismatch")
         assert_safe_retained_text(self.model_dump_json(), "business path execution report")
         return self
-
-    @property
-    def partial_proof_bundle(self) -> ReleaseReadinessProofBundle:
-        return ReleaseReadinessProofBundle(
-            framework_version=self.framework_version,
-            candidate_git_sha=self.candidate_git_sha,
-            artifact_sha256=self.artifact_sha256,
-            results=(self.proof,),
-        )
 
 
 def _registry_with_business_extensions(
@@ -470,18 +458,8 @@ def write_approved_business_path_execution_report(
     output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
 
 
-def write_business_path_partial_proof_bundle(
-    report: ApprovedBusinessPathExecutionReport,
-    path: str | Path,
-) -> None:
-    output = Path(path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(report.partial_proof_bundle.model_dump_json(indent=2) + "\n", encoding="utf-8")
-
-
 __all__ = [
     "ApprovedBusinessPathExecutionReport",
     "execute_approved_business_path",
     "write_approved_business_path_execution_report",
-    "write_business_path_partial_proof_bundle",
 ]
