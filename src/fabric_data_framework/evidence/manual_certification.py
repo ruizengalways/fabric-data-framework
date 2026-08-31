@@ -17,7 +17,7 @@ from enum import Enum
 from importlib.metadata import PackageNotFoundError, version as package_version
 import json
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from pydantic import Field, field_validator, model_validator
 
@@ -174,6 +174,40 @@ def _normalize_checks(
     return tuple(checks or ())
 
 
+def _manual_checks_from_selections(
+    selections: Mapping[str, str | ManualCertificationCheckStatus],
+) -> tuple[ManualCertificationCheck, ...]:
+    """Convert Notebook dropdown values into explicit retained check results.
+
+    Fabric's Notebook widget surface supports ``Dropdown`` but does not support the
+    Jupyter ``Output`` widget. The UI therefore uses one dropdown per check and this
+    pure helper keeps PASS/FAIL/NOT_RUN interpretation testable outside Fabric.
+
+    ``NOT_RUN`` is omitted from the retained check tuple. PASS and FAIL are retained
+    explicitly so a failed real check cannot disappear merely because the UI only had
+    a positive checkbox.
+    """
+
+    checks: list[ManualCertificationCheck] = []
+    for check_id, raw_status in selections.items():
+        status = ManualCertificationCheckStatus(raw_status)
+        if status is ManualCertificationCheckStatus.NOT_RUN:
+            continue
+        detail = (
+            "operator observed PASS in notebook"
+            if status is ManualCertificationCheckStatus.PASS
+            else "operator observed FAIL in notebook"
+        )
+        checks.append(
+            ManualCertificationCheck(
+                check_id=check_id,
+                status=status,
+                detail=detail,
+            )
+        )
+    return tuple(checks)
+
+
 def create_manual_certification_record(
     *,
     checks: Iterable[ManualCertificationCheck] | None = None,
@@ -299,12 +333,15 @@ def display_notebook_certification_form(
     wheel_path: str = "",
     output_path: str = "manual-certification.json",
 ) -> object:
-    """Render a compact ipywidgets form for Fabric/Jupyter notebooks.
+    """Render a compact Fabric/Jupyter-compatible ipywidgets form.
 
-    The UI deliberately keeps all fields editable and optional. If CANDIDATE.json is
-    available, long candidate identities are auto-filled by the framework rather than
-    typed by the operator. The admin-override checkbox allows a one-button CERTIFIED
-    record while retaining missing-field and override provenance.
+    The UI deliberately keeps context fields editable and optional. If
+    ``CANDIDATE.json`` is available, long candidate identities are auto-filled by the
+    framework rather than typed by the operator. Each real check is represented by a
+    PASS/FAIL/NOT_RUN dropdown so failures are retained explicitly.
+
+    Microsoft Fabric does not support ``ipywidgets.Output``. The form therefore uses
+    a supported ``Textarea`` for callback status instead of the Output widget.
     """
 
     try:
@@ -326,7 +363,15 @@ def display_notebook_certification_form(
         value=False, description="Authorize exact-candidate release"
     )
     checks = {
-        check_id: widgets.Checkbox(value=False, description=label)
+        check_id: widgets.Dropdown(
+            options=(
+                ("NOT RUN", ManualCertificationCheckStatus.NOT_RUN.value),
+                ("PASS", ManualCertificationCheckStatus.PASS.value),
+                ("FAIL", ManualCertificationCheckStatus.FAIL.value),
+            ),
+            value=ManualCertificationCheckStatus.NOT_RUN.value,
+            description=label,
+        )
         for check_id, label in (
             ("lakehouse.smoke", "Lakehouse smoke"),
             ("full.replace", "FULL → REPLACE"),
@@ -339,59 +384,63 @@ def display_notebook_certification_form(
         )
     }
     button = widgets.Button(description="Create certification record")
-    output = widgets.Output()
+    status_output = widgets.Textarea(
+        value="",
+        description="Result",
+        disabled=True,
+        layout=widgets.Layout(width="100%", height="120px"),
+    )
 
     def on_click(_: object) -> None:
-        with output:
-            output.clear_output()
-            try:
-                manifest = Path(candidate_manifest_path)
-                selected_checks = tuple(
-                    ManualCertificationCheck(
-                        check_id=check_id,
-                        status=ManualCertificationCheckStatus.PASS,
-                        detail="operator observed PASS in notebook",
-                    )
-                    for check_id, checkbox in checks.items()
-                    if checkbox.value
+        try:
+            manifest = Path(candidate_manifest_path)
+            selected_checks = _manual_checks_from_selections(
+                {check_id: selector.value for check_id, selector in checks.items()}
+            )
+            record = create_manual_certification_record(
+                checks=selected_checks,
+                environment=environment.value or None,
+                operator=operator.value or None,
+                notebook_reference=notebook_reference.value or None,
+                notes=notes.value or None,
+                candidate_manifest_path=manifest if manifest.is_file() else None,
+                wheel_path=wheel_path or None,
+                admin_override=override.value,
+                override_reason=override_reason.value or None,
+                request_release_authorization=release_authorize.value,
+            )
+            write_manual_certification_record(record, output_path)
+            status_output.value = "\n".join(
+                (
+                    f"status={record.status.value}",
+                    f"mode={record.certification_mode.value}",
+                    f"missing_fields={list(record.missing_fields)}",
+                    f"release_authorized={record.release_authorized}",
+                    f"written={output_path}",
                 )
-                record = create_manual_certification_record(
-                    checks=selected_checks,
-                    environment=environment.value or None,
-                    operator=operator.value or None,
-                    notebook_reference=notebook_reference.value or None,
-                    notes=notes.value or None,
-                    candidate_manifest_path=manifest if manifest.is_file() else None,
-                    wheel_path=wheel_path or None,
-                    admin_override=override.value,
-                    override_reason=override_reason.value or None,
-                    request_release_authorization=release_authorize.value,
-                )
-                write_manual_certification_record(record, output_path)
-                print(f"status={record.status.value}")
-                print(f"mode={record.certification_mode.value}")
-                print(f"missing_fields={list(record.missing_fields)}")
-                print(f"release_authorized={record.release_authorized}")
-                print(f"written={output_path}")
-            except Exception as exc:  # pragma: no cover - UI surface
-                print(f"ERROR: {exc}")
+            )
+        except Exception as exc:  # pragma: no cover - UI surface
+            status_output.value = f"ERROR: {exc}"
 
     button.on_click(on_click)
     display(
         widgets.VBox(
             [
                 widgets.HTML("<b>Fabric Framework Manual Certification</b>"),
+                widgets.HTML(
+                    "Record only checks you actually ran. Dropdowns do not execute tests."
+                ),
                 environment,
                 operator,
                 notebook_reference,
                 notes,
-                widgets.HTML("<b>Observed PASS checks</b>"),
+                widgets.HTML("<b>Observed check result</b>"),
                 *checks.values(),
                 override,
                 override_reason,
                 release_authorize,
                 button,
-                output,
+                status_output,
             ]
         )
     )
