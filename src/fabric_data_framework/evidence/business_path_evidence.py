@@ -172,6 +172,9 @@ class BusinessPathRunEvidence(FrozenModel):
             is not BusinessPathObservationPhase.AFTER_FIRST_ATTEMPT
         ):
             raise ValueError("first-attempt observation must use AFTER_FIRST_ATTEMPT phase")
+        plan_hashes = {report.execution_plan_hash for report in self.pipeline_reports}
+        if len(plan_hashes) != 1:
+            raise ValueError("business path retries must use the same execution plan hash")
         return self
 
 
@@ -210,9 +213,6 @@ def _require_report_identity(
     report_ids = [report.dataset_run_id for report in run.pipeline_reports]
     if len(set(report_ids)) != len(report_ids):
         raise ValueError("business path Pipeline reports must have distinct dataset_run_id values")
-    plan_hashes = {report.execution_plan_hash for report in run.pipeline_reports}
-    if len(plan_hashes) != 1:
-        raise ValueError("business path retries must use the same execution plan hash")
 
 
 def _require_completed_success(report: ApprovedPipelineEvidenceReport) -> None:
