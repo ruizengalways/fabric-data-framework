@@ -2,7 +2,7 @@
 
 This file defines what can satisfy the five representative live non-integration readiness gates for `0.4.0`. Reference/in-memory apply tests are useful executable specifications, but they cannot satisfy these live release gates.
 
-The portable contract in this file was merged in PR #88 and is main-CI proven. No successful exact-candidate live Fabric business-path evidence has been retained yet.
+The portable business-path contract was merged in PR #88 and is main-CI proven. The exact candidate integration-evidence producer was merged in PR #90 and is also main-CI proven. No successful exact-candidate live Fabric business-path evidence has been retained yet.
 
 ## Gate ownership
 
@@ -22,13 +22,22 @@ src/fabric_data_framework/evidence/business_path_evidence.py
 
 Only the framework evaluator returns `ReleaseReadinessProofResult(PASS)`. Customer extensions cannot return readiness status.
 
-PR #88 provenance:
+PR #88 business-path provenance:
 
 ```text
 merge SHA   1632aefe8c1fd71098200c434a1648d0385f4967
 PR CI       33346419772
 main CI     33346470401
 tests       717
+```
+
+PR #90 integration-producer provenance:
+
+```text
+merge SHA   7e12a320e73aa06f3e80f57e3deed14a6cc7add0
+final PR CI 33349005817
+main CI     33349064335
+tests       728
 ```
 
 ## Independent fact sources
@@ -53,14 +62,14 @@ A valid proof combines four independently bounded inputs:
 
 The framework evaluates those facts and only then projects one readiness proof result.
 
-This separation prevents these invalid shortcuts:
+Invalid shortcuts remain forbidden:
 
 ```text
-Fabric Completed -> PASS                         FORBIDDEN
-customer observer says pass -> PASS             FORBIDDEN
-driver says fixture succeeded -> PASS           FORBIDDEN
-in-memory apply unit test -> live readiness PASS FORBIDDEN
-workflow writes PASS JSON directly               FORBIDDEN
+Fabric Completed -> PASS
+customer observer says pass -> PASS
+driver setup succeeded -> PASS
+in-memory apply unit test -> live readiness PASS
+workflow writes PASS JSON directly
 ```
 
 ## Exact release identity
@@ -85,16 +94,7 @@ customer/domain release:
 
 The framework binary SHA256 and domain release hash must never be assumed equal.
 
-Every business-path run also binds:
-
-```text
-customer/domain git SHA through ReleaseManifest.bundle.domain_git_sha
-exact DatasetConfig bundle hash through ReleaseManifest.bundle.config_bundle_hash
-scenario bytes through ReleaseManifest.artifact_sha256
-business-path plan bytes through ReleaseManifest.artifact_sha256
-driver-config bytes through ReleaseManifest.artifact_sha256
-driver/observer extension wheel bytes through ReleaseManifest.artifact_sha256
-```
+Every business-path run also binds customer/domain git SHA, exact DatasetConfig bundle hash, business-path plan bytes, scenario bytes, driver-config bytes, and driver/observer extension wheel bytes through the exact `ReleaseManifest`.
 
 ## Source-controlled certification plan
 
@@ -104,7 +104,7 @@ Canonical contract:
 src/fabric_data_framework/evidence/business_path_plan.py
 ```
 
-A customer/domain certification plan must contain exactly one entry for each of the five gates. Every path must use canonical POSIX project-relative syntax and remain inside the exact project root. Absolute paths, traversal, `./` aliases and backslash/noncanonical forms fail closed.
+A customer/domain certification plan contains exactly one entry for each of the five gates. Paths use canonical POSIX project-relative syntax and remain inside the exact project root. Absolute paths, traversal, `./` aliases and backslash/noncanonical forms fail closed.
 
 Each entry selects:
 
@@ -115,11 +115,11 @@ driver_config_path
 pipeline_check_id
 ```
 
-The plan does not contain secrets or environment-local connection values.
+The plan contains no secrets or environment-local connection values.
 
-## Driver boundary
+## Driver / observer boundary
 
-Canonical contract:
+Canonical driver contract:
 
 ```text
 src/fabric_data_framework/evidence/business_path_driver.py
@@ -134,61 +134,25 @@ PREPARE_ATTEMPT_2   retry only
 CLEANUP
 ```
 
-A driver may prepare deterministic source fixtures or controlled failure conditions. It may not:
+A driver may prepare deterministic source fixtures or controlled failure conditions. It cannot return readiness PASS/FAIL, replace provider/framework outcome truth, claim target/progress observation, or skip cleanup silently. `BusinessPathDriverReceipt` has no PASS/status field.
 
-```text
-return PASS/FAIL readiness status
-read or modify framework proof JSON
-replace framework Pipeline outcome truth
-skip cleanup silently
-claim target/progress state
-```
-
-`BusinessPathDriverReceipt` contains only exact scenario/gate/dataset/phase identity and safe retained references.
-
-Driver execution requires a separate explicit `--allow-scenario-mutation` authorization.
-
-## Observer boundary
-
-Controlled extension group:
+Controlled observer extension group:
 
 ```text
 fabric_data_framework.business_path_observers
 ```
 
-The observer is read-only from the readiness system's perspective. It returns bounded semantic facts:
-
-```text
-target semantic SHA256
-target row count
-progress semantic SHA256
-optional SCD2 history semantic SHA256
-optional one-current-row-per-business-key invariant
-retained safe evidence references
-```
-
-It cannot return PASS or framework/provider status.
+The observer is read-only from the readiness system's perspective. It returns bounded target/history/progress semantic facts and safe retained references; it cannot return PASS or framework/provider status.
 
 ## Pipeline evidence boundary
 
-Canonical provider/framework execution remains:
+Canonical execution owner:
 
 ```text
 src/fabric_data_framework/evidence/approved_pipeline_runner.py
 ```
 
-`ApprovedPipelineEvidenceReport` keeps these facts separate:
-
-```text
-remote_status          Fabric-native terminal status
-framework_status       durable DatasetDispatchOutcome status
-retryable              framework durable outcome fact
-error_code             framework durable outcome fact
-execution_plan_hash    exact plan identity
-framework/native run IDs and retained evidence references
-```
-
-Therefore this is valid evidence:
+`ApprovedPipelineEvidenceReport` retains Fabric-native terminal status separately from durable framework `DatasetDispatchOutcome`. Thus a valid reconciliation-failure observation may be:
 
 ```text
 remote_status    = Completed
@@ -196,96 +160,60 @@ framework_status = FAILED
 error_code       = RECONCILIATION_FAILED
 ```
 
-Provider success is necessary for the reconciliation fail-closed drill but intentionally insufficient for framework success.
+Provider success is intentionally insufficient for framework semantic success.
 
 ## Explicit Pipeline rerun
 
-Business-path certification reruns a previously certified Pipeline path. Approved provider runners correctly reject silent reruns when a substantive result already exists.
+Business-path certification reruns a previously certified Pipeline path. Approved provider runners reject silent reruns when substantive evidence already exists.
 
-Canonical explicit projection:
+Canonical projection:
 
 ```text
 src/fabric_data_framework/evidence/integration_evidence_rerun.py
 ```
 
-Input must be a fully certified exact `IntegrationEvidenceManifest`. The projection:
-
-```text
-preserves framework wheel identity
-preserves customer/domain release identity
-preserves all other integration results
-changes only the selected Pipeline check from PASS to NOT_RUN
-creates a new evidence_id/manifest hash
-references the original certified manifest hash
-never mutates the original certified artifact
-is intentionally no longer certified
-```
-
-The business-path runner still independently requires PASS item-read and control-plane prerequisites and explicit Pipeline mutation authorization.
+Input is a fully certified exact integration manifest. Projection preserves framework wheel identity, customer/domain release identity and all other retained results; changes only the selected Pipeline check from PASS to NOT_RUN; creates a new evidence ID/hash; and never mutates the original certified artifact.
 
 ## Gate rules
 
-### FULL -> REPLACE
+### FULL -> REPLACE / WATERMARK -> SCD1
 
-PASS requires:
-
-```text
-one Pipeline attempt
-Fabric remote status = Completed
-framework outcome = SUCCEEDED
-final target semantic SHA256 = scenario expectation
-final row count = scenario expectation
-final progress semantic SHA256 = scenario expectation
-final semantic state differs from baseline
-```
-
-### WATERMARK -> SCD1
-
-Same success boundary as FULL/REPLACE, with the source-controlled scenario defining the expected current-state result and expected progress/checkpoint identity.
+PASS requires one successful Pipeline attempt, Fabric terminal `Completed`, durable framework `SUCCEEDED`, exact target row count/digest, exact progress digest, and a semantic state change from baseline.
 
 ### WATERMARK -> SCD2
 
-PASS additionally requires:
-
-```text
-final history semantic SHA256 = scenario expectation
-one_current_row_per_business_key = true
-```
-
-SCD2 apply cannot manufacture history that the source/capture path did not observe; scenario design must remain truthful to capture fidelity.
+In addition, final history digest must match the source-controlled expectation and exactly one current row per business key must hold. SCD2 cannot manufacture history the capture path did not observe.
 
 ### retry.idempotency
 
-PASS requires two distinct real Pipeline attempts using the same execution-plan hash:
+PASS requires two distinct real Pipeline attempts with the same execution-plan hash:
 
 ```text
 attempt 1:
   framework FAILED
   retryable = true
-  error_code = exact scenario failure code
-  target/history/progress state unchanged from baseline
+  exact expected error_code
+  target/history/progress unchanged
 
 attempt 2:
   Fabric Completed
   framework SUCCEEDED
-  expected final semantic state reached
+  exact expected final semantic state
 ```
-
-The failed first attempt may not advance target/progress state.
 
 ### reconciliation.fail_closed
 
-PASS proves the provider/framework distinction directly:
+PASS requires:
 
 ```text
 Fabric remote status = Completed
 framework outcome = FAILED
-error_code = exact reconciliation failure code
-target/history/progress state unchanged from baseline
-scenario's hypothetical successful target differs from baseline
+exact reconciliation error_code
+target/history/progress unchanged
+scenario hypothetical successful state differs from baseline
 ```
 
-A provider failure does not prove this gate because the point is to demonstrate that provider success cannot override semantic reconciliation failure.
+A provider failure does not prove this gate; the point is to prove provider success cannot override semantic reconciliation failure.
 
 ## Approved runner order
 
@@ -295,23 +223,7 @@ Canonical runner:
 src/fabric_data_framework/evidence/approved_business_path_runner.py
 ```
 
-Before any driver mutation it verifies:
-
-```text
-explicit scenario + Pipeline authorization
-exact candidate SHA/wheel SHA shape
-runner/domain/framework identities
-framework wheel SHA identity
-customer domain release hash identity
-exact DatasetConfig bundle hash
-exact integration prerequisite manifest
-selected Pipeline check = NOT_RUN
-retained PASS item-read prerequisite
-retained PASS control-plane prerequisite
-Pipeline physical binding
-required runtime env-variable presence
-fingerprinted scenario/driver/extension artifacts
-```
+Before driver mutation it verifies explicit scenario/Pipeline authorization, exact candidate source/wheel identities, exact domain release identity, exact DatasetConfig bundle, exact certified integration prerequisites, selected Pipeline NOT_RUN projection, retained item/control PASS prerequisites, customer-owned Pipeline physical binding, runtime env-var presence, and fingerprinted scenario/driver/extension artifacts.
 
 Execution order:
 
@@ -324,49 +236,36 @@ approved Pipeline attempt 1
 observe AFTER_FINAL_ATTEMPT
 framework evaluator
 CLEANUP in finally
-return report/proof only after cleanup succeeds
+return proof only after cleanup succeeds
 ```
 
-Cleanup failure prevents a PASS artifact from being returned.
+Cleanup failure prevents proof publication.
 
 ## Candidate business-path workflow
 
-Workflow owner:
+Workflow:
 
 ```text
 .github/workflows/candidate-business-path-evidence.yml
 ```
 
-The workflow contract is **MERGED + MAIN CI PROVEN** from PR #88. It is an exact-candidate executor/aggregator, not a PASS author.
+State is **MERGED + MAIN CI PROVEN** as an exact-candidate executor/aggregator contract. It requires trusted upstream evidence from the framework main candidate artifact, `candidate-integration-evidence`, and the customer `candidate-business-path-inputs` producer.
 
-It requires trusted upstream evidence from:
+It authenticates framework source/wheel provenance, customer git/release provenance, exact plan/scenario/driver/plugin bytes, and both SHA256 identity domains before running the five approved paths. It strict-merges exactly five one-gate proof bundles and retains `business-path-release-proofs-<candidate SHA>` only when membership and PASS requirements hold.
 
-```text
-framework candidate main CI artifact
-candidate-integration-evidence workflow
-fabric-customer candidate-business-path-inputs workflow
-```
-
-The workflow verifies framework source/wheel provenance, customer git/release provenance, exact plan/scenario/driver/plugin bytes, and both SHA256 identity domains before running the five approved paths.
-
-It then requires exactly five one-gate partial proof bundles, strict-merges them with `release-proofs-merge`, verifies exact gate membership and all PASS, and only then retains:
-
-```text
-business-path-release-proofs-<candidate SHA>
-```
-
-A green workflow contract test is not a live run. No `business-path-release-proofs-<candidate SHA>` artifact has yet been retained from a real approved Fabric environment.
+No such live artifact has yet been retained.
 
 ## Current evidence boundary
 
 ```text
-typed evaluator / driver / plan / runner / workflow = MERGED + MAIN CI PROVEN (#88)
-actual Fabric business-path PASS artifacts           = NOT RETAINED
-candidate-integration-evidence producer              = NOT YET IMPLEMENTED
-customer business-path-input producer                = NOT YET IMPLEMENTED
-customer live driver/observer artifacts              = NOT YET RETAINED
-exact candidate                                      = NOT FROZEN
-release readiness                                    = 15 REQUIRED BLOCKERS
+typed evaluator / driver / plan / runner / business-path workflow = MERGED + MAIN CI PROVEN (#88)
+candidate-integration-evidence producer                            = MERGED + MAIN CI PROVEN (#90); NO LIVE RUN
+actual Fabric business-path PASS artifacts                         = NOT RETAINED
+customer candidate-business-path-inputs producer                   = NOT YET IMPLEMENTED
+customer live driver/observer artifacts                            = NOT YET RETAINED
+exact candidate                                                    = NOT FROZEN
+release-proof/domain hash machine binding                          = REQUIRED BEFORE FREEZE
+release readiness                                                  = 15 REQUIRED BLOCKERS
 ```
 
 No implementation in this file upgrades `0.4.0` to Fabric-proven or release-ready by itself.
