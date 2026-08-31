@@ -28,6 +28,7 @@ from fabric_data_framework.evidence.release_readiness import (
 NOW = datetime(2026, 8, 30, 12, 0, tzinfo=timezone.utc)
 CANDIDATE = "a" * 40
 ARTIFACT = "b" * 64
+DOMAIN_RELEASE = "c" * 64
 
 
 def _spec() -> ReleaseReadinessSpec:
@@ -52,11 +53,12 @@ def _spec() -> ReleaseReadinessSpec:
     )
 
 
-def _proofs() -> ReleaseReadinessProofBundle:
+def _proofs(*, domain_release_hash: str | None = DOMAIN_RELEASE) -> ReleaseReadinessProofBundle:
     return ReleaseReadinessProofBundle(
         framework_version="0.4.0",
         candidate_git_sha=CANDIDATE,
         artifact_sha256=ARTIFACT,
+        domain_release_hash=domain_release_hash,
         results=(
             ReleaseReadinessProofResult(
                 gate_id="source.tests",
@@ -74,7 +76,9 @@ def _proofs() -> ReleaseReadinessProofBundle:
     )
 
 
-def _integration() -> IntegrationEvidenceManifest:
+def _integration(
+    *, domain_release_hash: str | None = DOMAIN_RELEASE
+) -> IntegrationEvidenceManifest:
     check = IntegrationEvidenceCheckSpec(
         check_id="fabric.pipeline",
         kind=IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN,
@@ -97,6 +101,7 @@ def _integration() -> IntegrationEvidenceManifest:
         domain="customer",
         framework_version="0.4.0",
         release_hash=ARTIFACT,
+        domain_release_hash=domain_release_hash,
         started_at=NOW,
         completed_at=NOW,
         checks=(check,),
@@ -110,6 +115,7 @@ def test_missing_evidence_blocks_release_without_inference():
     )
 
     assert report.release_ready is False
+    assert report.domain_release_hash is None
     assert report.blockers == ("source.tests", "fabric.pipeline")
     assert [item.status for item in report.results] == [
         ReleaseReadinessStatus.NOT_RUN,
@@ -130,9 +136,22 @@ def test_retained_proofs_and_exact_artifact_integration_can_make_release_ready()
 
     assert report.release_ready is True
     assert report.blockers == ()
+    assert report.domain_release_hash == DOMAIN_RELEASE
     assert report.results[0].status is ReleaseReadinessStatus.PASS
     assert report.results[1].status is ReleaseReadinessStatus.PASS
     assert report.results[2].status is ReleaseReadinessStatus.OUT_OF_SCOPE
+
+
+def test_proof_and_integration_domain_release_identity_must_match_when_both_supplied():
+    with pytest.raises(ValueError, match="domain release hash mismatch"):
+        evaluate_release_readiness(
+            _spec(),
+            candidate_git_sha=CANDIDATE,
+            artifact_sha256=ARTIFACT,
+            proofs=_proofs(),
+            integration_evidence=_integration(domain_release_hash="d" * 64),
+            now=lambda: NOW,
+        )
 
 
 def test_proof_bundle_must_match_exact_candidate_sha():
