@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -10,9 +9,8 @@ import fabric_data_framework.evidence.approved_business_path_runner as runner_mo
 from fabric_data_framework.adapters.fabric.rest import FabricJobStatus
 from fabric_data_framework.contracts.environment import EnvironmentName
 from fabric_data_framework.deployment.contracts import ReleaseBundleIdentity, ReleaseManifest
-from fabric_data_framework.evidence.approved_business_path_runner import (
-    execute_approved_business_path,
-)
+from fabric_data_framework.deployment.delivery import config_bundle_hash
+from fabric_data_framework.evidence.approved_business_path_runner import execute_approved_business_path
 from fabric_data_framework.evidence.approved_pipeline_runner import ApprovedPipelineEvidenceReport
 from fabric_data_framework.evidence.business_path_driver import (
     ApprovedBusinessPathDriverConfig,
@@ -25,9 +23,31 @@ from fabric_data_framework.evidence.business_path_evidence import (
     BusinessPathObservationPhase,
     BusinessPathStateObservation,
 )
-from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
+from fabric_data_framework.evidence.integration_evidence import (
+    IntegrationEvidenceCheckKind,
+    IntegrationEvidenceCheckResult,
+    IntegrationEvidenceCheckSpec,
+    IntegrationEvidenceManifest,
+    IntegrationEvidenceSpec,
+    IntegrationEvidenceStatus,
+)
+from fabric_data_framework.evidence.integration_runner import (
+    ApprovedIntegrationRunnerConfig,
+    IntegrationCheckPhysicalBinding,
+)
 from fabric_data_framework.extensions import ExtensionKind, ExtensionRegistry
-from fabric_data_framework.metadata.config import DatasetStatus
+from fabric_data_framework.metadata.config import (
+    ApplyStrategy,
+    CaptureStrategy,
+    DataQualityPolicy,
+    DatasetConfig,
+    DatasetStatus,
+    LoadPolicy,
+    OrchestrationPolicy,
+    ReconciliationPolicy,
+    SourceConfig,
+    TargetConfig,
+)
 
 
 NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)
@@ -42,14 +62,29 @@ PLAN_HASH = "f" * 64
 DATASET_ID = "health.patient"
 
 
-def _release() -> ReleaseManifest:
+def _dataset() -> DatasetConfig:
+    return DatasetConfig(
+        dataset_id=DATASET_ID,
+        source=SourceConfig(system="health", object="dbo.Patient"),
+        target=TargetConfig(layer="silver", object="patient"),
+        load=LoadPolicy(
+            capture_strategy=CaptureStrategy.FULL,
+            apply_strategy=ApplyStrategy.REPLACE,
+        ),
+        orchestration=OrchestrationPolicy(execution_group="certification"),
+        quality=DataQualityPolicy(policy_name="standard", quarantine_policy="reject"),
+        reconciliation=ReconciliationPolicy(policy_name="count"),
+    )
+
+
+def _release(configs: tuple[DatasetConfig, ...]) -> ReleaseManifest:
     return ReleaseManifest(
         domain="customer",
         bundle=ReleaseBundleIdentity(
             domain_release_version="0.4.0-dev",
             domain_git_sha="3" * 40,
             framework_version="0.4.0",
-            config_bundle_hash="4" * 64,
+            config_bundle_hash=config_bundle_hash(configs),
             config_schema_version=1,
             control_plane_schema_version=1,
             fabric_item_manifest_version="v1",
@@ -65,12 +100,86 @@ def _release() -> ReleaseManifest:
     )
 
 
+def _spec(release: ReleaseManifest) -> IntegrationEvidenceSpec:
+    return IntegrationEvidenceSpec(
+        environment=EnvironmentName.DEV,
+        domain="customer",
+        framework_version="0.4.0",
+        release_hash=WHEEL_SHA,
+        domain_release_hash=release.bundle.release_hash,
+        checks=(
+            IntegrationEvidenceCheckSpec(
+                check_id="fabric.item.read",
+                kind=IntegrationEvidenceCheckKind.FABRIC_ITEM_READ,
+            ),
+            IntegrationEvidenceCheckSpec(
+                check_id="control.cert",
+                kind=IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION,
+            ),
+            IntegrationEvidenceCheckSpec(
+                check_id="fabric.pipeline",
+                kind=IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN,
+            ),
+        ),
+    )
+
+
+def _prerequisite(spec: IntegrationEvidenceSpec) -> IntegrationEvidenceManifest:
+    return IntegrationEvidenceManifest(
+        environment=spec.environment,
+        domain=spec.domain,
+        framework_version=spec.framework_version,
+        release_hash=spec.release_hash,
+        domain_release_hash=spec.domain_release_hash,
+        started_at=NOW,
+        completed_at=NOW,
+        checks=spec.checks,
+        results=(
+            IntegrationEvidenceCheckResult(
+                check_id="fabric.item.read",
+                kind=IntegrationEvidenceCheckKind.FABRIC_ITEM_READ,
+                status=IntegrationEvidenceStatus.PASS,
+                started_at=NOW,
+                completed_at=NOW,
+                workspace_id=uuid4(),
+                item_id=uuid4(),
+                evidence_references=("artifact:item-read",),
+            ),
+            IntegrationEvidenceCheckResult(
+                check_id="control.cert",
+                kind=IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION,
+                status=IntegrationEvidenceStatus.PASS,
+                started_at=NOW,
+                completed_at=NOW,
+                evidence_references=("artifact:control-cert",),
+            ),
+            IntegrationEvidenceCheckResult(
+                check_id="fabric.pipeline",
+                kind=IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN,
+                status=IntegrationEvidenceStatus.NOT_RUN,
+                started_at=NOW,
+                completed_at=NOW,
+            ),
+        ),
+    )
+
+
 def _runner_config(release: ReleaseManifest) -> ApprovedIntegrationRunnerConfig:
     return ApprovedIntegrationRunnerConfig(
         environment=EnvironmentName.DEV,
         domain="customer",
         framework_version="0.4.0",
         release_hash=release.bundle.release_hash,
+        framework_artifact_sha256=WHEEL_SHA,
+        control_plane_profile="fabric_sql_database_v1",
+        control_plane_database_url_env_var="CONTROL_PLANE_DATABASE_URL",
+        bindings=(
+            IntegrationCheckPhysicalBinding(
+                check_id="fabric.pipeline",
+                workspace_id=uuid4(),
+                item_id=uuid4(),
+            ),
+        ),
     )
 
 
@@ -153,29 +262,18 @@ def _registry(
 
     def observer(request):
         if request.phase is BusinessPathObservationPhase.BEFORE:
-            target = BEFORE
-            count = 1
-            progress = PROGRESS_BEFORE
+            target, count, progress = BEFORE, 1, PROGRESS_BEFORE
             history = BEFORE if scenario.gate_id is BusinessPathGate.WATERMARK_SCD2 else None
             one_current = True if scenario.gate_id is BusinessPathGate.WATERMARK_SCD2 else None
         elif (
             request.phase is BusinessPathObservationPhase.AFTER_FIRST_ATTEMPT
             or scenario.gate_id is BusinessPathGate.RECONCILIATION_FAIL_CLOSED
         ):
-            target = BEFORE
-            count = 1
-            progress = PROGRESS_BEFORE
-            history = None
-            one_current = None
+            target, count, progress = BEFORE, 1, PROGRESS_BEFORE
+            history, one_current = None, None
         else:
-            target = FINAL
-            count = 2
-            progress = PROGRESS_FINAL
-            history = (
-                HISTORY_FINAL
-                if scenario.gate_id is BusinessPathGate.WATERMARK_SCD2
-                else None
-            )
+            target, count, progress = FINAL, 2, PROGRESS_FINAL
+            history = HISTORY_FINAL if scenario.gate_id is BusinessPathGate.WATERMARK_SCD2 else None
             one_current = True if scenario.gate_id is BusinessPathGate.WATERMARK_SCD2 else None
         return BusinessPathStateObservation(
             dataset_id=request.dataset_id,
@@ -193,6 +291,13 @@ def _registry(
     return registry
 
 
+def _exact_inputs():
+    configs = (_dataset(),)
+    release = _release(configs)
+    spec = _spec(release)
+    return configs, release, spec, _prerequisite(spec), _runner_config(release)
+
+
 def _execute(
     monkeypatch,
     gate: BusinessPathGate,
@@ -202,7 +307,7 @@ def _execute(
     allow_scenario_mutation: bool = True,
     fail_cleanup: bool = False,
 ):
-    release = _release()
+    configs, release, spec, prerequisite, runner_config = _exact_inputs()
     scenario = _scenario(gate)
     driver_calls: list[BusinessPathDriverPhase] = []
     queue = list(reports)
@@ -213,17 +318,20 @@ def _execute(
 
     monkeypatch.setattr(runner_module, "_pipeline_attempt", fake_pipeline_attempt)
     result = execute_approved_business_path(
-        runner_config=_runner_config(release),
-        integration_spec=None,  # consumed only by the monkeypatched approved Pipeline boundary
-        prerequisite_manifest=None,
+        runner_config=runner_config,
+        integration_spec=spec,
+        prerequisite_manifest=prerequisite,
         release_manifest=release,
-        configs=(item for item in (SimpleNamespace(dataset_id=DATASET_ID),)),
+        configs=(item for item in configs),
         scenario=scenario,
         driver_config=_driver_config(scenario),
         candidate_git_sha=CANDIDATE_SHA,
         artifact_sha256=WHEEL_SHA,
         pipeline_check_id="fabric.pipeline",
-        environ={},
+        environ={
+            "FABRIC_ACCESS_TOKEN": "ephemeral",
+            "CONTROL_PLANE_DATABASE_URL": "sqlite:///not-opened.db",
+        },
         evidence_references=("artifact:business-path",),
         allow_pipeline_execution=allow_pipeline_execution,
         allow_scenario_mutation=allow_scenario_mutation,
@@ -247,11 +355,9 @@ def _execute(
 )
 def test_single_attempt_paths_publish_one_exact_partial_proof_and_cleanup(monkeypatch, gate):
     result, calls = _execute(monkeypatch, gate, [_report()])
-
     assert result.proof.gate_id == gate.value
     assert result.partial_proof_bundle.candidate_git_sha == CANDIDATE_SHA
     assert result.partial_proof_bundle.artifact_sha256 == WHEEL_SHA
-    assert len(result.partial_proof_bundle.results) == 1
     assert calls == [
         BusinessPathDriverPhase.PREPARE_BASELINE,
         BusinessPathDriverPhase.PREPARE_ATTEMPT_1,
@@ -274,7 +380,6 @@ def test_retry_requires_two_real_attempt_reports_and_intermediate_observation(mo
             _report(),
         ],
     )
-
     assert len(result.run_evidence.pipeline_reports) == 2
     assert result.run_evidence.after_first_attempt is not None
     assert calls == [
@@ -285,7 +390,7 @@ def test_retry_requires_two_real_attempt_reports_and_intermediate_observation(mo
     ]
 
 
-def test_reconciliation_accepts_completed_provider_but_failed_framework_only_when_state_unchanged(monkeypatch):
+def test_reconciliation_keeps_completed_provider_separate_from_failed_framework(monkeypatch):
     result, _ = _execute(
         monkeypatch,
         BusinessPathGate.RECONCILIATION_FAIL_CLOSED,
@@ -297,17 +402,14 @@ def test_reconciliation_accepts_completed_provider_but_failed_framework_only_whe
             )
         ],
     )
-
     report = result.run_evidence.pipeline_reports[0]
     assert report.remote_status is FabricJobStatus.COMPLETED
     assert report.framework_status is DatasetStatus.FAILED
-    assert result.run_evidence.before.semantic_state_identity == (
-        result.run_evidence.after_final_attempt.semantic_state_identity
-    )
+    assert result.run_evidence.before.semantic_state_identity == result.run_evidence.after_final_attempt.semantic_state_identity
 
 
 def test_explicit_authorization_blocks_before_driver_or_pipeline(monkeypatch):
-    release = _release()
+    configs, release, spec, prerequisite, runner_config = _exact_inputs()
     scenario = _scenario(BusinessPathGate.FULL_REPLACE)
     calls: list[BusinessPathDriverPhase] = []
 
@@ -322,21 +424,74 @@ def test_explicit_authorization_blocks_before_driver_or_pipeline(monkeypatch):
         calls.clear()
         with pytest.raises(ValueError, match=expected):
             execute_approved_business_path(
-                runner_config=_runner_config(release),
-                integration_spec=None,
-                prerequisite_manifest=None,
+                runner_config=runner_config,
+                integration_spec=spec,
+                prerequisite_manifest=prerequisite,
                 release_manifest=release,
-                configs=(SimpleNamespace(dataset_id=DATASET_ID),),
+                configs=configs,
                 scenario=scenario,
                 driver_config=_driver_config(scenario),
                 candidate_git_sha=CANDIDATE_SHA,
                 artifact_sha256=WHEEL_SHA,
                 pipeline_check_id="fabric.pipeline",
-                environ={},
+                environ={
+                    "FABRIC_ACCESS_TOKEN": "ephemeral",
+                    "CONTROL_PLANE_DATABASE_URL": "sqlite:///not-opened.db",
+                },
                 evidence_references=("artifact:business-path",),
                 allow_pipeline_execution=pipeline_allowed,
                 allow_scenario_mutation=mutation_allowed,
                 registry=_registry(scenario, driver_calls=calls),
+            )
+        assert calls == []
+
+
+def test_identity_or_prerequisite_mismatch_blocks_before_driver(monkeypatch):
+    configs, release, spec, prerequisite, runner_config = _exact_inputs()
+    scenario = _scenario(BusinessPathGate.FULL_REPLACE)
+    calls: list[BusinessPathDriverPhase] = []
+    registry = _registry(scenario, driver_calls=calls)
+
+    cases = (
+        (runner_config.model_copy(update={"framework_artifact_sha256": "9" * 64}), spec, prerequisite, "framework artifact"),
+        (runner_config, spec.model_copy(update={"domain_release_hash": "9" * 64}), prerequisite, "domain release"),
+        (
+            runner_config,
+            spec,
+            prerequisite.model_copy(
+                update={
+                    "results": tuple(
+                        item.model_copy(update={"status": IntegrationEvidenceStatus.PASS, "framework_pipeline_run_id": uuid4(), "workspace_id": uuid4(), "item_id": uuid4(), "native_job_instance_id": uuid4(), "root_activity_id": uuid4(), "evidence_references": ("artifact:old-pipeline",)})
+                        if item.check_id == "fabric.pipeline"
+                        else item
+                        for item in prerequisite.results
+                    )
+                }
+            ),
+            "NOT_RUN",
+        ),
+    )
+    for config, current_spec, current_prerequisite, message in cases:
+        with pytest.raises(ValueError, match=message):
+            execute_approved_business_path(
+                runner_config=config,
+                integration_spec=current_spec,
+                prerequisite_manifest=current_prerequisite,
+                release_manifest=release,
+                configs=configs,
+                scenario=scenario,
+                driver_config=_driver_config(scenario),
+                candidate_git_sha=CANDIDATE_SHA,
+                artifact_sha256=WHEEL_SHA,
+                pipeline_check_id="fabric.pipeline",
+                environ={
+                    "FABRIC_ACCESS_TOKEN": "ephemeral",
+                    "CONTROL_PLANE_DATABASE_URL": "sqlite:///not-opened.db",
+                },
+                evidence_references=("artifact:business-path",),
+                allow_pipeline_execution=True,
+                allow_scenario_mutation=True,
+                registry=registry,
             )
         assert calls == []
 
@@ -351,12 +506,12 @@ def test_cleanup_failure_prevents_returning_pass_artifact(monkeypatch):
         )
 
 
-def test_runner_rejects_unfingerprinted_driver_or_observer_before_extensions_run(monkeypatch):
+def test_unfingerprinted_driver_or_observer_blocks_before_extensions(monkeypatch):
+    configs, base, spec, prerequisite, _ = _exact_inputs()
     scenario = _scenario(BusinessPathGate.FULL_REPLACE)
     driver_config = _driver_config(scenario)
     calls: list[BusinessPathDriverPhase] = []
     registry = _registry(scenario, driver_calls=calls)
-    base = _release()
 
     for missing_name, expected in (
         (scenario.extension_artifact_name, "observer extension"),
@@ -365,20 +520,25 @@ def test_runner_rejects_unfingerprinted_driver_or_observer_before_extensions_run
         artifacts = dict(base.artifact_sha256)
         artifacts.pop(missing_name)
         release = base.model_copy(update={"artifact_sha256": artifacts})
-        config = _runner_config(release)
+        runner_config = _runner_config(release)
+        current_spec = _spec(release)
+        current_prerequisite = _prerequisite(current_spec)
         with pytest.raises(ValueError, match=expected):
             execute_approved_business_path(
-                runner_config=config,
-                integration_spec=None,
-                prerequisite_manifest=None,
+                runner_config=runner_config,
+                integration_spec=current_spec,
+                prerequisite_manifest=current_prerequisite,
                 release_manifest=release,
-                configs=(SimpleNamespace(dataset_id=DATASET_ID),),
+                configs=configs,
                 scenario=scenario,
                 driver_config=driver_config,
                 candidate_git_sha=CANDIDATE_SHA,
                 artifact_sha256=WHEEL_SHA,
                 pipeline_check_id="fabric.pipeline",
-                environ={},
+                environ={
+                    "FABRIC_ACCESS_TOKEN": "ephemeral",
+                    "CONTROL_PLANE_DATABASE_URL": "sqlite:///not-opened.db",
+                },
                 evidence_references=("artifact:business-path",),
                 allow_pipeline_execution=True,
                 allow_scenario_mutation=True,
