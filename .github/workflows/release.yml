@@ -206,13 +206,14 @@ jobs:
           test -f certified-evidence/release-proofs.json
           test -f certified-evidence/integration-evidence.json
 
-      - name: Verify certified readiness binds exact candidate artifact
+      - name: Verify certified readiness binds exact candidate and domain release
         env:
           EXPECTED_VERSION: ${{ steps.release.outputs.version }}
         run: |
           python - <<'PY'
           import json
           import os
+          import re
           from pathlib import Path
 
           expected_version = os.environ["EXPECTED_VERSION"]
@@ -232,6 +233,10 @@ jobs:
           if not required or any(result.get("status") != "PASS" for result in required):
               raise SystemExit("every required readiness result must be PASS")
 
+          domain_hash = report.get("domain_release_hash")
+          if not isinstance(domain_hash, str) or re.fullmatch(r"[0-9a-f]{64}", domain_hash) is None:
+              raise SystemExit("readiness domain_release_hash must be a non-empty lowercase SHA256")
+
           proofs = json.loads(Path("certified-evidence/release-proofs.json").read_text())
           if proofs.get("framework_version") != expected_version:
               raise SystemExit("release proof framework version mismatch")
@@ -239,12 +244,16 @@ jobs:
               raise SystemExit("release proof candidate git SHA mismatch")
           if proofs.get("artifact_sha256") != expected_wheel:
               raise SystemExit("release proof artifact SHA256 mismatch")
+          if proofs.get("domain_release_hash") != domain_hash:
+              raise SystemExit("release proof domain release hash mismatch")
 
           integration = json.loads(Path("certified-evidence/integration-evidence.json").read_text())
           if integration.get("framework_version") != expected_version:
               raise SystemExit("integration evidence framework version mismatch")
           if integration.get("release_hash") != expected_wheel:
               raise SystemExit("integration evidence release_hash mismatch")
+          if integration.get("domain_release_hash") != domain_hash:
+              raise SystemExit("integration evidence domain release hash mismatch")
           PY
 
       - name: Create immutable tag at exact candidate SHA
