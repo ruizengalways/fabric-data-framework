@@ -11,7 +11,7 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #21 | `6377eafd4875c3cfe1d7bf21a982f6c11d47aea1` | production control-plane backend certification contract |
 | #22 | `650b7d30b2e31e21d01c56465e8871b91aae4779` | Fabric REST Job Scheduler + Data Pipeline backend |
 | #24 | `2fa8e2c4bc6875b529a4968694722d4108a635ff` | SQLAlchemy relational runtime repository |
-| #26 | `8f23942acd5b03d817e42b97d9f490acc6bee89f` | Copy Job + Spark Job Definition REST transports |
+| #26 | `8f23942acd5b03e1d7bf21a982f6c11d47aea1` | Copy Job + Spark Job Definition REST transports |
 | #28 | `67562e4312dc9c37e8b7fb8d79535bb621bd573f` | Fabric Warehouse same-transaction target commit proof |
 | #30 | `732920e214ccdead20c632f7e70c0eb8f1267f0d`, Actions `33250676068` | approved DEV integration evidence harness |
 | #32 | `e42dee86db3d4102c7264bc0d1f01f83fb8aade2`, Actions `33251177339`, 407 | approved-run preflight + read-only item smoke |
@@ -50,6 +50,7 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #88 | `1632aefe8c1fd71098200c434a1648d0385f4967`, PR Actions `33346419772`, main Actions `33346470401`, 717 | representative five-gate business-path evidence contract/producer, explicit Pipeline rerun, canonical plan-path guard and distinct framework-wheel/domain-release identities |
 | #90 | `7e12a320e73aa06f3e80f57e3deed14a6cc7add0`, final PR Actions `33349005817`, main Actions `33349064335`, 728 | exact-candidate integration-evidence producer, customer-owned representative Pipeline dataset binding, staged approved-runner orchestration and strict certified merge; no live Fabric proof claimed |
 | #92 | `d5eed17f2ec2f869b4e3a448597e6d8d600568ea`, final PR Actions `33356959856`, main Actions `33357032461`, 734 | exact customer/domain `domain_release_hash` bound through business-path proof, strict release-proof merge, candidate certification report and pre-tag exact-byte promotion checks |
+| #94 | `abc8b3a2b80b3f6babf88fdc2347a3bfe69be356`, final PR Actions `33357795244`, main Actions `33357846835`, 738 | removed obsolete runner-level unbound business-path proof bundle/writer; candidate proof packaging now exclusively requires exact customer `ReleaseManifest` |
 
 ## Integrated design decisions
 
@@ -81,6 +82,8 @@ candidate artifact existence does not mean candidate has been selected/frozen
 certification workflow existence does not mean live certification has happened
 framework wheel SHA256 and customer/domain release hash are independent exact identities
 business-path proof packaging binds evaluator output to the exact customer ReleaseManifest rather than accepting domain identity from workflow input
+approved business-path runner returns evaluated execution evidence only and does not package candidate release proof
+business_path_release_proof.py is the sole business-path candidate proof packaging owner and requires exact customer ReleaseManifest
 strict candidate release-proof merge requires the same non-empty domain_release_hash on all partial bundles
 candidate certification requires release proof and integration evidence to carry the same domain_release_hash
 release promotion re-checks readiness report, release proof and integration domain_release_hash equality before tag creation
@@ -107,6 +110,7 @@ source/version equality != permission to reuse evidence across rebuilt artifacts
 candidate-capable main artifact != frozen/certified candidate
 candidate-certification contract != retained live certification
 business-path producer contract != retained live business-path proof
+business-path execution report != domain-bound candidate proof bundle
 integration producer contract != retained live integration proof
 customer input producer contract != selected-candidate input artifact
 exact domain identity contract != live customer/domain evidence
