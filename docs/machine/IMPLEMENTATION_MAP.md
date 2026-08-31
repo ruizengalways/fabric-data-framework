@@ -101,7 +101,7 @@ ApprovedIntegrationRunnerConfig.release_hash
 
 They must never be assumed equal. Historical development/reference single-hash runner configs are compatibility-only when `domain_release_hash` is absent. Exact 0.4 candidate evidence must bind both values.
 
-### Candidate integration producer — PR #90
+### Candidate integration producer — merged PR #90
 
 Owner:
 
@@ -109,18 +109,15 @@ Owner:
 .github/workflows/candidate-integration-evidence.yml
 ```
 
-Current state:
+Merged-main provenance:
 
 ```text
-PR #90
-PR CI 33347382522
-727 passed
-Python 3.11 success
-Python 3.13 success
-wheel success
-fail-closed readiness success
-state = PR CI PROVEN / PENDING MERGE
-live Fabric artifact = none
+merge SHA   7e12a320e73aa06f3e80f57e3deed14a6cc7add0
+final PR CI 33349005817
+main CI     33349064335
+tests       728
+state       MERGED + MAIN CI PROVEN
+live proof  none
 ```
 
 The workflow is orchestration only. It authenticates exact framework candidate/main-run/wheel provenance plus exact customer SHA/input-producer provenance, verifies the exact customer release/config/recipe/extension bytes, then reuses existing approved commands in this order:
@@ -224,13 +221,13 @@ src/fabric_data_framework/deployment/candidate_artifact.py
 .github/workflows/ci.yml
 ```
 
-Latest merged candidate-capable main artifact:
+Latest merged candidate-capable main artifact after PR #90:
 
 ```text
-source SHA         1632aefe8c1fd71098200c434a1648d0385f4967
-main CI            33346470401
-wheel SHA256       9c813a2c23344c55409ac5f4f7e879d4515196987835bee6473d54ff3a1e027f
-artifact ID        9742145456
+source SHA         7e12a320e73aa06f3e80f57e3deed14a6cc7add0
+main CI            33349064335
+wheel SHA256       dbc9b0cbcc73598c94ae67c4798ba9eefdf6ba203a6169ff61088a9d1757c3b8
+artifact ID        9742969993
 selected/frozen    false
 ```
 
@@ -266,7 +263,7 @@ It authenticates exact framework candidate/run/wheel, exact customer SHA + custo
 
 The workflow contract is merged + main-CI proven, but there is **no retained live business-path PASS artifact yet**.
 
-### Candidate integration producer — PR #90
+### Candidate integration producer — merged PR #90
 
 Owner:
 
@@ -274,7 +271,7 @@ Owner:
 .github/workflows/candidate-integration-evidence.yml
 ```
 
-It is **PR CI PROVEN / PENDING MERGE**, not yet merged-main proven and not live-service proven. It cannot succeed today until `fabric-customer/.github/workflows/candidate-business-path-inputs.yml`, exact domain recipes/extensions and protected real environment credentials exist.
+It is **MERGED + MAIN CI PROVEN**, not live-service proven. It cannot succeed today until `fabric-customer/.github/workflows/candidate-business-path-inputs.yml`, exact domain recipes/extensions and protected real environment credentials exist.
 
 ## Candidate certification
 
@@ -345,9 +342,9 @@ Business-path observer supplies read-only semantic facts; driver prepares bounde
 ## Next release implementation order
 
 ```text
-finish PR #90 final docs/CI -> merge -> main verification
--> fabric-customer business-path/integration input producer + exact live extensions/plan
+fabric-customer business-path/integration input producer + exact live extensions/plan
 -> hard-bind domain_release_hash across final release proof/certification
+-> validate producer and identity contracts fail closed
 -> freeze one exact candidate only after producer paths are ready
 -> certified integration evidence
 -> five representative live business-path proofs
@@ -356,7 +353,7 @@ finish PR #90 final docs/CI -> merge -> main verification
 -> exact-byte release
 ```
 
-Do not collapse these independent truth sources into a workflow that authors PASS JSON.
+Do not collapse independent truth sources into a workflow that authors PASS JSON.
 
 ## Documentation ownership
 
