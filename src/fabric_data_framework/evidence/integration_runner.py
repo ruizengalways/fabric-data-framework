@@ -77,10 +77,11 @@ class IntegrationCheckPhysicalBinding(FrozenModel):
 class ApprovedIntegrationRunnerConfig(FrozenModel):
     """Source-controlled configuration for one exact approved-environment run.
 
-    ``release_hash`` identifies the exact framework candidate artifact. The independent
-    ``domain_release_hash`` identifies the exact customer/domain ReleaseManifest bundle.
-    Legacy/dev configs may omit ``domain_release_hash``; approved runners then use the
-    historical release_hash-as-domain fallback. Candidate workflows must supply both.
+    ``release_hash`` keeps its established meaning: the exact customer/domain
+    ``ReleaseManifest.bundle.release_hash``. Candidate certification additionally sets
+    ``framework_artifact_sha256`` to the exact framework wheel SHA256. This preserves
+    compatibility with existing approved provider runners while preventing the two
+    independent identities from being conflated.
 
     ``warehouse_admin_database_url_env_var`` is deliberately separate from the ordinary
     Warehouse target connection. It names the runtime credential used only for explicit
@@ -91,7 +92,10 @@ class ApprovedIntegrationRunnerConfig(FrozenModel):
     domain: str = Field(min_length=1, max_length=128)
     framework_version: str = Field(min_length=1, max_length=64)
     release_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    domain_release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    framework_artifact_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     fabric_access_token_env_var: str = Field(
         default="FABRIC_ACCESS_TOKEN", pattern=_ENV_NAME_PATTERN
     )
@@ -154,10 +158,6 @@ class ApprovedIntegrationRunnerConfig(FrozenModel):
             )
         return self
 
-    @property
-    def effective_domain_release_hash(self) -> str:
-        return self.domain_release_hash or self.release_hash
-
 
 class RuntimeEnvironmentRequirement(FrozenModel):
     purpose: str = Field(min_length=1, max_length=256)
@@ -172,7 +172,10 @@ class ApprovedIntegrationRunPlan(FrozenModel):
     domain: str
     framework_version: str
     release_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    domain_release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    framework_artifact_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     check_ids: tuple[str, ...]
     bindings: tuple[IntegrationCheckPhysicalBinding, ...]
     runtime_requirements: tuple[RuntimeEnvironmentRequirement, ...]
@@ -197,12 +200,23 @@ def _require_same_release(
         raise ValueError("integration runner config and evidence spec domain differ")
     if config.framework_version != spec.framework_version:
         raise ValueError("integration runner config and evidence spec framework version differ")
-    if config.release_hash != spec.release_hash:
-        raise ValueError("integration runner config and framework artifact release hash differ")
-    if config.domain_release_hash != spec.domain_release_hash:
-        # Legacy/dev specs/configs keep both fields null and remain valid. Candidate
-        # evidence sets both independently and must match exactly.
-        raise ValueError("integration runner config and domain release hash differ")
+
+    if config.framework_artifact_sha256 is None:
+        # Compatibility path for existing dev/reference evidence created before the
+        # candidate identity split. It is valid only while the spec has no independent
+        # domain hash and uses the historical single release_hash identity.
+        if spec.domain_release_hash is not None:
+            raise ValueError(
+                "candidate integration runner requires framework_artifact_sha256"
+            )
+        if config.release_hash != spec.release_hash:
+            raise ValueError("integration runner config and evidence spec release hash differ")
+        return
+
+    if config.framework_artifact_sha256 != spec.release_hash:
+        raise ValueError("integration runner framework artifact SHA256 mismatch")
+    if config.release_hash != spec.domain_release_hash:
+        raise ValueError("integration runner domain release hash mismatch")
 
 
 def _selected_checks(
@@ -336,7 +350,7 @@ def build_approved_integration_run_plan(
         domain=config.domain,
         framework_version=config.framework_version,
         release_hash=config.release_hash,
-        domain_release_hash=config.domain_release_hash,
+        framework_artifact_sha256=config.framework_artifact_sha256,
         check_ids=tuple(item.check_id for item in checks),
         bindings=selected_bindings,
         runtime_requirements=runtime_requirements,
