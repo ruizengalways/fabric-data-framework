@@ -12,6 +12,7 @@ from fabric_data_framework.evidence.manual_certification import (
     ManualCertificationCheckStatus,
     ManualCertificationMode,
     ManualCertificationStatus,
+    _manual_checks_from_selections,
     create_admin_override_record,
     create_manual_certification_record,
     load_manual_certification_record,
@@ -79,6 +80,56 @@ def test_incomplete_notebook_record_is_partial_without_admin_override():
     assert "candidate_git_sha" in record.missing_fields
     assert "artifact_sha256" in record.missing_fields
     assert "notebook_reference" in record.missing_fields
+
+
+def test_notebook_dropdown_selection_retains_fail_and_omits_not_run():
+    checks = _manual_checks_from_selections(
+        {
+            "lakehouse.smoke": ManualCertificationCheckStatus.PASS.value,
+            "watermark.scd1": ManualCertificationCheckStatus.FAIL.value,
+            "warehouse.commit": ManualCertificationCheckStatus.NOT_RUN.value,
+        }
+    )
+
+    assert [(check.check_id, check.status.value) for check in checks] == [
+        ("lakehouse.smoke", "PASS"),
+        ("watermark.scd1", "FAIL"),
+    ]
+    assert checks[0].detail == "operator observed PASS in notebook"
+    assert checks[1].detail == "operator observed FAIL in notebook"
+
+
+def test_failed_notebook_check_is_partial_without_override_and_retained_with_override():
+    checks = _manual_checks_from_selections(
+        {
+            "lakehouse.smoke": "PASS",
+            "watermark.scd2": "FAIL",
+        }
+    )
+
+    normal = create_manual_certification_record(
+        checks=checks,
+        framework_version="0.4.0",
+        candidate_git_sha=CANDIDATE,
+        artifact_sha256=ARTIFACT,
+        now=lambda: AT,
+    )
+    override = create_manual_certification_record(
+        checks=checks,
+        framework_version="0.4.0",
+        candidate_git_sha=CANDIDATE,
+        artifact_sha256=ARTIFACT,
+        admin_override=True,
+        override_reason="Administrator accepts the recorded failed check for this bounded test",
+        now=lambda: AT,
+    )
+
+    assert normal.status is ManualCertificationStatus.PARTIAL
+    assert override.status is ManualCertificationStatus.CERTIFIED
+    assert [check.status for check in override.checks] == [
+        ManualCertificationCheckStatus.PASS,
+        ManualCertificationCheckStatus.FAIL,
+    ]
 
 
 def test_admin_override_can_certify_with_missing_optional_context():
