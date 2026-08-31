@@ -78,9 +78,11 @@ def test_release_docs_keep_framework_and_domain_release_identity_distinct():
 
     assert "domain_release_hash" in combined
     assert "framework_artifact_sha256" in combined
-    assert "framework wheel" in combined.lower()
-    assert "domain release" in combined.lower()
-    assert "release_hash == wheel" in combined or "release_hash = exact framework wheel" in combined
+    assert "exact inner candidate wheel SHA256" in combined
+    assert "ReleaseManifest.bundle.release_hash" in combined
+    assert "IntegrationEvidence.release_hash" in combined
+    assert "IntegrationEvidence.domain_release_hash" in combined
+    assert "must never be assumed equal" in combined
 
 
 def test_release_docs_keep_actual_live_producer_and_release_gaps_explicit():
