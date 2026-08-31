@@ -2,7 +2,7 @@
 
 This file defines what can satisfy the five representative live non-integration readiness gates for `0.4.0`. Reference/in-memory apply tests are executable specifications only; they cannot satisfy live release gates.
 
-Portable business-path semantics were merged in PR #88. The exact candidate integration-evidence producer was merged in PR #90. Customer certification-input packaging is merged in `fabric-customer` PR #10 with checkpoint PR #11. Exact business-path/domain proof binding is merged and main-CI proven in framework PR #92. No successful exact-candidate live Fabric business-path evidence has been retained yet.
+Portable business-path semantics were merged in PR #88. The exact candidate integration-evidence producer was merged in PR #90. Customer certification-input packaging is merged in `fabric-customer` PR #10 with checkpoint PR #11. Exact business-path/domain proof binding is merged in framework PR #92, and PR #94 removes the obsolete runner-level unbound proof packaging path. No successful exact-candidate live Fabric business-path evidence has been retained yet.
 
 ## Gate ownership
 
@@ -42,6 +42,12 @@ PR #92:
   final PR CI 33356959856
   main CI     33357032461
   tests       734
+
+PR #94:
+  merge SHA   abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
+  final PR CI 33357795244
+  main CI     33357846835
+  tests       738
 ```
 
 ## Independent fact sources
@@ -68,7 +74,7 @@ A valid proof combines independently bounded inputs:
 
 The framework evaluates those facts and only then projects one readiness result.
 
-Forbidden shortcuts remain:
+Forbidden shortcuts:
 
 ```text
 Fabric Completed -> PASS
@@ -76,11 +82,10 @@ customer observer says pass -> PASS
 driver setup succeeded -> PASS
 in-memory apply unit test -> live readiness PASS
 workflow writes PASS JSON directly
+runner execution report -> candidate proof without exact ReleaseManifest
 ```
 
 ## Exact release identity
-
-There are two independent SHA256 identities plus framework source SHA:
 
 ```text
 framework source:
@@ -172,8 +177,6 @@ Provider success is intentionally insufficient for framework semantic success.
 
 ## Explicit Pipeline rerun
 
-Business-path certification reruns a previously certified Pipeline path without mutating the original integration artifact.
-
 Canonical projection:
 
 ```text
@@ -244,12 +247,12 @@ approved Pipeline attempt 1
 observe AFTER_FINAL_ATTEMPT
 framework evaluator
 CLEANUP in finally
-publish proof only after cleanup succeeds
+return evaluated execution report only
 ```
 
-Cleanup failure prevents proof publication.
+Cleanup failure prevents the report/proof chain from being published.
 
-## Domain-bound proof packaging — merged PR #92
+## Domain-bound proof packaging — PR #92, cleanup PR #94
 
 Canonical owner:
 
@@ -270,7 +273,18 @@ ReleaseReadinessProofBundle(
 
 It does not evaluate or alter PASS/FAIL.
 
-State: **MERGED + MAIN CI PROVEN** from PR #92 (`d5eed17f2ec2f869b4e3a448597e6d8d600568ea`, main CI `33357032461`, 734 tests).
+PR #94 permanently removes the old public runner-level `partial_proof_bundle` property and `write_business_path_partial_proof_bundle()` writer. `approved_business_path_runner.py` therefore cannot package candidate release proof at all.
+
+Exact-wheel scan of the PR #94 main artifact confirms that `ReleaseReadinessProofBundle` construction in the installed framework is limited to:
+
+```text
+business_path_release_proof.py
+release_readiness_merge.py
+```
+
+The former binds `ReleaseManifest.bundle.release_hash`; the latter rejects missing candidate `domain_release_hash` and requires equality across all partial bundles.
+
+State: **MERGED + MAIN CI PROVEN** for the portable boundary. No live business-path artifact has been retained.
 
 ## Candidate business-path workflow
 
@@ -280,7 +294,7 @@ Workflow:
 .github/workflows/candidate-business-path-evidence.yml
 ```
 
-State: **MERGED + MAIN CI PROVEN** as an exact-candidate executor/aggregator contract. It requires trusted upstream evidence from the framework main candidate artifact, `candidate-integration-evidence`, and customer `candidate-business-path-inputs` producer.
+It requires trusted upstream evidence from the framework main candidate artifact, `candidate-integration-evidence`, and customer `candidate-business-path-inputs` producer.
 
 It authenticates framework source/wheel provenance, customer git/release provenance, exact plan/scenario/driver/plugin bytes and both SHA256 identity domains before running five approved paths. It strict-merges exactly five one-gate proof bundles.
 
@@ -293,13 +307,9 @@ certified-integration-evidence.json
 per-gate reports/receipts
 ```
 
-Retaining `customer-release-manifest.json` is intentional: `candidate-release-proofs.yml` re-authenticates this manifest and requires `business-path-release-proofs.json.domain_release_hash == ReleaseManifest.bundle.release_hash` before creating any static PASS bundle.
-
-No live business-path artifact has yet been retained.
+Retaining `customer-release-manifest.json` is intentional: `candidate-release-proofs.yml` re-authenticates this manifest and requires `business-path-release-proofs.json.domain_release_hash == ReleaseManifest.bundle.release_hash` before creating static PASS proof.
 
 ## Customer producer boundary
-
-Customer producer contract is merged:
 
 ```text
 fabric-customer/.github/workflows/candidate-business-path-inputs.yml
@@ -314,14 +324,15 @@ This does not mean a selected-candidate input artifact exists. Customer producti
 ## Current evidence boundary
 
 ```text
-typed evaluator / driver / plan / runner / business-path workflow = MERGED + MAIN CI PROVEN (#88)
-candidate-integration-evidence producer                            = MERGED + MAIN CI PROVEN (#90); NO LIVE RUN
-customer candidate-business-path-inputs contract                   = MERGED + CUSTOMER MAIN CI PROVEN (#10/#11)
-business-path exact domain proof packaging                         = MERGED + MAIN CI PROVEN (#92)
-actual selected-candidate customer input artifact                  = NOT RETAINED
-actual Fabric business-path PASS artifacts                         = NOT RETAINED
-exact framework candidate                                          = NOT FROZEN
-release readiness                                                  = 15 REQUIRED BLOCKERS
+typed evaluator / driver / plan / business-path workflow            = MERGED + MAIN CI PROVEN (#88)
+candidate-integration-evidence producer                             = MERGED + MAIN CI PROVEN (#90); NO LIVE RUN
+customer candidate-business-path-inputs contract                    = MERGED + CUSTOMER MAIN CI PROVEN (#10/#11)
+business-path exact domain proof packaging                          = MERGED + MAIN CI PROVEN (#92)
+obsolete unbound runner proof packaging                             = REMOVED + MAIN CI PROVEN (#94)
+actual selected-candidate customer input artifact                   = NOT RETAINED
+actual Fabric business-path PASS artifacts                          = NOT RETAINED
+exact framework candidate                                           = NOT FROZEN
+release readiness                                                   = 15 REQUIRED BLOCKERS
 ```
 
 No implementation in this file upgrades `0.4.0` to Fabric-proven or release-ready by itself.
