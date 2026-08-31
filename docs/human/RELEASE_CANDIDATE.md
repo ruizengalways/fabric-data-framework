@@ -70,7 +70,7 @@ CANDIDATE.json
 
 `CANDIDATE.json` binds package version, source SHA, main Actions run ID/attempt, wheel filename, and exact inner wheel SHA256. Do not use GitHub's uploaded ZIP/archive digest as wheel identity.
 
-The latest merged candidate-capable baseline is PR #88:
+The latest **merged-main** candidate-capable baseline is PR #88:
 
 ```text
 source SHA       1632aefe8c1fd71098200c434a1648d0385f4967
@@ -82,6 +82,8 @@ artifact ID      9742145456
 
 That wheel is candidate-capable only. It is not frozen and has no live certification.
 
+PR #90 contains newer integration-producer release-blocker work. Its PR CI run `33347382522` passed Python 3.11/3.13, wheel build and fail-closed readiness with **727 tests**. Until it is merged and independently re-proven on main, it is PR-CI proven only and is not a candidate to freeze.
+
 ## Step 1 — certified integration evidence
 
 The integration template is source controlled at:
@@ -90,7 +92,9 @@ The integration template is source controlled at:
 release/0.4.0/integration-evidence-template.json
 ```
 
-The remaining `.github/workflows/candidate-integration-evidence.yml` must execute the approved exact-candidate surfaces for:
+`.github/workflows/candidate-integration-evidence.yml` is implemented in PR #90 and **PR CI PROVEN / PENDING MERGE**. It is a manual protected-environment exact-candidate producer around the existing approved runner commands.
+
+It must execute real approved paths for:
 
 ```text
 Fabric identity/item read
@@ -102,9 +106,33 @@ Warehouse target+marker commit
 real ambiguous-COMMIT recovery
 ```
 
-It must retain a fully certified manifest bound to the exact framework wheel SHA and exact customer/domain release hash. Generic PASS JSON cannot substitute for these checks.
+The producer authenticates the exact framework source/main CI run/wheel bytes and the exact customer SHA/input-producer run before any live mutation. It also verifies the exact customer `ReleaseManifest`, DatasetConfig bundle, source-controlled run recipes, and fingerprinted extension wheels.
 
-This producer is not yet implemented, so no current candidate has certified integration evidence.
+The customer approved integration config owns physical bindings. For the representative `fabric.pipeline` binding, PR #90 adds an optional `dataset_id` field and the candidate producer requires it. This keeps the representative business dataset choice in the customer/domain repo rather than as an ad hoc framework workflow input.
+
+The workflow stages approved partial manifests and finishes only if:
+
+```text
+integration-evidence-merge --require-certified
+integration-evidence-validate --require-certified
+```
+
+both succeed. It may read final PASS statuses for re-validation, but it must not construct `IntegrationEvidenceCheckResult(PASS)` itself.
+
+A successful artifact must be bound to:
+
+```text
+exact framework candidate wheel SHA256
+exact customer/domain ReleaseManifest.bundle.release_hash
+environment
+domain
+framework version
+all required integration check identities
+```
+
+General live mutation authorization and Admin Warehouse session-termination authorization are separate controls. The Admin/KILL path is never enabled implicitly by ordinary mutation authorization.
+
+No current candidate has certified integration evidence. PR #90 proves only the portable workflow contract; real protected credentials and exact customer inputs are still required.
 
 ## Step 2 — representative live business paths
 
@@ -160,7 +188,7 @@ For reconciliation fail-closed, Fabric must reach `Completed` while the durable 
 
 Cleanup failure blocks publication even if the earlier evaluator had calculated PASS.
 
-`.github/workflows/candidate-business-path-evidence.yml` is now merged and main-CI proven as a fail-closed producer contract. It still cannot create a real PASS artifact today because it depends on two missing trusted producers: framework integration evidence and exact customer business-path inputs. A green workflow contract is not live Fabric evidence.
+`.github/workflows/candidate-business-path-evidence.yml` is merged and main-CI proven as a fail-closed producer contract. It still cannot create a real PASS artifact because the exact customer input producer and retained certified integration evidence do not yet exist.
 
 ## Step 3 — non-integration proof merge
 
@@ -188,6 +216,12 @@ Different substantive reruns conflict—even two different PASS records. There i
 
 Final `release-proofs-<candidate SHA>` is retained only when exactly all eight non-integration gates are present and PASS.
 
+### Domain identity hardening before freeze
+
+The current `ReleaseReadinessProofBundle` machine identity binds framework version, candidate source SHA and exact wheel SHA256. Certified integration evidence independently binds the customer/domain release hash.
+
+Before choosing/finally freezing a 0.4 candidate, the final release-proof/candidate-certification path must machine-bind the same `domain_release_hash` so a complete proof bundle cannot be paired with a different customer/domain release merely because references happen to look compatible. This is a release blocker.
+
 ## Step 4 — candidate certification
 
 After complete release proof and the same certified integration manifest exist for the exact candidate:
@@ -205,7 +239,7 @@ fabric-framework candidate-certify \
   --output build/release-readiness.json
 ```
 
-Certification fails unless exact candidate/wheel identity matches, retained proof text is safe, integration evidence is fully certified, all 15 required readiness gates PASS, `release_ready=true`, and `blockers=[]`.
+Certification fails unless exact candidate/wheel/domain identity matches, retained proof text is safe, integration evidence is fully certified, all 15 required readiness gates PASS, `release_ready=true`, and `blockers=[]`.
 
 ## Step 5 — exact promotion
 
@@ -222,9 +256,10 @@ ordinary required blockers         15
 strict partial proof merge         merged + CI proven (#86)
 candidate-release-proofs           merged + main CI proven (#87)
 candidate-business-path-evidence   merged + main CI proven contract (#88); no live run
-candidate-integration-evidence     not yet implemented
+candidate-integration-evidence     PR CI proven / pending merge (#90); no live run
 customer business-path inputs      not yet implemented / not retained
+release-proof/domain binding       required before candidate freeze
 certified artifact                 not yet produced
 ```
 
-No current state above is a live Fabric certification claim. The next release-blocking implementation is the trusted integration evidence producer, followed by the exact customer business-path input producer. Only after both producer paths are ready should an exact 0.4 candidate be selected/frozen.
+No current state above is a live Fabric certification claim. Finish PR #90 merge/main verification, then implement the exact `fabric-customer` business-path/integration input producer and the release-proof/domain identity hardening. Only after those producer paths are ready should an exact 0.4 candidate be selected/frozen.
