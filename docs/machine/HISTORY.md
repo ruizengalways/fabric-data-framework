@@ -49,6 +49,7 @@ Purpose: compact provenance only. Stable behavior belongs in `CONTEXT.md` / `CAP
 | #87 | `5a2edffe5930e9b8a2a79f66f4580ca4d9df2b4e`, PR Actions `33343182775`, main Actions `33343223496`, 670 | exact-candidate non-integration release-proof producer; direct PASS limited to source/wheel/customer observations and live business-path proof remains external |
 | #88 | `1632aefe8c1fd71098200c434a1648d0385f4967`, PR Actions `33346419772`, main Actions `33346470401`, 717 | representative five-gate business-path evidence contract/producer, explicit Pipeline rerun, canonical plan-path guard and distinct framework-wheel/domain-release identities |
 | #90 | `7e12a320e73aa06f3e80f57e3deed14a6cc7add0`, final PR Actions `33349005817`, main Actions `33349064335`, 728 | exact-candidate integration-evidence producer, customer-owned representative Pipeline dataset binding, staged approved-runner orchestration and strict certified merge; no live Fabric proof claimed |
+| #92 | `d5eed17f2ec2f869b4e3a448597e6d8d600568ea`, final PR Actions `33356959856`, main Actions `33357032461`, 734 | exact customer/domain `domain_release_hash` bound through business-path proof, strict release-proof merge, candidate certification report and pre-tag exact-byte promotion checks |
 
 ## Integrated design decisions
 
@@ -79,6 +80,10 @@ release workflow promotes already-certified bytes and must never rebuild the whe
 candidate artifact existence does not mean candidate has been selected/frozen
 certification workflow existence does not mean live certification has happened
 framework wheel SHA256 and customer/domain release hash are independent exact identities
+business-path proof packaging binds evaluator output to the exact customer ReleaseManifest rather than accepting domain identity from workflow input
+strict candidate release-proof merge requires the same non-empty domain_release_hash on all partial bundles
+candidate certification requires release proof and integration evidence to carry the same domain_release_hash
+release promotion re-checks readiness report, release proof and integration domain_release_hash equality before tag creation
 representative business-path PASS belongs only to the framework evaluator over driver/observer/provider/durable-outcome facts
 explicit Pipeline rerun starts from separately retained fully certified integration evidence and never mutates it
 cleanup failure blocks business-path proof publication
@@ -103,5 +108,7 @@ candidate-capable main artifact != frozen/certified candidate
 candidate-certification contract != retained live certification
 business-path producer contract != retained live business-path proof
 integration producer contract != retained live integration proof
+customer input producer contract != selected-candidate input artifact
+exact domain identity contract != live customer/domain evidence
 exact-byte promotion contract != live certification
 ```
