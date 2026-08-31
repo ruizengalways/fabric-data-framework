@@ -40,6 +40,8 @@ def _validate_partial_bundle(
         raise ValueError("release proof framework version does not match readiness spec")
     if bundle.artifact_sha256 is None:
         raise ValueError("partial release proof bundle must bind exact artifact_sha256")
+    if bundle.domain_release_hash is None:
+        raise ValueError("partial release proof bundle must bind exact domain_release_hash")
 
     gates = {gate.gate_id: gate for gate in spec.gates}
     for result in bundle.results:
@@ -62,12 +64,12 @@ def merge_release_readiness_proof_bundles(
     spec: ReleaseReadinessSpec,
     bundles: Iterable[ReleaseReadinessProofBundle],
 ) -> ReleaseReadinessProofBundle:
-    """Merge staged proof for one exact source/wheel candidate.
+    """Merge staged proof for one exact framework and customer/domain release.
 
     Rules are deliberately strict:
 
     - every input must match the readiness schema/framework and bind the same
-      candidate SHA and exact wheel SHA;
+      candidate SHA, exact wheel SHA and exact customer/domain release hash;
     - every proof result must match the source-controlled readiness spec;
     - integration-backed gates are rejected because IntegrationEvidenceManifest owns them;
     - retained evidence text is secret-scanned before it can enter merged output;
@@ -88,11 +90,14 @@ def merge_release_readiness_proof_bundles(
 
     first = items[0]
     assert first.artifact_sha256 is not None
+    assert first.domain_release_hash is not None
     for bundle in items[1:]:
         if bundle.candidate_git_sha != first.candidate_git_sha:
             raise ValueError("partial release proof candidate git SHA mismatch")
         if bundle.artifact_sha256 != first.artifact_sha256:
             raise ValueError("partial release proof artifact SHA256 mismatch")
+        if bundle.domain_release_hash != first.domain_release_hash:
+            raise ValueError("partial release proof domain release hash mismatch")
 
     result_maps = [{item.gate_id: item for item in bundle.results} for bundle in items]
     merged: list[ReleaseReadinessProofResult] = []
@@ -123,6 +128,7 @@ def merge_release_readiness_proof_bundles(
         framework_version=spec.framework_version,
         candidate_git_sha=first.candidate_git_sha,
         artifact_sha256=first.artifact_sha256,
+        domain_release_hash=first.domain_release_hash,
         results=tuple(merged),
     )
 
