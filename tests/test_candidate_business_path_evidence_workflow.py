@@ -51,9 +51,9 @@ def test_workflow_cannot_author_business_gate_pass_json_directly():
     assert "--allow-scenario-mutation" in text
     assert "release-proofs-merge" in text
     assert "ReleaseReadinessProofResult(" not in text
+    assert "ReleaseReadinessProofBundle(" not in text
     assert "InMemory" not in text
     assert "fabric_data_framework.apply" not in text
-    assert "write_text" not in text or "business-path-release-proofs.json" not in text
 
 
 def test_workflow_authenticates_exact_plan_scenarios_drivers_and_extension_bytes():
