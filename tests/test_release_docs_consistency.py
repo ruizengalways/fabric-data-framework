@@ -8,6 +8,7 @@ CANONICAL = (
     ROOT / "docs/machine/IMPLEMENTATION_MAP.md",
     ROOT / "docs/machine/BUSINESS_PATH_EVIDENCE.md",
     ROOT / "docs/machine/RELEASE_READINESS.md",
+    ROOT / "docs/machine/HISTORY.md",
     ROOT / "docs/human/RELEASE_CANDIDATE.md",
 )
 
