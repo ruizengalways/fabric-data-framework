@@ -14,6 +14,8 @@ def test_candidate_release_proofs_workflow_is_exact_candidate_fail_closed_aggreg
     assert "candidate_wheel_sha256:" in workflow
     assert "customer_git_sha:" in workflow
     assert "business_path_evidence_run_id:" in workflow
+    inputs = workflow.split("    inputs:\n", 1)[1].split("\npermissions:", 1)[0]
+    assert "domain_release_hash:" not in inputs
     assert 'os.environ["GITHUB_SHA"] != os.environ["CANDIDATE_SHA"]' in workflow
     assert 'ref: ${{ inputs.candidate_git_sha }}' in workflow
     assert 'framework-wheel-${CANDIDATE_SHA}' in workflow
@@ -40,6 +42,19 @@ def test_candidate_release_proofs_workflow_revalidates_customer_against_exact_wh
     assert 'assert counts("capture_strategies") == {"CDC": 10, "FULL": 50, "WATERMARK": 40}' in workflow
     assert 'assert counts("apply_strategies") == {"REPLACE": 50, "SCD1": 20, "SCD2": 20, "UPSERT": 10}' in workflow
     assert "pip install -e" not in workflow
+
+
+def test_candidate_release_proofs_authenticates_domain_hash_from_retained_customer_release():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "customer-release-manifest.json" in workflow
+    assert "ReleaseManifest.model_validate_json" in workflow
+    assert 'manifest.bundle.domain_git_sha.lower() != os.environ["CUSTOMER_SHA"]' in workflow
+    assert 'proof.domain_release_hash != manifest.bundle.release_hash' in workflow
+    assert 'echo "DOMAIN_RELEASE_HASH=${DOMAIN_RELEASE_HASH}" >> "${GITHUB_ENV}"' in workflow
+    assert 'domain_release_hash=os.environ["DOMAIN_RELEASE_HASH"]' in workflow
+    assert 'bundle.domain_release_hash != os.environ["DOMAIN_RELEASE_HASH"]' in workflow
+    assert "cp retained/business/customer-release-manifest.json retained/final/customer-release-manifest.json" in workflow
 
 
 def test_candidate_release_proofs_workflow_only_creates_static_passes_it_observed():

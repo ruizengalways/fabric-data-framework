@@ -28,6 +28,7 @@ from fabric_data_framework.evidence.release_readiness import (
 ROOT = Path(__file__).resolve().parents[1]
 CANDIDATE = "a" * 40
 ARTIFACT = "b" * 64
+DOMAIN_RELEASE = "e" * 64
 AT = datetime(2026, 8, 30, 12, 0, tzinfo=timezone.utc)
 ID = UUID("11111111-1111-1111-1111-111111111111")
 
@@ -42,7 +43,11 @@ def _readiness_spec():
     return load_release_readiness_spec(ROOT / "release/0.4.0/readiness-spec.json")
 
 
-def _proofs(*, secret_reference: bool = False) -> ReleaseReadinessProofBundle:
+def _proofs(
+    *,
+    secret_reference: bool = False,
+    domain_release_hash: str | None = DOMAIN_RELEASE,
+) -> ReleaseReadinessProofBundle:
     kinds = {
         "source.tests": ReleaseReadinessGateKind.SOURCE_VERIFICATION,
         "wheel.integrity": ReleaseReadinessGateKind.WHEEL_INTEGRITY,
@@ -57,6 +62,7 @@ def _proofs(*, secret_reference: bool = False) -> ReleaseReadinessProofBundle:
         framework_version="0.4.0",
         candidate_git_sha=CANDIDATE,
         artifact_sha256=ARTIFACT,
+        domain_release_hash=domain_release_hash,
         results=tuple(
             ReleaseReadinessProofResult(
                 gate_id=gate_id,
@@ -73,12 +79,18 @@ def _proofs(*, secret_reference: bool = False) -> ReleaseReadinessProofBundle:
     )
 
 
-def _integration_manifest(*, fail_check: str | None = None, release_hash: str = ARTIFACT):
+def _integration_manifest(
+    *,
+    fail_check: str | None = None,
+    release_hash: str = ARTIFACT,
+    domain_release_hash: str | None = DOMAIN_RELEASE,
+):
     spec = materialize_candidate_integration_spec(
         _template(),
         environment="DEV",
         domain="customer",
         artifact_sha256=release_hash,
+        domain_release_hash=domain_release_hash,
     )
     results = []
     for check in spec.checks:
@@ -130,6 +142,7 @@ def _integration_manifest(*, fail_check: str | None = None, release_hash: str = 
         domain=spec.domain,
         framework_version=spec.framework_version,
         release_hash=spec.release_hash,
+        domain_release_hash=spec.domain_release_hash,
         started_at=AT,
         completed_at=AT,
         checks=spec.checks,
@@ -140,18 +153,22 @@ def _integration_manifest(*, fail_check: str | None = None, release_hash: str = 
 def test_materialized_integration_spec_binds_runtime_identity_without_mutating_template():
     template = _template()
     assert template.release_hash is None
+    assert template.domain_release_hash is None
 
     bound = materialize_candidate_integration_spec(
         template,
         environment="UAT",
         domain="health",
         artifact_sha256=ARTIFACT,
+        domain_release_hash=DOMAIN_RELEASE,
     )
 
     assert bound.environment.value == "UAT"
     assert bound.domain == "health"
     assert bound.release_hash == ARTIFACT
+    assert bound.domain_release_hash == DOMAIN_RELEASE
     assert template.release_hash is None
+    assert template.domain_release_hash is None
     assert [item.check_id for item in bound.checks] == [
         item.check_id for item in template.checks
     ]
@@ -171,6 +188,7 @@ def test_candidate_certification_requires_all_required_readiness_and_integration
 
     assert report.release_ready is True
     assert report.blockers == ()
+    assert report.domain_release_hash == DOMAIN_RELEASE
     assert all(
         (not result.required) or result.status is ReleaseReadinessStatus.PASS
         for result in report.results
@@ -192,7 +210,7 @@ def test_candidate_certification_rejects_noncertified_required_integration_manif
 
 
 def test_candidate_certification_rejects_integration_evidence_for_other_wheel():
-    other_hash = "e" * 64
+    other_hash = "f" * 64
     with pytest.raises(ValueError, match="release hash|does not match"):
         certify_release_candidate(
             _readiness_spec(),
@@ -203,6 +221,44 @@ def test_candidate_certification_rejects_integration_evidence_for_other_wheel():
             domain="customer",
             proofs=_proofs(),
             integration_evidence=_integration_manifest(release_hash=other_hash),
+        )
+
+
+def test_candidate_certification_rejects_missing_or_mismatched_domain_release_identity():
+    with pytest.raises(ValueError, match="proof must bind exact domain_release_hash"):
+        certify_release_candidate(
+            _readiness_spec(),
+            _template(),
+            candidate_git_sha=CANDIDATE,
+            artifact_sha256=ARTIFACT,
+            environment="DEV",
+            domain="customer",
+            proofs=_proofs(domain_release_hash=None),
+            integration_evidence=_integration_manifest(),
+        )
+
+    with pytest.raises(ValueError, match="integration evidence must bind exact domain_release_hash"):
+        certify_release_candidate(
+            _readiness_spec(),
+            _template(),
+            candidate_git_sha=CANDIDATE,
+            artifact_sha256=ARTIFACT,
+            environment="DEV",
+            domain="customer",
+            proofs=_proofs(),
+            integration_evidence=_integration_manifest(domain_release_hash=None),
+        )
+
+    with pytest.raises(ValueError, match="proof/integration domain release hash mismatch"):
+        certify_release_candidate(
+            _readiness_spec(),
+            _template(),
+            candidate_git_sha=CANDIDATE,
+            artifact_sha256=ARTIFACT,
+            environment="DEV",
+            domain="customer",
+            proofs=_proofs(),
+            integration_evidence=_integration_manifest(domain_release_hash="d" * 64),
         )
 
 

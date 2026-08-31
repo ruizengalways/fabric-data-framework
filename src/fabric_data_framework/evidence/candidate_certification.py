@@ -86,14 +86,25 @@ def certify_release_candidate(
     This is intentionally stricter than generating a normal readiness report. It is
     the reusable boundary used by the candidate-certification workflow before a
     ``release-readiness-certified-<sha>`` artifact may be retained.
+
+    Candidate certification requires the non-integration proof bundle and certified
+    integration evidence to bind the same non-null customer/domain release hash. This
+    closes the final identity gap between independently retained evidence producers.
     """
+
+    if proofs.domain_release_hash is None:
+        raise ValueError("candidate release proof must bind exact domain_release_hash")
+    if integration_evidence.domain_release_hash is None:
+        raise ValueError("candidate integration evidence must bind exact domain_release_hash")
+    if proofs.domain_release_hash != integration_evidence.domain_release_hash:
+        raise ValueError("candidate proof/integration domain release hash mismatch")
 
     expected_integration_spec = materialize_candidate_integration_spec(
         integration_template,
         environment=environment,
         domain=domain,
         artifact_sha256=artifact_sha256,
-        domain_release_hash=integration_evidence.domain_release_hash,
+        domain_release_hash=proofs.domain_release_hash,
     )
     if expected_integration_spec.framework_version != readiness_spec.framework_version:
         raise ValueError(
@@ -113,6 +124,8 @@ def certify_release_candidate(
         proofs=proofs,
         integration_evidence=integration_evidence,
     )
+    if report.domain_release_hash != proofs.domain_release_hash:
+        raise ValueError("candidate readiness report lost exact domain release identity")
     if not report.release_ready:
         raise ValueError(
             "release candidate is not certified; required gates not PASS: "

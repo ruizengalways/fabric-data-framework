@@ -229,6 +229,81 @@ jobs:
           assert counts("apply_engines") == {"SPARK": 100}
           PY
 
+      - name: Verify live business-path evidence run provenance
+        run: |
+          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${BUSINESS_PATH_RUN_ID}")"
+          RUN_HEAD="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["head_sha"])')"
+          RUN_EVENT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["event"])')"
+          RUN_CONCLUSION="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["conclusion"])')"
+          RUN_PATH="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["path"])')"
+          if [ "${RUN_HEAD}" != "${CANDIDATE_SHA}" ]; then
+            echo "Business-path evidence run head ${RUN_HEAD} does not match ${CANDIDATE_SHA}." >&2
+            exit 1
+          fi
+          if [ "${RUN_EVENT}" != "workflow_dispatch" ] || [ "${RUN_CONCLUSION}" != "success" ]; then
+            echo "Business-path evidence must come from a successful workflow_dispatch run." >&2
+            exit 1
+          fi
+          if [ "${RUN_PATH}" != ".github/workflows/candidate-business-path-evidence.yml" ]; then
+            echo "Business-path evidence run used unexpected workflow ${RUN_PATH}." >&2
+            exit 1
+          fi
+
+      - name: Download and authenticate retained live business-path proof
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          gh run download "${BUSINESS_PATH_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "business-path-release-proofs-${CANDIDATE_SHA}" \
+            --dir retained/business
+          test -f retained/business/business-path-release-proofs.json
+          test -f retained/business/customer-release-manifest.json
+
+          DOMAIN_RELEASE_HASH="$(python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from fabric_data_framework.deployment.contracts import ReleaseManifest
+          from fabric_data_framework.evidence.business_path_evidence import BusinessPathGate
+          from fabric_data_framework.evidence.release_readiness import (
+              ReleaseReadinessStatus,
+              load_release_readiness_proofs,
+          )
+
+          manifest = ReleaseManifest.model_validate_json(
+              Path("retained/business/customer-release-manifest.json").read_text(encoding="utf-8")
+          )
+          if manifest.bundle.domain_git_sha.lower() != os.environ["CUSTOMER_SHA"]:
+              raise SystemExit("business-path customer release manifest git SHA mismatch")
+          if manifest.bundle.framework_version != os.environ["FRAMEWORK_VERSION"]:
+              raise SystemExit("business-path customer release manifest framework version mismatch")
+
+          proof = load_release_readiness_proofs(
+              "retained/business/business-path-release-proofs.json"
+          )
+          if proof.candidate_git_sha != os.environ["CANDIDATE_SHA"]:
+              raise SystemExit("business-path proof candidate SHA mismatch")
+          if proof.artifact_sha256 != os.environ["CANDIDATE_WHEEL_SHA256"]:
+              raise SystemExit("business-path proof wheel SHA256 mismatch")
+          if proof.domain_release_hash != manifest.bundle.release_hash:
+              raise SystemExit("business-path proof domain release hash mismatch")
+          expected = {gate.value for gate in BusinessPathGate}
+          by_id = {item.gate_id: item for item in proof.results}
+          if set(by_id) != expected:
+              raise SystemExit("business-path proof gate coverage mismatch")
+          failed = sorted(
+              gate_id
+              for gate_id, result in by_id.items()
+              if result.status is not ReleaseReadinessStatus.PASS
+          )
+          if failed:
+              raise SystemExit(f"business-path proof contains non-PASS gates: {failed}")
+          print(manifest.bundle.release_hash)
+          PY
+          )"
+          echo "DOMAIN_RELEASE_HASH=${DOMAIN_RELEASE_HASH}" >> "${GITHUB_ENV}"
+
       - name: Build retained static partial release proof
         env:
           FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
@@ -256,6 +331,7 @@ jobs:
               framework_version=os.environ["FRAMEWORK_VERSION"],
               candidate_git_sha=candidate_sha,
               artifact_sha256=wheel_sha,
+              domain_release_hash=os.environ["DOMAIN_RELEASE_HASH"],
               results=(
                   ReleaseReadinessProofResult(
                       gate_id="source.tests",
@@ -280,8 +356,9 @@ jobs:
                       evidence_references=(
                           f"github-commit://ruizengalways/fabric-customer/{customer_sha}",
                           f"github-actions://{repo}/runs/{current_run}",
+                          f"github-artifact://{repo}/runs/{os.environ['BUSINESS_PATH_RUN_ID']}/business-path-release-proofs-{candidate_sha}",
                       ),
-                      detail="Exact candidate passed customer project validation and 100-table Health framework-next contract.",
+                      detail="Exact candidate passed customer project validation and the retained customer release identity was authenticated.",
                   ),
               ),
           )
@@ -290,34 +367,6 @@ jobs:
               encoding="utf-8",
           )
           PY
-
-      - name: Verify live business-path evidence run provenance
-        run: |
-          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${BUSINESS_PATH_RUN_ID}")"
-          RUN_HEAD="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["head_sha"])')"
-          RUN_EVENT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["event"])')"
-          RUN_CONCLUSION="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["conclusion"])')"
-          RUN_PATH="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["path"])')"
-          if [ "${RUN_HEAD}" != "${CANDIDATE_SHA}" ]; then
-            echo "Business-path evidence run head ${RUN_HEAD} does not match ${CANDIDATE_SHA}." >&2
-            exit 1
-          fi
-          if [ "${RUN_EVENT}" != "workflow_dispatch" ] || [ "${RUN_CONCLUSION}" != "success" ]; then
-            echo "Business-path evidence must come from a successful workflow_dispatch run." >&2
-            exit 1
-          fi
-          if [ "${RUN_PATH}" != ".github/workflows/candidate-business-path-evidence.yml" ]; then
-            echo "Business-path evidence run used unexpected workflow ${RUN_PATH}." >&2
-            exit 1
-          fi
-
-      - name: Download retained live business-path partial proof
-        run: |
-          gh run download "${BUSINESS_PATH_RUN_ID}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --name "business-path-release-proofs-${CANDIDATE_SHA}" \
-            --dir retained/business
-          test -f retained/business/business-path-release-proofs.json
 
       - name: Strictly merge and validate complete non-integration release proof
         env:
@@ -346,6 +395,8 @@ jobs:
               raise SystemExit("merged release proof candidate SHA mismatch")
           if bundle.artifact_sha256 != os.environ["CANDIDATE_WHEEL_SHA256"]:
               raise SystemExit("merged release proof wheel SHA256 mismatch")
+          if bundle.domain_release_hash != os.environ["DOMAIN_RELEASE_HASH"]:
+              raise SystemExit("merged release proof domain release hash mismatch")
 
           required_non_integration = {
               gate.gate_id
@@ -369,6 +420,7 @@ jobs:
 
           cp retained/customer-compat/customer-project-validation.json retained/final/
           cp retained/customer-compat/health-project-validation.json retained/final/
+          cp retained/business/customer-release-manifest.json retained/final/customer-release-manifest.json
 
       - name: Upload exact-candidate release proof artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

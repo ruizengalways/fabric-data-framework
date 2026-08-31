@@ -69,11 +69,11 @@ src/fabric_data_framework/evidence/
 
 | Area | Canonical owner | Boundary |
 |---|---|---|
-| Integration spec/result/manifest/hash | `integration_evidence.py` | exact framework wheel + exact domain release identities + check membership |
-| Approved-run planning | `integration_runner.py` | checks env-var presence, physical bindings and mutation authorization; never retains secret value |
+| Integration spec/result/manifest/hash | `integration_evidence.py` | exact framework wheel + exact domain release identities |
+| Approved-run planning | `integration_runner.py` | physical bindings/env presence/authorization; never retains secret value |
 | Runtime/provider result projection | `integration_checks.py` | projection only; no semantic redefinition |
-| Strict staged merge | `integration_evidence_merge.py` | no latest/PASS precedence; both release identities must match |
-| Explicit Pipeline rerun prerequisite | `integration_evidence_rerun.py` | fully certified source -> new non-certified selected-check NOT_RUN projection |
+| Strict staged merge | `integration_evidence_merge.py` | no latest/PASS precedence; both identities must match |
+| Explicit Pipeline rerun prerequisite | `integration_evidence_rerun.py` | fully certified source -> new selected-check NOT_RUN projection |
 | Control-plane runner | `approved_control_plane_runner.py` | real selected production-eligible backend |
 | Pipeline runner | `approved_pipeline_runner.py` | native provider run + exact durable child outcome |
 | Copy/Spark runner | `approved_capture_runner.py` | provider evidence + verified CaptureReceipt |
@@ -81,27 +81,25 @@ src/fabric_data_framework/evidence/
 | Ambiguous-COMMIT runner | `approved_warehouse_fault_runner.py` | real execution exception/fault/recovery evidence |
 | Retained secret scan | `safety.py` | fail closed before evidence retention |
 
-### Exact integration identity invariant
+Exact integration identity invariant:
 
 ```text
-IntegrationEvidenceSpec.release_hash
-IntegrationEvidenceManifest.release_hash
+IntegrationEvidence.release_hash
   = exact framework candidate wheel SHA256
 
-IntegrationEvidenceSpec.domain_release_hash
-IntegrationEvidenceManifest.domain_release_hash
+IntegrationEvidence.domain_release_hash
   = exact customer/domain ReleaseManifest.bundle.release_hash
 
 ApprovedIntegrationRunnerConfig.framework_artifact_sha256
-  = framework candidate wheel SHA256 in exact-candidate mode
+  = exact framework candidate wheel SHA256
 
 ApprovedIntegrationRunnerConfig.release_hash
-  = customer/domain ReleaseManifest.bundle.release_hash
+  = exact customer/domain release hash
 ```
 
-They must never be assumed equal. Historical development/reference single-hash runner configs are compatibility-only when `domain_release_hash` is absent. Exact 0.4 candidate evidence must bind both values.
+They must never be assumed equal.
 
-### Candidate integration producer — merged PR #90
+## Candidate integration producer — merged PR #90
 
 Owner:
 
@@ -120,43 +118,25 @@ state       MERGED + MAIN CI PROVEN
 live proof  none
 ```
 
-The workflow is orchestration only. It authenticates exact framework candidate/main-run/wheel provenance plus exact customer SHA/input-producer provenance, verifies the exact customer release/config/recipe/extension bytes, then reuses existing approved commands in this order:
+The workflow authenticates exact framework candidate/main-run/wheel plus exact customer SHA/input-producer provenance and reuses approved runner commands. It must not instantiate integration PASS results. Final publication requires:
 
 ```text
-integration-item-smoke-run
-integration-control-plane-certify-run
-integration-evidence-merge            # base prerequisites
-integration-pipeline-run
-integration-capture-run               # Copy
-integration-capture-run               # Spark
-integration-warehouse-run
-integration-evidence-merge            # add normal Warehouse PASS to fault prerequisites
-integration-warehouse-fault-drill-run
 integration-evidence-merge --require-certified
 integration-evidence-validate --require-certified
 ```
 
-It must not instantiate integration PASS results. Final PASS status may only be read from already-produced approved manifests for verification.
+`IntegrationCheckPhysicalBinding.dataset_id` remains customer-owned for the representative Pipeline binding. General live mutation authorization and Admin Warehouse session-termination authorization remain separate.
 
-PR #90 also extends `IntegrationCheckPhysicalBinding` with optional `dataset_id`. Exact candidate integration certification requires the customer-owned `fabric.pipeline` binding to carry the representative dataset ID. This keeps WHAT in the domain repo and HOW in the framework.
-
-General live mutation authorization and Admin Warehouse session-termination authorization remain separate.
-
-## Business-path evidence — merged PR #88
-
-Canonical detailed contract:
-
-```text
-docs/machine/BUSINESS_PATH_EVIDENCE.md
-```
+## Business-path evidence ownership
 
 | Area | Canonical owner | Boundary |
 |---|---|---|
 | Five live gate enum/scenario/observation/evaluator | `evidence/business_path_evidence.py` | evaluator is sole readiness PASS authority |
 | Mutating driver recipe/request/receipt | `evidence/business_path_driver.py` | receipt has no PASS/status |
-| Exact five-gate certification plan | `evidence/business_path_plan.py` | exactly five gates; canonical project-root-contained paths |
+| Exact five-gate certification plan | `evidence/business_path_plan.py` | exactly five gates; safe project-root-contained paths |
 | Approved execution orchestration | `evidence/approved_business_path_runner.py` | preflight/driver/observer/Pipeline/evaluator/cleanup separation |
-| Explicit rerun source | `evidence/integration_evidence_rerun.py` | source must be fully certified exact integration evidence |
+| Exact domain-bound proof packaging | `evidence/business_path_release_proof.py` | binds evaluated result to Customer ReleaseManifest.bundle.release_hash; no PASS authority |
+| Explicit rerun source | `evidence/integration_evidence_rerun.py` | source must be fully certified integration evidence |
 | CLI leaf | `cli/business_path.py` | loads exact files and delegates; no proof semantics |
 | Candidate producer | `.github/workflows/candidate-business-path-evidence.yml` | executes live paths; cannot author PASS JSON directly |
 
@@ -169,46 +149,77 @@ main CI     33346470401
 tests       717
 ```
 
-Execution order:
+The retained business-path artifact includes:
 
 ```text
-safe identity/precondition checks
--> PREPARE_BASELINE
--> read-only BEFORE observation
--> PREPARE_ATTEMPT_1
--> existing approved Pipeline runner
--> retry only: failed-state observation + PREPARE_ATTEMPT_2 + second Pipeline run
--> final observation
--> framework evaluator
--> CLEANUP in finally
--> retained report/partial proof only after cleanup succeeds
+business-path-release-proofs.json
+customer-release-manifest.json
+certified-integration-evidence.json
+per-gate reports / retained receipts
 ```
 
-The approved business-path runner must not call the driver until exact config-bundle identity, framework/domain hashes, certified prerequisites, Pipeline binding, runtime env presence, fingerprinted artifacts and explicit mutation authorization have passed.
+That retained Customer ReleaseManifest is the later release-proof producer's authoritative domain identity input.
 
 ## Readiness / partial proof ownership
 
 | Area | Canonical owner | Boundary |
 |---|---|---|
-| Readiness spec/result/report | `evidence/release_readiness.py` | exact version/candidate/wheel; no provider execution |
-| Strict non-integration partial proof merge | `evidence/release_readiness_merge.py` | exact candidate/wheel; contradiction conflicts |
-| `release-readiness` / `release-proofs-merge` | `cli/release.py` | presentation only |
+| Readiness spec/proof/result/report | `evidence/release_readiness.py` | exact framework candidate/wheel; optional ordinary-CI domain identity; no provider execution |
+| Strict non-integration partial proof merge | `evidence/release_readiness_merge.py` | candidate bundles require identical non-empty domain_release_hash; contradictions conflict |
+| Business-path domain proof binding | `evidence/business_path_release_proof.py` | binds evaluated proof to exact domain release hash |
+| Candidate certification aggregation | `evidence/candidate_certification.py` | proof + integration domain hash must both exist and match |
+| `release-readiness` / `release-proofs-merge` / `candidate-certify` | `cli/release.py` | presentation only |
 | Source-controlled 0.4 policy | `release/0.4.0/readiness-spec.json` | 15 required gates; Debezium optional |
 | Ordinary blocked report | `.github/workflows/ci.yml` | deliberately retains missing-evidence state |
 
-Current final readiness chain:
+Final candidate identity chain:
 
 ```text
 framework version
-+ exact candidate source SHA
-+ exact candidate inner wheel SHA256
-+ exact customer/domain release hash in certified integration evidence
-+ ReleaseReadinessProofBundle
-+ certified IntegrationEvidenceManifest
--> ReleaseReadinessReport
++ exact framework candidate source SHA
++ exact framework inner wheel SHA256
++ exact customer/domain ReleaseManifest.bundle.release_hash
++ complete ReleaseReadinessProofBundle carrying the same domain hash
++ certified IntegrationEvidenceManifest carrying the same domain hash
+-> ReleaseReadinessReport carrying the same domain hash
 ```
 
-Before candidate freeze, release-proof/certification must additionally machine-bind the same `domain_release_hash`; indirect references alone are not sufficient for final promotion identity.
+Ordinary CI may omit `domain_release_hash`; exact candidate proof merge/certification may not.
+
+## PR #92 domain identity hardening
+
+First implementation proof:
+
+```text
+head          f07c464fefaec2f1533a67549382549613823253
+framework-ci  33356673686
+Python 3.13   732 passed
+status        PR CI PROVEN / PENDING MERGE
+```
+
+Owners changed by PR #92:
+
+```text
+src/fabric_data_framework/evidence/release_readiness.py
+src/fabric_data_framework/evidence/release_readiness_merge.py
+src/fabric_data_framework/evidence/business_path_release_proof.py
+src/fabric_data_framework/evidence/candidate_certification.py
+src/fabric_data_framework/cli/business_path.py
+.github/workflows/candidate-release-proofs.yml
+.github/workflows/release.yml
+```
+
+Fail-closed rule:
+
+```text
+candidate-release-proofs cannot take domain_release_hash as dispatch input
+-> authenticate business-path run + customer-release-manifest.json
+-> exact customer SHA/framework version/candidate SHA/wheel SHA/domain hash must agree
+-> create static proof with authenticated domain hash
+-> strict merge requires same domain hash in all partial proof bundles
+-> candidate-certify requires proof.domain_release_hash == integration.domain_release_hash
+-> release workflow requires report == proofs == integration domain_release_hash before tag
+```
 
 ## Candidate artifact / release producers
 
@@ -231,9 +242,7 @@ artifact ID        9742969993
 selected/frozen    false
 ```
 
-Retained bytes remain `wheel + SHA256SUMS + CANDIDATE.json`.
-
-### Candidate release-proof producer — merged PR #87
+### Candidate release-proof producer
 
 Owner:
 
@@ -241,7 +250,14 @@ Owner:
 .github/workflows/candidate-release-proofs.yml
 ```
 
-Direct PASS scope is exactly:
+Original merged baseline PR #87:
+
+```text
+merge SHA 5a2edffe5930e9b8a2a79f66f4580ca4d9df2b4e
+main CI   33343223496
+```
+
+Direct PASS scope remains exactly:
 
 ```text
 source.tests
@@ -249,9 +265,9 @@ wheel.integrity
 customer.compatibility
 ```
 
-The five live business-path gates must arrive from `candidate-business-path-evidence.yml`.
+The five live business-path gates arrive from `candidate-business-path-evidence.yml`. PR #92 adds exact Customer ReleaseManifest authentication before static proof creation.
 
-### Candidate business-path producer — merged PR #88
+### Candidate business-path producer
 
 Owner:
 
@@ -259,11 +275,9 @@ Owner:
 .github/workflows/candidate-business-path-evidence.yml
 ```
 
-It authenticates exact framework candidate/run/wheel, exact customer SHA + customer input producer run, exact certified integration producer run, exact domain release, exact plan/scenario/driver/plugin bytes, then invokes the approved framework runner for exactly five gates and strict-merges one-gate proofs. It contains no direct PASS construction.
+Merged + main-CI proven PR #88; **no retained live business-path PASS artifact exists**.
 
-The workflow contract is merged + main-CI proven, but there is **no retained live business-path PASS artifact yet**.
-
-### Candidate integration producer — merged PR #90
+### Candidate integration producer
 
 Owner:
 
@@ -271,7 +285,27 @@ Owner:
 .github/workflows/candidate-integration-evidence.yml
 ```
 
-It is **MERGED + MAIN CI PROVEN**, not live-service proven. It cannot succeed today until `fabric-customer/.github/workflows/candidate-business-path-inputs.yml`, exact domain recipes/extensions and protected real environment credentials exist.
+Merged + main-CI proven PR #90; **no retained live integration artifact exists**.
+
+### Customer input producer
+
+Owner is external to the framework repository:
+
+```text
+fabric-customer/.github/workflows/candidate-business-path-inputs.yml
+```
+
+Contract is now merged + Customer main-CI proven:
+
+```text
+PR #10 merge                 cda90f1c02fc9606aa64d2d1bd13f2ab89628aab
+PR #11 checkpoint            31f3f506bc1c16a445652de2ad48fe512cfec10a
+customer main CI             33353960915
+customer certification CI    33353960906
+production runtime pin       fabric-data-framework==0.3.0
+```
+
+No selected-candidate input artifact has been retained yet.
 
 ## Candidate certification
 
@@ -283,7 +317,7 @@ cli/release.py -> candidate-certify
 .github/workflows/candidate-certification.yml
 ```
 
-Certification performs aggregation only. It never executes Fabric, rebuilds wheel bytes, tags or releases. It requires a complete exact release-proof bundle plus fully certified exact integration evidence.
+Certification performs aggregation only. It never executes Fabric, rebuilds wheel bytes, tags or releases. Exact candidate certification requires complete non-integration proof and fully certified integration evidence for the same framework candidate **and same domain release hash**.
 
 ## Exact immutable promotion
 
@@ -293,7 +327,15 @@ Owner:
 .github/workflows/release.yml
 ```
 
-Release is manual exact-byte promotion. It re-verifies candidate source/run/wheel and certified evidence, then tags the exact candidate SHA and publishes already-certified bytes. No release-time wheel rebuild exists.
+Release is manual exact-byte promotion. Before tag creation it re-verifies candidate source/run/wheel and certified evidence, including:
+
+```text
+release-readiness.json.domain_release_hash
+== release-proofs.json.domain_release_hash
+== integration-evidence.json.domain_release_hash
+```
+
+No release-time wheel rebuild exists.
 
 ## Customer project / delivery
 
@@ -326,26 +368,14 @@ cli -> reusable core/evidence/deployment
 core/evidence/deployment -X-> cli
 ```
 
-## Controlled extension groups
-
-```text
-fabric_data_framework.capture_observers
-fabric_data_framework.spark_execution_data
-fabric_data_framework.warehouse_mutations
-fabric_data_framework.warehouse_commit_fault_injectors
-fabric_data_framework.business_path_observers
-fabric_data_framework.business_path_drivers
-```
-
-Business-path observer supplies read-only semantic facts; driver prepares bounded fixture/fault state. Neither can redefine framework PASS.
-
 ## Next release implementation order
 
 ```text
-fabric-customer business-path/integration input producer + exact live extensions/plan
--> hard-bind domain_release_hash across final release proof/certification
--> validate producer and identity contracts fail closed
--> freeze one exact candidate only after producer paths are ready
+finish PR #92 final-head CI + merge + main reproof
+-> checkpoint exact merged baseline
+-> replace customer real-environment placeholders with reviewed enterprise evidence/fault binding
+-> explicitly select/freeze one NEW exact framework main candidate
+-> produce exact customer certification input artifact for that candidate
 -> certified integration evidence
 -> five representative live business-path proofs
 -> candidate-release-proofs

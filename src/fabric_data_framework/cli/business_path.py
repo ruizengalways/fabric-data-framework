@@ -14,10 +14,10 @@ from ..deployment.delivery import load_dataset_configs, load_release_manifest
 from ..evidence.approved_business_path_runner import (
     execute_approved_business_path,
     write_approved_business_path_execution_report,
-    write_business_path_partial_proof_bundle,
 )
 from ..evidence.business_path_driver import load_approved_business_path_driver_config
 from ..evidence.business_path_evidence import load_approved_business_path_scenario
+from ..evidence.business_path_release_proof import write_business_path_release_proof_bundle
 from ..evidence.integration_evidence import (
     load_integration_evidence_manifest,
     load_integration_evidence_spec,
@@ -113,10 +113,15 @@ def _run(argv: list[str]) -> int:
             allow_scenario_mutation=args.allow_scenario_mutation,
         )
         write_approved_business_path_execution_report(execution, args.report_output)
-        write_business_path_partial_proof_bundle(execution, args.proof_output)
+        write_business_path_release_proof_bundle(
+            execution,
+            release_manifest,
+            args.proof_output,
+        )
         print(
             f"gate_id={execution.gate_id.value} dataset_id={execution.dataset_id} "
-            f"scenario_hash={execution.scenario_hash} status={execution.proof.status.value}"
+            f"scenario_hash={execution.scenario_hash} status={execution.proof.status.value} "
+            f"domain_release_hash={release_manifest.bundle.release_hash}"
         )
         return 0
     except (KeyError, OSError, TypeError, ValueError, RuntimeError) as exc:

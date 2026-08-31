@@ -67,6 +67,13 @@ def test_workflow_authenticates_exact_plan_scenarios_drivers_and_extension_bytes
     assert "every business-path proof must PASS" in text
 
 
+def test_workflow_retains_customer_release_manifest_with_strictly_merged_proof():
+    text = _text()
+    assert "cp customer-inputs/release-manifest.json retained/customer-release-manifest.json" in text
+    assert "business-path-release-proofs.json" in text
+    assert "certified-integration-evidence.json" in text
+
+
 def test_workflow_only_uploads_after_five_strictly_merged_proofs():
     text = _text()
     merge_pos = text.index("Strictly merge and verify five live business-path proofs")
