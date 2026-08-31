@@ -2,7 +2,7 @@
 
 This file defines what can satisfy the five representative live non-integration readiness gates for `0.4.0`. Reference/in-memory apply tests are executable specifications only; they cannot satisfy live release gates.
 
-Portable business-path semantics were merged in PR #88. The exact candidate integration-evidence producer was merged in PR #90. Customer certification-input packaging is now merged in `fabric-customer` PR #10 with checkpoint PR #11. No successful exact-candidate live Fabric business-path evidence has been retained yet.
+Portable business-path semantics were merged in PR #88. The exact candidate integration-evidence producer was merged in PR #90. Customer certification-input packaging is merged in `fabric-customer` PR #10 with checkpoint PR #11. Exact business-path/domain proof binding is merged and main-CI proven in framework PR #92. No successful exact-candidate live Fabric business-path evidence has been retained yet.
 
 ## Gate ownership
 
@@ -22,22 +22,26 @@ src/fabric_data_framework/evidence/business_path_evidence.py
 
 Only the framework evaluator returns `ReleaseReadinessProofResult(PASS)`. Customer extensions cannot return readiness status.
 
-PR #88 regression provenance:
+Regression provenance:
 
 ```text
-merge SHA   1632aefe8c1fd71098200c434a1648d0385f4967
-PR CI       33346419772
-main CI     33346470401
-tests       717
-```
+PR #88:
+  merge SHA   1632aefe8c1fd71098200c434a1648d0385f4967
+  PR CI       33346419772
+  main CI     33346470401
+  tests       717
 
-PR #90 integration-producer provenance:
+PR #90:
+  merge SHA   7e12a320e73aa06f3e80f57e3deed14a6cc7add0
+  final PR CI 33349005817
+  main CI     33349064335
+  tests       728
 
-```text
-merge SHA   7e12a320e73aa06f3e80f57e3deed14a6cc7add0
-final PR CI 33349005817
-main CI     33349064335
-tests       728
+PR #92:
+  merge SHA   d5eed17f2ec2f869b4e3a448597e6d8d600568ea
+  final PR CI 33356959856
+  main CI     33357032461
+  tests       734
 ```
 
 ## Independent fact sources
@@ -96,7 +100,7 @@ customer/domain release:
   = ApprovedIntegrationRunnerConfig.release_hash
 ```
 
-The framework wheel SHA256 and customer/domain release hash must never be assumed equal.
+Framework wheel SHA256 and customer/domain release hash must never be assumed equal.
 
 Every business-path run also binds exact customer git SHA, DatasetConfig bundle hash, business-path plan bytes, scenario bytes, driver-config bytes and driver/observer extension wheel bytes through the customer `ReleaseManifest`.
 
@@ -245,7 +249,7 @@ publish proof only after cleanup succeeds
 
 Cleanup failure prevents proof publication.
 
-## Domain-bound proof packaging — PR #92
+## Domain-bound proof packaging — merged PR #92
 
 Canonical owner:
 
@@ -253,7 +257,7 @@ Canonical owner:
 src/fabric_data_framework/evidence/business_path_release_proof.py
 ```
 
-The evaluator report itself is not allowed to choose customer release identity. The packaging function requires both the already-evaluated report and the exact customer `ReleaseManifest`, verifies domain/framework agreement and creates:
+The evaluator report cannot choose customer release identity. The packaging function requires both the already-evaluated report and the exact customer `ReleaseManifest`, verifies domain/framework agreement and creates:
 
 ```text
 ReleaseReadinessProofBundle(
@@ -266,14 +270,7 @@ ReleaseReadinessProofBundle(
 
 It does not evaluate or alter PASS/FAIL.
 
-PR #92 first implementation proof:
-
-```text
-head          f07c464fefaec2f1533a67549382549613823253
-framework-ci  33356673686
-Python 3.13   732 passed
-status        PR CI PROVEN / PENDING MERGE
-```
+State: **MERGED + MAIN CI PROVEN** from PR #92 (`d5eed17f2ec2f869b4e3a448597e6d8d600568ea`, main CI `33357032461`, 734 tests).
 
 ## Candidate business-path workflow
 
@@ -296,13 +293,13 @@ certified-integration-evidence.json
 per-gate reports/receipts
 ```
 
-Retaining `customer-release-manifest.json` is intentional: `candidate-release-proofs.yml` later re-authenticates this manifest and requires `business-path-release-proofs.json.domain_release_hash == ReleaseManifest.bundle.release_hash` before creating any static PASS bundle.
+Retaining `customer-release-manifest.json` is intentional: `candidate-release-proofs.yml` re-authenticates this manifest and requires `business-path-release-proofs.json.domain_release_hash == ReleaseManifest.bundle.release_hash` before creating any static PASS bundle.
 
 No live business-path artifact has yet been retained.
 
 ## Customer producer boundary
 
-The customer producer contract is now merged:
+Customer producer contract is merged:
 
 ```text
 fabric-customer/.github/workflows/candidate-business-path-inputs.yml
@@ -320,8 +317,8 @@ This does not mean a selected-candidate input artifact exists. Customer producti
 typed evaluator / driver / plan / runner / business-path workflow = MERGED + MAIN CI PROVEN (#88)
 candidate-integration-evidence producer                            = MERGED + MAIN CI PROVEN (#90); NO LIVE RUN
 customer candidate-business-path-inputs contract                   = MERGED + CUSTOMER MAIN CI PROVEN (#10/#11)
+business-path exact domain proof packaging                         = MERGED + MAIN CI PROVEN (#92)
 actual selected-candidate customer input artifact                  = NOT RETAINED
-business-path domain proof packaging                               = PR #92 PR CI PROVEN / PENDING MERGE
 actual Fabric business-path PASS artifacts                         = NOT RETAINED
 exact framework candidate                                          = NOT FROZEN
 release readiness                                                  = 15 REQUIRED BLOCKERS
