@@ -1,38 +1,46 @@
 # Manual / Notebook Certification
 
-Status: supported alongside the existing evidence-based GitHub certification path.
+Use this path when the company Fabric tenant cannot or should not be reached directly from GitHub Actions.
 
-This mode exists for enterprise environments where GitHub Actions is not allowed to connect directly to Microsoft Fabric, or where copying long identifiers and retained evidence out of a corporate Fabric tenant is impractical.
+This document explains how to **record** a manual certification decision. For the first real company-Fabric test, execute [`FIRST_FABRIC_NOTEBOOK_TEST.md`](FIRST_FABRIC_NOTEBOOK_TEST.md) first. The form in this document does not run Lakehouse/SCD/Warehouse tests by itself.
 
-It does **not** silently pretend that manual/admin certification is evidence-based certification. Every generated record retains its execution mode, administrator override flag, override reason, missing fields, exact candidate identity when known, and whether exact-candidate release authorization was requested.
+## Two certification transports
 
-## 1. Two certification transports
-
-The framework supports two distinct transports over the same candidate bytes:
+The framework supports two separate operating models:
 
 ```text
 A. evidence-based automation
-   GitHub Actions -> protected Fabric environment -> retained evidence -> candidate-certification
+   GitHub/approved runner -> real Fabric + databases -> retained machine evidence
 
-B. manual / notebook
-   exact wheel + CANDIDATE.json -> Fabric Notebook -> operator-observed checks -> manual-certification.json
+B. manual/Notebook transport
+   exact wheel -> company Fabric Notebook -> operator runs allowed checks
+   -> manual-certification.json
 ```
 
-An administrator may also use the GitHub `candidate-admin-certification` workflow. That workflow does **not** connect to Fabric. It resolves the exact candidate SHA, framework version and wheel SHA256 from a successful main CI run, then creates an explicit administrator certification record.
+The manual path exists for enterprises where identities, evidence, or credentials cannot conveniently leave the corporate Fabric boundary.
 
-## 2. Recommended company-Fabric flow
-
-Download the framework candidate artifact from the selected successful `main` CI run. Keep these files together when practical:
+## Preferred company-Fabric flow
 
 ```text
-fabric_data_framework-0.4.0-py3-none-any.whl
-CANDIDATE.json
-SHA256SUMS
+successful framework-ci push run on main
+  -> framework-wheel-<candidate SHA>
+  -> wheel + CANDIDATE.json + SHA256SUMS
+  -> isolated company Fabric DEV workspace
+  -> attach disposable Lakehouse
+  -> install exact wheel
+  -> verify wheel bytes against CANDIDATE.json
+  -> execute FIRST_FABRIC_NOTEBOOK_TEST.md
+  -> open certification form
+  -> record PASS / FAIL / NOT_RUN
+  -> optional explicit Admin Override
+  -> manual-certification.json
 ```
 
-Upload the wheel and `CANDIDATE.json` into the isolated Fabric certification environment.
+A green CI artifact is candidate-capable only. This flow does not automatically freeze/select a candidate and does not publish a release.
 
-Install the wheel in a Fabric Notebook / Environment, then run:
+## Candidate identity without copying long hashes
+
+`CANDIDATE.json` is the preferred identity source. Pass it directly to the API/form:
 
 ```python
 from fabric_data_framework.evidence.manual_certification import (
@@ -40,169 +48,229 @@ from fabric_data_framework.evidence.manual_certification import (
 )
 
 display_notebook_certification_form(
-    candidate_manifest_path="CANDIDATE.json",
-    output_path="manual-certification.json",
+    candidate_manifest_path="/path/to/CANDIDATE.json",
+    wheel_path="/path/to/fabric_data_framework-0.4.0-py3-none-any.whl",
+    output_path="/path/to/manual-certification.json",
 )
 ```
 
-The form displays checkboxes for the common certification paths and a button that writes a machine-readable record.
-
-If `CANDIDATE.json` is present, the framework automatically fills:
+The framework then resolves:
 
 ```text
 framework_version
 candidate_git_sha
-artifact_sha256
-```
-
-The operator does not need to manually type the 40-character git SHA or 64-character wheel SHA256.
-
-If the original wheel file is also still available, pass `wheel_path=...` and the framework hashes the actual bytes and rejects a mismatch with `CANDIDATE.json`.
-
-## 3. Normal notebook result
-
-Without administrator override, a notebook record is `CERTIFIED` only when:
-
-```text
-exact candidate git SHA is known
-exact wheel SHA256 is known
-at least one check is supplied
-all supplied checks are PASS
-```
-
-Otherwise the record is `PARTIAL`.
-
-A normal notebook record never authorizes the release workflow by itself. Evidence-based release certification remains the default release path.
-
-## 4. Administrator override
-
-For environments where some details cannot be exported, select `Admin override` in the notebook form and provide a non-secret reason.
-
-The record may then be:
-
-```text
-status = CERTIFIED
-admin_override = true
-```
-
-while still explicitly retaining, for example:
-
-```text
-missing_fields = ["environment", "notebook_reference"]
-```
-
-An override is therefore visible and auditable; missing evidence is not rewritten as fabricated evidence.
-
-If the exact candidate SHA or wheel SHA is unavailable in the notebook, the record can still be `CERTIFIED`, but `release_authorized` remains false.
-
-## 5. Simplest GitHub admin action
-
-When the selected candidate came from framework `main`, use:
-
-```text
-Actions
-  -> candidate-admin-certification
-  -> Run workflow
-```
-
-The only candidate identity that must be supplied is:
-
-```text
-candidate_run_id
-```
-
-The workflow automatically resolves and verifies:
-
-```text
-candidate_git_sha
-workflow run attempt
-framework_version
-wheel filename
 wheel SHA256
-SHA256SUMS
 ```
 
-Optional fields:
+If `wheel_path` is supplied, the actual bytes are hashed and must match the candidate manifest. This is the recommended mode because it proves the Notebook is recording the identity of the wheel it actually received.
+
+## Fabric Notebook widget compatibility
+
+The form deliberately uses only Fabric-supported IPython widget types. In particular:
 
 ```text
-environment
-notebook_reference
-notes
+Text / Textarea
+Dropdown
+Checkbox
+Button
+HTML
+VBox
 ```
 
-Required administrator fields:
+It does **not** use `ipywidgets.Output`, because Fabric currently documents Output widgets as unsupported. Callback results are shown in a supported disabled `Textarea`.
+
+The form also uses a Dropdown for every certification check:
 
 ```text
-override_reason
-confirm_admin_override = true
+NOT RUN
+PASS
+FAIL
 ```
 
-It then uploads:
+This matters for auditability. A real failed check must be retainable as `FAIL`; it must not disappear merely because an old checkbox UI represented only positive results.
+
+## The dropdowns do not execute tests
+
+The following entries are observations only:
 
 ```text
-admin-certification-<candidate SHA>/
-  manual-certification.json
-  CANDIDATE.json
-  SHA256SUMS
+Lakehouse smoke
+FULL -> REPLACE
+WATERMARK -> SCD1
+WATERMARK -> SCD2
+Retry / idempotency
+Reconciliation fail-closed
+Warehouse commit
+Ambiguous COMMIT recovery
 ```
 
-The record is created with:
+Set a value only after you ran the corresponding test or approved runner.
+
+For the first bounded company test:
 
 ```text
-certification_mode = GITHUB_ADMIN_OVERRIDE
+Lakehouse + FULL/SCD1/SCD2/retry/reconciliation
+  -> follow FIRST_FABRIC_NOTEBOOK_TEST.md
+
+Warehouse commit / ambiguous COMMIT
+  -> leave NOT RUN unless a real approved Warehouse test was performed
+```
+
+`NOT RUN` selections are not written as fake PASS evidence. PASS and FAIL are retained explicitly in the record.
+
+## Normal non-override semantics
+
+Without Admin Override:
+
+```text
+exact candidate identity missing
+  -> PARTIAL
+
+no supplied executed checks
+  -> PARTIAL
+
+any supplied executed check = FAIL
+  -> PARTIAL
+
+exact identity present + at least one supplied check + every supplied check PASS
+  -> CERTIFIED
+```
+
+Normal `CERTIFIED` therefore means only that the checks actually supplied to this manual record passed. It is not equivalent to the full automated release-evidence chain unless all required release checks were actually run and retained through that separate path.
+
+## Explicit Admin Override
+
+Admin Override is intended for a real governance decision when some environment metadata or test coverage cannot be obtained/exported because of enterprise constraints.
+
+It may produce:
+
+```text
 status = CERTIFIED
 admin_override = true
-release_authorized = true
+override_reason = required
+missing_fields = retained
 ```
 
-because GitHub itself has re-resolved and verified the exact candidate identity. This workflow never logs into Fabric and requires no Fabric token, Service Principal, Warehouse connection string or company tenant access.
+Optional fields such as environment or notebook reference may remain absent. Missing evidence is not rewritten as evidence.
 
-## 6. What administrator override means
+A recorded `FAIL` also remains a `FAIL` inside the record even if an administrator overrides the overall status to `CERTIFIED`. The recommended policy is to investigate known functional failures first; override should not be used to erase a product defect.
 
-Administrator override means:
-
-> an authorized human accepts the candidate as certified despite an incomplete normal retained-evidence chain.
-
-It does **not** mean:
+Never place secrets in:
 
 ```text
-all live Fabric checks were automatically proven
-all missing fields were present
-Warehouse ambiguous-COMMIT was proven when it was not run
-GitHub connected to the company Fabric tenant
-```
-
-The distinction is deliberately retained in the artifact so a later automated certification can coexist with the earlier manual decision.
-
-## 7. Secrets
-
-Never put passwords, tokens, connection strings, signed URLs or credentials into:
-
-```text
-override_reason
-notes
+operator
 notebook_reference
-manual-certification.json
+notes
+override_reason
+evidence_reference
+check detail
 ```
 
-The framework applies the same retained-text credential screening used by other evidence records.
+The record safety validators reject common credential-like material.
 
-## 8. Future automated re-certification
+## Release authorization checkbox
 
-A later personal or approved enterprise Fabric environment may run the existing automated path:
+The Notebook form contains:
 
 ```text
-candidate-integration-evidence
-candidate-business-path-evidence
-candidate-release-proofs
-candidate-certification
+Authorize exact-candidate release
 ```
 
-That does not invalidate the historical manual record. The project can retain both:
+This is a separate governance flag. It can become true only when:
 
 ```text
-initial certification: GITHUB_ADMIN_OVERRIDE / NOTEBOOK
-later certification:   evidence-based automated certification
+admin_override = true
+candidate_git_sha is exact
+artifact_sha256 is exact
+request_release_authorization = true
 ```
 
-This makes the operational history explicit rather than rewriting it.
+For the first company smoke test, leave this checkbox **OFF** unless release governance explicitly asks for it.
+
+Even when the manual record contains `release_authorized=true`, the existing strict framework `release.yml` does not consume this record as a substitute for evidence-based release readiness. That release-policy boundary is intentional.
+
+## Programmatic record creation
+
+For environments where widgets are disabled, use the API directly:
+
+```python
+from fabric_data_framework.evidence.manual_certification import (
+    ManualCertificationCheck,
+    ManualCertificationCheckStatus,
+    create_manual_certification_record,
+    write_manual_certification_record,
+)
+
+checks = (
+    ManualCertificationCheck(
+        check_id="lakehouse.smoke",
+        status=ManualCertificationCheckStatus.PASS,
+        detail="operator observed PASS in isolated DEV notebook",
+    ),
+    ManualCertificationCheck(
+        check_id="warehouse.commit",
+        status=ManualCertificationCheckStatus.NOT_RUN,
+        detail="Warehouse permission not available",
+    ),
+)
+
+record = create_manual_certification_record(
+    checks=checks,
+    candidate_manifest_path="/path/to/CANDIDATE.json",
+    wheel_path="/path/to/framework.whl",
+    environment="DEV",
+)
+write_manual_certification_record(record, "/path/to/manual-certification.json")
+```
+
+The UI normally omits `NOT_RUN` entries from the retained check tuple; a programmatic caller may retain an explicit NOT_RUN check when there is a reason to preserve that detail.
+
+## GitHub-side Admin certification without GitHub-to-Fabric connectivity
+
+The repository also has:
+
+```text
+.github/workflows/candidate-admin-certification.yml
+```
+
+This workflow does not authenticate to company Fabric. It takes the Framework main CI `candidate_run_id` plus explicit administrator confirmation/reason, downloads the exact GitHub candidate artifact, and independently verifies:
+
+```text
+candidate Git SHA
+workflow run attempt
+framework version
+CANDIDATE.json
+SHA256SUMS
+wheel SHA256
+exact wheel bytes
+```
+
+Therefore a corporate operator does not need to copy a 40-character Git SHA or 64-character wheel hash out of Fabric merely to create a GitHub-side administrator record.
+
+This GitHub record is useful when the corporate boundary allows the decision/short run ID to be communicated but not the complete Notebook artifact/evidence bundle.
+
+## What this path does not prove
+
+A manual record, a checkbox/dropdown, green ordinary CI, or an Admin Override must not be described as proof for an unexecuted check.
+
+Keep these claims separate:
+
+```text
+manual CERTIFIED
+administrator accepted this candidate under manual governance
+
+FABRIC PROVEN / WAREHOUSE PROVEN / evidence-based RELEASE PROVEN
+requires the corresponding real retained evidence
+```
+
+The full automated path remains:
+
+```text
+exact frozen candidate
+  -> exact Customer inputs
+  -> candidate-integration-evidence
+  -> five business-path proofs
+  -> release proofs
+  -> candidate-certification blockers=[] / release_ready=true
+  -> exact-byte immutable release
+```
