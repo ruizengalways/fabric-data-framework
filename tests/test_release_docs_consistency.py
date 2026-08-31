@@ -69,35 +69,17 @@ def test_business_path_docs_remain_merged_main_proven():
 
 def test_candidate_integration_producer_docs_match_merged_pr90_state():
     combined = _combined()
-
     assert ".github/workflows/candidate-integration-evidence.yml" in combined
     assert "7e12a320e73aa06f3e80f57e3deed14a6cc7add0" in combined
     assert "33349005817" in combined
     assert "33349064335" in combined
     assert "728" in combined
-    assert "dbc9b0cbcc73598c94ae67c4798ba9eefdf6ba203a6169ff61088a9d1757c3b8" in combined
-    assert "MERGED + MAIN CI PROVEN" in combined
     assert "IntegrationCheckPhysicalBinding" in combined
     assert "dataset_id" in combined
     assert "authorize_live_mutations" in combined
     assert "authorize_warehouse_session_termination" in combined
     assert "integration-evidence-merge --require-certified" in combined
     assert "integration-evidence-validate --require-certified" in combined
-
-    stale = (
-        "candidate-integration-evidence     NOT YET IMPLEMENTED",
-        "candidate-integration-evidence.yml        NOT YET IMPLEMENTED",
-        "Candidate integration-evidence workflow | NOT YET IMPLEMENTED",
-        "candidate-integration-evidence     FEATURE BRANCH IMPLEMENTED / CI PENDING",
-        "candidate-integration-evidence workflow       FEATURE BRANCH IMPLEMENTED / CI PENDING",
-        "candidate-integration-evidence   implemented on feature branch / ci pending",
-        "candidate-integration-evidence     PR CI PROVEN / PENDING MERGE",
-        "candidate-integration-evidence workflow        PR CI PROVEN / PENDING MERGE",
-        "This producer is not yet implemented",
-        "It is **NOT YET IMPLEMENTED**",
-    )
-    for phrase in stale:
-        assert phrase not in combined
 
 
 def test_customer_input_contract_docs_match_merged_customer_state():
@@ -124,24 +106,37 @@ def test_release_docs_keep_framework_and_domain_release_identity_distinct():
     assert "must never be assumed equal" in combined or "not expected to be equal" in combined
 
 
-def test_domain_release_binding_docs_match_pr92_pr_ci_state():
+def test_domain_release_binding_docs_match_merged_pr92_main_state():
     combined = _combined()
     assert "PR #92" in combined
-    assert "f07c464fefaec2f1533a67549382549613823253" in combined
-    assert "33356673686" in combined
-    assert "732 passed" in combined
+    assert "d5eed17f2ec2f869b4e3a448597e6d8d600568ea" in combined
+    assert "33356959856" in combined
+    assert "33357032461" in combined
+    assert "734" in combined
     assert "business_path_release_proof.py" in combined
-    assert "PR CI PROVEN / PENDING MERGE" in combined
-    assert "report/proofs/integration" in combined or "release-readiness.json.domain_release_hash" in combined
+    assert "MERGED + MAIN CI PROVEN" in combined
+    assert "5aa82d6befa3d5abe5d212d875721e6ae9e3e4bc4d67fd5b4cdd1a32d9e16701" in combined
+    assert "9745451533" in combined
 
     stale = (
         "release-proof/domain identity machine binding  REQUIRED BEFORE CANDIDATE FREEZE",
         "release-proof/domain hash binding  REQUIRED BEFORE CANDIDATE FREEZE",
-        "customer_business_path_inputs: fabric-customer/.github/workflows/candidate-business-path-inputs.yml",
-        "fabric-customer candidate-business-path-inputs NOT YET IMPLEMENTED",
+        "customer business-path inputs      not yet implemented / not retained",
+        "Customer business-path/integration input producer | `fabric-customer/.github/workflows/candidate-business-path-inputs.yml` | NOT YET IMPLEMENTED",
+        "release-proof/domain binding       PR #92 PR CI PROVEN / PENDING MERGE",
+        "business-path domain proof packaging                               = PR #92 PR CI PROVEN / PENDING MERGE",
+        "status:         PR CI PROVEN / PENDING MERGE",
     )
     for phrase in stale:
         assert phrase not in combined
+
+
+def test_latest_candidate_capable_artifact_is_not_frozen():
+    state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
+    assert "candidate_status: not_frozen" in state
+    assert "selected_as_frozen_candidate: false" in state
+    assert "release_allowed: false" in state
+    assert "readiness_required_blockers: 15" in state
 
 
 def test_release_docs_keep_actual_live_and_release_gaps_explicit():
