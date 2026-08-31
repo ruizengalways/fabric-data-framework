@@ -44,7 +44,7 @@ customer ReleaseManifest.bundle.release_hash
 
 They are not expected to be equal and must never be assumed equal.
 
-The machine chain now carries them separately:
+The machine chain carries them separately:
 
 ```text
 IntegrationEvidence.release_hash
@@ -73,25 +73,34 @@ ApprovedIntegrationRunnerConfig.release_hash
   = customer/domain release hash
 ```
 
-## Current merged framework baseline
+## Current candidate-capable main artifact
 
-PR #90 remains the latest merged engineering baseline while PR #92 is under review:
+PR #92 is merged and independently re-proven on main:
 
 ```text
-source SHA       7e12a320e73aa06f3e80f57e3deed14a6cc7add0
-final PR CI      33349005817
-main CI          33349064335
-tests            728
-wheel SHA256     dbc9b0cbcc73598c94ae67c4798ba9eefdf6ba203a6169ff61088a9d1757c3b8
+source SHA       d5eed17f2ec2f869b4e3a448597e6d8d600568ea
+final PR CI      33356959856
+main CI          33357032461
+tests            734
+wheel SHA256     5aa82d6befa3d5abe5d212d875721e6ae9e3e4bc4d67fd5b4cdd1a32d9e16701
+artifact ID      9745451533
 ```
 
-The current main documentation checkpoint is `689bc1097474b26866af8675e32592e4cf65fa1f`.
+Main CI retains:
 
-That wheel is candidate-capable only. It is not selected/frozen and has no live certification.
+```text
+fabric_data_framework-0.4.0-py3-none-any.whl
+SHA256SUMS
+CANDIDATE.json
+```
+
+`CANDIDATE.json` binds package version, source SHA, main Actions run ID/attempt, wheel filename and exact inner wheel SHA256. GitHub's uploaded artifact ZIP digest is not the wheel identity.
+
+This wheel is **candidate-capable only**. It is not selected/frozen and has no live certification.
 
 ## Step 1 — exact customer/domain input artifact
 
-The customer producer is now implemented and merged:
+Customer producer is implemented and merged:
 
 ```text
 fabric-customer/.github/workflows/candidate-business-path-inputs.yml
@@ -103,7 +112,7 @@ cert contract CI           33353960906 SUCCESS
 
 It packages source-controlled WHAT: exact customer ReleaseManifest, DatasetConfig bundle, approved runner config, run recipes, business-path plan/scenarios and fingerprinted bounded extension wheels. It does not execute Fabric or decide PASS.
 
-This is a producer **contract** proof. No selected-candidate customer input artifact has been retained yet. The customer repo intentionally still has real-environment blockers that must be replaced only with reviewed enterprise evidence/fault infrastructure.
+This is producer **contract** proof. No selected-candidate customer input artifact has been retained yet. The customer repo intentionally still has real-environment blockers that must be replaced only with reviewed enterprise evidence/fault infrastructure.
 
 Customer production/runtime dependency remains `fabric-data-framework==0.3.0` until immutable v0.4.0 exists.
 
@@ -146,7 +155,9 @@ reconciliation.fail_closed
 
 The customer release owns deterministic scenarios, fixture/fault driver and read-only observer. Driver and observer cannot say PASS; the framework evaluator alone decides PASS/FAIL from provider/framework/state facts.
 
-`candidate-business-path-run` now writes proof through `business_path_release_proof.py`, which binds the evaluator result to the exact Customer `ReleaseManifest.bundle.release_hash`. The retained business-path artifact also carries `customer-release-manifest.json` so later stages can independently authenticate the same domain release.
+`candidate-business-path-run` writes proof through `business_path_release_proof.py`, which binds the evaluator result to the exact Customer `ReleaseManifest.bundle.release_hash`. The retained business-path artifact also carries `customer-release-manifest.json` so later stages can independently authenticate the same domain release.
+
+This exact domain-bound proof packaging is **MERGED + MAIN CI PROVEN** from PR #92.
 
 No real five-gate artifact has been retained yet.
 
@@ -162,17 +173,13 @@ customer.compatibility
 
 The five live gates arrive from the business-path producer. `release-proofs-merge` has no latest-wins or PASS-wins rule; contradictory substantive proof conflicts.
 
-### PR #92 domain identity hardening
+PR #92 permanently hardens exact domain identity. The workflow does **not** accept `domain_release_hash` as a dispatch input. It authenticates the retained business-path artifact and `customer-release-manifest.json`, including exact customer git SHA, framework version, framework candidate/wheel identity, domain release hash and five PASS business gates. Only then can that authenticated domain hash enter static proof.
 
-PR #92 is **PR CI PROVEN / PENDING MERGE**. Its first implementation head `f07c464fefaec2f1533a67549382549613823253` passed framework CI `33356673686` with **732 passed** on Python 3.13 plus successful Python 3.11, wheel build and ordinary fail-closed readiness.
-
-The workflow does **not** accept `domain_release_hash` as a dispatch input. It first authenticates the retained business-path artifact and `customer-release-manifest.json`, including exact customer git SHA, framework version, framework candidate/wheel identity, domain release hash and five PASS business gates. Only then can that authenticated domain hash enter the static proof.
-
-Strict partial proof merge requires every candidate partial bundle to carry the same non-empty domain release hash.
+Strict candidate partial-proof merge requires every input bundle to carry the same non-empty domain release hash.
 
 ## Step 5 — candidate certification
 
-`fabric-framework candidate-certify` is aggregation only. PR #92 makes the exact customer/domain release identity a hard machine requirement:
+`fabric-framework candidate-certify` is aggregation only. Exact candidate certification requires:
 
 ```text
 proofs.domain_release_hash is present
@@ -197,7 +204,7 @@ It does not execute Fabric, rebuild bytes, tag, or release.
 
 ## Step 6 — exact promotion
 
-Before `framework-release` creates the immutable tag, PR #92 requires:
+Before `framework-release` creates the immutable tag, merged PR #92 requires:
 
 ```text
 release-readiness.json.domain_release_hash
@@ -207,6 +214,20 @@ release-readiness.json.domain_release_hash
 
 The hash must be a lowercase 64-character SHA256. Promotion still re-verifies candidate source/version/run/wheel and uses the exact already-certified wheel bytes.
 
+## PR #92 proof
+
+```text
+merge SHA        d5eed17f2ec2f869b4e3a448597e6d8d600568ea
+final PR CI      33356959856
+main CI          33357032461
+Python 3.11      SUCCESS
+Python 3.13      SUCCESS — 734 passed
+wheel build      SUCCESS
+ordinary readiness SUCCESS — release_ready=false / 15 blockers
+```
+
+State: **MERGED + MAIN CI PROVEN** for the portable fail-closed domain identity contract. This is not live Fabric certification.
+
 ## Current state
 
 ```text
@@ -215,12 +236,13 @@ public release                     v0.3.0
 release allowed                    no
 candidate                          not yet frozen
 ordinary required blockers         15
-strict partial proof merge         merged + main CI proven (#86)
-candidate-release-proofs           merged baseline (#87); PR #92 domain hardening PR-CI proven
+strict partial proof merge         merged + main CI proven (#86/#92 domain binding)
+candidate-release-proofs           merged + main CI proven (#87/#92 hardening)
 candidate-business-path-evidence   merged + main CI proven (#88); no live run
 candidate-integration-evidence     merged + main CI proven (#90); no live run
 customer input producer contract   merged + customer main CI proven (#10/#11)
 selected-candidate input artifact  not yet retained
+release-proof/domain binding       merged + main CI proven (#92)
 certified integration artifact     not yet produced
 five live business-path proofs     not yet retained
 certified readiness artifact       not yet produced
@@ -230,9 +252,9 @@ immutable v0.4.0                   not yet published
 ## Next sequence
 
 ```text
-1. finish PR #92 final-head CI, merge, and independently verify framework main
+1. finish merged-main documentation checkpoint
 2. replace customer live placeholders only with reviewed real enterprise bindings/evidence
-3. select/freeze one NEW exact framework main candidate
+3. only then select/freeze one NEW exact framework main candidate
 4. produce exact customer certification input artifact for that candidate
 5. run protected candidate-integration-evidence
 6. run five candidate-business-path-evidence drills
