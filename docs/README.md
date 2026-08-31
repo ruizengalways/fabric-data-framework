@@ -13,6 +13,9 @@ Human docs answer only these questions:
 3. How do I install and consume the package?
 4. What do I do when a new dataset arrives?
 5. Which CLI/runbook do I use for normal operations?
+6. How do I perform the first bounded company-Fabric Notebook test and record PASS/FAIL/NOT_RUN without pretending unexecuted checks passed?
+
+For the first corporate Fabric validation, start with [`human/FIRST_FABRIC_NOTEBOOK_TEST.md`](human/FIRST_FABRIC_NOTEBOOK_TEST.md), then use [`human/MANUAL_CERTIFICATION.md`](human/MANUAL_CERTIFICATION.md) to record the observed results.
 
 Human docs avoid PR history, commit SHAs, CI checkpoint history, and implementation archaeology.
 
