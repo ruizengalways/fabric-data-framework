@@ -87,10 +87,16 @@ def test_customer_input_contract_docs_match_merged_customer_state():
     assert "candidate-business-path-inputs.yml" in combined
     assert "cda90f1c02fc9606aa64d2d1bd13f2ab89628aab" in combined
     assert "31f3f506bc1c16a445652de2ad48fe512cfec10a" in combined
-    assert "33353960915" in combined
-    assert "33353960906" in combined
+    assert "9ddc11405de329fb647fb21b1217d1015e0fa3f5" in combined
+    assert "c4097dcc1319f382eb370e9c4d46dcbed7bb383b" in combined
+    assert "f83dc722da479971cdfd68d883291646c433ec15" in combined
+    assert "33368266794" in combined
+    assert "33368266793" in combined
     assert "fabric-data-framework==0.3.0" in combined
     assert "actual_selected_candidate_input_artifact_retained: false" in combined
+    assert "control_plane_external_evidence_incomplete" in combined
+    assert "control_plane_external_evidence_not_review_bound" in combined
+    assert "warehouse_real_fault_controller_not_configured" in combined
 
 
 def test_release_docs_keep_framework_and_domain_release_identity_distinct():
