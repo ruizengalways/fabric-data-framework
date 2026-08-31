@@ -2,6 +2,8 @@
 
 This file defines what can satisfy the five representative live non-integration readiness gates for `0.4.0`. Reference/in-memory apply tests are useful executable specifications, but they cannot satisfy these live release gates.
 
+The portable contract in this file was merged in PR #88 and is main-CI proven. No successful exact-candidate live Fabric business-path evidence has been retained yet.
+
 ## Gate ownership
 
 ```text
@@ -19,6 +21,15 @@ src/fabric_data_framework/evidence/business_path_evidence.py
 ```
 
 Only the framework evaluator returns `ReleaseReadinessProofResult(PASS)`. Customer extensions cannot return readiness status.
+
+PR #88 provenance:
+
+```text
+merge SHA   1632aefe8c1fd71098200c434a1648d0385f4967
+PR CI       33346419772
+main CI     33346470401
+tests       717
+```
 
 ## Independent fact sources
 
@@ -93,7 +104,7 @@ Canonical contract:
 src/fabric_data_framework/evidence/business_path_plan.py
 ```
 
-A customer/domain certification plan must contain exactly one entry for each of the five gates. Every path must be project-relative and remain inside the exact project root.
+A customer/domain certification plan must contain exactly one entry for each of the five gates. Every path must use canonical POSIX project-relative syntax and remain inside the exact project root. Absolute paths, traversal, `./` aliases and backslash/noncanonical forms fail closed.
 
 Each entry selects:
 
@@ -200,7 +211,8 @@ src/fabric_data_framework/evidence/integration_evidence_rerun.py
 Input must be a fully certified exact `IntegrationEvidenceManifest`. The projection:
 
 ```text
-preserves all exact identity fields
+preserves framework wheel identity
+preserves customer/domain release identity
 preserves all other integration results
 changes only the selected Pipeline check from PASS to NOT_RUN
 creates a new evidence_id/manifest hash
@@ -325,7 +337,9 @@ Workflow owner:
 .github/workflows/candidate-business-path-evidence.yml
 ```
 
-It is an exact-candidate aggregator/executor, not a PASS author. It requires trusted upstream evidence from:
+The workflow contract is **MERGED + MAIN CI PROVEN** from PR #88. It is an exact-candidate executor/aggregator, not a PASS author.
+
+It requires trusted upstream evidence from:
 
 ```text
 framework candidate main CI artifact
@@ -341,16 +355,18 @@ It then requires exactly five one-gate partial proof bundles, strict-merges them
 business-path-release-proofs-<candidate SHA>
 ```
 
+A green workflow contract test is not a live run. No `business-path-release-proofs-<candidate SHA>` artifact has yet been retained from a real approved Fabric environment.
+
 ## Current evidence boundary
 
-As of this feature branch:
-
 ```text
-typed evaluator / driver / plan / runner / workflow = IMPLEMENTED / CI PENDING
+typed evaluator / driver / plan / runner / workflow = MERGED + MAIN CI PROVEN (#88)
 actual Fabric business-path PASS artifacts           = NOT RETAINED
 candidate-integration-evidence producer              = NOT YET IMPLEMENTED
 customer business-path-input producer                = NOT YET IMPLEMENTED
 customer live driver/observer artifacts              = NOT YET RETAINED
+exact candidate                                      = NOT FROZEN
+release readiness                                    = 15 REQUIRED BLOCKERS
 ```
 
 No implementation in this file upgrades `0.4.0` to Fabric-proven or release-ready by itself.

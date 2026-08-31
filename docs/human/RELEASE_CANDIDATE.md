@@ -6,6 +6,8 @@
 
 Once one main-CI wheel is selected as the candidate, stop adding product features. Only release blockers, certification defects, compatibility defects, evidence defects, and documentation defects may change it. Any code fix creates a new candidate SHA and requires new exact-candidate evidence.
 
+No exact 0.4 candidate is frozen yet.
+
 ## Release chain
 
 The required evidence order is:
@@ -68,7 +70,17 @@ CANDIDATE.json
 
 `CANDIDATE.json` binds package version, source SHA, main Actions run ID/attempt, wheel filename, and exact inner wheel SHA256. Do not use GitHub's uploaded ZIP/archive digest as wheel identity.
 
-The latest merged candidate-capable baseline is PR #87 at `5a2edffe5930e9b8a2a79f66f4580ca4d9df2b4e`, main CI `33343223496`, with 670 tests. Its wheel is candidate-capable only; it is not frozen and has no live certification.
+The latest merged candidate-capable baseline is PR #88:
+
+```text
+source SHA       1632aefe8c1fd71098200c434a1648d0385f4967
+main CI          33346470401
+tests            717
+wheel SHA256     9c813a2c23344c55409ac5f4f7e879d4515196987835bee6473d54ff3a1e027f
+artifact ID      9742145456
+```
+
+That wheel is candidate-capable only. It is not frozen and has no live certification.
 
 ## Step 1 — certified integration evidence
 
@@ -78,7 +90,7 @@ The integration template is source controlled at:
 release/0.4.0/integration-evidence-template.json
 ```
 
-The future `.github/workflows/candidate-integration-evidence.yml` must execute the approved exact-candidate surfaces for:
+The remaining `.github/workflows/candidate-integration-evidence.yml` must execute the approved exact-candidate surfaces for:
 
 ```text
 Fabric identity/item read
@@ -96,7 +108,7 @@ This producer is not yet implemented, so no current candidate has certified inte
 
 ## Step 2 — representative live business paths
 
-The framework has a dedicated business-path evidence contract for:
+The framework business-path evidence contract is merged and main-CI proven from PR #88 for:
 
 ```text
 full.replace
@@ -148,7 +160,7 @@ For reconciliation fail-closed, Fabric must reach `Completed` while the durable 
 
 Cleanup failure blocks publication even if the earlier evaluator had calculated PASS.
 
-The current `.github/workflows/candidate-business-path-evidence.yml` implementation is still CI pending and also depends on two missing trusted producers: framework integration evidence and exact customer business-path inputs. Therefore it cannot currently create a live PASS artifact.
+`.github/workflows/candidate-business-path-evidence.yml` is now merged and main-CI proven as a fail-closed producer contract. It still cannot create a real PASS artifact today because it depends on two missing trusted producers: framework integration evidence and exact customer business-path inputs. A green workflow contract is not live Fabric evidence.
 
 ## Step 3 — non-integration proof merge
 
@@ -207,12 +219,12 @@ public release                     v0.3.0
 release allowed                    no
 candidate                          not yet frozen
 ordinary required blockers         15
-strict partial proof merge         merged + CI proven
+strict partial proof merge         merged + CI proven (#86)
 candidate-release-proofs           merged + main CI proven (#87)
-candidate-business-path-evidence   implemented on feature branch / CI pending
+candidate-business-path-evidence   merged + main CI proven contract (#88); no live run
 candidate-integration-evidence     not yet implemented
 customer business-path inputs      not yet implemented / not retained
 certified artifact                 not yet produced
 ```
 
-No current state above is a live Fabric certification claim. The next release-blocking work is to pass CI for the business-path evidence harness, then implement the trusted integration and customer input producers before freezing an exact candidate.
+No current state above is a live Fabric certification claim. The next release-blocking implementation is the trusted integration evidence producer, followed by the exact customer business-path input producer. Only after both producer paths are ready should an exact 0.4 candidate be selected/frozen.

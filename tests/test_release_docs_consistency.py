@@ -57,9 +57,12 @@ def test_candidate_release_producer_docs_remain_merged_main_proven():
     assert "candidate-release-proofs          feature branch implemented / ci pending" not in combined.lower()
 
 
-def test_business_path_docs_match_current_feature_branch_boundary():
+def test_business_path_docs_remain_merged_main_proven():
     combined = _combined()
 
+    assert "1632aefe8c1fd71098200c434a1648d0385f4967" in combined
+    assert "33346470401" in combined
+    assert "717" in combined
     assert ".github/workflows/candidate-business-path-evidence.yml" in combined
     assert "approved_business_path_runner.py" in combined
     assert "business_path_driver.py" in combined
@@ -70,8 +73,9 @@ def test_business_path_docs_match_current_feature_branch_boundary():
     assert "watermark.scd2" in combined
     assert "retry.idempotency" in combined
     assert "reconciliation.fail_closed" in combined
-    assert "IMPLEMENTED / CI PENDING" in combined or "implemented_ci_pending" in combined
     assert "business-path evidence producer workflow | NOT YET IMPLEMENTED" not in combined
+    assert "candidate-business-path-evidence   implemented on feature branch / ci pending" not in combined.lower()
+    assert "typed evaluator / driver / plan / runner / workflow = IMPLEMENTED / CI PENDING" not in combined
 
 
 def test_release_docs_keep_framework_and_domain_release_identity_distinct():
@@ -96,3 +100,4 @@ def test_release_docs_keep_actual_live_producer_and_release_gaps_explicit():
     assert "not yet frozen" in combined.lower() or "not_frozen" in combined.lower()
     assert "not yet produced" in combined.lower()
     assert "candidate-integration-evidence" in combined
+    assert "actual Fabric business-path PASS artifacts           = NOT RETAINED" in combined

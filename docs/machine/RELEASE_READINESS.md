@@ -61,7 +61,7 @@ customer_domain_release_hash
   = IntegrationEvidence.domain_release_hash
 ```
 
-In candidate-mode approved runner config:
+In exact-candidate approved runner config:
 
 ```text
 ApprovedIntegrationRunnerConfig.framework_artifact_sha256
@@ -85,17 +85,19 @@ CANDIDATE.json
 
 `CANDIDATE.json` binds source SHA, version, main workflow run ID/attempt, wheel filename and exact inner wheel SHA256. The candidate verifier authenticates those bytes before installation.
 
-Latest merged candidate-capable baseline from PR #87:
+Latest merged candidate-capable baseline from PR #88:
 
 ```text
-merge SHA         5a2edffe5930e9b8a2a79f66f4580ca4d9df2b4e
-PR CI             33343182775
-main CI           33343223496
-tests             670
-wheel SHA256      e6c0cda41ebdb3c356c087a79a3e6b0fe8b353867b8c06c0e89d4381fb23db35
-artifact ID       9741187950
+merge SHA         1632aefe8c1fd71098200c434a1648d0385f4967
+PR CI             33346419772
+main CI           33346470401
+tests             717
+wheel SHA256      9c813a2c23344c55409ac5f4f7e879d4515196987835bee6473d54ff3a1e027f
+artifact ID       9742145456
 selected/frozen   false
 ```
+
+This artifact is candidate-capable only. It is neither selected/frozen nor live-certified.
 
 ## Readiness evidence ownership
 
@@ -152,7 +154,7 @@ credential-like retained text = reject
 
 There is no latest/PASS/FAIL/timestamp precedence.
 
-## Candidate integration evidence
+## Candidate integration evidence — next release blocker
 
 Expected workflow:
 
@@ -172,9 +174,9 @@ release_hash = exact framework wheel SHA256
 domain_release_hash = exact customer/domain ReleaseManifest.bundle.release_hash
 ```
 
-It must use the existing approved runners for item read, control plane, Pipeline, Copy, Spark, Warehouse commit and real ambiguous-COMMIT evidence. A successful workflow must retain a fully certified manifest for every required integration check; optional Debezium/Kafka remains outside required 0.4 scope unless promoted.
+It must use the existing approved runners for item read, control plane, Pipeline, Copy, Spark, Warehouse commit and real ambiguous-COMMIT evidence. A successful producer artifact may exist only when every required integration check has retained PASS evidence. Optional Debezium/Kafka remains outside required 0.4 scope unless promoted.
 
-The integration template now declares both identity placeholders as null:
+The integration template declares both runtime identity placeholders as null:
 
 ```json
 {
@@ -185,9 +187,9 @@ The integration template now declares both identity placeholders as null:
 
 Candidate certification materializes both at runtime.
 
-## Explicit Pipeline rerun prerequisite
+## Explicit Pipeline rerun prerequisite — merged PR #88
 
-Existing approved provider runners reject silent reruns when a selected check already has substantive evidence. Representative business paths deliberately rerun a Pipeline, so they must not mutate or overwrite the original certified integration manifest.
+Approved provider runners reject silent reruns when a selected check already has substantive evidence. Representative business paths deliberately rerun a Pipeline, so they must not mutate or overwrite the original certified integration manifest.
 
 Canonical projection:
 
@@ -211,17 +213,26 @@ source certified manifest remains unchanged
 result is intentionally no longer certified
 ```
 
-This projected prerequisite still requires retained PASS Fabric item and control-plane evidence before the business-path runner may execute.
+The projected prerequisite still requires retained PASS Fabric item and control-plane evidence before the business-path runner may execute.
 
-## Candidate business-path evidence
+## Candidate business-path evidence — merged PR #88
 
-Current feature-branch workflow:
+Workflow:
 
 ```text
 .github/workflows/candidate-business-path-evidence.yml
 ```
 
-Current state: **IMPLEMENTED / CI PENDING**.
+Portable workflow/runner contract state: **MERGED + MAIN CI PROVEN**.
+
+PR #88 provenance:
+
+```text
+merge SHA   1632aefe8c1fd71098200c434a1648d0385f4967
+PR CI       33346419772
+main CI     33346470401
+tests       717
+```
 
 Trusted inputs include:
 
@@ -259,7 +270,7 @@ runner.release_hash == customer ReleaseManifest.bundle.release_hash
 customer ReleaseManifest.domain_git_sha == exact customer SHA
 ```
 
-The workflow then invokes the framework CLI for exactly five gates:
+The workflow invokes the approved framework runner for exactly:
 
 ```text
 full.replace
@@ -269,9 +280,9 @@ retry.idempotency
 reconciliation.fail_closed
 ```
 
-The workflow contains no code that constructs `ReleaseReadinessProofResult` or `ReleaseReadinessProofBundle` PASS records. PASS is returned only by the framework evaluator after real provider/outcome/state facts pass the contract.
+The workflow contains no direct construction of business-gate PASS proof. PASS belongs only to the framework evaluator after provider/outcome/state facts satisfy the contract. Exactly five one-gate proof bundles are strict-merged; upload occurs only when membership is exact and every gate is PASS.
 
-Exactly five one-gate proof bundles are strict-merged. Final upload occurs only when membership is exactly the five gates and all are PASS.
+There is **no successful live business-path run retained yet**. Merged/green workflow code is not Fabric proof.
 
 Detailed gate semantics are canonical in `docs/machine/BUSINESS_PATH_EVIDENCE.md`.
 
@@ -315,7 +326,7 @@ blockers = []
 every required readiness gate = PASS
 ```
 
-Current branch updates its materialized integration spec to carry `domain_release_hash` independently while preserving `release_hash` as exact wheel SHA. That delta is CI pending.
+PR #88 made `domain_release_hash` an independent stable identity while preserving `release_hash` as the framework wheel SHA256.
 
 Certification does not execute Fabric or build/tag/release.
 
@@ -368,9 +379,9 @@ public release                     v0.3.0
 release_allowed                    false
 candidate                          NOT YET FROZEN
 ordinary readiness blockers        15
-strict partial proof merge         MERGED + MAIN CI PROVEN
+strict partial proof merge         MERGED + MAIN CI PROVEN (#86)
 candidate-release-proofs           MERGED + MAIN CI PROVEN (#87)
-candidate-business-path-evidence   IMPLEMENTED / CI PENDING on current branch
+candidate-business-path-evidence   MERGED + MAIN CI PROVEN contract (#88); no live run
 candidate-integration-evidence     NOT YET IMPLEMENTED
 customer business-path inputs      NOT YET IMPLEMENTED / NOT RETAINED
 certified readiness artifact       NOT YET PRODUCED
@@ -379,10 +390,10 @@ certified readiness artifact       NOT YET PRODUCED
 ## Next order
 
 ```text
-1. pass PR/main CI for current business-path harness and identity split
-2. implement candidate-integration-evidence producer
-3. implement exact fabric-customer business-path input producer and bounded live extensions
-4. select/freeze one exact candidate
+1. implement candidate-integration-evidence producer
+2. implement exact fabric-customer business-path input producer and bounded live extensions
+3. validate both producer contracts without fabricating PASS
+4. only then select/freeze one exact candidate
 5. produce certified integration evidence for exact wheel + exact domain release
 6. execute five representative live business-path gates
 7. run merged candidate-release-proofs
