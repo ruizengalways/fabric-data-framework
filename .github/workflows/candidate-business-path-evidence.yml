@@ -1,0 +1,416 @@
+name: candidate-business-path-evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: "Successful main framework-ci run that built the exact candidate wheel"
+        required: true
+        type: string
+      candidate_git_sha:
+        description: "Exact 40-character candidate source SHA; dispatch at this same ref"
+        required: true
+        type: string
+      candidate_wheel_sha256:
+        description: "Exact inner candidate wheel SHA256"
+        required: true
+        type: string
+      customer_git_sha:
+        description: "Exact fabric-customer commit owning the certification inputs"
+        required: true
+        type: string
+      customer_inputs_run_id:
+        description: "Successful fabric-customer candidate-business-path-inputs workflow run"
+        required: true
+        type: string
+      integration_evidence_run_id:
+        description: "Successful exact-candidate candidate-integration-evidence workflow run"
+        required: true
+        type: string
+      business_path_plan_path:
+        description: "Project-relative exact-release certification plan path"
+        required: true
+        default: "config/certification/business-path-plan.json"
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: candidate-business-path-evidence-${{ inputs.candidate_git_sha }}-${{ inputs.customer_git_sha }}
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      CANDIDATE_SHA: ${{ inputs.candidate_git_sha }}
+      CANDIDATE_WHEEL_SHA256: ${{ inputs.candidate_wheel_sha256 }}
+      CUSTOMER_SHA: ${{ inputs.customer_git_sha }}
+      CUSTOMER_INPUTS_RUN_ID: ${{ inputs.customer_inputs_run_id }}
+      INTEGRATION_EVIDENCE_RUN_ID: ${{ inputs.integration_evidence_run_id }}
+      BUSINESS_PATH_PLAN_PATH: ${{ inputs.business_path_plan_path }}
+      GH_TOKEN: ${{ github.token }}
+      CUSTOMER_REPO_TOKEN: ${{ secrets.CUSTOMER_REPO_TOKEN }}
+      FABRIC_ACCESS_TOKEN: ${{ secrets.FABRIC_ACCESS_TOKEN }}
+      CONTROL_PLANE_DATABASE_URL: ${{ secrets.CONTROL_PLANE_DATABASE_URL }}
+      BUSINESS_PATH_DRIVER_RUNTIME_JSON: ${{ secrets.BUSINESS_PATH_DRIVER_RUNTIME_JSON }}
+      BUSINESS_PATH_OBSERVER_RUNTIME_JSON: ${{ secrets.BUSINESS_PATH_OBSERVER_RUNTIME_JSON }}
+    steps:
+      - name: Validate exact identities and dispatch ref
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import PurePosixPath
+
+          for name in ("CANDIDATE_SHA", "CUSTOMER_SHA"):
+              if re.fullmatch(r"[0-9a-f]{40}", os.environ[name]) is None:
+                  raise SystemExit(f"{name} must be a 40-character lowercase git SHA")
+          if re.fullmatch(r"[0-9a-f]{64}", os.environ["CANDIDATE_WHEEL_SHA256"]) is None:
+              raise SystemExit("candidate_wheel_sha256 must be a 64-character lowercase SHA256")
+          for name in (
+              "CANDIDATE_RUN_ID",
+              "CUSTOMER_INPUTS_RUN_ID",
+              "INTEGRATION_EVIDENCE_RUN_ID",
+          ):
+              value = os.environ[name]
+              if not value.isdigit() or int(value) < 1:
+                  raise SystemExit(f"{name} must be a positive GitHub Actions run ID")
+          path = PurePosixPath(os.environ["BUSINESS_PATH_PLAN_PATH"])
+          if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+              raise SystemExit("business_path_plan_path must be a safe project-relative path")
+          if os.environ["GITHUB_SHA"] != os.environ["CANDIDATE_SHA"]:
+              raise SystemExit(
+                  "candidate-business-path-evidence must be dispatched at the exact candidate ref"
+              )
+          if not os.environ.get("CUSTOMER_REPO_TOKEN", "").strip():
+              raise SystemExit("CUSTOMER_REPO_TOKEN is required for exact cross-repository evidence")
+          PY
+
+      - name: Checkout exact framework candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.candidate_git_sha }}
+          fetch-depth: 0
+
+      - name: Verify candidate source and main CI provenance
+        id: candidate
+        run: |
+          test "$(git rev-parse HEAD)" = "${CANDIDATE_SHA}"
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor "${CANDIDATE_SHA}" origin/main
+          VERSION="$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+          print(tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])
+          PY
+          )"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}")"
+          export RUN_JSON
+          python - <<'PY'
+          import json
+          import os
+
+          run = json.loads(os.environ["RUN_JSON"])
+          expected = os.environ["CANDIDATE_SHA"]
+          if run["head_sha"] != expected or run["head_branch"] != "main":
+              raise SystemExit("candidate CI does not bind exact main source SHA")
+          if run["event"] != "push" or run["conclusion"] != "success":
+              raise SystemExit("candidate CI must be a successful main push")
+          if run["path"] != ".github/workflows/ci.yml":
+              raise SystemExit("candidate CI workflow path mismatch")
+          PY
+          RUN_ATTEMPT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["run_attempt"])')"
+          echo "run_attempt=${RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download and authenticate exact framework wheel
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+          CANDIDATE_RUN_ATTEMPT: ${{ steps.candidate.outputs.run_attempt }}
+        run: |
+          rm -rf candidate-dist
+          gh run download "${CANDIDATE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "framework-wheel-${CANDIDATE_SHA}" \
+            --dir candidate-dist
+          python src/fabric_data_framework/deployment/candidate_artifact.py verify \
+            --dist-dir candidate-dist \
+            --manifest candidate-dist/CANDIDATE.json \
+            --candidate-sha "${CANDIDATE_SHA}" \
+            --workflow-run-id "${CANDIDATE_RUN_ID}" \
+            --workflow-run-attempt "${CANDIDATE_RUN_ATTEMPT}" \
+            --expected-version "${FRAMEWORK_VERSION}" \
+            --expected-wheel-sha256 "${CANDIDATE_WHEEL_SHA256}"
+          (cd candidate-dist && sha256sum -c SHA256SUMS)
+
+      - name: Verify certified integration evidence provenance
+        run: |
+          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${INTEGRATION_EVIDENCE_RUN_ID}")"
+          export RUN_JSON
+          python - <<'PY'
+          import json
+          import os
+
+          run = json.loads(os.environ["RUN_JSON"])
+          if run["head_sha"] != os.environ["CANDIDATE_SHA"]:
+              raise SystemExit("integration evidence candidate SHA mismatch")
+          if run["event"] != "workflow_dispatch" or run["conclusion"] != "success":
+              raise SystemExit("integration evidence must be a successful workflow_dispatch run")
+          if run["path"] != ".github/workflows/candidate-integration-evidence.yml":
+              raise SystemExit("integration evidence workflow path mismatch")
+          PY
+
+      - name: Verify exact customer certification-input provenance
+        env:
+          GH_TOKEN: ${{ secrets.CUSTOMER_REPO_TOKEN }}
+        run: |
+          RUN_JSON="$(gh api "/repos/ruizengalways/fabric-customer/actions/runs/${CUSTOMER_INPUTS_RUN_ID}")"
+          export RUN_JSON
+          python - <<'PY'
+          import json
+          import os
+
+          run = json.loads(os.environ["RUN_JSON"])
+          if run["head_sha"] != os.environ["CUSTOMER_SHA"]:
+              raise SystemExit("customer certification-input run SHA mismatch")
+          if run["event"] != "workflow_dispatch" or run["conclusion"] != "success":
+              raise SystemExit("customer certification inputs must come from successful workflow_dispatch")
+          if run["path"] != ".github/workflows/candidate-business-path-inputs.yml":
+              raise SystemExit("customer certification-input workflow path mismatch")
+          PY
+
+      - name: Download exact retained integration and customer inputs
+        run: |
+          rm -rf retained customer-inputs
+          mkdir -p retained/integration retained/gates retained/final customer-inputs
+          gh run download "${INTEGRATION_EVIDENCE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "integration-evidence-${CANDIDATE_SHA}" \
+            --dir retained/integration
+          GH_TOKEN="${CUSTOMER_REPO_TOKEN}" gh run download "${CUSTOMER_INPUTS_RUN_ID}" \
+            --repo ruizengalways/fabric-customer \
+            --name "business-path-inputs-${CUSTOMER_SHA}" \
+            --dir customer-inputs
+          test -f retained/integration/integration-evidence.json
+          test -f customer-inputs/release-manifest.json
+          test -f customer-inputs/runner-config.json
+          test -d customer-inputs/project/config/datasets
+          test -d customer-inputs/dist
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+
+      - name: Install exact framework candidate
+        run: |
+          python -m pip install candidate-dist/*.whl
+          python -m pip check
+
+      - name: Validate exact customer release, plan and extension bytes
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          from fabric_data_framework.deployment.contracts import ReleaseManifest
+          from fabric_data_framework.evidence.business_path_driver import load_approved_business_path_driver_config
+          from fabric_data_framework.evidence.business_path_evidence import load_approved_business_path_scenario
+          from fabric_data_framework.evidence.business_path_plan import (
+              load_approved_business_path_certification_plan,
+              resolve_business_path_plan_file,
+          )
+          from fabric_data_framework.evidence.integration_evidence import (
+              IntegrationEvidenceManifest,
+              IntegrationEvidenceSpec,
+          )
+
+          root = Path("customer-inputs/project")
+          manifest = ReleaseManifest.model_validate_json(
+              Path("customer-inputs/release-manifest.json").read_text(encoding="utf-8")
+          )
+          if manifest.bundle.domain_git_sha.lower() != os.environ["CUSTOMER_SHA"]:
+              raise SystemExit("customer release manifest domain git SHA mismatch")
+          if manifest.bundle.framework_version != os.environ["FRAMEWORK_VERSION"]:
+              raise SystemExit("customer release manifest framework version mismatch")
+
+          retained = IntegrationEvidenceManifest.model_validate_json(
+              Path("retained/integration/integration-evidence.json").read_text(encoding="utf-8")
+          )
+          spec = IntegrationEvidenceSpec(
+              evidence_schema_version=retained.evidence_schema_version,
+              environment=retained.environment,
+              domain=retained.domain,
+              framework_version=retained.framework_version,
+              release_hash=retained.release_hash,
+              checks=retained.checks,
+          )
+          Path("retained/integration/integration-spec.json").write_text(
+              json.dumps(spec.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          if retained.framework_version != os.environ["FRAMEWORK_VERSION"]:
+              raise SystemExit("integration evidence framework version mismatch")
+          if retained.domain != manifest.domain:
+              raise SystemExit("integration evidence/customer release domain mismatch")
+          if retained.release_hash != manifest.bundle.release_hash:
+              raise SystemExit("integration evidence/customer release hash mismatch")
+          if not retained.certified:
+              raise SystemExit("business-path reruns require fully certified integration evidence")
+
+          plan_path = resolve_business_path_plan_file(root, os.environ["BUSINESS_PATH_PLAN_PATH"])
+          plan = load_approved_business_path_certification_plan(
+              plan_path,
+              release_manifest=manifest,
+          )
+          extension_names = set()
+          lines = []
+          for entry in plan.entries:
+              scenario_path = resolve_business_path_plan_file(root, entry.scenario_path)
+              driver_path = resolve_business_path_plan_file(root, entry.driver_config_path)
+              scenario = load_approved_business_path_scenario(
+                  scenario_path,
+                  release_manifest=manifest,
+              )
+              if scenario.gate_id is not entry.gate_id:
+                  raise SystemExit(f"plan/scenario gate mismatch for {entry.gate_id.value}")
+              driver = load_approved_business_path_driver_config(
+                  driver_path,
+                  release_manifest=manifest,
+                  expected_scenario_hash=scenario.scenario_hash,
+              )
+              extension_names.add(scenario.extension_artifact_name)
+              extension_names.add(driver.extension_artifact_name)
+              lines.append(
+                  "\t".join(
+                      (
+                          entry.gate_id.value,
+                          entry.scenario_path,
+                          entry.driver_config_path,
+                          entry.pipeline_check_id,
+                      )
+                  )
+              )
+
+          for name in sorted(extension_names):
+              artifact = Path("customer-inputs/dist") / name
+              if not artifact.is_file():
+                  raise SystemExit(f"required business-path extension artifact missing: {name}")
+              observed = hashlib.sha256(artifact.read_bytes()).hexdigest()
+              expected = manifest.artifact_sha256[name].lower()
+              if observed != expected:
+                  raise SystemExit(f"business-path extension SHA256 mismatch: {name}")
+          Path("retained/business-path-plan.tsv").write_text("\n".join(lines) + "\n")
+          PY
+
+      - name: Install exact fingerprinted customer business-path extensions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+
+          manifest = json.loads(Path("customer-inputs/release-manifest.json").read_text())
+          names = []
+          for path in Path("customer-inputs/dist").glob("*.whl"):
+              if path.name in manifest.get("artifact_sha256", {}):
+                  names.append(str(path))
+          if not names:
+              raise SystemExit("no exact-release customer extension wheel is available")
+          Path("retained/customer-extension-wheels.txt").write_text("\n".join(sorted(names)) + "\n")
+          PY
+          while IFS= read -r wheel; do
+            python -m pip install --no-deps "${wheel}"
+          done < retained/customer-extension-wheels.txt
+          python -m pip check
+
+      - name: Execute five approved representative live paths
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          while IFS=$'\t' read -r gate scenario_path driver_path pipeline_check_id; do
+            test -n "${gate}"
+            gate_dir="retained/gates/${gate}"
+            mkdir -p "${gate_dir}"
+            fabric-framework candidate-business-path-run \
+              --runner-config customer-inputs/runner-config.json \
+              --integration-spec retained/integration/integration-spec.json \
+              --certified-integration-evidence retained/integration/integration-evidence.json \
+              --release-manifest customer-inputs/release-manifest.json \
+              --config-dir customer-inputs/project/config/datasets \
+              --scenario "customer-inputs/project/${scenario_path}" \
+              --driver-config "customer-inputs/project/${driver_path}" \
+              --candidate-sha "${CANDIDATE_SHA}" \
+              --artifact-sha256 "${CANDIDATE_WHEEL_SHA256}" \
+              --pipeline-check-id "${pipeline_check_id}" \
+              --evidence-reference "github-actions://${GITHUB_REPOSITORY}/runs/${GITHUB_RUN_ID}#${gate}" \
+              --report-output "${gate_dir}/report.json" \
+              --proof-output "${gate_dir}/proof.json" \
+              --allow-pipeline-execution \
+              --allow-scenario-mutation
+          done < retained/business-path-plan.tsv
+
+      - name: Strictly merge and verify five live business-path proofs
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          mapfile -t proof_files < <(find retained/gates -name proof.json -type f | sort)
+          if [ "${#proof_files[@]}" -ne 5 ]; then
+            echo "Expected exactly five business-path partial proofs; found ${#proof_files[@]}." >&2
+            exit 1
+          fi
+          merge_args=()
+          for proof in "${proof_files[@]}"; do
+            merge_args+=(--input "${proof}")
+          done
+          fabric-framework release-proofs-merge \
+            --spec "release/${FRAMEWORK_VERSION}/readiness-spec.json" \
+            "${merge_args[@]}" \
+            --output retained/final/business-path-release-proofs.json
+
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from fabric_data_framework.evidence.business_path_evidence import BusinessPathGate
+          from fabric_data_framework.evidence.release_readiness import (
+              ReleaseReadinessStatus,
+              load_release_readiness_proofs,
+          )
+
+          bundle = load_release_readiness_proofs(
+              Path("retained/final/business-path-release-proofs.json")
+          )
+          if bundle.candidate_git_sha != os.environ["CANDIDATE_SHA"]:
+              raise SystemExit("merged business-path proof candidate SHA mismatch")
+          if bundle.artifact_sha256 != os.environ["CANDIDATE_WHEEL_SHA256"]:
+              raise SystemExit("merged business-path proof wheel SHA mismatch")
+          expected = {gate.value for gate in BusinessPathGate}
+          observed = {result.gate_id for result in bundle.results}
+          if observed != expected:
+              raise SystemExit(f"business-path gate coverage mismatch: {sorted(observed)}")
+          if any(result.status is not ReleaseReadinessStatus.PASS for result in bundle.results):
+              raise SystemExit("every business-path proof must PASS")
+          PY
+
+      - name: Assemble retained business-path artifact
+        run: |
+          cp retained/final/business-path-release-proofs.json retained/business-path-release-proofs.json
+          cp customer-inputs/release-manifest.json retained/customer-release-manifest.json
+          cp retained/integration/integration-evidence.json retained/certified-integration-evidence.json
+          rm -rf retained/integration retained/final
+
+      - name: Upload exact-candidate business-path evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: business-path-release-proofs-${{ inputs.candidate_git_sha }}
+          path: retained/
+          if-no-files-found: error
+          retention-days: 90
