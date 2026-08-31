@@ -10,11 +10,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from pathlib import Path
+import re
 
 from pydantic import Field, model_validator
 
 from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.deployment.contracts import ReleaseManifest
+from fabric_data_framework.deployment.delivery import config_bundle_hash
 from fabric_data_framework.evidence.approved_pipeline_runner import (
     ApprovedPipelineEvidenceReport,
     execute_approved_pipeline,
@@ -36,10 +38,16 @@ from fabric_data_framework.evidence.business_path_evidence import (
     evaluate_business_path_evidence,
 )
 from fabric_data_framework.evidence.integration_evidence import (
+    IntegrationEvidenceCheckKind,
     IntegrationEvidenceManifest,
     IntegrationEvidenceSpec,
+    IntegrationEvidenceStatus,
+    validate_integration_evidence_manifest,
 )
-from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
+from fabric_data_framework.evidence.integration_runner import (
+    ApprovedIntegrationRunnerConfig,
+    build_approved_integration_run_plan,
+)
 from fabric_data_framework.evidence.release_readiness import (
     ReleaseReadinessProofBundle,
     ReleaseReadinessProofResult,
@@ -195,6 +203,72 @@ def _with_driver_references(
     return proof.model_copy(update={"evidence_references": tuple(dict.fromkeys(refs))})
 
 
+def _require_safe_preflight(
+    *,
+    runner_config: ApprovedIntegrationRunnerConfig,
+    integration_spec: IntegrationEvidenceSpec,
+    prerequisite_manifest: IntegrationEvidenceManifest,
+    release_manifest: ReleaseManifest,
+    configs: tuple[DatasetConfig, ...],
+    pipeline_check_id: str,
+    candidate_git_sha: str,
+    artifact_sha256: str,
+    environ: Mapping[str, str],
+    allow_pipeline_execution: bool,
+) -> None:
+    if re.fullmatch(r"[0-9a-f]{40}", candidate_git_sha) is None:
+        raise ValueError("business path candidate_git_sha must be an exact lowercase SHA")
+    if re.fullmatch(r"[0-9a-f]{64}", artifact_sha256) is None:
+        raise ValueError("business path artifact_sha256 must be an exact lowercase SHA256")
+    if release_manifest.domain != runner_config.domain:
+        raise ValueError("business path release/runner domain mismatch")
+    if release_manifest.bundle.framework_version != runner_config.framework_version:
+        raise ValueError("business path release/framework version mismatch")
+    if release_manifest.bundle.release_hash != runner_config.release_hash:
+        raise ValueError("business path domain release hash mismatch")
+    if runner_config.framework_artifact_sha256 != artifact_sha256:
+        raise ValueError("business path runner framework artifact SHA256 mismatch")
+    if integration_spec.framework_version != runner_config.framework_version:
+        raise ValueError("business path integration/framework version mismatch")
+    if integration_spec.domain != runner_config.domain:
+        raise ValueError("business path integration/runner domain mismatch")
+    if integration_spec.release_hash != artifact_sha256:
+        raise ValueError("business path integration framework artifact SHA256 mismatch")
+    if integration_spec.domain_release_hash != release_manifest.bundle.release_hash:
+        raise ValueError("business path integration domain release hash mismatch")
+    if config_bundle_hash(configs) != release_manifest.bundle.config_bundle_hash:
+        raise ValueError("business path config bundle does not match exact release manifest")
+
+    validate_integration_evidence_manifest(integration_spec, prerequisite_manifest)
+    results = {item.check_id: item for item in prerequisite_manifest.results}
+    selected = results.get(pipeline_check_id)
+    if selected is None:
+        raise ValueError("business path Pipeline check is absent from prerequisite manifest")
+    if selected.kind is not IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN:
+        raise ValueError("business path selected integration check is not a Pipeline check")
+    if selected.status is not IntegrationEvidenceStatus.NOT_RUN:
+        raise ValueError("business path rerun prerequisite must reset Pipeline check to NOT_RUN")
+    for kind, label in (
+        (IntegrationEvidenceCheckKind.FABRIC_ITEM_READ, "Fabric item read"),
+        (IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION, "control-plane certification"),
+    ):
+        if not any(
+            item.kind is kind and item.status is IntegrationEvidenceStatus.PASS
+            for item in prerequisite_manifest.results
+        ):
+            raise ValueError(f"business path rerun requires retained PASS {label}")
+
+    plan = build_approved_integration_run_plan(
+        runner_config,
+        integration_spec,
+        environ=environ,
+        selected_check_ids=(pipeline_check_id,),
+        allow_mutating_checks=allow_pipeline_execution,
+    )
+    if not plan.ready:
+        raise ValueError("business path approved Pipeline preflight is not ready")
+
+
 def execute_approved_business_path(
     *,
     runner_config: ApprovedIntegrationRunnerConfig,
@@ -216,10 +290,22 @@ def execute_approved_business_path(
     """Execute and evaluate one exact-release representative live business path."""
 
     config_tuple = tuple(configs)
-    if release_manifest.bundle.framework_version != runner_config.framework_version:
-        raise ValueError("business path release/framework version mismatch")
-    if release_manifest.bundle.release_hash != runner_config.release_hash:
-        raise ValueError("business path release hash mismatch")
+    if not allow_scenario_mutation:
+        raise ValueError("business path scenario mutation is not explicitly authorized")
+    if not allow_pipeline_execution:
+        raise ValueError("business path Pipeline execution is not explicitly authorized")
+    _require_safe_preflight(
+        runner_config=runner_config,
+        integration_spec=integration_spec,
+        prerequisite_manifest=prerequisite_manifest,
+        release_manifest=release_manifest,
+        configs=config_tuple,
+        pipeline_check_id=pipeline_check_id,
+        candidate_git_sha=candidate_git_sha,
+        artifact_sha256=artifact_sha256,
+        environ=environ,
+        allow_pipeline_execution=allow_pipeline_execution,
+    )
     if scenario.dataset_id not in {item.dataset_id for item in config_tuple}:
         raise ValueError("business path dataset is absent from exact release config bundle")
     if driver_config.scenario_hash != scenario.scenario_hash:
@@ -232,10 +318,6 @@ def execute_approved_business_path(
         raise ValueError(
             "business path driver extension is not fingerprinted in exact release manifest"
         )
-    if not allow_scenario_mutation:
-        raise ValueError("business path scenario mutation is not explicitly authorized")
-    if not allow_pipeline_execution:
-        raise ValueError("business path Pipeline execution is not explicitly authorized")
 
     references = tuple(evidence_references)
     if not references:
