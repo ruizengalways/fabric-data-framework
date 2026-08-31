@@ -1,0 +1,606 @@
+name: candidate-integration-evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: "Successful main framework-ci run that built the exact candidate wheel"
+        required: true
+        type: string
+      candidate_git_sha:
+        description: "Exact 40-character candidate source SHA; dispatch at this same ref"
+        required: true
+        type: string
+      candidate_wheel_sha256:
+        description: "Exact inner candidate wheel SHA256"
+        required: true
+        type: string
+      customer_git_sha:
+        description: "Exact fabric-customer commit owning the approved integration inputs"
+        required: true
+        type: string
+      customer_inputs_run_id:
+        description: "Successful fabric-customer candidate-business-path-inputs workflow run"
+        required: true
+        type: string
+      environment:
+        description: "Protected approved environment containing the real certification credentials"
+        required: true
+        default: DEV
+        type: choice
+        options:
+          - DEV
+          - UAT
+          - PROD
+      authorize_live_mutations:
+        description: "Explicitly authorize control-plane probes, Pipeline/Copy/Spark and Warehouse certification mutations"
+        required: true
+        default: false
+        type: boolean
+      authorize_warehouse_session_termination:
+        description: "Separately authorize Admin-level exact-session termination if the fault recipe enables it"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: candidate-integration-evidence-${{ inputs.candidate_git_sha }}-${{ inputs.customer_git_sha }}-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      CANDIDATE_SHA: ${{ inputs.candidate_git_sha }}
+      CANDIDATE_WHEEL_SHA256: ${{ inputs.candidate_wheel_sha256 }}
+      CUSTOMER_SHA: ${{ inputs.customer_git_sha }}
+      CUSTOMER_INPUTS_RUN_ID: ${{ inputs.customer_inputs_run_id }}
+      CERTIFICATION_ENVIRONMENT: ${{ inputs.environment }}
+      AUTHORIZE_LIVE_MUTATIONS: ${{ inputs.authorize_live_mutations }}
+      AUTHORIZE_WAREHOUSE_SESSION_TERMINATION: ${{ inputs.authorize_warehouse_session_termination }}
+      GH_TOKEN: ${{ github.token }}
+      CUSTOMER_REPO_TOKEN: ${{ secrets.CUSTOMER_REPO_TOKEN }}
+      FABRIC_ACCESS_TOKEN: ${{ secrets.FABRIC_ACCESS_TOKEN }}
+      CONTROL_PLANE_DATABASE_URL: ${{ secrets.CONTROL_PLANE_DATABASE_URL }}
+      WAREHOUSE_DATABASE_URL: ${{ secrets.WAREHOUSE_DATABASE_URL }}
+      WAREHOUSE_ADMIN_DATABASE_URL: ${{ secrets.WAREHOUSE_ADMIN_DATABASE_URL }}
+    steps:
+      - name: Validate exact identities and explicit live authorization
+        run: |
+          python - <<'PY'
+          import os
+          import re
+
+          for name in ("CANDIDATE_SHA", "CUSTOMER_SHA"):
+              if re.fullmatch(r"[0-9a-f]{40}", os.environ[name]) is None:
+                  raise SystemExit(f"{name} must be a 40-character lowercase git SHA")
+          if re.fullmatch(r"[0-9a-f]{64}", os.environ["CANDIDATE_WHEEL_SHA256"]) is None:
+              raise SystemExit("candidate_wheel_sha256 must be a 64-character lowercase SHA256")
+          for name in ("CANDIDATE_RUN_ID", "CUSTOMER_INPUTS_RUN_ID"):
+              value = os.environ[name]
+              if not value.isdigit() or int(value) < 1:
+                  raise SystemExit(f"{name} must be a positive GitHub Actions run ID")
+          if os.environ["GITHUB_SHA"] != os.environ["CANDIDATE_SHA"]:
+              raise SystemExit(
+                  "candidate-integration-evidence must be dispatched at the exact candidate ref"
+              )
+          if os.environ["AUTHORIZE_LIVE_MUTATIONS"].lower() != "true":
+              raise SystemExit(
+                  "candidate integration evidence requires explicit authorize_live_mutations=true"
+              )
+          if not os.environ.get("CUSTOMER_REPO_TOKEN", "").strip():
+              raise SystemExit("CUSTOMER_REPO_TOKEN is required for exact customer evidence inputs")
+          PY
+
+      - name: Checkout exact framework candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.candidate_git_sha }}
+          fetch-depth: 0
+
+      - name: Verify candidate source and successful main CI provenance
+        id: candidate
+        run: |
+          test "$(git rev-parse HEAD)" = "${CANDIDATE_SHA}"
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "${CANDIDATE_SHA}" origin/main; then
+            echo "Candidate ${CANDIDATE_SHA} is not reachable from main." >&2
+            exit 1
+          fi
+          VERSION="$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+          print(tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])
+          PY
+          )"
+          test -f "release/${VERSION}/integration-evidence-template.json"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}")"
+          export RUN_JSON
+          python - <<'PY'
+          import json
+          import os
+
+          run = json.loads(os.environ["RUN_JSON"])
+          if run["head_sha"] != os.environ["CANDIDATE_SHA"] or run["head_branch"] != "main":
+              raise SystemExit("candidate CI does not bind the exact main candidate SHA")
+          if run["event"] != "push" or run["conclusion"] != "success":
+              raise SystemExit("candidate CI must be a successful main push")
+          if run["path"] != ".github/workflows/ci.yml":
+              raise SystemExit("candidate CI workflow path mismatch")
+          PY
+          RUN_ATTEMPT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["run_attempt"])')"
+          echo "run_attempt=${RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/jobs?per_page=100" \
+            > candidate-ci-jobs.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          jobs = {
+              item["name"]: item["conclusion"]
+              for item in json.loads(Path("candidate-ci-jobs.json").read_text())["jobs"]
+          }
+          required = {
+              "test-python-3.11",
+              "test-python-3.13",
+              "build-wheel",
+              "release-readiness-contract",
+          }
+          missing = sorted(required - jobs.keys())
+          failed = sorted(name for name in required if jobs.get(name) != "success")
+          if missing or failed:
+              raise SystemExit(
+                  f"candidate CI required jobs invalid: missing={missing}, failed={failed}"
+              )
+          PY
+
+      - name: Download and authenticate exact framework wheel
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+          CANDIDATE_RUN_ATTEMPT: ${{ steps.candidate.outputs.run_attempt }}
+        run: |
+          rm -rf candidate-dist
+          gh run download "${CANDIDATE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "framework-wheel-${CANDIDATE_SHA}" \
+            --dir candidate-dist
+          test -f candidate-dist/CANDIDATE.json
+          test -f candidate-dist/SHA256SUMS
+          python src/fabric_data_framework/deployment/candidate_artifact.py verify \
+            --dist-dir candidate-dist \
+            --manifest candidate-dist/CANDIDATE.json \
+            --candidate-sha "${CANDIDATE_SHA}" \
+            --workflow-run-id "${CANDIDATE_RUN_ID}" \
+            --workflow-run-attempt "${CANDIDATE_RUN_ATTEMPT}" \
+            --expected-version "${FRAMEWORK_VERSION}" \
+            --expected-wheel-sha256 "${CANDIDATE_WHEEL_SHA256}"
+          (cd candidate-dist && sha256sum -c SHA256SUMS)
+
+      - name: Verify exact customer input producer provenance
+        env:
+          GH_TOKEN: ${{ secrets.CUSTOMER_REPO_TOKEN }}
+        run: |
+          RUN_JSON="$(gh api "/repos/ruizengalways/fabric-customer/actions/runs/${CUSTOMER_INPUTS_RUN_ID}")"
+          export RUN_JSON
+          python - <<'PY'
+          import json
+          import os
+
+          run = json.loads(os.environ["RUN_JSON"])
+          if run["head_sha"] != os.environ["CUSTOMER_SHA"]:
+              raise SystemExit("customer integration-input run SHA mismatch")
+          if run["event"] != "workflow_dispatch" or run["conclusion"] != "success":
+              raise SystemExit("customer integration inputs require successful workflow_dispatch")
+          if run["path"] != ".github/workflows/candidate-business-path-inputs.yml":
+              raise SystemExit("customer integration-input workflow path mismatch")
+          PY
+
+      - name: Download exact customer release and integration recipes
+        run: |
+          rm -rf customer-inputs retained
+          mkdir -p customer-inputs retained/partials retained/reports retained/final
+          GH_TOKEN="${CUSTOMER_REPO_TOKEN}" gh run download "${CUSTOMER_INPUTS_RUN_ID}" \
+            --repo ruizengalways/fabric-customer \
+            --name "business-path-inputs-${CUSTOMER_SHA}" \
+            --dir customer-inputs
+
+          test -f customer-inputs/release-manifest.json
+          test -f customer-inputs/runner-config.json
+          test -d customer-inputs/project/config/datasets
+          test -d customer-inputs/dist
+          test -f customer-inputs/project/config/certification/integration/control-plane-external-evidence.json
+          test -f customer-inputs/project/config/certification/integration/copy-run.json
+          test -f customer-inputs/project/config/certification/integration/spark-run.json
+          test -f customer-inputs/project/config/certification/integration/warehouse-run.json
+          test -f customer-inputs/project/config/certification/integration/warehouse-fault-run.json
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+
+      - name: Install exact framework candidate
+        run: |
+          python -m pip install candidate-dist/*.whl
+          python -m pip check
+
+      - name: Validate exact customer release identities, recipes and extension bytes
+        id: inputs
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          from fabric_data_framework.control_plane.certification import ControlPlaneExternalEvidence
+          from fabric_data_framework.deployment.delivery import (
+              config_bundle_hash,
+              load_dataset_configs,
+              load_release_manifest,
+          )
+          from fabric_data_framework.evidence.approved_capture_runner import (
+              load_approved_capture_run_config,
+          )
+          from fabric_data_framework.evidence.approved_warehouse_fault_runner import (
+              load_approved_warehouse_fault_drill_config,
+          )
+          from fabric_data_framework.evidence.approved_warehouse_runner import (
+              load_approved_warehouse_run_config,
+          )
+          from fabric_data_framework.evidence.integration_runner import (
+              load_approved_integration_runner_config,
+          )
+
+          root = Path("customer-inputs")
+          project = root / "project"
+          integration = project / "config/certification/integration"
+          release_manifest = load_release_manifest(root / "release-manifest.json")
+          runner = load_approved_integration_runner_config(root / "runner-config.json")
+          configs = load_dataset_configs(project / "config/datasets")
+
+          if release_manifest.bundle.domain_git_sha.lower() != os.environ["CUSTOMER_SHA"]:
+              raise SystemExit("customer release manifest domain git SHA mismatch")
+          if release_manifest.bundle.framework_version != os.environ["FRAMEWORK_VERSION"]:
+              raise SystemExit("customer release manifest framework version mismatch")
+          if config_bundle_hash(configs) != release_manifest.bundle.config_bundle_hash:
+              raise SystemExit("customer release config bundle hash mismatch")
+          if runner.environment.value != os.environ["CERTIFICATION_ENVIRONMENT"]:
+              raise SystemExit("runner config environment mismatch")
+          if runner.domain != release_manifest.domain:
+              raise SystemExit("runner config domain mismatch")
+          if runner.framework_version != os.environ["FRAMEWORK_VERSION"]:
+              raise SystemExit("runner config framework version mismatch")
+          if runner.framework_artifact_sha256 != os.environ["CANDIDATE_WHEEL_SHA256"]:
+              raise SystemExit("runner config framework wheel SHA256 mismatch")
+          if runner.release_hash != release_manifest.bundle.release_hash:
+              raise SystemExit("runner config domain release hash mismatch")
+
+          expected_env_names = {
+              "fabric_access_token_env_var": "FABRIC_ACCESS_TOKEN",
+              "control_plane_database_url_env_var": "CONTROL_PLANE_DATABASE_URL",
+              "warehouse_database_url_env_var": "WAREHOUSE_DATABASE_URL",
+          }
+          for field, expected in expected_env_names.items():
+              if getattr(runner, field) != expected:
+                  raise SystemExit(f"runner config {field} must equal {expected}")
+          if runner.warehouse_admin_database_url_env_var not in {
+              None,
+              "WAREHOUSE_ADMIN_DATABASE_URL",
+          }:
+              raise SystemExit(
+                  "runner config warehouse_admin_database_url_env_var must be WAREHOUSE_ADMIN_DATABASE_URL when present"
+              )
+
+          bindings = {item.check_id: item for item in runner.bindings}
+          required_bindings = {"fabric.item.read", "fabric.pipeline", "fabric.copy", "fabric.spark"}
+          missing_bindings = sorted(required_bindings - bindings.keys())
+          if missing_bindings:
+              raise SystemExit(f"runner config missing integration bindings: {missing_bindings}")
+          pipeline_dataset = bindings["fabric.pipeline"].dataset_id
+          if pipeline_dataset is None:
+              raise SystemExit("fabric.pipeline binding requires customer-owned dataset_id")
+          if pipeline_dataset not in {item.dataset_id for item in configs}:
+              raise SystemExit("fabric.pipeline dataset_id is absent from exact config bundle")
+
+          copy_config = load_approved_capture_run_config(integration / "copy-run.json")
+          spark_config = load_approved_capture_run_config(integration / "spark-run.json")
+          warehouse_config = load_approved_warehouse_run_config(integration / "warehouse-run.json")
+          fault_config = load_approved_warehouse_fault_drill_config(
+              integration / "warehouse-fault-run.json"
+          )
+          if copy_config.check_id != "fabric.copy":
+              raise SystemExit("copy-run.json must own fabric.copy")
+          if spark_config.check_id != "fabric.spark":
+              raise SystemExit("spark-run.json must own fabric.spark")
+          if warehouse_config.check_id != "warehouse.commit":
+              raise SystemExit("warehouse-run.json must own warehouse.commit")
+          if fault_config.check_id != "warehouse.ambiguous_commit":
+              raise SystemExit(
+                  "warehouse-fault-run.json must own warehouse.ambiguous_commit"
+              )
+          ControlPlaneExternalEvidence.from_json_file(
+              integration / "control-plane-external-evidence.json"
+          )
+
+          extension_names = {
+              copy_config.extension_artifact_name,
+              spark_config.extension_artifact_name,
+              warehouse_config.extension_artifact_name,
+              fault_config.mutation_extension_artifact_name,
+              fault_config.fault_injector_artifact_name,
+          }
+          for name in sorted(extension_names):
+              if not name.endswith(".whl"):
+                  raise SystemExit(f"approved integration extension must be a wheel: {name}")
+              artifact = root / "dist" / name
+              if not artifact.is_file():
+                  raise SystemExit(f"approved integration extension artifact missing: {name}")
+              expected = release_manifest.artifact_sha256.get(name)
+              if expected is None:
+                  raise SystemExit(f"extension artifact absent from exact release manifest: {name}")
+              observed = hashlib.sha256(artifact.read_bytes()).hexdigest()
+              if observed != expected.lower():
+                  raise SystemExit(f"approved integration extension SHA256 mismatch: {name}")
+
+          Path("retained/extension-wheels.txt").write_text(
+              "\n".join(str(root / "dist" / name) for name in sorted(extension_names)) + "\n",
+              encoding="utf-8",
+          )
+          Path("retained/pipeline-dataset-id.txt").write_text(
+              pipeline_dataset + "\n",
+              encoding="utf-8",
+          )
+          Path("retained/domain-release-hash.txt").write_text(
+              release_manifest.bundle.release_hash + "\n",
+              encoding="utf-8",
+          )
+          Path("retained/domain.txt").write_text(release_manifest.domain + "\n", encoding="utf-8")
+          PY
+
+          echo "pipeline_dataset_id=$(cat retained/pipeline-dataset-id.txt)" >> "${GITHUB_OUTPUT}"
+          echo "domain_release_hash=$(cat retained/domain-release-hash.txt)" >> "${GITHUB_OUTPUT}"
+          echo "domain=$(cat retained/domain.txt)" >> "${GITHUB_OUTPUT}"
+
+      - name: Install exact fingerprinted customer integration extensions
+        run: |
+          while IFS= read -r wheel; do
+            test -n "${wheel}"
+            python -m pip install "${wheel}"
+          done < retained/extension-wheels.txt
+          python -m pip check
+
+      - name: Materialize exact candidate integration spec and run full preflight
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+          DOMAIN_RELEASE_HASH: ${{ steps.inputs.outputs.domain_release_hash }}
+          CERTIFICATION_DOMAIN: ${{ steps.inputs.outputs.domain }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from fabric_data_framework.evidence.candidate_certification import (
+              materialize_candidate_integration_spec,
+          )
+          from fabric_data_framework.evidence.integration_evidence import (
+              load_integration_evidence_spec,
+          )
+
+          template = load_integration_evidence_spec(
+              Path("release") / os.environ["FRAMEWORK_VERSION"] / "integration-evidence-template.json"
+          )
+          spec = materialize_candidate_integration_spec(
+              template,
+              environment=os.environ["CERTIFICATION_ENVIRONMENT"],
+              domain=os.environ["CERTIFICATION_DOMAIN"],
+              artifact_sha256=os.environ["CANDIDATE_WHEEL_SHA256"],
+              domain_release_hash=os.environ["DOMAIN_RELEASE_HASH"],
+          )
+          Path("retained/integration-spec.json").write_text(
+              json.dumps(spec.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          fabric-framework integration-run-preflight \
+            --config customer-inputs/runner-config.json \
+            --spec retained/integration-spec.json \
+            --allow-mutating-checks \
+            --require-ready \
+            --output retained/reports/full-preflight.json
+
+      - name: Run read-only Fabric item identity and authorization evidence
+        run: |
+          fabric-framework integration-item-smoke-run \
+            --config customer-inputs/runner-config.json \
+            --spec retained/integration-spec.json \
+            --check-id fabric.item.read \
+            --evidence-reference "github-actions://${GITHUB_REPOSITORY}/runs/${GITHUB_RUN_ID}/fabric-item-read" \
+            --output retained/partials/item-read.json
+
+      - name: Run production control-plane certification evidence
+        run: |
+          fabric-framework integration-control-plane-certify-run \
+            --config customer-inputs/runner-config.json \
+            --spec retained/integration-spec.json \
+            --check-id control.cert \
+            --external-evidence customer-inputs/project/config/certification/integration/control-plane-external-evidence.json \
+            --evidence-reference "github-actions://${GITHUB_REPOSITORY}/runs/${GITHUB_RUN_ID}/control-plane-certification" \
+            --report-output retained/reports/control-plane-certification.json \
+            --output retained/partials/control-plane.json \
+            --allow-conformance-writes
+
+      - name: Merge immutable read-only and control-plane prerequisites
+        run: |
+          fabric-framework integration-evidence-merge \
+            --spec retained/integration-spec.json \
+            --input retained/partials/item-read.json \
+            --input retained/partials/control-plane.json \
+            --output retained/partials/base-prerequisites.json
+
+      - name: Run approved Pipeline evidence
+        env:
+          PIPELINE_DATASET_ID: ${{ steps.inputs.outputs.pipeline_dataset_id }}
+        run: |
+          fabric-framework integration-pipeline-run \
+            --config customer-inputs/runner-config.json \
+            --spec retained/integration-spec.json \
+            --prerequisite-manifest retained/partials/base-prerequisites.json \
+            --release-manifest customer-inputs/release-manifest.json \
+            --config-dir customer-inputs/project/config/datasets \
+            --check-id fabric.pipeline \
+            --dataset-id "${PIPELINE_DATASET_ID}" \
+            --evidence-reference "github-actions://${GITHUB_REPOSITORY}/runs/${GITHUB_RUN_ID}/fabric-pipeline" \
+            --output retained/partials/pipeline.json \
+            --allow-pipeline-execution
+
+      - name: Run approved Copy capture evidence
+        run: |
+          fabric-framework integration-capture-run \
+            --config customer-inputs/runner-config.json \
+            --spec retained/integration-spec.json \
+            --prerequisite-manifest retained/partials/base-prerequisites.json \
+            --release-manifest customer-inputs/release-manifest.json \
+            --config-dir customer-inputs/project/config/datasets \
+            --capture-config customer-inputs/project/config/certification/integration/copy-run.json \
+            --evidence-reference "github-actions://${GITHUB_REPOSITORY}/runs/${GITHUB_RUN_ID}/fabric-copy" \
+            --report-output retained/reports/copy.json \
+            --output retained/partials/copy.json \
+            --allow-capture-execution
+
+      - name: Run approved Spark capture evidence
+        run: |
+          fabric-framework integration-capture-run \
+            --config customer-inputs/runner-config.json \
+            --spec retained/integration-spec.json \
+            --prerequisite-manifest retained/partials/base-prerequisites.json \
+            --release-manifest customer-inputs/release-manifest.json \
+            --config-dir customer-inputs/project/config/datasets \
+            --capture-config customer-inputs/project/config/certification/integration/spark-run.json \
+            --evidence-reference "github-actions://${GITHUB_REPOSITORY}/runs/${GITHUB_RUN_ID}/fabric-spark" \
+            --report-output retained/reports/spark.json \
+            --output retained/partials/spark.json \
+            --allow-capture-execution
+
+      - name: Run approved Warehouse target and marker commit evidence
+        run: |
+          fabric-framework integration-warehouse-run \
+            --config customer-inputs/runner-config.json \
+            --spec retained/integration-spec.json \
+            --prerequisite-manifest retained/partials/base-prerequisites.json \
+            --release-manifest customer-inputs/release-manifest.json \
+            --config-dir customer-inputs/project/config/datasets \
+            --warehouse-config customer-inputs/project/config/certification/integration/warehouse-run.json \
+            --evidence-reference "github-actions://${GITHUB_REPOSITORY}/runs/${GITHUB_RUN_ID}/warehouse-commit" \
+            --report-output retained/reports/warehouse-commit.json \
+            --output retained/partials/warehouse-commit.json \
+            --allow-warehouse-execution
+
+      - name: Build exact prerequisites for real ambiguous-COMMIT drill
+        run: |
+          fabric-framework integration-evidence-merge \
+            --spec retained/integration-spec.json \
+            --input retained/partials/base-prerequisites.json \
+            --input retained/partials/warehouse-commit.json \
+            --output retained/partials/fault-prerequisites.json
+
+      - name: Run approved real ambiguous-COMMIT recovery evidence
+        run: |
+          SESSION_FLAG=()
+          if [ "${AUTHORIZE_WAREHOUSE_SESSION_TERMINATION}" = "true" ]; then
+            SESSION_FLAG+=(--allow-warehouse-session-termination)
+          fi
+          fabric-framework integration-warehouse-fault-drill-run \
+            --config customer-inputs/runner-config.json \
+            --spec retained/integration-spec.json \
+            --prerequisite-manifest retained/partials/fault-prerequisites.json \
+            --release-manifest customer-inputs/release-manifest.json \
+            --config-dir customer-inputs/project/config/datasets \
+            --fault-config customer-inputs/project/config/certification/integration/warehouse-fault-run.json \
+            --evidence-reference "github-actions://${GITHUB_REPOSITORY}/runs/${GITHUB_RUN_ID}/warehouse-ambiguous-commit" \
+            --report-output retained/reports/warehouse-ambiguous-commit.json \
+            --output retained/partials/warehouse-ambiguous-commit.json \
+            --allow-warehouse-fault-injection \
+            "${SESSION_FLAG[@]}"
+
+      - name: Strictly merge and require fully certified exact integration evidence
+        run: |
+          fabric-framework integration-evidence-merge \
+            --spec retained/integration-spec.json \
+            --input retained/partials/base-prerequisites.json \
+            --input retained/partials/pipeline.json \
+            --input retained/partials/copy.json \
+            --input retained/partials/spark.json \
+            --input retained/partials/warehouse-commit.json \
+            --input retained/partials/warehouse-ambiguous-commit.json \
+            --output retained/final/integration-evidence.json \
+            --require-certified
+
+          fabric-framework integration-evidence-validate \
+            --spec retained/integration-spec.json \
+            --manifest retained/final/integration-evidence.json \
+            --require-certified
+
+      - name: Verify final exact identities and credential-safe retained output
+        env:
+          DOMAIN_RELEASE_HASH: ${{ steps.inputs.outputs.domain_release_hash }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from fabric_data_framework.evidence.integration_evidence import (
+              IntegrationEvidenceStatus,
+              load_integration_evidence_manifest,
+              load_integration_evidence_spec,
+              validate_integration_evidence_manifest,
+          )
+          from fabric_data_framework.evidence.safety import assert_safe_retained_text
+
+          spec = load_integration_evidence_spec("retained/integration-spec.json")
+          manifest = load_integration_evidence_manifest(
+              "retained/final/integration-evidence.json"
+          )
+          validate_integration_evidence_manifest(spec, manifest, require_certified=True)
+          if manifest.release_hash != os.environ["CANDIDATE_WHEEL_SHA256"]:
+              raise SystemExit("final integration evidence framework wheel SHA256 mismatch")
+          if manifest.domain_release_hash != os.environ["DOMAIN_RELEASE_HASH"]:
+              raise SystemExit("final integration evidence domain release hash mismatch")
+          required = [item for item in manifest.checks if item.required]
+          results = {item.check_id: item for item in manifest.results}
+          if any(results[item.check_id].status is not IntegrationEvidenceStatus.PASS for item in required):
+              raise SystemExit("every required integration evidence check must PASS")
+
+          for path in Path("retained").rglob("*.json"):
+              assert_safe_retained_text(
+                  path.read_text(encoding="utf-8"),
+                  f"retained integration artifact {path}",
+              )
+          PY
+
+          cp retained/final/integration-evidence.json retained/integration-evidence.json
+
+      - name: Upload certified exact-candidate integration evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: integration-evidence-${{ inputs.candidate_git_sha }}
+          path: |
+            retained/integration-evidence.json
+            retained/integration-spec.json
+            retained/partials/
+            retained/reports/
+          if-no-files-found: error
+          retention-days: 90

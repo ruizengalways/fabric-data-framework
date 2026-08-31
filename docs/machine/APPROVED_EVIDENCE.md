@@ -37,12 +37,29 @@ Every approved evidence stage is bound to:
 environment
 domain
 framework_version
-release_hash
+framework artifact identity where exact-candidate mode applies
+domain release identity where exact-candidate mode applies
 check list
 exact release/config bundle where applicable
 ```
 
-A partial manifest for another exact spec must not be merged.
+For exact 0.4 candidate evidence:
+
+```text
+IntegrationEvidence.release_hash
+  = exact framework candidate wheel SHA256
+
+IntegrationEvidence.domain_release_hash
+  = exact customer/domain ReleaseManifest.bundle.release_hash
+
+ApprovedIntegrationRunnerConfig.framework_artifact_sha256
+  = exact framework candidate wheel SHA256
+
+ApprovedIntegrationRunnerConfig.release_hash
+  = exact customer/domain release hash
+```
+
+These hashes are independent. A partial manifest for another exact spec, framework wheel, domain release or check list must not be merged.
 
 ## Credential model
 
@@ -64,6 +81,8 @@ Secret-bearing values must not enter retained plan/report/manifest artifacts.
 `integration-run-preflight` validates exact config/spec identity, physical bindings, runtime env-var presence, and mutating-check authorization without copying secret values into retained output.
 
 The first real provider stage should be read-only.
+
+`IntegrationCheckPhysicalBinding.dataset_id` is optional generally. For the exact-candidate `fabric.pipeline` certification producer, the customer/domain binding must supply the representative dataset ID so the framework workflow does not choose business semantics.
 
 ## Item smoke
 
@@ -348,6 +367,7 @@ identical substantive duplicates -> allowed
 different substantive reruns -> conflict
 no latest/PASS/FAIL precedence
 no output clobber on conflict/failed certification requirement
+exact framework + domain release identities must match
 ```
 
 Final gate:
@@ -356,8 +376,53 @@ Final gate:
 integration-evidence-validate --require-certified
 ```
 
+## Exact-candidate integration producer — PR #90
+
+Workflow:
+
+```text
+.github/workflows/candidate-integration-evidence.yml
+```
+
+Current status is **PR CI PROVEN / PENDING MERGE** from run `33347382522` with 727 passing tests. This is a workflow-contract claim only; no live Fabric evidence has been retained.
+
+The producer must authenticate:
+
+```text
+exact framework candidate source SHA
+successful exact main framework CI run
+exact wheel bytes / CANDIDATE.json / SHA256SUMS
+exact fabric-customer git SHA
+successful fixed-path customer input producer run
+exact customer ReleaseManifest + DatasetConfig bundle
+exact source-controlled Copy/Spark/Warehouse/fault recipes
+exact fingerprinted customer extension wheels
+```
+
+Execution order:
+
+```text
+item read
+-> control-plane certification
+-> strict base prerequisite merge
+-> Pipeline
+-> Copy
+-> Spark
+-> Warehouse target+marker
+-> strict fault prerequisite merge
+-> real ambiguous-COMMIT drill
+-> strict final merge --require-certified
+-> validate --require-certified
+-> exact identity + retained-secret safety check
+-> upload
+```
+
+The workflow must not instantiate `IntegrationEvidenceCheckResult(PASS)` or otherwise synthesize provider truth. It may inspect PASS statuses only after approved runners have produced them, for final validation.
+
+`authorize_live_mutations` gates mutating certification. `authorize_warehouse_session_termination` is a separate Admin-level control and is never implied by the first flag.
+
 ## Release evidence discipline
 
-A green approved-runner CI test proves runner/fail-closed behavior only.
+A green approved-runner or workflow-contract CI test proves fail-closed behavior only.
 
-Live evidence labels require retained exact-candidate provider/database execution.
+Live evidence labels require retained exact-candidate provider/database execution for the exact framework wheel and exact customer/domain release.

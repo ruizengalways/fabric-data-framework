@@ -6,6 +6,7 @@ CANONICAL = (
     ROOT / "docs/machine/STATE.md",
     ROOT / "docs/machine/CAPABILITIES.md",
     ROOT / "docs/machine/IMPLEMENTATION_MAP.md",
+    ROOT / "docs/machine/APPROVED_EVIDENCE.md",
     ROOT / "docs/machine/BUSINESS_PATH_EVIDENCE.md",
     ROOT / "docs/machine/RELEASE_READINESS.md",
     ROOT / "docs/machine/HISTORY.md",
@@ -24,10 +25,7 @@ def test_candidate_certification_docs_do_not_regress_to_stale_state():
         "future `.github/workflows/candidate-certification.yml`",
         "Candidate-certification workflow / certified readiness artifact | NOT YET IMPLEMENTED",
         "candidate-certification workflow / evidence packaging that consumes",
-        "PR CI PROVEN / PENDING MERGE",
-        "PR CI proven and pending merge/main checkpoint",
-        "PR CI evidence pending merge/main checkpoint",
-        "requires PR CI/merge before it can be called proven",
+        "PR CI PROVEN / PENDING MERGE" + " for candidate-certification",
     )
     for phrase in forbidden:
         assert phrase not in combined
@@ -78,16 +76,44 @@ def test_business_path_docs_remain_merged_main_proven():
     assert "typed evaluator / driver / plan / runner / workflow = IMPLEMENTED / CI PENDING" not in combined
 
 
+def test_candidate_integration_producer_docs_match_green_pr90_state():
+    combined = _combined()
+
+    assert ".github/workflows/candidate-integration-evidence.yml" in combined
+    assert "33347382522" in combined
+    assert "727" in combined
+    assert "PR CI PROVEN / PENDING MERGE" in combined
+    assert "IntegrationCheckPhysicalBinding" in combined
+    assert "dataset_id" in combined
+    assert "authorize_live_mutations" in combined
+    assert "authorize_warehouse_session_termination" in combined
+    assert "integration-evidence-merge --require-certified" in combined
+    assert "integration-evidence-validate --require-certified" in combined
+
+    stale = (
+        "candidate-integration-evidence     NOT YET IMPLEMENTED",
+        "candidate-integration-evidence.yml        NOT YET IMPLEMENTED",
+        "Candidate integration-evidence workflow | NOT YET IMPLEMENTED",
+        "candidate-integration-evidence     FEATURE BRANCH IMPLEMENTED / CI PENDING",
+        "candidate-integration-evidence workflow       FEATURE BRANCH IMPLEMENTED / CI PENDING",
+        "candidate-integration-evidence   implemented on feature branch / ci pending",
+        "This producer is not yet implemented",
+        "It is **NOT YET IMPLEMENTED**",
+    )
+    for phrase in stale:
+        assert phrase not in combined
+
+
 def test_release_docs_keep_framework_and_domain_release_identity_distinct():
     combined = _combined()
 
     assert "domain_release_hash" in combined
     assert "framework_artifact_sha256" in combined
-    assert "exact inner candidate wheel SHA256" in combined
+    assert "exact framework candidate wheel SHA256" in combined
     assert "ReleaseManifest.bundle.release_hash" in combined
     assert "IntegrationEvidence.release_hash" in combined
     assert "IntegrationEvidence.domain_release_hash" in combined
-    assert "must never be assumed equal" in combined
+    assert "must never be assumed equal" in combined or "not expected to be equal" in combined
 
 
 def test_release_docs_keep_actual_live_producer_and_release_gaps_explicit():
@@ -99,5 +125,5 @@ def test_release_docs_keep_actual_live_producer_and_release_gaps_explicit():
     assert "release_allowed = false" in combined or "release_allowed: false" in combined
     assert "not yet frozen" in combined.lower() or "not_frozen" in combined.lower()
     assert "not yet produced" in combined.lower()
-    assert "candidate-integration-evidence" in combined
-    assert "actual Fabric business-path PASS artifacts           = NOT RETAINED" in combined
+    assert "no live run" in combined.lower() or "no live fabric" in combined.lower()
+    assert "release-proof/domain" in combined.lower()

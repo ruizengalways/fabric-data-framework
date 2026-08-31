@@ -66,12 +66,18 @@ _CONTROL_PLANE_RUNTIME_KINDS = frozenset(
 class IntegrationCheckPhysicalBinding(FrozenModel):
     """Environment-local physical IDs for one evidence check.
 
+    ``dataset_id`` is optional for general provider checks, but exact candidate
+    integration certification uses it on the Pipeline binding so the customer/domain
+    repo owns the representative business dataset instead of passing business WHAT as
+    a framework-workflow input.
+
     No connection string, access token or secret-bearing endpoint belongs here.
     """
 
     check_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z][a-z0-9_.-]*$")
     workspace_id: UUID | None = None
     item_id: UUID | None = None
+    dataset_id: str | None = Field(default=None, min_length=1, max_length=256)
 
 
 class ApprovedIntegrationRunnerConfig(FrozenModel):
