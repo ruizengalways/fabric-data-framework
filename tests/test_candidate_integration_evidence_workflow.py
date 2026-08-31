@@ -74,8 +74,12 @@ def test_workflow_uses_only_existing_approved_execution_commands_and_staged_merg
     assert "integration-evidence-merge" in text
     assert "--require-certified" in text
     assert "IntegrationEvidenceCheckResult(" not in text
-    assert "IntegrationEvidenceStatus.PASS" not in text
+    assert "status=IntegrationEvidenceStatus.PASS" not in text
+    assert '"status": "PASS"' not in text
     assert "run_fabric_item_read_check(" not in text
+    # Reading the enum to verify the already-merged final manifest is allowed; the
+    # workflow must not construct a PASS result itself.
+    assert "IntegrationEvidenceStatus.PASS" in text
 
 
 def test_workflow_orders_warehouse_fault_after_normal_commit_prerequisite():
@@ -111,7 +115,13 @@ def test_workflow_maps_only_named_runtime_secrets_and_never_retains_secret_value
         "WAREHOUSE_ADMIN_DATABASE_URL",
     ):
         assert f"{name}: ${{{{ secrets.{name} }}}}" in text
-    assert "runner config fabric_access_token_env_var must equal FABRIC_ACCESS_TOKEN" in text or (
-        '"fabric_access_token_env_var": "FABRIC_ACCESS_TOKEN"' not in text
-        and 'expected_env_names = {' in text
-    )
+
+    # The customer runner config may name only these process-local variables. The
+    # workflow compares names, never serializes the corresponding secret values.
+    assert '"fabric_access_token_env_var": "FABRIC_ACCESS_TOKEN"' in text
+    assert '"control_plane_database_url_env_var": "CONTROL_PLANE_DATABASE_URL"' in text
+    assert '"warehouse_database_url_env_var": "WAREHOUSE_DATABASE_URL"' in text
+    assert '"WAREHOUSE_ADMIN_DATABASE_URL"' in text
+    assert "for field, expected in expected_env_names.items()" in text
+    assert "getattr(runner, field) != expected" in text
+    assert "assert_safe_retained_text" in text
