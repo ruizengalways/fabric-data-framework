@@ -8,7 +8,7 @@ source_version: 0.4.0-development-unreleased
 release_allowed: false
 feature_freeze: true
 candidate_status: not_frozen
-code_baseline:
+merged_code_baseline:
   pull_request: 88
   merge_sha: 1632aefe8c1fd71098200c434a1648d0385f4967
   milestone: exact-candidate representative business-path evidence contract and producer
@@ -33,7 +33,15 @@ feature_branch_release_blocker:
   branch: codex/candidate-integration-evidence
   pull_request: 90
   capability: exact-candidate approved integration-evidence producer
-  state: implemented_ci_pending
+  head_before_docs_checkpoint: 7721b84210f03696fefe03b094d15927d38498a9
+  pr_ci_actions: 33347382522
+  tests: 727
+  python_3_11: success
+  python_3_13: success
+  wheel_build: success
+  readiness_contract: success
+  state: pr_ci_proven_pending_merge
+  live_fabric_evidence_retained: false
   output_if_real_checks_pass: integration-evidence-<candidate SHA>
   direct_pass_construction: forbidden
   required_live_checks:
@@ -50,15 +58,15 @@ remaining_external_gap:
 
 ## Release decision
 
-`0.4.0` remains **UNRELEASED**, feature-frozen, not release-allowed, and without a selected/frozen candidate. Ordinary CI still has 15 required readiness blockers. No live Fabric proof or certified 0.4 evidence has been retained.
+`0.4.0` remains **UNRELEASED**, feature-frozen, not release-allowed, and without a selected/frozen exact candidate. Ordinary CI still has 15 required readiness blockers. No live Fabric proof, certified integration manifest, complete release proof, or certified readiness artifact has been retained.
 
-The merged baseline remains PR #88 / main SHA `1632aefe8c1fd71098200c434a1648d0385f4967`, independently verified by main CI `33346470401` with 717 tests. Its wheel SHA256 is `9c813a2c23344c55409ac5f4f7e879d4515196987835bee6473d54ff3a1e027f`; that artifact is candidate-capable only, not frozen/certified.
+The current **merged-main** baseline remains PR #88 / main SHA `1632aefe8c1fd71098200c434a1648d0385f4967`, independently verified by main CI `33346470401` with 717 tests. Its candidate-capable wheel SHA256 is `9c813a2c23344c55409ac5f4f7e879d4515196987835bee6473d54ff3a1e027f`. It is not frozen or certified.
 
-## PR #90 feature-branch boundary
+PR #90 is a newer feature-branch release-blocker implementation. Its second PR CI run `33347382522` is green on Python 3.11/3.13, wheel build and fail-closed readiness, with **727 passed**. Until squash merge plus independent main push CI complete, its highest claim is **PR CI PROVEN / PENDING MERGE**, not merged-main proven.
 
-`.github/workflows/candidate-integration-evidence.yml` is implemented on `codex/candidate-integration-evidence` and is **CI PENDING** until PR #90 reaches a final green run and merge/main checkpoint.
+## PR #90 integration producer boundary
 
-The producer is orchestration only. It reuses existing approved commands rather than creating a second provider truth path:
+`.github/workflows/candidate-integration-evidence.yml` is implemented and PR-CI proven. It is manual exact-candidate orchestration around existing approved commands; it does not create a second provider truth path:
 
 ```text
 integration-item-smoke-run
@@ -72,11 +80,11 @@ integration-evidence-merge --require-certified
 integration-evidence-validate --require-certified
 ```
 
-It cannot create a successful artifact unless real protected-environment credentials and exact customer-owned certification inputs exist. It contains no code that constructs `IntegrationEvidenceCheckResult(PASS)`.
+A successful workflow artifact is impossible unless exact customer inputs, protected runtime credentials and the real approved provider/database checks succeed. The workflow contains no construction of `IntegrationEvidenceCheckResult(PASS)`; reading PASS from a finished manifest is permitted only for final re-validation.
 
 ## Exact producer identity and provenance
 
-The workflow must authenticate all of:
+The workflow authenticates all of:
 
 ```text
 exact candidate source SHA
@@ -89,7 +97,7 @@ exact source-controlled Copy/Spark/Warehouse/fault recipes
 exact fingerprinted customer extension wheels
 ```
 
-It preserves the PR #88 dual identity invariant:
+The dual identity invariant remains:
 
 ```text
 IntegrationEvidence.release_hash
@@ -99,7 +107,7 @@ IntegrationEvidence.domain_release_hash
   = exact customer/domain ReleaseManifest.bundle.release_hash
 
 ApprovedIntegrationRunnerConfig.framework_artifact_sha256
-  = framework wheel SHA256
+  = framework candidate wheel SHA256
 
 ApprovedIntegrationRunnerConfig.release_hash
   = customer/domain release hash
@@ -109,13 +117,11 @@ These hashes are independent and must never be assumed equal.
 
 ## Customer-owned representative Pipeline binding
 
-PR #90 adds optional `dataset_id` to `IntegrationCheckPhysicalBinding`. Exact candidate integration certification requires it for the `fabric.pipeline` binding so the customer/domain repo owns the representative business dataset. The framework workflow must not accept the business dataset as an ad hoc dispatch input.
+PR #90 adds optional `dataset_id` to `IntegrationCheckPhysicalBinding`. Exact candidate integration certification requires it for the `fabric.pipeline` binding, so the customer/domain repo owns the representative business dataset. The framework workflow must not accept the business dataset as an ad hoc business decision.
 
 Existing non-Pipeline and legacy/reference bindings remain valid without `dataset_id`.
 
 ## Staged fail-closed integration order
-
-The candidate integration producer runs in this order:
 
 ```text
 1. authenticate candidate/customer inputs + extension bytes
@@ -135,14 +141,15 @@ The candidate integration producer runs in this order:
 15. upload only the certified artifact
 ```
 
-The workflow requires explicit `authorize_live_mutations=true`. Admin-level Warehouse session termination is separately controlled by `authorize_warehouse_session_termination`; it never follows implicitly from general live-mutation authorization.
+`authorize_live_mutations=true` is required for mutating certification. Admin-level Warehouse session termination is separately controlled by `authorize_warehouse_session_termination`; general mutation authorization never implies Admin/KILL authorization.
 
 ## Current blockers
 
 ```text
-candidate-integration-evidence workflow       FEATURE BRANCH IMPLEMENTED / CI PENDING (#90)
+candidate-integration-evidence workflow        PR CI PROVEN / PENDING MERGE (#90); no live run
 fabric-customer candidate-business-path-inputs NOT YET IMPLEMENTED
 real protected Fabric/control/Warehouse inputs NOT YET RETAINED
+release-proof/domain identity machine binding  REQUIRED BEFORE CANDIDATE FREEZE
 exact candidate freeze                         NOT YET
 certified integration evidence                 NOT YET PRODUCED
 five business-path live proofs                 NOT YET RETAINED
@@ -151,13 +158,13 @@ certified readiness artifact                   NOT YET PRODUCED
 ordinary readiness blockers                    15
 ```
 
-One additional hardening item is tracked before candidate freeze: the final non-integration `ReleaseReadinessProofBundle` currently binds candidate source/wheel but does not yet carry a machine `domain_release_hash`; the release-proof and certified integration domain identity must be tied together before the candidate can be frozen/promoted.
+The non-integration `ReleaseReadinessProofBundle` currently binds framework candidate source/wheel but does not yet carry a machine `domain_release_hash`. Before candidate freeze/promotion, final release proof and certified integration evidence must be tied to the same exact customer/domain release identity.
 
 ## Next engineering order
 
 ```text
-1. finish PR #90 CI/docs/merge/main verification
-2. implement fabric-customer candidate-business-path-inputs with exact integration recipes, plan and bounded extensions
+1. finish PR #90 docs/final CI, squash merge, verify independent main CI
+2. implement fabric-customer candidate-business-path-inputs with exact integration recipes, business-path plan and bounded extensions
 3. hard-bind domain_release_hash across final release proof/candidate certification
 4. only then select/freeze one exact main candidate
 5. produce real certified integration evidence
@@ -170,4 +177,4 @@ One additional hardening item is tracked before candidate freeze: the final non-
 
 ## Evidence vocabulary boundary
 
-Merged-main claims remain **IMPLEMENTED + CI PROVEN** only through PR #88/#89. PR #90 is feature-branch implementation until final CI and merge/main verification. Do not use `FABRIC PROVEN`, `PRODUCTION DB PROVEN`, `FABRIC WAREHOUSE PROVEN`, or `RELEASE PROVEN` for 0.4 yet.
+Merged-main claims remain **IMPLEMENTED + CI PROVEN** only through PR #88/#89 until #90 is merged and independently re-proven on main. PR #90 is **PR CI PROVEN / PENDING MERGE**. Do not use `FABRIC PROVEN`, `PRODUCTION DB PROVEN`, `FABRIC WAREHOUSE PROVEN`, or `RELEASE PROVEN` for 0.4 yet.
