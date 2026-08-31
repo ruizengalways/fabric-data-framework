@@ -22,6 +22,7 @@ class ExtensionKind(str, Enum):
     WAREHOUSE_MUTATION = "warehouse_mutation"
     WAREHOUSE_COMMIT_FAULT_INJECTOR = "warehouse_commit_fault_injector"
     BUSINESS_PATH_OBSERVER = "business_path_observer"
+    BUSINESS_PATH_DRIVER = "business_path_driver"
 
     @property
     def entry_point_group(self) -> str:
@@ -35,6 +36,8 @@ class ExtensionKind(str, Enum):
             return "fabric_data_framework.warehouse_commit_fault_injectors"
         if self is ExtensionKind.BUSINESS_PATH_OBSERVER:
             return "fabric_data_framework.business_path_observers"
+        if self is ExtensionKind.BUSINESS_PATH_DRIVER:
+            return "fabric_data_framework.business_path_drivers"
         return f"fabric_data_framework.{self.value}s"
 
 
