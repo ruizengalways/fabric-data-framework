@@ -117,8 +117,7 @@ jobs:
           import os
 
           run = json.loads(os.environ["RUN_JSON"])
-          expected = os.environ["CANDIDATE_SHA"]
-          if run["head_sha"] != expected or run["head_branch"] != "main":
+          if run["head_sha"] != os.environ["CANDIDATE_SHA"] or run["head_branch"] != "main":
               raise SystemExit("candidate CI does not bind exact main source SHA")
           if run["event"] != "push" or run["conclusion"] != "success":
               raise SystemExit("candidate CI must be a successful main push")
@@ -233,6 +232,7 @@ jobs:
               IntegrationEvidenceManifest,
               IntegrationEvidenceSpec,
           )
+          from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
 
           root = Path("customer-inputs/project")
           manifest = ReleaseManifest.model_validate_json(
@@ -246,26 +246,40 @@ jobs:
           retained = IntegrationEvidenceManifest.model_validate_json(
               Path("retained/integration/integration-evidence.json").read_text(encoding="utf-8")
           )
+          if retained.framework_version != os.environ["FRAMEWORK_VERSION"]:
+              raise SystemExit("integration evidence framework version mismatch")
+          if retained.domain != manifest.domain:
+              raise SystemExit("integration evidence/customer release domain mismatch")
+          if retained.release_hash != os.environ["CANDIDATE_WHEEL_SHA256"]:
+              raise SystemExit("integration evidence framework artifact SHA256 mismatch")
+          if retained.domain_release_hash != manifest.bundle.release_hash:
+              raise SystemExit("integration evidence domain release hash mismatch")
+          if not retained.certified:
+              raise SystemExit("business-path reruns require fully certified integration evidence")
+
+          runner = ApprovedIntegrationRunnerConfig.model_validate_json(
+              Path("customer-inputs/runner-config.json").read_text(encoding="utf-8")
+          )
+          if runner.domain != manifest.domain or runner.framework_version != os.environ["FRAMEWORK_VERSION"]:
+              raise SystemExit("business-path runner config domain/framework mismatch")
+          if runner.release_hash != manifest.bundle.release_hash:
+              raise SystemExit("business-path runner config domain release hash mismatch")
+          if runner.framework_artifact_sha256 != os.environ["CANDIDATE_WHEEL_SHA256"]:
+              raise SystemExit("business-path runner config framework artifact SHA256 mismatch")
+
           spec = IntegrationEvidenceSpec(
               evidence_schema_version=retained.evidence_schema_version,
               environment=retained.environment,
               domain=retained.domain,
               framework_version=retained.framework_version,
               release_hash=retained.release_hash,
+              domain_release_hash=retained.domain_release_hash,
               checks=retained.checks,
           )
           Path("retained/integration/integration-spec.json").write_text(
               json.dumps(spec.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
-          if retained.framework_version != os.environ["FRAMEWORK_VERSION"]:
-              raise SystemExit("integration evidence framework version mismatch")
-          if retained.domain != manifest.domain:
-              raise SystemExit("integration evidence/customer release domain mismatch")
-          if retained.release_hash != manifest.bundle.release_hash:
-              raise SystemExit("integration evidence/customer release hash mismatch")
-          if not retained.certified:
-              raise SystemExit("business-path reruns require fully certified integration evidence")
 
           plan_path = resolve_business_path_plan_file(root, os.environ["BUSINESS_PATH_PLAN_PATH"])
           plan = load_approved_business_path_certification_plan(
@@ -333,8 +347,6 @@ jobs:
           python -m pip check
 
       - name: Execute five approved representative live paths
-        env:
-          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
         run: |
           while IFS=$'\t' read -r gate scenario_path driver_path pipeline_check_id; do
             test -n "${gate}"
