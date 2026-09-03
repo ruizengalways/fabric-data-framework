@@ -7,13 +7,15 @@ from .models import (
     CertificationOverallStatus,
     UnifiedCertificationReport,
 )
-from .unified import certify, print_certification_summary
+from .simple import DEFAULT_CERTIFICATION_ROOT, certify
+from .unified import print_certification_summary
 
 
 __all__ = [
     "CertificationCheckResult",
     "CertificationCheckStatus",
     "CertificationOverallStatus",
+    "DEFAULT_CERTIFICATION_ROOT",
     "UnifiedCertificationReport",
     "certify",
     "print_certification_summary",
