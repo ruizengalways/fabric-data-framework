@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 from .unified import certify as run_unified_certification
@@ -28,6 +29,7 @@ def certify(
     customer_inputs_root: str | Path | None = None,
     output_dir: str | Path | None = None,
     lakehouse_base_path: str = "Files/framework_cert",
+    runtime_environment: Mapping[str, str] | None = None,
     allow_live_mutations: bool = False,
     allow_control_plane_migration: bool = False,
     allow_warehouse_session_termination: bool = False,
@@ -46,6 +48,12 @@ def certify(
     DEV/UAT certification mutations already owned by the approved runners, including
     the reviewed fault drill when configured. Admin-level Warehouse session
     termination remains a separate explicit authorization.
+
+    ``runtime_environment`` is an optional process-local mapping for runtime-only
+    values such as the Control Plane and Warehouse database URLs.  The Customer runner
+    config declares the required environment-variable *names*; secret values are not
+    retained in source-controlled certification inputs or report payloads.  When this
+    mapping is omitted, the runner reads the current process environment instead.
     """
 
     root = Path(certification_root)
@@ -70,6 +78,7 @@ def certify(
         environment=environment,
         lakehouse_base_path=lakehouse_base_path,
         customer_inputs_root=resolved_customer_value,
+        environ=runtime_environment,
         auto_notebook_token=True,
         install_extensions=True,
         allow_control_plane_migration=allow_control_plane_migration,

@@ -4,6 +4,8 @@ This is the default operator path for validating an exact Framework wheel in a r
 
 The goal is simple: **CI proves reusable code contracts; the unified runner re-proves the environment-facing boundaries for the exact wheel in real Fabric without making an operator copy many notebook cells or fill a certification form by hand.**
 
+Framework developers who need a start-to-finish procedural runbook should use [`FRAMEWORK_DEVELOPER_CERTIFICATION.md`](FRAMEWORK_DEVELOPER_CERTIFICATION.md). This document defines the unified runner contract and operational semantics.
+
 ## 1. Default notebook experience
 
 Put the exact Framework artifact in the conventional attached-Lakehouse directory:
@@ -44,6 +46,14 @@ The JSON report is written under:
 
 No manual PASS dropdown is required.
 
+### Important: no SQL Database auto-discovery
+
+`certify(spark=spark)` does **not** scan the Fabric workspace and choose a SQL Database.
+
+If `customer-inputs/` is absent, the run is bounded-only and no Control Plane SQL Database is contacted.
+
+If `customer-inputs/` exists, its exact `runner-config.json` declares which runtime environment-variable name represents the Control Plane database URL and which names represent Warehouse/runtime credentials. The actual runtime-only values must already exist in the process environment or be supplied explicitly through `runtime_environment`.
+
 ## 2. Full environment certification
 
 The exact Customer certification input artifact produced for the same Framework candidate can be extracted under:
@@ -64,12 +74,22 @@ For an approved disposable/certification environment where the ordinary live mut
 ```python
 from fabric_data_framework.certification import certify, print_certification_summary
 
+runtime_environment = {
+    "CONTROL_PLANE_DATABASE_URL": control_plane_database_url,
+    "WAREHOUSE_DATABASE_URL": warehouse_database_url,
+}
+
 report = certify(
     spark=spark,
+    runtime_environment=runtime_environment,
     allow_live_mutations=True,
 )
 print_certification_summary(report)
 ```
+
+The variables `control_plane_database_url` and `warehouse_database_url` should come from the organization's approved runtime secret/credential mechanism. Do not hard-code real secrets into the Notebook or source-controlled configuration.
+
+When `runtime_environment` is omitted, the unified runner falls back to the current process environment.
 
 The runner then attempts, in dependency order:
 
@@ -93,17 +113,50 @@ five representative live business paths:
 
 It reuses the existing approved runners; it does not maintain a second implementation of Pipeline, Capture, Warehouse, recovery or business-path semantics.
 
-## 3. What the operator still has to configure
+## 3. How physical resources and runtime values are resolved
 
 Physical Fabric IDs, dataset selections and execution recipes belong in the exact Customer certification input bundle. The notebook operator should not type them repeatedly.
 
-Runtime secret values remain runtime-only. The source-controlled runner config contains environment-variable **names**, not secret values. Typical runtime requirements are:
+The resolution model is intentionally split:
+
+```text
+source-controlled exact Customer bundle
+  -> environment name
+  -> Control Plane profile
+  -> workspace/item IDs
+  -> dataset selections
+  -> execution/fault/business-path recipes
+  -> names of required runtime environment variables
+
+runtime-only environment
+  -> actual Control Plane database URL
+  -> actual Warehouse database URL
+  -> optional Warehouse Admin database URL
+  -> optional explicit Fabric access token
+```
+
+For the reference Customer certification harness, the normal runtime names are:
 
 ```text
 CONTROL_PLANE_DATABASE_URL
 WAREHOUSE_DATABASE_URL
 WAREHOUSE_ADMIN_DATABASE_URL   # only when the reviewed session-termination recipe requires it
+FABRIC_ACCESS_TOKEN            # optional explicit token; Notebook execution may obtain current Fabric identity
 ```
+
+The source-controlled runner config contains environment-variable **names**, not secret values.
+
+Conceptually, SQL Database selection is therefore:
+
+```text
+runner-config.json
+  control_plane_database_url_env_var = CONTROL_PLANE_DATABASE_URL
+
+runtime_environment/process environment
+  CONTROL_PLANE_DATABASE_URL = <actual approved Control Plane SQL Database URL>
+```
+
+If that runtime value is missing, the check remains not ready/blocked. The Framework does not search for another database.
 
 For Fabric REST access, the runner first honors the configured access-token environment variable. In a Fabric Notebook it can also try the current NotebookUtils Fabric/Power BI token when no explicit token was supplied. The token is not written into the certification report.
 
@@ -118,6 +171,7 @@ For a newly created dedicated certification Control Plane database, schema boots
 ```python
 report = certify(
     spark=spark,
+    runtime_environment=runtime_environment,
     allow_live_mutations=True,
     allow_control_plane_migration=True,
 )
@@ -132,8 +186,15 @@ Once the schema is already deployed, leave `allow_control_plane_migration=False`
 If, and only if, company governance has approved the reviewed Warehouse fault recipe to terminate the exact certification session:
 
 ```python
+runtime_environment = {
+    "CONTROL_PLANE_DATABASE_URL": control_plane_database_url,
+    "WAREHOUSE_DATABASE_URL": warehouse_database_url,
+    "WAREHOUSE_ADMIN_DATABASE_URL": warehouse_admin_database_url,
+}
+
 report = certify(
     spark=spark,
+    runtime_environment=runtime_environment,
     allow_live_mutations=True,
     allow_warehouse_session_termination=True,
 )
