@@ -5,7 +5,12 @@ from __future__ import annotations
 import argparse
 import sys
 
-from ..certification import CertificationCheckStatus, certify, print_certification_summary
+from ..certification import (
+    CertificationCheckStatus,
+    DEFAULT_CERTIFICATION_ROOT,
+    certify,
+    print_certification_summary,
+)
 
 
 CERTIFICATION_COMMANDS = frozenset({"certify"})
@@ -13,23 +18,26 @@ CERTIFICATION_COMMANDS = frozenset({"certify"})
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="fabric-framework certify")
-    parser.add_argument("--candidate-manifest", required=True)
-    parser.add_argument("--wheel", required=True)
-    parser.add_argument("--output-dir", required=True)
+    parser.add_argument(
+        "--certification-root",
+        default=str(DEFAULT_CERTIFICATION_ROOT),
+        help="Directory containing CANDIDATE.json, one framework wheel and optional customer-inputs/.",
+    )
     parser.add_argument("--environment", default="DEV", choices=("DEV", "UAT", "PROD"))
-    parser.add_argument("--lakehouse-base-path", default="Files/framework_cert")
     parser.add_argument("--customer-inputs")
-    parser.add_argument("--no-auto-notebook-token", action="store_true")
-    parser.add_argument("--no-install-extensions", action="store_true")
+    parser.add_argument("--output-dir")
+    parser.add_argument("--lakehouse-base-path", default="Files/framework_cert")
+    parser.add_argument(
+        "--allow-live-mutations",
+        action="store_true",
+        help="Authorize approved control-plane/Pipeline/Copy/Spark/Warehouse/business-path certification mutations.",
+    )
     parser.add_argument("--allow-control-plane-migration", action="store_true")
-    parser.add_argument("--allow-control-plane-writes", action="store_true")
-    parser.add_argument("--allow-pipeline-execution", action="store_true")
-    parser.add_argument("--allow-capture-execution", action="store_true")
-    parser.add_argument("--allow-warehouse-execution", action="store_true")
-    parser.add_argument("--allow-warehouse-fault-injection", action="store_true")
-    parser.add_argument("--allow-warehouse-session-termination", action="store_true")
-    parser.add_argument("--allow-business-path-execution", action="store_true")
-    parser.add_argument("--allow-scenario-mutation", action="store_true")
+    parser.add_argument(
+        "--allow-warehouse-session-termination",
+        action="store_true",
+        help="Separately authorize Admin-level exact Warehouse session termination when the reviewed fault recipe requires it.",
+    )
     parser.add_argument(
         "--require-complete",
         action="store_true",
@@ -58,23 +66,14 @@ def _run(argv: list[str]) -> int:
     try:
         report = certify(
             spark=_active_spark(),
-            candidate_manifest_path=args.candidate_manifest,
-            wheel_path=args.wheel,
-            output_dir=args.output_dir,
+            certification_root=args.certification_root,
             environment=args.environment,
-            lakehouse_base_path=args.lakehouse_base_path,
             customer_inputs_root=args.customer_inputs,
-            auto_notebook_token=not args.no_auto_notebook_token,
-            install_extensions=not args.no_install_extensions,
+            output_dir=args.output_dir,
+            lakehouse_base_path=args.lakehouse_base_path,
+            allow_live_mutations=args.allow_live_mutations,
             allow_control_plane_migration=args.allow_control_plane_migration,
-            allow_control_plane_writes=args.allow_control_plane_writes,
-            allow_pipeline_execution=args.allow_pipeline_execution,
-            allow_capture_execution=args.allow_capture_execution,
-            allow_warehouse_execution=args.allow_warehouse_execution,
-            allow_warehouse_fault_injection=args.allow_warehouse_fault_injection,
             allow_warehouse_session_termination=args.allow_warehouse_session_termination,
-            allow_business_path_execution=args.allow_business_path_execution,
-            allow_scenario_mutation=args.allow_scenario_mutation,
         )
         print_certification_summary(report)
         if any(item.status is CertificationCheckStatus.FAIL for item in report.checks):
@@ -82,8 +81,8 @@ def _run(argv: list[str]) -> int:
         if args.require_complete and not report.passed:
             return 2
         return 0
-    except (OSError, RuntimeError, TypeError, ValueError) as exc:
-        print(f"error: unified Fabric certification failed ({type(exc).__name__})", file=sys.stderr)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        print("error: unified Fabric certification failed", file=sys.stderr)
         return 2
 
 
