@@ -14,10 +14,43 @@
 | [`CUSTOMER_PROJECT_BOOTSTRAP.md`](CUSTOMER_PROJECT_BOOTSTRAP.md) | 新项目怎么初始化 customer repo，几十/几百张表怎么放在一个产品级 repo 里 |
 | [`DATASET_ONBOARDING.md`](DATASET_ONBOARDING.md) | 来了一个新数据源/新表，到底该选哪种 capture/Bronze/Silver 模式 |
 | [`OPERATIONS.md`](OPERATIONS.md) | CLI 是干什么的，release/evidence/approved run 怎么执行 |
-| [`UNIFIED_FABRIC_CERTIFICATION.md`](UNIFIED_FABRIC_CERTIFICATION.md) | 默认真实 Fabric certification 入口：少量参数自动执行 bounded、Control Plane、Pipeline、Copy、Spark、Warehouse 和五条 live business paths |
+| [`FRAMEWORK_DEVELOPER_CERTIFICATION.md`](FRAMEWORK_DEVELOPER_CERTIFICATION.md) | **Framework 开发者/新员工 certification 主 runbook**：从改代码、PR/main CI、exact artifact、Fabric bounded/full certification、SQL Database/Warehouse runtime binding 到证据交接，一步步 follow |
+| [`UNIFIED_FABRIC_CERTIFICATION.md`](UNIFIED_FABRIC_CERTIFICATION.md) | unified runner 的 operator contract、状态语义、governance 和 provider-stage 说明 |
 | [`FIRST_FABRIC_NOTEBOOK_TEST.md`](FIRST_FABRIC_NOTEBOOK_TEST.md) | 逐 cell 的诊断/兼容 runbook；新 candidate 默认先用 unified runner，失败时再用这里隔离单项 |
 | [`MANUAL_CERTIFICATION.md`](MANUAL_CERTIFICATION.md) | 旧/manual governance lane 和 Admin Override 的语义；不是新 unified runner 的默认执行方式 |
 | [`RELEASE_CANDIDATE.md`](RELEASE_CANDIDATE.md) | 0.4 feature freeze 后如何聚合 exact-candidate evidence、判断是否允许 release |
+
+## 如果你在开发这个 Framework，Certification 从哪里开始
+
+新员工或第一次维护 certification 的 Framework 开发者，直接从：
+
+```text
+docs/human/FRAMEWORK_DEVELOPER_CERTIFICATION.md
+```
+
+开始，不要靠聊天记录恢复步骤。这个 runbook 明确覆盖：
+
+```text
+本地开发
+-> PR CI
+-> merge
+-> independent main CI
+-> exact main wheel artifact
+-> Fabric bounded certification
+-> exact Customer input bundle
+-> Control Plane SQL Database / Warehouse runtime binding
+-> full certification
+-> report/evidence review
+-> release boundary
+```
+
+其中最重要的一点：
+
+```python
+report = certify(spark=spark)
+```
+
+**不会扫描 workspace 自动选择 SQL Database。** 没有 `customer-inputs/` 时它只执行 bounded suite。Full certification 时，`customer-inputs/runner-config.json` 声明需要读取哪个 runtime environment-variable name，而实际 SQL Database/Warehouse URL 由 runtime-only secret/environment value 提供。
 
 ## 第一次公司 Fabric 测试从哪里开始
 
@@ -42,11 +75,17 @@ print_certification_summary(report)
 
 只有 Framework artifact 时，runner 自动跑 exact identity、Lakehouse、FULL/SCD1/SCD2、retry、reconciliation bounded checks。
 
-准备好同一 candidate 的 exact Customer input bundle，并且公司已经批准普通 certification mutation 时，可使用：
+准备好同一 candidate 的 exact Customer input bundle，并且公司已经批准普通 certification mutation 时，可显式提供 runtime-only database bindings：
 
 ```python
+runtime_environment = {
+    "CONTROL_PLANE_DATABASE_URL": control_plane_database_url,
+    "WAREHOUSE_DATABASE_URL": warehouse_database_url,
+}
+
 report = certify(
     spark=spark,
+    runtime_environment=runtime_environment,
     allow_live_mutations=True,
 )
 ```
@@ -55,7 +94,7 @@ report = certify(
 
 Warehouse Admin-level exact-session termination 仍然需要独立显式授权，不能从普通 live mutation authorization 推导。
 
-详细说明看 [`UNIFIED_FABRIC_CERTIFICATION.md`](UNIFIED_FABRIC_CERTIFICATION.md)。`FIRST_FABRIC_NOTEBOOK_TEST.md` 现在主要用于排查某一项失败或验证旧 wheel。
+详细步骤看 [`FRAMEWORK_DEVELOPER_CERTIFICATION.md`](FRAMEWORK_DEVELOPER_CERTIFICATION.md)；unified runner 的 contract 说明看 [`UNIFIED_FABRIC_CERTIFICATION.md`](UNIFIED_FABRIC_CERTIFICATION.md)。`FIRST_FABRIC_NOTEBOOK_TEST.md` 现在主要用于排查某一项失败或验证旧 wheel。
 
 ## 你通常应该改哪个 repo
 
