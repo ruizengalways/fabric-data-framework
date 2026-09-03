@@ -1,1 +1,58 @@
-{"evidence_schema_version":1,"environment":"DEV","domain":"candidate-template","framework_version":"0.4.0","release_hash":null,"domain_release_hash":null,"checks":[]}
+{
+  "evidence_schema_version": 1,
+  "environment": "DEV",
+  "domain": "candidate-template",
+  "framework_version": "0.4.0",
+  "release_hash": null,
+  "domain_release_hash": null,
+  "checks": [
+    {
+      "check_id": "fabric.item.read",
+      "kind": "FABRIC_ITEM_READ",
+      "required": true,
+      "description": "Enterprise identity and read-only workspace/item authorization smoke."
+    },
+    {
+      "check_id": "control.cert",
+      "kind": "CONTROL_PLANE_CERTIFICATION",
+      "required": true,
+      "description": "Selected production control-plane backend certification evidence."
+    },
+    {
+      "check_id": "fabric.pipeline",
+      "kind": "FABRIC_PIPELINE_RUN",
+      "required": true,
+      "description": "Approved Fabric Pipeline execution with exact framework and native correlation evidence."
+    },
+    {
+      "check_id": "fabric.copy",
+      "kind": "FABRIC_COPY_JOB_CAPTURE",
+      "required": true,
+      "description": "Approved Copy capture with verified CaptureReceipt and retained provider evidence."
+    },
+    {
+      "check_id": "fabric.spark",
+      "kind": "FABRIC_SPARK_CAPTURE",
+      "required": true,
+      "description": "Approved bounded Spark capture with verified CaptureReceipt and retained provider evidence."
+    },
+    {
+      "check_id": "warehouse.commit",
+      "kind": "FABRIC_WAREHOUSE_TARGET_COMMIT",
+      "required": true,
+      "description": "Warehouse target mutation and operation marker commit semantics for the exact candidate."
+    },
+    {
+      "check_id": "warehouse.ambiguous_commit",
+      "kind": "FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL",
+      "required": true,
+      "description": "Real ambiguous-COMMIT drill with retained fail-closed recovery evidence."
+    },
+    {
+      "check_id": "kafka.live",
+      "kind": "KAFKA_PROVIDER",
+      "required": false,
+      "description": "Optional for 0.4 unless Debezium/Kafka is explicitly promoted into GA certification scope."
+    }
+  ]
+}
