@@ -14,25 +14,48 @@
 | [`CUSTOMER_PROJECT_BOOTSTRAP.md`](CUSTOMER_PROJECT_BOOTSTRAP.md) | 新项目怎么初始化 customer repo，几十/几百张表怎么放在一个产品级 repo 里 |
 | [`DATASET_ONBOARDING.md`](DATASET_ONBOARDING.md) | 来了一个新数据源/新表，到底该选哪种 capture/Bronze/Silver 模式 |
 | [`OPERATIONS.md`](OPERATIONS.md) | CLI 是干什么的，release/evidence/approved run 怎么执行 |
-| [`MANUAL_CERTIFICATION.md`](MANUAL_CERTIFICATION.md) | 公司 Fabric 不允许 GitHub 直连时，如何用 Notebook + Admin Override 做可追溯 certification |
-| [`FIRST_FABRIC_NOTEBOOK_TEST.md`](FIRST_FABRIC_NOTEBOOK_TEST.md) | 第一次在公司 Fabric 里怎么逐 cell 验证 exact wheel、Lakehouse、FULL/SCD1/SCD2、retry、reconciliation，并正确登记 PASS/FAIL/NOT_RUN |
+| [`UNIFIED_FABRIC_CERTIFICATION.md`](UNIFIED_FABRIC_CERTIFICATION.md) | 默认真实 Fabric certification 入口：少量参数自动执行 bounded、Control Plane、Pipeline、Copy、Spark、Warehouse 和五条 live business paths |
+| [`FIRST_FABRIC_NOTEBOOK_TEST.md`](FIRST_FABRIC_NOTEBOOK_TEST.md) | 逐 cell 的诊断/兼容 runbook；新 candidate 默认先用 unified runner，失败时再用这里隔离单项 |
+| [`MANUAL_CERTIFICATION.md`](MANUAL_CERTIFICATION.md) | 旧/manual governance lane 和 Admin Override 的语义；不是新 unified runner 的默认执行方式 |
 | [`RELEASE_CANDIDATE.md`](RELEASE_CANDIDATE.md) | 0.4 feature freeze 后如何聚合 exact-candidate evidence、判断是否允许 release |
 
 ## 第一次公司 Fabric 测试从哪里开始
 
-不要只打开 certification 表单然后勾选结果。表单是**登记结果**，不是测试执行器。
+新 candidate 默认不要逐 cell 复制，也不要先打开 certification 表单填结果。使用统一执行入口：
 
-第一次实际测试按这个顺序：
+```python
+from fabric_data_framework.certification import certify, print_certification_summary
 
-```text
-FIRST_FABRIC_NOTEBOOK_TEST.md
-  -> 真正运行 bounded Fabric + framework checks
-  -> MANUAL_CERTIFICATION.md
-  -> 登记 PASS / FAIL / NOT_RUN
-  -> 如确有企业权限/导出限制，再显式选择 Admin Override
+report = certify(spark=spark)
+print_certification_summary(report)
 ```
 
-没有权限的 Warehouse / ambiguous-COMMIT 项保持 `NOT_RUN`；不要用 synthetic PASS 填满表格。
+约定目录是：
+
+```text
+/lakehouse/default/Files/framework_cert/
+  CANDIDATE.json
+  fabric_data_framework-<version>-py3-none-any.whl
+  SHA256SUMS
+  customer-inputs/        # 完整环境 certification 时可选/需要
+```
+
+只有 Framework artifact 时，runner 自动跑 exact identity、Lakehouse、FULL/SCD1/SCD2、retry、reconciliation bounded checks。
+
+准备好同一 candidate 的 exact Customer input bundle，并且公司已经批准普通 certification mutation 时，可使用：
+
+```python
+report = certify(
+    spark=spark,
+    allow_live_mutations=True,
+)
+```
+
+这会按依赖顺序继续尝试 Fabric item read、Control Plane、Pipeline、Copy、Spark、Warehouse、ambiguous-COMMIT 和五条 live business path。缺 external evidence、缺 runtime secret、缺 fault controller 或缺授权的项目显示为 `BLOCKED` / `NOT_RUN`，不能用 synthetic PASS 填满结果。
+
+Warehouse Admin-level exact-session termination 仍然需要独立显式授权，不能从普通 live mutation authorization 推导。
+
+详细说明看 [`UNIFIED_FABRIC_CERTIFICATION.md`](UNIFIED_FABRIC_CERTIFICATION.md)。`FIRST_FABRIC_NOTEBOOK_TEST.md` 现在主要用于排查某一项失败或验证旧 wheel。
 
 ## 你通常应该改哪个 repo
 
