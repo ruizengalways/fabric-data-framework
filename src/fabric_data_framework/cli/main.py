@@ -11,6 +11,7 @@ import sys
 from .approved import run_if_matched as run_approved_if_matched
 from .base import main as run_base
 from .business_path import run_if_matched as run_business_path_if_matched
+from .certification import run_if_matched as run_certification_if_matched
 from .project import run_if_matched as run_project_if_matched
 from .release import run_if_matched as run_release_if_matched
 
@@ -23,6 +24,9 @@ def main(argv: list[str] | None = None) -> int:
     release_result = run_release_if_matched(effective_argv)
     if release_result is not None:
         return release_result
+    certification_result = run_certification_if_matched(effective_argv)
+    if certification_result is not None:
+        return certification_result
     business_path_result = run_business_path_if_matched(effective_argv)
     if business_path_result is not None:
         return business_path_result
