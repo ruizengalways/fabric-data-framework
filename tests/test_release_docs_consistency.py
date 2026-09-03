@@ -148,7 +148,10 @@ def test_pr99_is_current_code_and_first_fabric_test_artifact_baseline():
     assert "0638c95c19ebcc43ec4ec462b7f960a164209874223517e3f74b951264b0eaf6" in state
     assert "9753976212" in state
     assert "first_company_fabric_test_ready: true" in state
+    assert "first_company_fabric_test_executed: true" in state
+    assert "first_company_fabric_test_result: bounded_pass" in state
     assert "docs/human/FIRST_FABRIC_NOTEBOOK_TEST.md" in state
+    assert "docs/machine/FIRST_COMPANY_FABRIC_TEST_2026-09-03.md" in state
     assert "selected_as_frozen_candidate: false" in state
     assert "readiness_required_blockers: 15" in state
 
@@ -180,10 +183,21 @@ def test_manual_admin_certification_boundary_is_explicit():
 
 def test_first_fabric_test_is_pre_freeze_and_warehouse_stays_honest():
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
-    assert "candidate_run_id=33381666892" in state
-    assert "warehouse.commit" in state
-    assert "warehouse.ambiguous_commit" in state
-    assert "NOT_RUN" in state
+    assert "workflow_run_id: 33381666892" in state
+    assert "exact_identity: PASS" in state
+    assert "lakehouse_smoke: PASS" in state
+    assert "full_replace: PASS" in state
+    assert "watermark_scd1: PASS" in state
+    assert "watermark_scd2: PASS" in state
+    assert "retry_idempotency: PASS" in state
+    assert "reconciliation_fail_closed: PASS" in state
+    assert "warehouse_commit: NOT_RUN" in state
+    assert "warehouse_ambiguous_commit: NOT_RUN" in state
+    assert "manual_certification_status: CERTIFIED" in state
+    assert "admin_override: false" in state
+    assert "release_authorized: false" in state
+    assert "candidate_status: not_frozen" in state
+    assert "release_allowed: false" in state
     assert "No candidate freeze is required" in state
     assert "result recorder" in state
 
