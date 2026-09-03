@@ -14,6 +14,9 @@ src/fabric_data_framework/certification/
 
 src/fabric_data_framework/cli/certification.py
   removable CLI presentation over the simple API
+
+docs/human/FRAMEWORK_DEVELOPER_CERTIFICATION.md
+  start-to-finish human runbook for engineers developing/certifying Framework changes
 ```
 
 The certification package is an **orchestrator**, not a second semantics implementation. Environment stages must delegate to the existing approved owners under `evidence/`.
@@ -43,14 +46,26 @@ Conventional root:
   customer-inputs/                         # optional exact Customer input artifact
 ```
 
-Full ordinary live certification, only after mutation approval:
+Default discovery is intentionally limited to this directory contract. It **never scans Fabric to guess a SQL Database or Warehouse**.
+
+If `customer-inputs/` is absent, only bounded checks execute and environment-specific stages remain `NOT_RUN`/`BLOCKED`.
+
+Full ordinary live certification, only after mutation approval, may explicitly supply runtime-only values:
 
 ```python
 report = certify(
     spark=spark,
+    runtime_environment={
+        "CONTROL_PLANE_DATABASE_URL": control_plane_database_url,
+        "WAREHOUSE_DATABASE_URL": warehouse_database_url,
+    },
     allow_live_mutations=True,
 )
 ```
+
+`runtime_environment` is passed only to runtime planning/execution. The exact Customer runner config owns the required environment-variable names. The Framework must not retain the provided secret values in certification reports/evidence.
+
+If `runtime_environment` is omitted, the unified runner reads the current process environment.
 
 Admin-level Warehouse exact-session termination remains separate:
 
@@ -99,7 +114,41 @@ candidate_wheel_sha256
 framework_version
 ```
 
-The runner config remains credential-free. Secret values are resolved only from the runtime environment.
+The runner config remains credential-free. It owns:
+
+```text
+environment/profile
+physical workspace/item IDs
+dataset selections
+execution recipes
+runtime environment-variable names
+```
+
+Secret values are resolved only from `runtime_environment` or the process environment.
+
+## SQL Database / Warehouse resolution invariant
+
+The Framework never performs resource auto-selection.
+
+Control Plane selection is exactly:
+
+```text
+runner-config.json.control_plane_database_url_env_var
+  -> environment-variable name
+runtime_environment/process environment
+  -> actual SQL Database URL value
+```
+
+Warehouse selection is exactly:
+
+```text
+runner-config.json.warehouse_database_url_env_var
+  -> environment-variable name
+runtime_environment/process environment
+  -> actual Warehouse database URL value
+```
+
+If the declared runtime variable is absent, the stage is not ready. The Framework must not fall back to another discovered database/resource.
 
 ## Runtime token boundary
 
@@ -241,19 +290,20 @@ Tests must lock packaged JSON semantics to the canonical release JSON. If releas
 
 ## Evidence identity rule after any Framework change
 
-All real-Fabric evidence is byte-specific. Once this certification feature changes Framework source, the previously tested PR #99 wheel remains historical evidence only.
+All real-Fabric evidence is byte-specific. Once certification code changes Framework source, any previously tested wheel remains historical evidence only.
 
-A new successful `main` framework-ci artifact is required before the unified runner itself can be certified in company Fabric. Never reuse the old PR #99 PASS values for the new wheel.
+A new successful `main` framework-ci artifact is required before the changed certification surface itself can be certified in company Fabric. Never reuse PASS values from different wheel bytes.
 
 ## Recovery checklist for a new conversation
 
 1. Read `docs/machine/STATE.md` first for the latest merged SHA/CI/release truth.
 2. Read this file for unified-runner architecture.
-3. Read Customer `docs/CURRENT_STATUS.md` and its certification runbook before creating exact Customer inputs.
-4. Verify current Customer production pin is still the released Framework version; do not infer migration from candidate testing.
-5. Verify control-plane external evidence and Warehouse fault-controller blockers from current Customer `main`.
-6. Build/download a **new exact main artifact** after any Framework source change.
-7. Put one framework wheel + `CANDIDATE.json` in the conventional Lakehouse root.
-8. Put the matching exact Customer input artifact under `customer-inputs/` when full environment testing is intended.
-9. Start with `certify(spark=spark)`; enable live mutations only when the DEV/UAT certification resources are approved.
-10. Keep Warehouse session termination separately authorized.
+3. Read `docs/human/FRAMEWORK_DEVELOPER_CERTIFICATION.md` for the executable developer workflow.
+4. Read Customer `docs/CURRENT_STATUS.md` and its certification runbook before creating exact Customer inputs.
+5. Verify current Customer production pin is still the released Framework version; do not infer migration from candidate testing.
+6. Verify control-plane external evidence and Warehouse fault-controller blockers from current Customer `main`.
+7. Build/download a **new exact main artifact** after any Framework source change.
+8. Put one framework wheel + `CANDIDATE.json` in the conventional Lakehouse root.
+9. Put the matching exact Customer input artifact under `customer-inputs/` when full environment testing is intended.
+10. Start with `certify(spark=spark)`; provide runtime-only DB bindings and enable live mutations only when the DEV/UAT certification resources are approved.
+11. Keep Warehouse session termination separately authorized.
