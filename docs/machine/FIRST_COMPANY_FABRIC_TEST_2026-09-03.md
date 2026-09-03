@@ -21,7 +21,7 @@ The Notebook verified the actual Fabric-resident wheel bytes against `CANDIDATE.
 
 The test ran in an approved company **DEV** Fabric workspace with an attached disposable/default Lakehouse. A dedicated test Warehouse exists in the DEV workspace, but session-termination/fault-injection authorization was not confirmed and the full approved Warehouse evidence-runner prerequisites were not assembled for this bounded lane.
 
-The inline wheel installation completed successfully. `%pip check` also surfaced existing/environment-level dependency conflicts involving `fsspec-wrapper`/`PyJWT` and `nni`/`filelock`. No corporate Fabric packages or security controls were modified to suppress those observations. Framework identity/import and all executed bounded checks below still passed.
+The inline wheel installation completed successfully. A post-install `%pip check` surfaced environment-level dependency conflicts involving `fsspec-wrapper`/`PyJWT` and `nni`/`filelock`. A pre-install `%pip check` was not captured, so this checkpoint does not classify those conflicts as pre-existing. No corporate Fabric packages or security controls were modified to suppress the observations. Framework identity/import and all executed bounded checks below still passed.
 
 ## Actual executed results
 
