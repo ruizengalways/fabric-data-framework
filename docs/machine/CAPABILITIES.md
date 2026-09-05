@@ -14,21 +14,33 @@ EXTERNAL                   enterprise/platform control outside this repository
 
 | Capability | Implementation owner | Current evidence |
 |---|---|---|
-| Immutable DatasetConfig / effective config hashing | `metadata/config.py` | REFERENCE + CI PROVEN on last green baseline; current PR revalidation required after executable changes |
+| Immutable DatasetConfig / effective config hashing | `metadata/config.py` | REFERENCE + CI PROVEN PR #107 |
 | Capture/Bronze semantic presets | `capture/semantic_contracts.py` | REFERENCE + CI PROVEN |
 | FULL/WATERMARK/CDC and SCD1/SCD2 orthogonality | metadata/capture/apply | REFERENCE MODEL + CI PROVEN |
 | APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF | `apply/` | REFERENCE + CI PROVEN |
 | Provider-neutral CDC order/dedupe/checkpoint | capture/data-plane CDC modules | REFERENCE + CI PROVEN |
 | Debezium/Kafka and Delta CDF recovery contracts | CDC adapters | ADAPTER/RECOVERY CONTRACT + CI PROVEN |
 | Typed CaptureReceipt / progress authority | contracts/capabilities | REFERENCE + CI PROVEN |
-| Parent Pipeline fault isolation + fail-at-end aggregation | orchestration planner/dispatcher | REFERENCE; PR revalidation required for current bytes |
-| Source-controlled execution-group defaults + per-dataset DQ patch | `contracts/group_policy.py` + planner | REFERENCE; PR revalidation required for current bytes |
-| DQ enable/quarantine switches + absolute/fraction quarantine budgets | metadata + dataset runner | REFERENCE; PR revalidation required for current bytes |
-| Governed detailed quarantine payload + replay reference | `quality/quarantine_store.py` + recovery replay | REFERENCE; PR revalidation required for current bytes |
-| Conservative Pipeline recovery recommendation plan | `recovery/pipeline.py` | REFERENCE; PR revalidation required for current bytes |
-| Bounded retry / immutable attempt lineage / unknown-commit reconcile-before-retry | `recovery/runtime.py` | REFERENCE + CI PROVEN on prior baseline; composed by current recovery guidance |
+| Parent Pipeline fault isolation + fail-at-end aggregation | orchestration planner/dispatcher | REFERENCE + CI PROVEN PR #107 |
+| Source-controlled execution-group defaults + per-dataset DQ patch | `contracts/group_policy.py` + planner | REFERENCE + CI PROVEN PR #107 |
+| DQ enable/quarantine switches + absolute/fraction quarantine budgets | metadata + dataset runner | REFERENCE + CI PROVEN PR #107 |
+| Governed detailed quarantine payload + replay reference | `quality/quarantine_store.py` + recovery replay | REFERENCE + CI PROVEN PR #107 |
+| Conservative Pipeline recovery recommendation plan | `recovery/pipeline.py` | REFERENCE + CI PROVEN PR #107 |
+| Bounded retry / immutable attempt lineage / unknown-commit reconcile-before-retry | `recovery/runtime.py` | REFERENCE + CI PROVEN; composed by PR #107 recovery guidance |
 
-Semantic support is not live provider certification. Capture fidelity still upper-bounds truthful downstream history fidelity. Current PR executable bytes must pass their own CI before the new rows above become CI PROVEN.
+PR #107 exact executable checkpoint:
+
+```text
+merge/main SHA       4c8ad9994f3800e901c146b919f85454d78f080e
+final PR CI          33967940246 SUCCESS
+independent main CI  33968014547 SUCCESS
+Python 3.11          SUCCESS
+Python 3.13          SUCCESS
+build-wheel          SUCCESS
+readiness contract   SUCCESS / release_ready=false
+```
+
+Semantic support is not live provider certification. Capture fidelity still upper-bounds truthful downstream history fidelity.
 
 ## Normal runtime failure/recovery contract
 
@@ -82,9 +94,22 @@ When group policies are supplied to release/config bundle construction, their ex
 | Dependency/cycle/capability validation | `deployment/project.py` | REFERENCE + CI PROVEN fail-closed |
 | Exact semantic-selection coverage / overclaim guard | deployment + capture onboarding | REFERENCE + CI PROVEN fail-closed |
 | Mixed FULL/WATERMARK/CDC + SCD1/SCD2 in one domain repo | DatasetConfig + project contract | REFERENCE MODEL + CI PROVEN |
-| Execution-group policy file loading / release identity | deployment delivery | REFERENCE; PR revalidation required for current bytes |
+| Execution-group policy file loading / release identity | deployment delivery | REFERENCE + CI PROVEN PR #107 |
+| Customer 100-table product Pipeline examples | `fabric-customer` PR #25 | CUSTOMER PR + MAIN CI PROVEN; production pin remains v0.3.0 |
 
-Project validation is static/local. It does not create Fabric resources or become live evidence.
+Customer PR #25 reference identity:
+
+```text
+customer merge/main     1d70fe26baf3ceef1be7c0b0cd359f330316e0ee
+customer PR CI          33969274525 SUCCESS
+customer cert PR CI     33969274509 SUCCESS
+customer main CI        33969382068 SUCCESS
+customer cert main CI   33969382063 SUCCESS
+framework compat SHA    4c8ad9994f3800e901c146b919f85454d78f080e
+production dependency   fabric-data-framework==0.3.0
+```
+
+Project validation is static/local. Customer 0.4 execution-group examples are forward-looking compatibility/reference inputs; they are not production migration evidence.
 
 ## Fabric/provider execution
 
@@ -138,7 +163,21 @@ These hashes must never be assumed equal.
 | Candidate certification aggregation | `evidence/candidate_certification.py` + workflow | IMPLEMENTED + CI PROVEN |
 | Exact certified wheel promotion without rebuild | `.github/workflows/release.yml` | IMPLEMENTED + CI PROVEN |
 
-Ordinary CI remains intentionally `release_ready=false` with required blockers. No runtime feature or test result in the current PR selects/freezes/releases 0.4.
+Ordinary CI remains intentionally `release_ready=false` with 15 required blockers. PR #107 CI success does not select/freeze/release 0.4.
+
+## Current candidate-capable executable artifact
+
+```text
+source SHA       4c8ad9994f3800e901c146b919f85454d78f080e
+main CI          33968014547
+wheel SHA256     06d4a9ca948693c87a658a34e8c4fccb42439a7f9f67c44985ac726dedb4e04d
+artifact ID      9970044954
+archive digest   sha256:7c297a36eb3146356f2ba7a39e87e9fee3f2ea53bc9a9711cbebe9031ec00a97
+selected/frozen  false
+real Fabric run  none for these bytes
+```
+
+This is candidate-capable only. It is not a selected/frozen candidate and carries no real-Fabric PASS yet.
 
 ## Real proof / release work still missing
 
@@ -153,7 +192,7 @@ Ordinary CI remains intentionally `release_ready=false` with required blockers. 
 | Production control-plane certification | NOT YET RETAINED |
 | Live approved Pipeline/Copy/Spark for current bytes | NOT YET RETAINED |
 | Live Warehouse ambiguous-COMMIT proof for current bytes | NOT YET RETAINED |
-| Release-readiness blockers = 0 | NOT YET |
+| Release-readiness blockers = 0 | NOT YET; ordinary CI has 15 blockers |
 | Capacity/IAM/network/DR/monitoring/governance | EXTERNAL / NOT YET RETAINED |
 
 ## Historical release truth
@@ -162,6 +201,7 @@ Ordinary CI remains intentionally `release_ready=false` with required blockers. 
 v0.3.0 immutable release = RELEASE PROVEN for v0.3.0
 0.4.0 source             = UNRELEASED / FEATURE FROZEN / READINESS BLOCKED
 release_allowed          = false
+candidate_status          = not_frozen
 ```
 
-`docs/machine/STATE.md` owns the exact current-main checkpoint. Do not infer an exact executable baseline from this capability matrix while a feature PR is still open.
+`docs/machine/STATE.md` owns the exact current executable checkpoint. A later docs/test-only Git SHA does not replace PR #107 as executable identity; the exact PR #107 wheel remains the next real-Fabric artifact unless `src/` changes.
