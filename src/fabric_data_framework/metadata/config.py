@@ -222,8 +222,13 @@ class DataQualityPolicy(_FrozenModel):
     determines whether invalid rows are isolated while valid rows continue, or whether
     any invalid row fails the dataset. FULL detail is the production default: every
     quarantined row must have durable governed data-plane detail, while the Control
-    Plane retains only summary/reference evidence. ``quarantine_policy`` remains as the
-    existing domain policy name for backward-compatible business semantics.
+    Plane retains only summary/reference evidence.
+
+    Quarantine thresholds implement the common production pattern of accepting a small
+    known bad-row budget while failing closed on material quality degradation. When a
+    threshold is set, exceeding either the absolute row count or fraction fails the
+    dataset after durable quarantine evidence is written and before target/state commit.
+    ``None`` means that threshold is not enforced.
     """
 
     policy_name: str = Field(min_length=1)
@@ -231,6 +236,8 @@ class DataQualityPolicy(_FrozenModel):
     enabled: bool = True
     quarantine_enabled: bool = True
     quarantine_detail_mode: QuarantineDetailMode = QuarantineDetailMode.FULL
+    max_quarantine_rows: int | None = Field(default=None, ge=0)
+    max_quarantine_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class ReconciliationPolicy(_FrozenModel):

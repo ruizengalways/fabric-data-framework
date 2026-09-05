@@ -2,7 +2,7 @@
 
 Planning/dependency decisions live in ``orchestration.planner`` while concrete
 execution lives behind a ready-wave backend. Both in-process and Fabric/native backends
-consume the same dependency and criticality semantics.
+consume the same dependency and failure semantics.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ from ..contracts.dispatch import (
     ExecutorResolver,
     PipelineDispatchResult,
 )
+from ..contracts.group_policy import ExecutionGroupPolicy, PipelineFailurePolicy
 from ..execution.backends.in_process import execute_ready_wave
 from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
@@ -34,7 +35,6 @@ from fabric_data_framework.contracts.audit import (
 from .planner import (
     DEFAULT_REQUIRED_CRITICALITIES,
     OrchestrationIntegrityError,
-    PipelineFailurePolicy,
     aggregate_pipeline_status,
     blocking_dependencies,
     build_dispatch_plan,
@@ -221,10 +221,11 @@ def dispatch_datasets_with_backend(
     config_bundle_hash: str,
     run_mode: RunMode = RunMode.NORMAL,
     execution_group: str | None = None,
+    execution_group_policy: ExecutionGroupPolicy | None = None,
     requested_dataset_ids: Iterable[str] | None = None,
     overrides: Iterable[RuntimeOverride] = (),
     max_concurrency: int = 4,
-    failure_policy: PipelineFailurePolicy = PipelineFailurePolicy.FAIL_AT_END,
+    failure_policy: PipelineFailurePolicy | None = None,
     required_criticalities: frozenset[Criticality] = DEFAULT_REQUIRED_CRITICALITIES,
     pipeline_run_id: UUID | None = None,
     as_of: datetime | None = None,
@@ -232,9 +233,11 @@ def dispatch_datasets_with_backend(
     """Plan once, isolate dataset faults, then aggregate the Pipeline after all work.
 
     Dataset/provider exceptions are converted to terminal dataset outcomes by the
-    execution backend.  Failed dependencies block only their dependents.  Independent
-    siblings continue, so the default FAIL_AT_END policy reports parent failure only
-    after every runnable selected dataset has reached a terminal outcome.
+    execution backend. Failed dependencies block only their dependents. Independent
+    siblings continue. An execution-group policy can set group-wide DQ/quarantine,
+    concurrency and failure defaults; audited RuntimeOverride values still have final
+    precedence. ``failure_policy`` is an explicit call-site override and otherwise the
+    source-controlled group policy (or FAIL_AT_END) is used.
     """
 
     started_at = _utcnow()
@@ -244,6 +247,7 @@ def dispatch_datasets_with_backend(
         plan = build_dispatch_plan(
             repository=repository,
             execution_group=execution_group,
+            execution_group_policy=execution_group_policy,
             requested_dataset_ids=requested_dataset_ids,
             overrides=overrides,
             max_concurrency=max_concurrency,
@@ -407,10 +411,11 @@ def dispatch_datasets(
     config_bundle_hash: str,
     run_mode: RunMode = RunMode.NORMAL,
     execution_group: str | None = None,
+    execution_group_policy: ExecutionGroupPolicy | None = None,
     requested_dataset_ids: Iterable[str] | None = None,
     overrides: Iterable[RuntimeOverride] = (),
     max_concurrency: int = 4,
-    failure_policy: PipelineFailurePolicy = PipelineFailurePolicy.FAIL_AT_END,
+    failure_policy: PipelineFailurePolicy | None = None,
     required_criticalities: frozenset[Criticality] = DEFAULT_REQUIRED_CRITICALITIES,
     pipeline_run_id: UUID | None = None,
     as_of: datetime | None = None,
@@ -427,6 +432,7 @@ def dispatch_datasets(
         config_bundle_hash=config_bundle_hash,
         run_mode=run_mode,
         execution_group=execution_group,
+        execution_group_policy=execution_group_policy,
         requested_dataset_ids=requested_dataset_ids,
         overrides=overrides,
         max_concurrency=max_concurrency,
@@ -441,6 +447,7 @@ __all__ = [
     "DatasetDispatchOutcome",
     "DatasetDispatchRequest",
     "DatasetExecutor",
+    "ExecutionGroupPolicy",
     "ExecutorResolver",
     "OrchestrationIntegrityError",
     "PipelineDispatchResult",

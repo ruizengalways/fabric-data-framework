@@ -141,6 +141,29 @@ def _record_row_quarantine(
         )
 
 
+def _quarantine_threshold_breaches(config, *, invalid_rows: int, total_rows: int) -> tuple[str, ...]:
+    if invalid_rows == 0 or not config.quality.quarantine_enabled:
+        return ()
+    breaches: list[str] = []
+    if (
+        config.quality.max_quarantine_rows is not None
+        and invalid_rows > config.quality.max_quarantine_rows
+    ):
+        breaches.append(
+            f"rows={invalid_rows}>{config.quality.max_quarantine_rows}"
+        )
+    fraction = invalid_rows / total_rows if total_rows else 0.0
+    if (
+        config.quality.max_quarantine_fraction is not None
+        and fraction > config.quality.max_quarantine_fraction
+    ):
+        breaches.append(
+            "fraction="
+            f"{fraction:.6f}>{config.quality.max_quarantine_fraction:.6f}"
+        )
+    return tuple(breaches)
+
+
 def execute_watermark_scd2(
     *,
     repository: ControlPlaneRepository,
@@ -168,6 +191,8 @@ def execute_watermark_scd2(
       only summary/reference evidence.
     - DQ enabled + quarantine disabled: any invalid row fails this dataset and blocks
       target/state commit, while the parent dispatcher can still run sibling datasets.
+    - Quarantine thresholds: invalid rows are still durably quarantined, but exceeding
+      the configured absolute or fractional budget fails the dataset before state commit.
     """
 
     config = repository.get_dataset(dataset_id)
@@ -211,6 +236,7 @@ def execute_watermark_scd2(
 
     if config.quality.enabled:
         validation = validate_records(bronze, rules)
+        invalid_fraction = len(validation.quarantined) / len(bronze) if bronze else 0.0
         _record_step(
             repository,
             dataset_run_id=dataset_run_id,
@@ -219,6 +245,7 @@ def execute_watermark_scd2(
             details={
                 "rows_accepted": len(validation.accepted),
                 "rows_invalid": len(validation.quarantined),
+                "invalid_fraction": invalid_fraction,
             },
         )
     else:
@@ -231,7 +258,15 @@ def execute_watermark_scd2(
             details={"reason": "data_quality_disabled"},
         )
 
-    hard_dq_failure = bool(validation.quarantined) and not config.quality.quarantine_enabled
+    threshold_breaches = _quarantine_threshold_breaches(
+        config,
+        invalid_rows=len(validation.quarantined),
+        total_rows=len(bronze),
+    )
+    hard_dq_failure = bool(validation.quarantined) and (
+        not config.quality.quarantine_enabled or bool(threshold_breaches)
+    )
+
     if validation.quarantined and config.quality.quarantine_enabled:
         _record_row_quarantine(
             repository,
@@ -249,6 +284,8 @@ def execute_watermark_scd2(
             details={
                 "rows_quarantined": len(validation.quarantined),
                 "detail_mode": config.quality.quarantine_detail_mode.value,
+                "threshold_breached": bool(threshold_breaches),
+                "threshold_breaches": list(threshold_breaches),
             },
         )
     elif hard_dq_failure:
@@ -353,12 +390,18 @@ def execute_watermark_scd2(
             details={"reason": "dataset_gate_failed"},
         )
 
-    if hard_dq_failure:
+    if validation.quarantined and not config.quality.quarantine_enabled:
         error_code = "DATA_QUALITY_FAILED_QUARANTINE_DISABLED"
         reason_code, reason_detail = _reason_summary(validation.quarantined)
         error_message = (
             f"{len(validation.quarantined)} row(s) failed data quality while quarantine "
             f"was disabled; rules={reason_code}; detail={reason_detail}"
+        )
+    elif threshold_breaches:
+        error_code = "DATA_QUALITY_QUARANTINE_THRESHOLD_EXCEEDED"
+        error_message = (
+            f"{len(validation.quarantined)} quarantined row(s) exceeded configured DQ budget: "
+            + ", ".join(threshold_breaches)
         )
     elif not reconciliation_passed:
         error_code = "RECONCILIATION_FAILED"
