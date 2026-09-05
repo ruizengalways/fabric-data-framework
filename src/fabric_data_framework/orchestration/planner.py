@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Iterable, Mapping
 
 from fabric_data_framework.metadata.config import (
@@ -21,6 +22,20 @@ from ..control_plane.repository import ControlPlaneRepository
 
 
 _DEFAULT_REQUIRED_CRITICALITIES = frozenset({Criticality.HIGH, Criticality.CRITICAL})
+
+
+class PipelineFailurePolicy(str, Enum):
+    """How terminal dataset outcomes determine the parent Pipeline status.
+
+    FAIL_AT_END is the production default: dataset fault boundaries isolate siblings,
+    every independently runnable dataset is allowed to finish, and any terminal
+    non-success makes the parent Pipeline fail only after aggregation.  The legacy
+    CRITICALITY_AWARE mode remains available for domains that intentionally tolerate
+    LOW/MEDIUM failures as PARTIAL_SUCCESS.
+    """
+
+    FAIL_AT_END = "FAIL_AT_END"
+    CRITICALITY_AWARE = "CRITICALITY_AWARE"
 
 
 class OrchestrationIntegrityError(RuntimeError):
@@ -213,12 +228,16 @@ def aggregate_pipeline_status(
     plan: DispatchPlan,
     outcomes: Mapping[str, DatasetDispatchOutcome],
     *,
+    failure_policy: PipelineFailurePolicy = PipelineFailurePolicy.FAIL_AT_END,
     required_criticalities: frozenset[Criticality] = _DEFAULT_REQUIRED_CRITICALITIES,
 ) -> PipelineStatus:
     if not plan.selected_dataset_ids:
         return PipelineStatus.SUCCESS
     if all(outcome.status is DatasetStatus.SUCCEEDED for outcome in outcomes.values()):
         return PipelineStatus.SUCCESS
+
+    if failure_policy is PipelineFailurePolicy.FAIL_AT_END:
+        return PipelineStatus.FAILED
 
     for dataset_id, outcome in outcomes.items():
         if (
@@ -231,3 +250,14 @@ def aggregate_pipeline_status(
 
 
 DEFAULT_REQUIRED_CRITICALITIES = _DEFAULT_REQUIRED_CRITICALITIES
+
+__all__ = [
+    "DEFAULT_REQUIRED_CRITICALITIES",
+    "DispatchPlan",
+    "OrchestrationIntegrityError",
+    "PipelineFailurePolicy",
+    "aggregate_pipeline_status",
+    "blocking_dependencies",
+    "build_dispatch_plan",
+    "ready_dataset_ids",
+]
