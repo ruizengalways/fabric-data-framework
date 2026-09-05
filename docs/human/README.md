@@ -9,6 +9,7 @@
 | 文件 | 解决什么问题 |
 |---|---|
 | [`CONCEPTS.md`](CONCEPTS.md) | 先理解这个 framework 的边界、数据语义和整体运行模型 |
+| [`ENTERPRISE_FABRIC_ARCHITECTURE.md`](ENTERPRISE_FABRIC_ARCHITECTURE.md) | **企业 DEV/UAT/PROD canonical topology**：Fabric SQL Database control plane、Lakehouse Bronze/Silver/Gold data plane、可选 Warehouse Gold serving，以及为什么 Lakehouse control tables 在并发运行时会发生 Delta OCC 冲突 |
 | [`REPOSITORY_GUIDE.md`](REPOSITORY_GUIDE.md) | 看 repo 目录和重要代码文件分别负责什么 |
 | [`GETTING_STARTED.md`](GETTING_STARTED.md) | 本地怎么装、怎么测试、怎么打 wheel、Fabric 里怎么用 |
 | [`CUSTOMER_PROJECT_BOOTSTRAP.md`](CUSTOMER_PROJECT_BOOTSTRAP.md) | 新项目怎么初始化 customer repo，几十/几百张表怎么放在一个产品级 repo 里 |
@@ -22,6 +23,20 @@
 | [`FIRST_FABRIC_NOTEBOOK_TEST.md`](FIRST_FABRIC_NOTEBOOK_TEST.md) | 逐 cell 的诊断/兼容 runbook；新 candidate 默认先用 unified runner，失败时再用这里隔离单项 |
 | [`MANUAL_CERTIFICATION.md`](MANUAL_CERTIFICATION.md) | 旧/manual governance lane 和 Admin Override 的语义；不是新 unified runner 的默认执行方式 |
 | [`RELEASE_CANDIDATE.md`](RELEASE_CANDIDATE.md) | 0.4 feature freeze 后如何聚合 exact-candidate evidence、判断是否允许 release |
+
+## 企业环境的存储怎么选
+
+企业 reference deployment 从 DEV 起就使用和 UAT/PROD 相同的逻辑 topology：
+
+```text
+Fabric SQL Database = Framework operational control plane
+Lakehouse / OneLake = Bronze / Silver / Gold business data + quarantine detail
+Warehouse = optional SQL-first Gold / dimensional serving
+```
+
+不要把 DEV control state 放 Lakehouse、到 UAT/PROD 再换 SQL Database。CI/CD 应 promote 同一种架构的代码/schema/definitions，只替换环境自己的 physical bindings、credentials、capacity 和 data。
+
+`Bronze / Silver / Gold` 是数据成熟度层；`Lakehouse / Warehouse / SQL Database` 是 workload engine。两者不是同一维度。详细设计和 Delta 并发冲突解释见 [`ENTERPRISE_FABRIC_ARCHITECTURE.md`](ENTERPRISE_FABRIC_ARCHITECTURE.md)。
 
 ## 正常业务 Pipeline 出错从哪里开始
 
