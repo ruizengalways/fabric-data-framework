@@ -152,17 +152,26 @@ customer_input_contract:
   merged_deployer_pr_23_main: 88d7c3b7b473ad84b5d96aa472293ae24c055c88
   merged_product_operations_pr_25_main: 1d70fe26baf3ceef1be7c0b0cd359f330316e0ee
   product_operations_checkpoint_pr_26_main: fc224d606eb5833bf75db36bd338dcb7e9d93bb8
+  merged_enterprise_topology_pr_27_main: fa495fce622de8a5344bf74ecc52885fe85596f4
+  enterprise_topology_checkpoint_pr_28_main: 9488b1b4b1f1f90a750bee66fee0c7b373c1839a
   pr_25_customer_ci: 33969274525
   pr_25_certification_contract_ci: 33969274509
   pr_25_main_customer_ci: 33969382068
   pr_25_main_certification_contract_ci: 33969382063
+  pr_27_customer_ci: 33998332579
+  pr_27_certification_contract_ci: 33998332576
+  pr_27_main_customer_ci: 33998361497
+  pr_27_main_certification_contract_ci: 33998361592
+  pr_28_main_customer_ci: 33998526517
+  pr_28_main_certification_contract_ci: 33998526504
   certification_framework_sha: 3bd3375b796531e5ca6c7e144e7f50e154cec29f
   released_runtime_pin: fabric-data-framework==0.3.0
   reusable_certification_pipeline_source_merged: true
   reusable_certification_pipeline_deployed_in_company_fabric: false
   product_pipeline_operations_reference_merged: true
   execution_group_policy_examples_ci_proven: true
-  enterprise_topology_customer_update_in_progress: true
+  enterprise_topology_customer_update_in_progress: false
+  enterprise_topology_customer_alignment_main_ci_proven: true
   actual_selected_candidate_input_artifact_retained: false
   real_control_plane_external_evidence_retained: false
   review_bound_control_plane_evidence_retained: false
@@ -260,7 +269,7 @@ authoritative reset only -> FULL_REBUILD
 
 Whole-Pipeline blind retry is not the default incident response. Unknown/ambiguous commit never permits blind retry. Detailed quarantine business rows remain in governed data-plane storage; relational Control Plane stores only lineage/summary/reference.
 
-Customer PR #25 is the 100-table product operations reference. Customer production still remains exactly `fabric-data-framework==0.3.0`.
+Customer PR #25 is the 100-table product operations reference. Customer PR #27/#28 make the enterprise topology and PR #109 compatibility lane canonical and main-CI proven. Customer production still remains exactly `fabric-data-framework==0.3.0`.
 
 ## Historical first company Fabric bounded execution — 2026-09-03 / PR #99 bytes only
 
@@ -353,21 +362,23 @@ Customer production/runtime dependency remains exactly:
 fabric-data-framework==0.3.0
 ```
 
-Current merged Customer product operations reference:
+Enterprise topology/compatibility alignment is now **MERGED + MAIN CI PROVEN**:
 
 ```text
-PR #25 merge/main                1d70fe26baf3ceef1be7c0b0cd359f330316e0ee
-PR customer-ci                   33969274525 SUCCESS
-PR certification-contract       33969274509 SUCCESS
-main customer-ci                 33969382068 SUCCESS
-main certification-contract      33969382063 SUCCESS
-post-merge docs checkpoint main  fc224d606eb5833bf75db36bd338dcb7e9d93bb8
-certification Framework SHA      3bd3375b796531e5ca6c7e144e7f50e154cec29f
+Customer PR #27 substantive merge/main    fa495fce622de8a5344bf74ecc52885fe85596f4
+PR #27 customer-ci                        33998332579 SUCCESS
+PR #27 certification-contract             33998332576 SUCCESS
+PR #27 main customer-ci                   33998361497 SUCCESS
+PR #27 main certification-contract        33998361592 SUCCESS
+Customer PR #28 docs checkpoint main      9488b1b4b1f1f90a750bee66fee0c7b373c1839a
+PR #28 main customer-ci                   33998526517 SUCCESS
+PR #28 main certification-contract        33998526504 SUCCESS
+certification Framework SHA               3bd3375b796531e5ca6c7e144e7f50e154cec29f
 ```
 
-A Customer enterprise-topology update is now required so its certification-contract lane and recovery docs consume PR #109. Until that Customer PR merges, the Framework checkpoint records `enterprise_topology_customer_update_in_progress: true` rather than inventing Customer evidence.
+PR #27 makes `fabric_sql_database_v1` canonical for the Customer enterprise DEV/UAT/PROD Control Plane, documents Lakehouse/OneLake as the medallion data plane and Warehouse as optional SQL-first Gold serving, and moves `customer-certification-contract` to exact Framework PR #109. PR #28 makes that merged state recoverable from Customer `main`.
 
-Customer PR #23 remains the certification/Fabric-item deployer implementation milestone. The reusable certification Pipeline source is merged but is not yet evidenced as deployed in company Fabric.
+Customer PR #25 remains the 100-table product operations reference. Customer PR #23 remains the certification/Fabric-item deployer implementation milestone. The reusable certification Pipeline source is merged but is not yet evidenced as deployed in company Fabric.
 
 Current fail-closed Customer input truth remains:
 
@@ -397,21 +408,22 @@ customer production dependency migration             NOT ALLOWED YET
 
 ## Next operating order
 
-### A. Finish source/recovery alignment
+### A. Source/recovery alignment
 
 ```text
-1. merge this PR #109 machine checkpoint
-2. update Customer certification-contract to exact Framework PR #109 SHA
-3. merge Customer enterprise topology/runbook/CI contract
-4. update Customer CURRENT_STATUS with exact Customer merge + independent main CI
-5. do not change Customer production pin
+COMPLETED
+Framework PR #109 enterprise topology                 MERGED + MAIN CI PROVEN
+Framework PR #110 recovery checkpoint                 MERGED + MAIN CI PROVEN
+Customer PR #27 enterprise topology/compatibility     MERGED + MAIN CI PROVEN
+Customer PR #28 recovery checkpoint                   MERGED + MAIN CI PROVEN
+Customer production pin                              unchanged at v0.3.0
 ```
 
 ### B. Next company Fabric DEV execution
 
 ```text
 1. use exact Framework PR #109 main artifact / wheel SHA256 above
-2. use Customer source after its enterprise-topology alignment merges
+2. use Customer PR #27 substantive topology baseline / current Customer main
 3. provision/use a dedicated DEV Fabric SQL Database as canonical Framework Control Plane
 4. deploy repository-owned certification Notebook/Pipeline only in isolated approved DEV
 5. record/resolve actual environment-local item UUIDs
