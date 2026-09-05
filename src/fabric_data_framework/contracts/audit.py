@@ -62,6 +62,8 @@ class PipelineRunAudit(FrozenModel):
     domain_git_sha: str = Field(pattern=r"^[0-9a-fA-F]{7,64}$")
     framework_version: str = Field(min_length=1)
     config_bundle_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    error_code: str | None = Field(default=None, max_length=128)
+    error_message: str | None = Field(default=None, max_length=4096)
 
     @model_validator(mode="after")
     def validate_times(self) -> "PipelineRunAudit":
@@ -70,6 +72,12 @@ class PipelineRunAudit(FrozenModel):
             _require_aware(self.completed_at, "completed_at")
             if self.completed_at < self.started_at:
                 raise ValueError("completed_at cannot be before started_at")
+        if self.status in {PipelineStatus.RUNNING, PipelineStatus.SUCCESS} and (
+            self.error_code is not None or self.error_message is not None
+        ):
+            raise ValueError("RUNNING/SUCCESS pipeline audit cannot carry failure details")
+        if (self.error_code is None) != (self.error_message is None):
+            raise ValueError("pipeline error_code and error_message must be set together")
         return self
 
 
