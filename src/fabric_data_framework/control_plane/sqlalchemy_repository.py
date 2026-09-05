@@ -214,6 +214,12 @@ class SqlAlchemyControlPlaneRepository:
             "framework_version": audit.framework_version,
             "config_bundle_hash": audit.config_bundle_hash,
         }
+        mutable = {
+            "status": audit.status.value,
+            "error_code": audit.error_code,
+            "error_message": audit.error_message,
+            "completed_at": audit.completed_at,
+        }
         with self.engine.begin() as connection:
             existing = connection.execute(
                 select(pipeline_run).where(pipeline_run.c.pipeline_run_id == key)
@@ -223,10 +229,9 @@ class SqlAlchemyControlPlaneRepository:
                     pipeline_run.insert().values(
                         pipeline_run_id=key,
                         **semantic,
-                        status=audit.status.value,
+                        **mutable,
                         deployment_id=None,
                         started_at=audit.started_at,
-                        completed_at=audit.completed_at,
                     )
                 )
                 return
@@ -234,7 +239,7 @@ class SqlAlchemyControlPlaneRepository:
             connection.execute(
                 pipeline_run.update()
                 .where(pipeline_run.c.pipeline_run_id == key)
-                .values(status=audit.status.value, completed_at=audit.completed_at)
+                .values(**mutable)
             )
 
     def record_dataset_run(self, audit: DatasetRunAudit) -> None:
