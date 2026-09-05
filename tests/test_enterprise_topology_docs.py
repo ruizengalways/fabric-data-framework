@@ -19,7 +19,7 @@ def test_enterprise_topology_docs_lock_canonical_storage_roles():
         assert "Lakehouse" in text
         assert "Warehouse" in text
 
-    assert "Fabric SQL Database -> operational control plane" in human
+    assert "### Fabric SQL Database — operational control plane" in human
     assert "lakehouse_as_enterprise_canonical_control_plane: false" in machine
     assert "ENTERPRISE_FABRIC_ARCHITECTURE.md" in index
 
