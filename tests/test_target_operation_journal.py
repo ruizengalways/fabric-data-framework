@@ -70,14 +70,14 @@ def _intent(input_payload=None) -> TargetOperationIntent:
     )
 
 
-def test_control_plane_v4_owns_target_operation_state_and_events():
+def test_control_plane_v4_target_operation_contract_survives_v5():
     engine = _engine()
-    assert CONTROL_PLANE_SCHEMA_VERSION == 4
+    assert CONTROL_PLANE_SCHEMA_VERSION == 5
     assert "target_operation" in ENVIRONMENT_LOCAL_STATE_TABLES
     assert "target_operation_event" in ENVIRONMENT_LOCAL_STATE_TABLES
     assert "target_operation" in table_names()
     assert "target_operation_event" in table_names()
-    assert apply_baseline_schema(engine) == 4
+    assert apply_baseline_schema(engine) == CONTROL_PLANE_SCHEMA_VERSION
 
 
 def test_operation_key_is_semantic_and_attempt_independent():
