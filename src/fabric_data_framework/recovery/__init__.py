@@ -1,5 +1,10 @@
-"""Recovery package. Import contracts and implementations from explicit submodules.
+"""Recovery package.
 
-Examples: ``recovery.runtime``, ``recovery.replay``, ``recovery.rebuild``,
-``recovery.target_probe`` and ``recovery.fabric_warehouse``.
+Primary operator/runtime surfaces:
+
+- ``recovery.runtime``: bounded retry and unknown-outcome reconciliation;
+- ``recovery.pipeline``: conservative Pipeline failure diagnosis/recovery plan;
+- ``recovery.replay``: governed quarantine replay;
+- ``recovery.rebuild``: backfill/full-rebuild contracts;
+- ``recovery.target_probe`` / ``recovery.fabric_warehouse``: target and Warehouse recovery.
 """
