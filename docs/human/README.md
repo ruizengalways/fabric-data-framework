@@ -15,6 +15,7 @@
 | [`DATASET_ONBOARDING.md`](DATASET_ONBOARDING.md) | 来了一个新数据源/新表，到底该选哪种 capture/Bronze/Silver 模式 |
 | [`OPERATIONS.md`](OPERATIONS.md) | CLI 是干什么的，release/evidence/approved run 怎么执行 |
 | [`FRAMEWORK_DEVELOPER_CERTIFICATION.md`](FRAMEWORK_DEVELOPER_CERTIFICATION.md) | **Framework 开发者/新员工 certification 主 runbook**：从改代码、PR/main CI、exact artifact、Fabric bounded/full certification、SQL Database/Warehouse runtime binding 到证据交接，一步步 follow |
+| [`ONE_CALL_CERTIFICATION_RUNTIME.md`](ONE_CALL_CERTIFICATION_RUNTIME.md) | one-call runtime mapping、临时 process-env bridge、新 SQL Database 首次 bootstrap、durable Pipeline child 的精确 contract |
 | [`UNIFIED_FABRIC_CERTIFICATION.md`](UNIFIED_FABRIC_CERTIFICATION.md) | unified runner 的 operator contract、状态语义、governance 和 provider-stage 说明 |
 | [`FABRIC_PIPELINE_CHILD_CONTRACT.md`](FABRIC_PIPELINE_CHILD_CONTRACT.md) | 可复用 Fabric child Pipeline/Notebook 必须如何接收 7 个 Framework 参数、验证 exact config/plan 并持久化 DatasetDispatchOutcome |
 | [`FIRST_FABRIC_NOTEBOOK_TEST.md`](FIRST_FABRIC_NOTEBOOK_TEST.md) | 逐 cell 的诊断/兼容 runbook；新 candidate 默认先用 unified runner，失败时再用这里隔离单项 |
@@ -52,6 +53,8 @@ report = certify(spark=spark)
 ```
 
 **不会扫描 workspace 自动选择 SQL Database。** 没有 `customer-inputs/` 时它只执行 bounded suite。Full certification 时，`customer-inputs/runner-config.json` 声明需要读取哪个 runtime environment-variable name，而实际 SQL Database/Warehouse URL 由 runtime-only secret/environment value 提供。
+
+如果要理解为什么 `runtime_environment` 能同时被 Framework approved runner 和 Customer extension 看见，以及新建 SQL Database 第一次为什么还需要 exact semantic metadata materialization，直接看 [`ONE_CALL_CERTIFICATION_RUNTIME.md`](ONE_CALL_CERTIFICATION_RUNTIME.md)。
 
 ## 第一次公司 Fabric 测试从哪里开始
 
@@ -91,11 +94,26 @@ report = certify(
 )
 ```
 
+`runtime_environment` 只在本次调用的 runtime scope 中使用。exact Customer `runner-config.json` 声明允许读取哪些 variable names；public API 在调用期间只把这些声明过的名字临时同步给需要 `os.environ` 的 Customer/domain extension，返回前恢复原 process environment。secret value 不进入 source-controlled bundle 或 retained report/evidence。
+
+如果是**刚创建的专用 certification SQL Database**，第一次需要显式 bootstrap schema + exact Customer semantic metadata：
+
+```python
+report = certify(
+    spark=spark,
+    runtime_environment=runtime_environment,
+    allow_live_mutations=True,
+    allow_control_plane_migration=True,
+)
+```
+
+这个 first-time path 会先要求 exact bounded checks 全部 PASS，再验证 Customer bundle 与同一个 Framework wheel 匹配，然后才 materialize Control Plane。正常 rerun 保持 `allow_control_plane_migration=False`。
+
 这会按依赖顺序继续尝试 Fabric item read、Control Plane、Pipeline、Copy、Spark、Warehouse、ambiguous-COMMIT 和五条 live business path。缺 external evidence、缺 runtime secret、缺 fault controller 或缺授权的项目显示为 `BLOCKED` / `NOT_RUN`，不能用 synthetic PASS 填满结果。
 
 Warehouse Admin-level exact-session termination 仍然需要独立显式授权，不能从普通 live mutation authorization 推导。
 
-详细步骤看 [`FRAMEWORK_DEVELOPER_CERTIFICATION.md`](FRAMEWORK_DEVELOPER_CERTIFICATION.md)；unified runner 的 contract 说明看 [`UNIFIED_FABRIC_CERTIFICATION.md`](UNIFIED_FABRIC_CERTIFICATION.md)。`FIRST_FABRIC_NOTEBOOK_TEST.md` 现在主要用于排查某一项失败或验证旧 wheel。
+详细步骤看 [`FRAMEWORK_DEVELOPER_CERTIFICATION.md`](FRAMEWORK_DEVELOPER_CERTIFICATION.md)；one-call runtime/Control Plane 细节看 [`ONE_CALL_CERTIFICATION_RUNTIME.md`](ONE_CALL_CERTIFICATION_RUNTIME.md)；unified runner 的 contract 说明看 [`UNIFIED_FABRIC_CERTIFICATION.md`](UNIFIED_FABRIC_CERTIFICATION.md)。`FIRST_FABRIC_NOTEBOOK_TEST.md` 现在主要用于排查某一项失败或验证旧 wheel。
 
 ## 你通常应该改哪个 repo
 
