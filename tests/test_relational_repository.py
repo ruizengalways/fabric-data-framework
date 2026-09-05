@@ -23,7 +23,11 @@ from fabric_data_framework.metadata.config import (
     TargetConfig,
     resolve_effective_config,
 )
-from fabric_data_framework.control_plane.schema import apply_baseline_schema, step_run
+from fabric_data_framework.control_plane.schema import (
+    apply_baseline_schema,
+    pipeline_run,
+    step_run,
+)
 from fabric_data_framework.deployment.delivery import config_bundle_hash
 from fabric_data_framework.execution.backends.fabric_pipeline import FabricPipelineBackend
 from fabric_data_framework.contracts.audit import (
@@ -73,7 +77,14 @@ def _repo(tmp_path, config=None):
     return engine, repository, config
 
 
-def _pipeline_audit(pipeline_run_id, config, *, status=PipelineStatus.RUNNING):
+def _pipeline_audit(
+    pipeline_run_id,
+    config,
+    *,
+    status=PipelineStatus.RUNNING,
+    error_code=None,
+    error_message=None,
+):
     return PipelineRunAudit(
         pipeline_run_id=pipeline_run_id,
         environment="dev",
@@ -83,6 +94,8 @@ def _pipeline_audit(pipeline_run_id, config, *, status=PipelineStatus.RUNNING):
         domain_git_sha="abcdef0",
         framework_version="0.4.0",
         config_bundle_hash=config_bundle_hash((config,)),
+        error_code=error_code,
+        error_message=error_message,
     )
 
 
@@ -170,6 +183,37 @@ def test_pipeline_dataset_and_step_lifecycle_are_durable_and_updatable(tmp_path)
     repository.record_pipeline_run(
         _pipeline_audit(pipeline_run_id, config, status=PipelineStatus.SUCCESS)
     )
+    with engine.connect() as connection:
+        pipeline = connection.execute(
+            select(pipeline_run).where(pipeline_run.c.pipeline_run_id == str(pipeline_run_id))
+        ).mappings().one()
+    assert pipeline["status"] == "SUCCESS"
+    assert pipeline["error_code"] is None
+    assert pipeline["error_message"] is None
+
+
+def test_pipeline_failure_error_is_durable_and_updated_at_terminal_state(tmp_path):
+    engine, repository, config = _repo(tmp_path)
+    pipeline_run_id = uuid4()
+    repository.record_pipeline_run(_pipeline_audit(pipeline_run_id, config))
+    repository.record_pipeline_run(
+        _pipeline_audit(
+            pipeline_run_id,
+            config,
+            status=PipelineStatus.FAILED,
+            error_code="DATASET_FAILURES_AT_END",
+            error_message="crm.customer[FAILED/EXECUTOR_EXCEPTION]: RuntimeError: boom",
+        )
+    )
+
+    with engine.connect() as connection:
+        row = connection.execute(
+            select(pipeline_run).where(pipeline_run.c.pipeline_run_id == str(pipeline_run_id))
+        ).mappings().one()
+    assert row["status"] == "FAILED"
+    assert row["error_code"] == "DATASET_FAILURES_AT_END"
+    assert "crm.customer" in row["error_message"]
+    assert "RuntimeError: boom" in row["error_message"]
 
 
 def test_dataset_run_semantic_identity_cannot_change(tmp_path):
