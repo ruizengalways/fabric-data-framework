@@ -5,20 +5,22 @@ Purpose: restore exact framework engineering context without forcing human-facin
 ## Read order for a new AI conversation
 
 1. `STATE.md` — exact current baseline, release status, CI/test baseline, real-service gaps, next work.
-2. `CONTEXT.md` — non-negotiable semantic/recovery/evidence invariants.
-3. `UNIFIED_CERTIFICATION.md` — one-call real-Fabric certification architecture, status/governance boundaries and exact-byte rerun rules.
-4. `APPROVED_EVIDENCE.md` — exact approved-run prerequisite, PASS/FAIL, authorization, and merge contracts.
-5. `BUSINESS_PATH_EVIDENCE.md` — representative live FULL/REPLACE, SCD1, SCD2, retry, reconciliation proof contract.
-6. `RELEASE_READINESS.md` — exact candidate identity, release gate aggregation and fail-closed release rules.
-7. `CAPABILITIES.md` — capability -> implementation owner -> evidence level.
-8. `IMPLEMENTATION_MAP.md` — code/module ownership and where to change what.
-9. `HISTORY.md` — merged milestone history; read only when historical provenance matters.
+2. `ENTERPRISE_TOPOLOGY.md` — canonical DEV/UAT/PROD Fabric SQL Database control plane, Lakehouse medallion data plane, optional Warehouse, and CI/CD promotion boundary.
+3. `CONTEXT.md` — non-negotiable semantic/recovery/evidence invariants.
+4. `UNIFIED_CERTIFICATION.md` — one-call real-Fabric certification architecture, status/governance boundaries and exact-byte rerun rules.
+5. `APPROVED_EVIDENCE.md` — exact approved-run prerequisite, PASS/FAIL, authorization, and merge contracts.
+6. `BUSINESS_PATH_EVIDENCE.md` — representative live FULL/REPLACE, SCD1, SCD2, retry, reconciliation proof contract.
+7. `RELEASE_READINESS.md` — exact candidate identity, release gate aggregation and fail-closed release rules.
+8. `CAPABILITIES.md` — capability -> implementation owner -> evidence level.
+9. `IMPLEMENTATION_MAP.md` — code/module ownership and where to change what.
+10. `HISTORY.md` — merged milestone history; read only when historical provenance matters.
 
 ## File purpose
 
 | File | Machine use |
 |---|---|
 | `STATE.md` | answer “where are we now and what is next?” |
+| `ENTERPRISE_TOPOLOGY.md` | prevent DEV/UAT/PROD topology drift and Lakehouse-vs-control-plane confusion |
 | `CONTEXT.md` | prevent semantic/recovery regressions after context reset |
 | `UNIFIED_CERTIFICATION.md` | restore the minimal Notebook API, approved-run composition, status semantics and non-release boundary |
 | `APPROVED_EVIDENCE.md` | restore exact runner/evidence/authorization rules |
@@ -45,6 +47,7 @@ Human docs intentionally omit PR history, Actions IDs, merge SHAs, test-count pr
 After a meaningful framework slice:
 
 - update `STATE.md` if baseline/gap/next-work changed;
+- update `ENTERPRISE_TOPOLOGY.md` if canonical environment topology, store roles or CI/CD promotion boundaries changed;
 - update `CONTEXT.md` if a new invariant or fail-closed boundary was introduced;
 - update `UNIFIED_CERTIFICATION.md` if the one-call API, runner ordering, status vocabulary, auto-discovery or authorization boundary changed;
 - update `APPROVED_EVIDENCE.md` if an approved-run prerequisite/PASS/authorization contract changed;
