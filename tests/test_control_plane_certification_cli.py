@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from fabric_data_framework.cli import main
+from fabric_data_framework.control_plane.schema import CONTROL_PLANE_SCHEMA_VERSION
 
 
 def test_cli_certifies_sqlite_reference_after_explicit_migration(tmp_path: Path):
@@ -28,7 +29,7 @@ def test_cli_certifies_sqlite_reference_after_explicit_migration(tmp_path: Path)
 
     report = json.loads(output.read_text(encoding="utf-8"))
     assert report["observed_dialect"] == "sqlite"
-    assert report["schema_version"] == 4
+    assert report["schema_version"] == CONTROL_PLANE_SCHEMA_VERSION == 5
     assert report["reference_certified"] is True
     assert report["production_certified"] is False
 
