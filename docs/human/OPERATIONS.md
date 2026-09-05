@@ -1,11 +1,20 @@
 # Operations / CLI 使用指南
 
-这份文档回答两个问题：
+这份文档回答三个问题：
 
 ```text
 CLI 到底什么时候用？
-真实 DEV/UAT/PROD evidence 应该按什么顺序跑？
+正常业务 Pipeline 出错如何恢复？
+真实 DEV/UAT/PROD release evidence 应该按什么顺序跑？
 ```
+
+正常业务 Pipeline 的完整 fault-isolation / DQ / quarantine / recovery runbook 现在统一放在：
+
+```text
+docs/human/PIPELINE_OPERATIONS_AND_RECOVERY.md
+```
+
+不要把 daily Pipeline recovery 和 Framework release certification 混在一起。
 
 ## 1. CLI 分成四类
 
@@ -34,6 +43,8 @@ artifact hashes
 
 目的：让 deployed code/config 有 exact provenance。
 
+如果 customer/domain 使用 execution-group policy，它也属于 source-controlled release input；policy 变化必须进入 config bundle identity，不能在 Fabric UI 里静默改一份不同的运行策略。
+
 ### C. Approved environment evidence
 
 用于真实 DEV/UAT/PROD 环境中的受控检查：
@@ -59,7 +70,38 @@ integration-evidence-validate
 
 ---
 
-# 2. 为什么 evidence 要分阶段
+# 2. 正常业务 Pipeline 的 failure boundary
+
+默认 parent Pipeline 使用 `FAIL_AT_END`：
+
+```text
+一个 table FAIL
+-> 记录 dataset_run error
+-> independent siblings 继续
+-> downstream dependents BLOCKED
+-> 所有 runnable work 结束
+-> parent Pipeline FAILED
+```
+
+Control Plane `pipeline_run.error_code/error_message` 保存 parent summary；`dataset_run.error_code/error_message` 保存每表 root cause；`step_run`、`reconciliation_result`、`quarantine_batch`、`dataset_attempt_lineage` 提供进一步 drill-down。
+
+故障恢复先读 [`PIPELINE_OPERATIONS_AND_RECOVERY.md`](PIPELINE_OPERATIONS_AND_RECOVERY.md)。核心安全边界：
+
+```text
+retryable=true transient -> bounded RETRY
+DQ threshold -> fix data/rule then REPLAY
+reconciliation fail -> investigate before reprocess
+dependency blocked -> recover upstream first
+unknown commit -> reconcile before any retry
+bounded source gap -> BACKFILL
+authoritative reset only -> FULL_REBUILD
+```
+
+不要整批 blind retry，也不要为了绿灯关闭 DQ/quarantine。
+
+---
+
+# 3. 为什么 release evidence 要分阶段
 
 真实 environment 检查风险不同：
 
@@ -77,7 +119,7 @@ read-only GET
 
 ---
 
-# 3. 推荐真实执行顺序
+# 4. 推荐真实 certification 执行顺序
 
 ```text
 1. exact release/config preparation
@@ -97,7 +139,7 @@ read-only GET
 
 ---
 
-# 4. Credential 怎么处理
+# 5. Credential 怎么处理
 
 Source-controlled approved-run config 只能保存：
 
@@ -132,7 +174,7 @@ Admin Warehouse credential 必须和普通 Warehouse credential 分开。
 
 ---
 
-# 5. Preflight
+# 6. Preflight
 
 先运行 credential-free / non-secret preflight。
 
@@ -152,7 +194,7 @@ fabric-framework integration-run-preflight \
 
 ---
 
-# 6. Read-only item smoke
+# 7. Read-only item smoke
 
 这是最适合做第一条真实 Fabric call 的阶段。
 
@@ -177,7 +219,7 @@ HTTP 200 但 item identity 不匹配不能 PASS。
 
 ---
 
-# 7. Control-plane certification
+# 8. Control-plane certification
 
 ```bash
 fabric-framework integration-control-plane-certify-run \
@@ -206,7 +248,7 @@ retention/governance
 
 ---
 
-# 8. Pipeline evidence
+# 9. Pipeline evidence
 
 ```bash
 fabric-framework integration-pipeline-run \
@@ -222,25 +264,13 @@ fabric-framework integration-pipeline-run \
   --allow-pipeline-execution
 ```
 
-Fabric Pipeline 显示：
+Fabric Pipeline 显示 `Completed` 还不够。
 
-```text
-Completed
-```
-
-还不够。
-
-Framework 还要看到这个 exact child `dataset_run_id` 的 durable framework outcome 是：
-
-```text
-SUCCEEDED
-```
-
-否则 FAIL。
+Framework 还要看到 exact child `dataset_run_id` 的 durable framework outcome 是 `SUCCEEDED`，否则 FAIL。
 
 ---
 
-# 9. Copy Job / Spark capture evidence
+# 10. Copy Job / Spark capture evidence
 
 ```bash
 fabric-framework integration-capture-run \
@@ -271,7 +301,7 @@ Spark 的 WATERMARK/CDC capture 如果 framework 负责 progress，需要 frozen
 
 ---
 
-# 10. Warehouse normal commit/recovery evidence
+# 11. Warehouse normal commit/recovery evidence
 
 ```bash
 fabric-framework integration-warehouse-run \
@@ -305,7 +335,7 @@ marker absent -> UNRESOLVED
 
 ---
 
-# 11. Ambiguous-COMMIT fault drill
+# 12. Ambiguous-COMMIT fault drill
 
 只有 normal Warehouse path 已经 PASS 后，才考虑 fault drill。
 
@@ -336,7 +366,7 @@ fabric-framework integration-warehouse-fault-drill-run \
 
 ---
 
-# 12. Session termination recovery
+# 13. Session termination recovery
 
 这是一个更高权限、可选的 recovery path。
 
@@ -368,19 +398,11 @@ Admin credential 也必须单独配置。
 UNKNOWN -> NOT_COMMITTED
 ```
 
-这里只说明：
-
-```text
-“这个 operation 可以在未来安全 retry”
-```
-
-runner 不会自动重新执行 mutation。
-
-而且这个结果不会让 `FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL` PASS，因为那个 check 要证明的是 COMMITTED ambiguity recovery。
+这里只说明“这个 operation 可以在未来安全 retry”；runner 不会自动重新执行 mutation。
 
 ---
 
-# 13. Evidence merge
+# 14. Evidence merge
 
 每个阶段输出 partial manifest。
 
@@ -402,12 +424,6 @@ FAIL wins
 
 这是故意的，避免两次相互矛盾的真实运行被静默覆盖。
 
-使用：
-
-```bash
-fabric-framework integration-evidence-merge --help
-```
-
 最后：
 
 ```bash
@@ -419,7 +435,7 @@ fabric-framework integration-evidence-validate \
 
 ---
 
-# 14. 日常运维判断
+# 15. 日常运维和 certification 的边界
 
 如果只是正常业务 pipeline：
 
@@ -429,11 +445,11 @@ fabric-framework integration-evidence-validate \
 
 Approved evidence runner 是 release/certification/controlled validation surface，不是把所有生产 batch 都变成一次 certification suite。
 
-正常 runtime 使用 framework 的 execution/recovery contracts；release evidence 在需要证明 capability/environment 时执行并保留。
+正常 runtime 使用 framework 的 dispatch、DQ/quarantine、retry/replay/backfill/rebuild 和 unknown-outcome contracts；release evidence 在需要证明 capability/environment 时执行并保留。
 
 ---
 
-# 15. 什么时候可以 release
+# 16. 什么时候可以 release
 
 Human 侧只需要知道一条：
 
