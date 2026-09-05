@@ -16,6 +16,7 @@
 | [`OPERATIONS.md`](OPERATIONS.md) | CLI 是干什么的，release/evidence/approved run 怎么执行 |
 | [`FRAMEWORK_DEVELOPER_CERTIFICATION.md`](FRAMEWORK_DEVELOPER_CERTIFICATION.md) | **Framework 开发者/新员工 certification 主 runbook**：从改代码、PR/main CI、exact artifact、Fabric bounded/full certification、SQL Database/Warehouse runtime binding 到证据交接，一步步 follow |
 | [`UNIFIED_FABRIC_CERTIFICATION.md`](UNIFIED_FABRIC_CERTIFICATION.md) | unified runner 的 operator contract、状态语义、governance 和 provider-stage 说明 |
+| [`FABRIC_PIPELINE_CHILD_CONTRACT.md`](FABRIC_PIPELINE_CHILD_CONTRACT.md) | 可复用 Fabric child Pipeline/Notebook 必须如何接收 7 个 Framework 参数、验证 exact config/plan 并持久化 DatasetDispatchOutcome |
 | [`FIRST_FABRIC_NOTEBOOK_TEST.md`](FIRST_FABRIC_NOTEBOOK_TEST.md) | 逐 cell 的诊断/兼容 runbook；新 candidate 默认先用 unified runner，失败时再用这里隔离单项 |
 | [`MANUAL_CERTIFICATION.md`](MANUAL_CERTIFICATION.md) | 旧/manual governance lane 和 Admin Override 的语义；不是新 unified runner 的默认执行方式 |
 | [`RELEASE_CANDIDATE.md`](RELEASE_CANDIDATE.md) | 0.4 feature freeze 后如何聚合 exact-candidate evidence、判断是否允许 release |
