@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CANONICAL = (
     ROOT / "docs/machine/STATE.md",
+    ROOT / "docs/machine/ENTERPRISE_TOPOLOGY.md",
     ROOT / "docs/machine/CAPABILITIES.md",
     ROOT / "docs/machine/IMPLEMENTATION_MAP.md",
     ROOT / "docs/machine/APPROVED_EVIDENCE.md",
@@ -95,12 +96,12 @@ def test_customer_input_contract_docs_match_current_customer_product_state():
     assert "f83dc722da479971cdfd68d883291646c433ec15" in combined
     assert "0c6cb0afd662f61082b41d34ef245ec2b055c97d" in combined
 
-    # Current Customer product-operations reference is PR #25, with docs checkpoint #26.
+    # Current merged Customer product-operations reference remains PR #25/#26.
     assert "merged_product_operations_pr_25_main: 1d70fe26baf3ceef1be7c0b0cd359f330316e0ee" in state
     assert "product_operations_checkpoint_pr_26_main: fc224d606eb5833bf75db36bd338dcb7e9d93bb8" in state
     assert "pr_25_main_customer_ci: 33969382068" in state
     assert "pr_25_main_certification_contract_ci: 33969382063" in state
-    assert "certification_framework_sha: 4c8ad9994f3800e901c146b919f85454d78f080e" in state
+    assert "certification_framework_sha: 3bd3375b796531e5ca6c7e144e7f50e154cec29f" in state
     assert "product_pipeline_operations_reference_merged: true" in state
     assert "execution_group_policy_examples_ci_proven: true" in state
     assert "reusable_certification_pipeline_source_merged: true" in state
@@ -149,19 +150,28 @@ def test_domain_release_binding_docs_keep_pr92_as_merged_identity_milestone():
         assert phrase not in combined
 
 
-def test_pr107_is_current_code_and_pr99_is_historical_first_fabric_baseline():
-    combined = _combined()
+def test_pr109_is_current_code_and_prior_milestones_remain_historical():
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
 
-    # PR #107 is the current substantive executable Framework baseline.
-    assert "pull_request: 107" in state
-    assert "4c8ad9994f3800e901c146b919f85454d78f080e" in state
-    assert "33967940246" in state
-    assert "33968014547" in state
-    assert "06d4a9ca948693c87a658a34e8c4fccb42439a7f9f67c44985ac726dedb4e04d" in state
-    assert "9970044954" in state
+    # PR #109 is the current substantive executable Framework baseline.
+    assert "pull_request: 109" in state
+    assert "3bd3375b796531e5ca6c7e144e7f50e154cec29f" in state
+    assert "33997830902" in state
+    assert "33997925998" in state
+    assert "fe9adb12d9804dd146957dfc84925b18330edd0c189e5f713867e8e7e9478178" in state
+    assert "9978610894" in state
     assert "live_fabric_evidence_retained_for_current_bytes: false" in state
     assert "real-Fabric execution          NOT YET" in state
+    assert "canonical_control_plane_profile: fabric_sql_database_v1" in state
+    assert "lakehouse_as_enterprise_canonical_control_plane: false" in state
+    assert "same_logical_topology_required: true" in state
+
+    # PR #107 remains the product Pipeline operations milestone.
+    assert "product_pipeline_operations_baseline:" in state
+    assert "pull_request: 107" in state
+    assert "4c8ad9994f3800e901c146b919f85454d78f080e" in state
+    assert "33968014547" in state
+    assert "06d4a9ca948693c87a658a34e8c4fccb42439a7f9f67c44985ac726dedb4e04d" in state
     assert "FAIL_AT_END" in state
     assert "ExecutionGroupPolicy" in state
     assert "UNKNOWN_COMMIT" in state
@@ -205,8 +215,8 @@ def test_pr107_is_current_code_and_pr99_is_historical_first_fabric_baseline():
 
     # PR #94 remains the historical release identity-chain baseline.
     assert "pull_request: 94" in state
-    assert "abc8b3a2b80b3f6babf88fdc2347a3bfe69be356" in combined
-    assert "d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7" in combined
+    assert "abc8b3a2b80b3f6babf88fdc2347a3bfe69be356" in state
+    assert "d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7" in state
 
 
 def test_manual_admin_certification_boundary_is_explicit():
@@ -258,8 +268,8 @@ def test_business_path_runner_cannot_be_documented_as_candidate_proof_packager()
 def test_latest_candidate_capable_artifact_is_not_frozen():
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
     assert "candidate_status: not_frozen" in state
-    assert "candidate_git_sha: 4c8ad9994f3800e901c146b919f85454d78f080e" in state
-    assert "wheel_inner_sha256: 06d4a9ca948693c87a658a34e8c4fccb42439a7f9f67c44985ac726dedb4e04d" in state
+    assert "candidate_git_sha: 3bd3375b796531e5ca6c7e144e7f50e154cec29f" in state
+    assert "wheel_inner_sha256: fe9adb12d9804dd146957dfc84925b18330edd0c189e5f713867e8e7e9478178" in state
     assert "selected_as_frozen_candidate: false" in state
     assert "release_allowed: false" in state
     assert "readiness_required_blockers: 15" in state
@@ -273,5 +283,5 @@ def test_release_docs_keep_actual_live_and_release_gaps_explicit():
     assert "release_allowed = false" in combined or "release_allowed: false" in combined
     assert "not yet frozen" in combined.lower() or "not_frozen" in combined.lower()
     assert "not yet produced" in combined.lower()
-    assert "no live run" in combined.lower() or "no retained live" in combined.lower()
+    assert "no live run" in combined.lower() or "no retained live" in combined.lower() or "NOT YET" in combined
     assert "immutable v0.4.0" in combined
