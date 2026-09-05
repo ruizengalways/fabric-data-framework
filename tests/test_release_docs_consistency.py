@@ -82,10 +82,11 @@ def test_candidate_integration_producer_docs_match_merged_pr90_state():
     assert "integration-evidence-validate --require-certified" in combined
 
 
-def test_customer_input_contract_docs_match_merged_customer_state():
+def test_customer_input_contract_docs_match_current_customer_product_state():
     combined = _combined()
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
 
+    # Historical Customer identity chain remains retained.
     assert "candidate-business-path-inputs.yml" in combined
     assert "cda90f1c02fc9606aa64d2d1bd13f2ab89628aab" in combined
     assert "31f3f506bc1c16a445652de2ad48fe512cfec10a" in combined
@@ -93,14 +94,15 @@ def test_customer_input_contract_docs_match_merged_customer_state():
     assert "c4097dcc1319f382eb370e9c4d46dcbed7bb383b" in combined
     assert "f83dc722da479971cdfd68d883291646c433ec15" in combined
     assert "0c6cb0afd662f61082b41d34ef245ec2b055c97d" in combined
-    assert "33378071077" in combined
-    assert "33378071142" in combined
 
-    # Current Customer certification/deployment source is PR #21.
-    assert "merged_pipeline_reference_pr_21_main: cedba6673f08ddfda9cae2e29a27cc6ecc768b58" in state
-    assert "pr_21_main_customer_ci: 33962296475" in state
-    assert "pr_21_main_certification_contract_ci: 33962296508" in state
-    assert "certification_framework_sha: cb9f9be77a98a0a5aa8c5f85e0fa3d92697c60f0" in state
+    # Current Customer product-operations reference is PR #25, with docs checkpoint #26.
+    assert "merged_product_operations_pr_25_main: 1d70fe26baf3ceef1be7c0b0cd359f330316e0ee" in state
+    assert "product_operations_checkpoint_pr_26_main: fc224d606eb5833bf75db36bd338dcb7e9d93bb8" in state
+    assert "pr_25_main_customer_ci: 33969382068" in state
+    assert "pr_25_main_certification_contract_ci: 33969382063" in state
+    assert "certification_framework_sha: 4c8ad9994f3800e901c146b919f85454d78f080e" in state
+    assert "product_pipeline_operations_reference_merged: true" in state
+    assert "execution_group_policy_examples_ci_proven: true" in state
     assert "reusable_certification_pipeline_source_merged: true" in state
     assert "reusable_certification_pipeline_deployed_in_company_fabric: false" in state
 
@@ -147,21 +149,31 @@ def test_domain_release_binding_docs_keep_pr92_as_merged_identity_milestone():
         assert phrase not in combined
 
 
-def test_pr105_is_current_code_and_pr99_is_historical_first_fabric_baseline():
+def test_pr107_is_current_code_and_pr99_is_historical_first_fabric_baseline():
     combined = _combined()
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
 
-    # PR #105 is the current substantive executable Framework baseline.
-    assert "pull_request: 105" in state
-    assert "cb9f9be77a98a0a5aa8c5f85e0fa3d92697c60f0" in state
-    assert "33961766325" in state
-    assert "33961827610" in state
-    assert "13c9c7696f9c657243af1133731bf58600cffb3a78f77bede606a1b00a6c2c79" in state
-    assert "9968172160" in state
+    # PR #107 is the current substantive executable Framework baseline.
+    assert "pull_request: 107" in state
+    assert "4c8ad9994f3800e901c146b919f85454d78f080e" in state
+    assert "33967940246" in state
+    assert "33968014547" in state
+    assert "06d4a9ca948693c87a658a34e8c4fccb42439a7f9f67c44985ac726dedb4e04d" in state
+    assert "9970044954" in state
     assert "live_fabric_evidence_retained_for_current_bytes: false" in state
     assert "real-Fabric execution          NOT YET" in state
+    assert "FAIL_AT_END" in state
+    assert "ExecutionGroupPolicy" in state
+    assert "UNKNOWN_COMMIT" in state
+
+    # PR #105 remains the one-call runtime/bootstrap milestone.
+    assert "runtime_bootstrap_baseline:" in state
+    assert "pull_request: 105" in state
+    assert "cb9f9be77a98a0a5aa8c5f85e0fa3d92697c60f0" in state
+    assert "33961827610" in state
 
     # PR #104 remains the durable Pipeline child milestone.
+    assert "pipeline_child_baseline:" in state
     assert "pull_request: 104" in state
     assert "94cc0c90631a6582c8ba84911bc100195e2fbb86" in state
     assert "33959169173" in state
@@ -246,8 +258,8 @@ def test_business_path_runner_cannot_be_documented_as_candidate_proof_packager()
 def test_latest_candidate_capable_artifact_is_not_frozen():
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
     assert "candidate_status: not_frozen" in state
-    assert "candidate_git_sha: cb9f9be77a98a0a5aa8c5f85e0fa3d92697c60f0" in state
-    assert "wheel_inner_sha256: 13c9c7696f9c657243af1133731bf58600cffb3a78f77bede606a1b00a6c2c79" in state
+    assert "candidate_git_sha: 4c8ad9994f3800e901c146b919f85454d78f080e" in state
+    assert "wheel_inner_sha256: 06d4a9ca948693c87a658a34e8c4fccb42439a7f9f67c44985ac726dedb4e04d" in state
     assert "selected_as_frozen_candidate: false" in state
     assert "release_allowed: false" in state
     assert "readiness_required_blockers: 15" in state
