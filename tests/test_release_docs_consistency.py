@@ -84,6 +84,8 @@ def test_candidate_integration_producer_docs_match_merged_pr90_state():
 
 def test_customer_input_contract_docs_match_merged_customer_state():
     combined = _combined()
+    state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
+
     assert "candidate-business-path-inputs.yml" in combined
     assert "cda90f1c02fc9606aa64d2d1bd13f2ab89628aab" in combined
     assert "31f3f506bc1c16a445652de2ad48fe512cfec10a" in combined
@@ -93,6 +95,15 @@ def test_customer_input_contract_docs_match_merged_customer_state():
     assert "0c6cb0afd662f61082b41d34ef245ec2b055c97d" in combined
     assert "33378071077" in combined
     assert "33378071142" in combined
+
+    # Current Customer certification/deployment source is PR #21.
+    assert "merged_pipeline_reference_pr_21_main: cedba6673f08ddfda9cae2e29a27cc6ecc768b58" in state
+    assert "pr_21_main_customer_ci: 33962296475" in state
+    assert "pr_21_main_certification_contract_ci: 33962296508" in state
+    assert "certification_framework_sha: cb9f9be77a98a0a5aa8c5f85e0fa3d92697c60f0" in state
+    assert "reusable_certification_pipeline_source_merged: true" in state
+    assert "reusable_certification_pipeline_deployed_in_company_fabric: false" in state
+
     assert "fabric-data-framework==0.3.0" in combined
     assert "actual_selected_candidate_input_artifact_retained: false" in combined
     assert "control_plane_external_evidence_incomplete" in combined
@@ -136,10 +147,27 @@ def test_domain_release_binding_docs_keep_pr92_as_merged_identity_milestone():
         assert phrase not in combined
 
 
-def test_pr99_is_current_code_and_first_fabric_test_artifact_baseline():
+def test_pr105_is_current_code_and_pr99_is_historical_first_fabric_baseline():
     combined = _combined()
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
 
+    # PR #105 is the current substantive executable Framework baseline.
+    assert "pull_request: 105" in state
+    assert "cb9f9be77a98a0a5aa8c5f85e0fa3d92697c60f0" in state
+    assert "33961766325" in state
+    assert "33961827610" in state
+    assert "13c9c7696f9c657243af1133731bf58600cffb3a78f77bede606a1b00a6c2c79" in state
+    assert "9968172160" in state
+    assert "live_fabric_evidence_retained_for_current_bytes: false" in state
+    assert "real-Fabric execution          NOT YET" in state
+
+    # PR #104 remains the durable Pipeline child milestone.
+    assert "pull_request: 104" in state
+    assert "94cc0c90631a6582c8ba84911bc100195e2fbb86" in state
+    assert "33959169173" in state
+
+    # PR #99 remains historical first-company-Fabric evidence for old bytes only.
+    assert "historical_first_company_fabric_artifact:" in state
     assert "pull_request: 99" in state
     assert "303683729c4915d78200d463a6def01c8de9eae6" in state
     assert "33381590800" in state
@@ -150,8 +178,11 @@ def test_pr99_is_current_code_and_first_fabric_test_artifact_baseline():
     assert "first_company_fabric_test_ready: true" in state
     assert "first_company_fabric_test_executed: true" in state
     assert "first_company_fabric_test_result: bounded_pass" in state
+    assert "evidence_class: historical_old_bytes_only" in state
+    assert "PR #99 is **not current code**" in state
     assert "docs/human/FIRST_FABRIC_NOTEBOOK_TEST.md" in state
     assert "docs/machine/FIRST_COMPANY_FABRIC_TEST_2026-09-03.md" in state
+
     assert "selected_as_frozen_candidate: false" in state
     assert "readiness_required_blockers: 15" in state
 
@@ -215,6 +246,8 @@ def test_business_path_runner_cannot_be_documented_as_candidate_proof_packager()
 def test_latest_candidate_capable_artifact_is_not_frozen():
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
     assert "candidate_status: not_frozen" in state
+    assert "candidate_git_sha: cb9f9be77a98a0a5aa8c5f85e0fa3d92697c60f0" in state
+    assert "wheel_inner_sha256: 13c9c7696f9c657243af1133731bf58600cffb3a78f77bede606a1b00a6c2c79" in state
     assert "selected_as_frozen_candidate: false" in state
     assert "release_allowed: false" in state
     assert "readiness_required_blockers: 15" in state
