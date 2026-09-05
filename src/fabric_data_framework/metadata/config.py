@@ -16,7 +16,6 @@ from ..contracts.base import FrozenModel as _FrozenModel
 from ..contracts.schema import SchemaContract
 
 
-
 class CaptureStrategy(str, Enum):
     FULL = "FULL"
     WATERMARK = "WATERMARK"
@@ -88,6 +87,13 @@ class ProgressOwner(str, Enum):
     FRAMEWORK = "FRAMEWORK"
     FABRIC_NATIVE = "FABRIC_NATIVE"
     EXTERNAL = "EXTERNAL"
+
+
+class QuarantineDetailMode(str, Enum):
+    """Where row-level DQ failure detail must be retained."""
+
+    FULL = "FULL"
+    REFERENCE_ONLY = "REFERENCE_ONLY"
 
 
 class SourceConfig(_FrozenModel):
@@ -210,8 +216,21 @@ class OrchestrationPolicy(_FrozenModel):
 
 
 class DataQualityPolicy(_FrozenModel):
+    """Source-controlled DQ/quarantine behavior for one dataset.
+
+    ``enabled`` controls whether row rules execute at all. ``quarantine_enabled``
+    determines whether invalid rows are isolated while valid rows continue, or whether
+    any invalid row fails the dataset. FULL detail is the production default: every
+    quarantined row must have durable governed data-plane detail, while the Control
+    Plane retains only summary/reference evidence. ``quarantine_policy`` remains as the
+    existing domain policy name for backward-compatible business semantics.
+    """
+
     policy_name: str = Field(min_length=1)
     quarantine_policy: str = Field(min_length=1)
+    enabled: bool = True
+    quarantine_enabled: bool = True
+    quarantine_detail_mode: QuarantineDetailMode = QuarantineDetailMode.FULL
 
 
 class ReconciliationPolicy(_FrozenModel):
@@ -287,9 +306,15 @@ class OverrideField(str, Enum):
     BATCH_SIZE = "orchestration.batch_size"
     MAX_CONCURRENCY = "orchestration.max_concurrency"
     WATERMARK_OVERLAP_SECONDS = "load.watermark.overlap_window_seconds"
+    DATA_QUALITY_ENABLED = "quality.enabled"
+    QUARANTINE_ENABLED = "quality.quarantine_enabled"
 
 
-_BOOL_OVERRIDE_FIELDS = {OverrideField.ENABLED}
+_BOOL_OVERRIDE_FIELDS = {
+    OverrideField.ENABLED,
+    OverrideField.DATA_QUALITY_ENABLED,
+    OverrideField.QUARANTINE_ENABLED,
+}
 _NONNEGATIVE_INT_OVERRIDE_FIELDS = {
     OverrideField.PRIORITY,
     OverrideField.RETRY_COUNT,
@@ -426,6 +451,11 @@ def _apply_override(config: DatasetConfig, override: RuntimeOverride) -> Dataset
         watermark = config.load.watermark.model_copy(update={"overlap_window_seconds": value})
         load = config.load.model_copy(update={"watermark": watermark})
         return config.model_copy(update={"load": load})
+
+    if field in {OverrideField.DATA_QUALITY_ENABLED, OverrideField.QUARANTINE_ENABLED}:
+        attribute = field.value.split(".")[-1]
+        quality = config.quality.model_copy(update={attribute: value})
+        return config.model_copy(update={"quality": quality})
 
     raise ValueError(f"unsupported override field: {field}")
 
