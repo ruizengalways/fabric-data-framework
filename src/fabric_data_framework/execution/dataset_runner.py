@@ -8,7 +8,13 @@ from typing import Any, Callable, Mapping, Sequence
 from uuid import UUID, uuid4
 
 from fabric_data_framework.data_plane.bronze import BronzeRecord, normalize_bronze
-from fabric_data_framework.metadata.config import ApplyStrategy, CaptureStrategy, DatasetStatus, RunMode
+from fabric_data_framework.metadata.config import (
+    ApplyStrategy,
+    CaptureStrategy,
+    DatasetStatus,
+    QuarantineDetailMode,
+    RunMode,
+)
 from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
     RowAccounting,
@@ -23,7 +29,8 @@ from fabric_data_framework.contracts.reconciliation import (
     ReconciliationResult,
     ReconciliationStatus,
 )
-from ..quality.rules import QuarantinedRecord, RowRule, validate_records
+from ..quality.rules import QuarantinedRecord, RowRule, ValidationOutcome, validate_records
+from ..quality.quarantine_store import QuarantinePayloadWriter
 from fabric_data_framework.quality.reconciliation import reconcile_scd2_batch
 from ..control_plane.repository import ControlPlaneRepository
 from fabric_data_framework.contracts.runtime import StateCommitGate, WatermarkPosition, WatermarkTransition
@@ -54,6 +61,7 @@ def _record_step(
     dataset_run_id: UUID,
     step_name: str,
     status: StepStatus,
+    details: dict[str, object] | None = None,
 ) -> None:
     now = _utcnow()
     repository.record_step_run(
@@ -63,8 +71,97 @@ def _record_step(
             status=status,
             started_at=now,
             completed_at=now,
+            details=details,
         )
     )
+
+
+def _reason_summary(rows: tuple[QuarantinedRecord, ...]) -> tuple[str, str]:
+    codes = sorted({code for item in rows for code in item.reason_codes})
+    messages = sorted({message for item in rows for message in item.reason_messages})
+    return "|".join(codes), " | ".join(messages)
+
+
+def _record_row_quarantine(
+    repository: ControlPlaneRepository,
+    *,
+    dataset_run_id: UUID,
+    dataset_id: str,
+    quarantined: tuple[QuarantinedRecord, ...],
+    detail_mode: QuarantineDetailMode,
+    quarantine_store: QuarantinePayloadWriter | None,
+) -> None:
+    if not quarantined:
+        return
+
+    if detail_mode is QuarantineDetailMode.FULL:
+        if quarantine_store is None:
+            raise RuntimeError(
+                "FULL row quarantine requires a governed QuarantinePayloadWriter"
+            )
+        quarantine_id = uuid4()
+        source_reference = quarantine_store.write_payload(
+            quarantine_id=quarantine_id,
+            dataset_run_id=dataset_run_id,
+            dataset_id=dataset_id,
+            rows=quarantined,
+        )
+        reason_code, reason_detail = _reason_summary(quarantined)
+        repository.record_quarantine(
+            QuarantineBatch(
+                quarantine_id=quarantine_id,
+                dataset_run_id=dataset_run_id,
+                dataset_id=dataset_id,
+                scope=QuarantineScope.ROW,
+                row_count=len(quarantined),
+                reason_code=reason_code,
+                reason_detail=reason_detail,
+                source_reference=source_reference,
+            )
+        )
+        return
+
+    # Backward-compatible reference-only mode. It deliberately does not claim durable
+    # full-row detail; each row retains the best source sequence reference available.
+    for item in quarantined:
+        repository.record_quarantine(
+            QuarantineBatch(
+                dataset_run_id=dataset_run_id,
+                dataset_id=dataset_id,
+                scope=QuarantineScope.ROW,
+                row_count=1,
+                reason_code="|".join(item.reason_codes),
+                reason_detail=" | ".join(item.reason_messages),
+                source_reference=(
+                    str(item.record.source_sequence)
+                    if item.record.source_sequence is not None
+                    else None
+                ),
+            )
+        )
+
+
+def _quarantine_threshold_breaches(config, *, invalid_rows: int, total_rows: int) -> tuple[str, ...]:
+    if invalid_rows == 0 or not config.quality.quarantine_enabled:
+        return ()
+    breaches: list[str] = []
+    if (
+        config.quality.max_quarantine_rows is not None
+        and invalid_rows > config.quality.max_quarantine_rows
+    ):
+        breaches.append(
+            f"rows={invalid_rows}>{config.quality.max_quarantine_rows}"
+        )
+    fraction = invalid_rows / total_rows if total_rows else 0.0
+    if (
+        config.quality.max_quarantine_fraction is not None
+        and fraction > config.quality.max_quarantine_fraction
+    ):
+        breaches.append(
+            "fraction="
+            f"{fraction:.6f}>{config.quality.max_quarantine_fraction:.6f}"
+        )
+    return tuple(breaches)
 
 
 def execute_watermark_scd2(
@@ -79,14 +176,23 @@ def execute_watermark_scd2(
     dataset_run_id: UUID | None = None,
     run_mode: RunMode = RunMode.NORMAL,
     effective_config_hash: str | None = None,
+    quarantine_store: QuarantinePayloadWriter | None = None,
     force_reconciliation_failure: bool = False,
 ) -> DatasetExecutionResult:
     """Execute the first reference strategy combination atomically in memory.
 
     Proposed SCD2 target rows are calculated before reconciliation, but target and
-    watermark commits occur only after the required reconciliation passes. Row-level
-    quarantine is treated as handled input and can advance state; batch quarantine is
-    a different state that blocks commit.
+    watermark commits occur only after the required gates pass. Data-quality behavior
+    comes from ``config.quality``:
+
+    - DQ disabled: validation rules are skipped and all captured rows continue.
+    - DQ enabled + quarantine enabled: bad rows are isolated; valid rows continue.
+      FULL detail requires a governed data-plane payload writer and Control Plane keeps
+      only summary/reference evidence.
+    - DQ enabled + quarantine disabled: any invalid row fails this dataset and blocks
+      target/state commit, while the parent dispatcher can still run sibling datasets.
+    - Quarantine thresholds: invalid rows are still durably quarantined, but exceeding
+      the configured absolute or fractional budget fails the dataset before state commit.
     """
 
     config = repository.get_dataset(dataset_id)
@@ -128,32 +234,79 @@ def execute_watermark_scd2(
         status=StepStatus.SUCCEEDED,
     )
 
-    validation = validate_records(bronze, rules)
-    _record_step(
-        repository,
-        dataset_run_id=dataset_run_id,
-        step_name="VALIDATE",
-        status=StepStatus.SUCCEEDED,
+    if config.quality.enabled:
+        validation = validate_records(bronze, rules)
+        invalid_fraction = len(validation.quarantined) / len(bronze) if bronze else 0.0
+        _record_step(
+            repository,
+            dataset_run_id=dataset_run_id,
+            step_name="VALIDATE",
+            status=StepStatus.SUCCEEDED,
+            details={
+                "rows_accepted": len(validation.accepted),
+                "rows_invalid": len(validation.quarantined),
+                "invalid_fraction": invalid_fraction,
+            },
+        )
+    else:
+        validation = ValidationOutcome(accepted=bronze, quarantined=())
+        _record_step(
+            repository,
+            dataset_run_id=dataset_run_id,
+            step_name="VALIDATE",
+            status=StepStatus.SKIPPED,
+            details={"reason": "data_quality_disabled"},
+        )
+
+    threshold_breaches = _quarantine_threshold_breaches(
+        config,
+        invalid_rows=len(validation.quarantined),
+        total_rows=len(bronze),
+    )
+    hard_dq_failure = bool(validation.quarantined) and (
+        not config.quality.quarantine_enabled or bool(threshold_breaches)
     )
 
-    for item in validation.quarantined:
-        repository.record_quarantine(
-            QuarantineBatch(
-                dataset_run_id=dataset_run_id,
-                dataset_id=dataset_id,
-                scope=QuarantineScope.ROW,
-                row_count=1,
-                reason_code="|".join(item.reason_codes),
-                reason_detail=" | ".join(item.reason_messages),
-                source_reference=str(item.record.source_sequence),
-            )
+    if validation.quarantined and config.quality.quarantine_enabled:
+        _record_row_quarantine(
+            repository,
+            dataset_run_id=dataset_run_id,
+            dataset_id=dataset_id,
+            quarantined=validation.quarantined,
+            detail_mode=config.quality.quarantine_detail_mode,
+            quarantine_store=quarantine_store,
         )
-    _record_step(
-        repository,
-        dataset_run_id=dataset_run_id,
-        step_name="QUARANTINE",
-        status=StepStatus.SUCCEEDED,
-    )
+        _record_step(
+            repository,
+            dataset_run_id=dataset_run_id,
+            step_name="QUARANTINE",
+            status=StepStatus.SUCCEEDED,
+            details={
+                "rows_quarantined": len(validation.quarantined),
+                "detail_mode": config.quality.quarantine_detail_mode.value,
+                "threshold_breached": bool(threshold_breaches),
+                "threshold_breaches": list(threshold_breaches),
+            },
+        )
+    elif hard_dq_failure:
+        _record_step(
+            repository,
+            dataset_run_id=dataset_run_id,
+            step_name="QUARANTINE",
+            status=StepStatus.SKIPPED,
+            details={
+                "reason": "quarantine_disabled",
+                "rows_invalid": len(validation.quarantined),
+            },
+        )
+    else:
+        _record_step(
+            repository,
+            dataset_run_id=dataset_run_id,
+            step_name="QUARANTINE",
+            status=StepStatus.SKIPPED,
+            details={"reason": "no_invalid_rows_or_dq_disabled"},
+        )
 
     mapped = tuple(mapper(record.data) for record in validation.accepted)
     _record_step(
@@ -205,12 +358,13 @@ def execute_watermark_scd2(
         ),
     )
 
-    passed = reconciliation.status is ReconciliationStatus.PASS
+    reconciliation_passed = reconciliation.status is ReconciliationStatus.PASS
+    passed = reconciliation_passed and not hard_dq_failure
     gate = StateCommitGate(
         target_committed=passed,
         reconciliation_required=config.reconciliation.required_for_state_commit,
-        reconciliation_passed=passed,
-        batch_quarantined=False,
+        reconciliation_passed=reconciliation_passed,
+        batch_quarantined=hard_dq_failure,
     )
 
     status: DatasetStatus
@@ -233,7 +387,28 @@ def execute_watermark_scd2(
             dataset_run_id=dataset_run_id,
             step_name="COMMIT_STATE",
             status=StepStatus.SKIPPED,
+            details={"reason": "dataset_gate_failed"},
         )
+
+    if validation.quarantined and not config.quality.quarantine_enabled:
+        error_code = "DATA_QUALITY_FAILED_QUARANTINE_DISABLED"
+        reason_code, reason_detail = _reason_summary(validation.quarantined)
+        error_message = (
+            f"{len(validation.quarantined)} row(s) failed data quality while quarantine "
+            f"was disabled; rules={reason_code}; detail={reason_detail}"
+        )
+    elif threshold_breaches:
+        error_code = "DATA_QUALITY_QUARANTINE_THRESHOLD_EXCEEDED"
+        error_message = (
+            f"{len(validation.quarantined)} quarantined row(s) exceeded configured DQ budget: "
+            + ", ".join(threshold_breaches)
+        )
+    elif not reconciliation_passed:
+        error_code = "RECONCILIATION_FAILED"
+        error_message = "required reconciliation gate failed"
+    else:
+        error_code = None
+        error_message = None
 
     repository.record_dataset_run(
         DatasetRunAudit(
@@ -252,8 +427,8 @@ def execute_watermark_scd2(
                     update={"inserted": 0, "updated": 0, "deleted": 0}
                 )
             ),
-            error_code=None if passed else "RECONCILIATION_FAILED",
-            error_message=None if passed else "required reconciliation gate failed",
+            error_code=error_code,
+            error_message=error_message,
             retryable=False if not passed else None,
         )
     )

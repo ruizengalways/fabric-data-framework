@@ -23,6 +23,7 @@ from fabric_data_framework.metadata.config import (
 from fabric_data_framework.orchestration.dispatcher import (
     DatasetDispatchOutcome,
     OrchestrationIntegrityError,
+    PipelineFailurePolicy,
     dispatch_datasets,
 )
 from fabric_data_framework.contracts.audit import DatasetRunAudit
@@ -121,7 +122,7 @@ def _dispatch(repository, resolver, **kwargs):
     )
 
 
-def test_non_critical_failure_is_partial_success_and_siblings_continue():
+def test_non_critical_failure_runs_all_siblings_then_fails_parent_by_default():
     repository = InMemoryControlPlane()
     repository.deploy_dataset(_config("customer", criticality=Criticality.HIGH))
     repository.deploy_dataset(_config("contact", criticality=Criticality.LOW))
@@ -141,10 +142,39 @@ def test_non_critical_failure_is_partial_success_and_siblings_continue():
         ),
     )
 
-    assert result.status is PipelineStatus.PARTIAL_SUCCESS
+    assert result.status is PipelineStatus.FAILED
     assert set(calls) == {"customer", "contact", "address"}
     assert result.outcome_for("contact").status is DatasetStatus.FAILED
-    assert repository.pipeline_runs[-1].status is PipelineStatus.PARTIAL_SUCCESS
+    final = repository.pipeline_runs[-1]
+    assert final.status is PipelineStatus.FAILED
+    assert final.error_code == "DATASET_FAILURES_AT_END"
+    assert "contact[FAILED/TEST_FAILURE]: intentional test failure" in final.error_message
+
+
+def test_legacy_criticality_aware_mode_can_return_partial_success():
+    repository = InMemoryControlPlane()
+    repository.deploy_dataset(_config("customer", criticality=Criticality.HIGH))
+    repository.deploy_dataset(_config("contact", criticality=Criticality.LOW))
+    calls: list[str] = []
+
+    result = _dispatch(
+        repository,
+        _resolver(
+            repository,
+            {
+                "customer": DatasetStatus.SUCCEEDED,
+                "contact": DatasetStatus.FAILED,
+            },
+            calls,
+        ),
+        failure_policy=PipelineFailurePolicy.CRITICALITY_AWARE,
+    )
+
+    assert result.status is PipelineStatus.PARTIAL_SUCCESS
+    assert set(calls) == {"customer", "contact"}
+    final = repository.pipeline_runs[-1]
+    assert final.error_code == "DATASET_WARNINGS_AT_END"
+    assert "contact" in final.error_message
 
 
 def test_critical_failure_fails_parent_only_after_independent_sibling_runs():
@@ -170,7 +200,7 @@ def test_critical_failure_fails_parent_only_after_independent_sibling_runs():
     assert repository.pipeline_runs[-1].status is PipelineStatus.FAILED
 
 
-def test_failed_dependency_blocks_only_dependents():
+def test_failed_dependency_blocks_only_dependents_and_parent_fails_at_end():
     repository = InMemoryControlPlane()
     repository.deploy_dataset(_config("source", criticality=Criticality.LOW))
     repository.deploy_dataset(
@@ -203,9 +233,11 @@ def test_failed_dependency_blocks_only_dependents():
         item for item in repository.dataset_runs if item.dataset_id == "dependent"
     )
     assert blocked_audit.error_code == "BLOCKED_DEPENDENCY"
+    assert "source" in repository.pipeline_runs[-1].error_message
+    assert "dependent" in repository.pipeline_runs[-1].error_message
 
 
-def test_executor_exception_is_isolated_and_audited():
+def test_executor_exception_is_isolated_audited_and_parent_fails_only_after_sibling():
     repository = InMemoryControlPlane()
     repository.deploy_dataset(_config("bad", criticality=Criticality.LOW))
     repository.deploy_dataset(_config("good", criticality=Criticality.MEDIUM))
@@ -223,13 +255,14 @@ def test_executor_exception_is_isolated_and_audited():
         ),
     )
 
-    assert result.status is PipelineStatus.PARTIAL_SUCCESS
+    assert result.status is PipelineStatus.FAILED
     assert set(calls) == {"bad", "good"}
     failure = result.outcome_for("bad")
     assert failure.status is DatasetStatus.FAILED
     assert failure.error_code == "EXECUTOR_EXCEPTION"
     fallback = next(item for item in repository.dataset_runs if item.dataset_id == "bad")
     assert fallback.error_code == "EXECUTOR_EXCEPTION"
+    assert "bad[FAILED/EXECUTOR_EXCEPTION]" in repository.pipeline_runs[-1].error_message
 
 
 def test_dispatcher_respects_bounded_concurrency():
@@ -297,4 +330,7 @@ def test_dependency_cycle_fails_as_orchestration_integrity_error_before_executio
         )
 
     assert calls == []
-    assert repository.pipeline_runs[-1].status is PipelineStatus.FAILED
+    final = repository.pipeline_runs[-1]
+    assert final.status is PipelineStatus.FAILED
+    assert final.error_code == "ORCHESTRATION_INTEGRITY_ERROR"
+    assert "dependency cycle" in final.error_message

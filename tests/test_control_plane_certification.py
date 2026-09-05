@@ -2,7 +2,11 @@ from datetime import datetime, timezone
 
 from sqlalchemy import create_engine
 
-from fabric_data_framework.control_plane.schema import apply_baseline_schema, dataset
+from fabric_data_framework.control_plane.schema import (
+    CONTROL_PLANE_SCHEMA_VERSION,
+    apply_baseline_schema,
+    dataset,
+)
 from fabric_data_framework.control_plane.certification import (
     AZURE_SQL_DATABASE_V1,
     FABRIC_SQL_DATABASE_V1,
@@ -36,7 +40,7 @@ def test_sqlite_reference_can_pass_full_deterministic_conformance_without_becomi
     )
 
     assert report.observed_dialect == "sqlite"
-    assert report.schema_version == 4
+    assert report.schema_version == CONTROL_PLANE_SCHEMA_VERSION == 5
     assert report.automated_checks_passed is True
     assert report.conformance_passed is True
     assert report.reference_certified is True

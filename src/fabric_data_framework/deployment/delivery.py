@@ -11,6 +11,7 @@ from typing import Iterable
 from sqlalchemy import Engine, and_, select, update
 
 from fabric_data_framework.metadata.config import DatasetConfig, canonical_hash
+from ..contracts.group_policy import ExecutionGroupPolicy
 from ..control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     apply_baseline_schema,
@@ -49,11 +50,50 @@ def load_dataset_configs(config_dir: str | Path) -> tuple[DatasetConfig, ...]:
     return tuple(sorted(configs, key=lambda config: config.dataset_id))
 
 
-def config_bundle_hash(configs: Iterable[DatasetConfig]) -> str:
+def load_execution_group_policies(
+    config_dir: str | Path,
+) -> tuple[ExecutionGroupPolicy, ...]:
+    """Load source-controlled parent-Pipeline policies from JSON files."""
+
+    root = Path(config_dir)
+    paths = sorted(root.glob("*.json"))
+    if not paths:
+        raise ValueError(f"no execution-group policy JSON files found in {root}")
+    policies = tuple(
+        ExecutionGroupPolicy.model_validate_json(path.read_text(encoding="utf-8"))
+        for path in paths
+    )
+    groups = [policy.execution_group for policy in policies]
+    if len(set(groups)) != len(groups):
+        raise ValueError("execution-group policy bundle contains duplicate execution_group values")
+    return tuple(sorted(policies, key=lambda policy: policy.execution_group))
+
+
+def config_bundle_hash(
+    configs: Iterable[DatasetConfig],
+    execution_group_policies: Iterable[ExecutionGroupPolicy] = (),
+) -> str:
     ordered = sorted(configs, key=lambda config: config.dataset_id)
     if not ordered:
         raise ValueError("config bundle must contain at least one dataset")
-    return canonical_hash([config.model_dump(mode="json") for config in ordered])
+    policies = sorted(
+        execution_group_policies,
+        key=lambda policy: policy.execution_group,
+    )
+    groups = [policy.execution_group for policy in policies]
+    if len(set(groups)) != len(groups):
+        raise ValueError("config bundle contains duplicate execution_group policies")
+
+    # Preserve the historical dataset-only hash when no group policy is supplied.
+    # Once group policies are adopted, their exact bytes become part of release identity.
+    if not policies:
+        return canonical_hash([config.model_dump(mode="json") for config in ordered])
+    return canonical_hash(
+        {
+            "datasets": [config.model_dump(mode="json") for config in ordered],
+            "execution_groups": [policy.model_dump(mode="json") for policy in policies],
+        }
+    )
 
 
 def artifact_sha256(path: str | Path) -> str:
@@ -74,10 +114,12 @@ def build_release_manifest(
     config_schema_version: int,
     fabric_item_manifest_version: str,
     build_id: str,
+    execution_group_policies: Iterable[ExecutionGroupPolicy] = (),
     artifacts: dict[str, str | Path] | None = None,
     generated_at: datetime | None = None,
 ) -> ReleaseManifest:
     config_tuple = tuple(configs)
+    group_policy_tuple = tuple(execution_group_policies)
     digests = {
         name: artifact_sha256(path) for name, path in sorted((artifacts or {}).items())
     }
@@ -87,7 +129,7 @@ def build_release_manifest(
             domain_release_version=domain_release_version,
             domain_git_sha=domain_git_sha,
             framework_version=framework_version,
-            config_bundle_hash=config_bundle_hash(config_tuple),
+            config_bundle_hash=config_bundle_hash(config_tuple, group_policy_tuple),
             config_schema_version=config_schema_version,
             control_plane_schema_version=CONTROL_PLANE_SCHEMA_VERSION,
             fabric_item_manifest_version=fabric_item_manifest_version,
@@ -144,11 +186,18 @@ def materialize_semantic_metadata(
     domain: str,
     domain_git_sha: str,
     framework_version: str,
+    execution_group_policies: Iterable[ExecutionGroupPolicy] = (),
 ) -> str:
-    """Idempotently materialize Git semantic definitions while preserving runtime state."""
+    """Idempotently materialize Git semantic definitions while preserving runtime state.
+
+    Execution-group policy remains a source-controlled release input rather than a
+    second mutable Control Plane configuration source. Its exact content is still bound
+    into the returned config bundle hash when supplied.
+    """
 
     config_tuple = tuple(sorted(configs, key=lambda config: config.dataset_id))
-    bundle_hash = config_bundle_hash(config_tuple)
+    group_policy_tuple = tuple(execution_group_policies)
+    bundle_hash = config_bundle_hash(config_tuple, group_policy_tuple)
     apply_baseline_schema(engine)
     now = datetime.now(timezone.utc)
 
@@ -304,7 +353,7 @@ def materialize_semantic_metadata(
                 "dataset_id": config.dataset_id,
                 "policy_name": config.quality.policy_name,
                 "quarantine_policy": config.quality.quarantine_policy,
-                "definition": None,
+                "definition": config.quality.model_dump(mode="json"),
                 "created_at": now,
                 "updated_at": None,
             }

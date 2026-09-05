@@ -1,4 +1,7 @@
 from datetime import datetime, timezone
+import json
+from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from fabric_data_framework.metadata.config import (
     ApplyStrategy,
@@ -8,6 +11,7 @@ from fabric_data_framework.metadata.config import (
     DatasetConfig,
     LoadPolicy,
     OrchestrationPolicy,
+    QuarantineDetailMode,
     ReconciliationPolicy,
     SourceConfig,
     TargetConfig,
@@ -15,6 +19,7 @@ from fabric_data_framework.metadata.config import (
 )
 from fabric_data_framework.execution import execute_watermark_scd2
 from fabric_data_framework.quality.rules import RowRule
+from fabric_data_framework.quality.quarantine_store import JsonFileQuarantineStore
 from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 from fabric_data_framework.apply.scd2 import InMemorySCD2Target, IS_CURRENT
 
@@ -23,7 +28,7 @@ def dt(hour: int):
     return datetime(2026, 8, 1, hour, tzinfo=timezone.utc)
 
 
-def config():
+def config(*, dq_enabled=True, quarantine_enabled=True):
     return DatasetConfig(
         dataset_id="crm.customer",
         source=SourceConfig(system="crm", object="dbo.Customer"),
@@ -38,16 +43,32 @@ def config():
             tracked_columns=("name", "segment"),
         ),
         orchestration=OrchestrationPolicy(execution_group="crm_daily", criticality=Criticality.HIGH),
-        quality=DataQualityPolicy(policy_name="customer", quarantine_policy="row"),
+        quality=DataQualityPolicy(
+            policy_name="customer",
+            quarantine_policy="row",
+            enabled=dq_enabled,
+            quarantine_enabled=quarantine_enabled,
+            quarantine_detail_mode=QuarantineDetailMode.FULL,
+        ),
         reconciliation=ReconciliationPolicy(policy_name="count_and_key"),
     )
 
 
-def test_reference_executor_quarantines_row_and_commits_valid_target_and_watermark():
+def _email_rule():
+    return (
+        RowRule(
+            "EMAIL_VALID",
+            "email must contain @",
+            lambda row: "@" in str(row.get("email", "")),
+        ),
+    )
+
+
+def test_reference_executor_quarantines_row_with_durable_detail_and_commits_valid_rows(tmp_path):
     cp = InMemoryControlPlane()
     cp.deploy_dataset(config())
     target = InMemorySCD2Target()
-    rules = (RowRule("EMAIL_VALID", "email must contain @", lambda row: "@" in str(row.get("email", ""))),)
+    store = JsonFileQuarantineStore(tmp_path / "quarantine")
 
     result = execute_watermark_scd2(
         repository=cp,
@@ -57,8 +78,9 @@ def test_reference_executor_quarantines_row_and_commits_valid_target_and_waterma
             {"customer_id": "C001", "name": "Alice", "segment": "A", "email": "alice@example.com", "modified_at": dt(10)},
             {"customer_id": "C002", "name": "Bad", "segment": "A", "email": "invalid", "modified_at": dt(11)},
         ],
-        rules=rules,
+        rules=_email_rule(),
         mapper=lambda row: dict(row),
+        quarantine_store=store,
     )
     assert result.status.value == "SUCCEEDED"
     assert len(result.bronze) == 2
@@ -68,10 +90,77 @@ def test_reference_executor_quarantines_row_and_commits_valid_target_and_waterma
     assert result.watermark_after.value == dt(11)
     assert len(cp.quarantine_batches) == 1
 
+    batch = cp.quarantine_batches[0]
+    assert batch.row_count == 1
+    assert batch.reason_code == "EMAIL_VALID"
+    assert batch.source_reference is not None
+    parsed = urlparse(batch.source_reference)
+    payload = json.loads(Path(unquote(parsed.path)).read_text(encoding="utf-8"))
+    assert payload["dataset_id"] == "crm.customer"
+    assert payload["row_count"] == 1
+    assert payload["rows"][0]["data"]["customer_id"] == "C002"
+    assert payload["rows"][0]["data"]["email"] == "invalid"
+    assert payload["rows"][0]["data_quality_failures"] == [
+        {"rule_code": "EMAIL_VALID", "rule_message": "email must contain @"}
+    ]
+
+
+def test_quarantine_disabled_makes_bad_row_fail_dataset_without_target_or_state_commit():
+    cp = InMemoryControlPlane()
+    cp.deploy_dataset(config(quarantine_enabled=False))
+    target = InMemorySCD2Target()
+
+    result = execute_watermark_scd2(
+        repository=cp,
+        target=target,
+        dataset_id="crm.customer",
+        source_rows=[
+            {"customer_id": "C001", "name": "Alice", "segment": "A", "email": "alice@example.com", "modified_at": dt(10)},
+            {"customer_id": "C002", "name": "Bad", "segment": "A", "email": "invalid", "modified_at": dt(11)},
+        ],
+        rules=_email_rule(),
+        mapper=lambda row: dict(row),
+    )
+
+    assert result.status.value == "FAILED"
+    assert target.read() == ()
+    assert cp.get_watermark("crm.customer") is None
+    assert cp.quarantine_batches == []
+    audit = cp.dataset_runs[-1]
+    assert audit.error_code == "DATA_QUALITY_FAILED_QUARANTINE_DISABLED"
+    assert "EMAIL_VALID" in audit.error_message
+    assert audit.row_accounting.rows_quarantined == 1
+
+
+def test_data_quality_disabled_skips_rules_and_does_not_quarantine():
+    cp = InMemoryControlPlane()
+    cp.deploy_dataset(config(dq_enabled=False))
+    target = InMemorySCD2Target()
+
+    result = execute_watermark_scd2(
+        repository=cp,
+        target=target,
+        dataset_id="crm.customer",
+        source_rows=[
+            {"customer_id": "C002", "name": "Bad", "segment": "A", "email": "invalid", "modified_at": dt(11)},
+        ],
+        rules=_email_rule(),
+        mapper=lambda row: dict(row),
+    )
+
+    assert result.status.value == "SUCCEEDED"
+    assert len(result.target_rows) == 1
+    assert result.quarantined == ()
+    assert cp.quarantine_batches == []
+    validate_step = next(item for item in cp.step_runs if item.step_name == "VALIDATE")
+    assert validate_step.status.value == "SKIPPED"
+    assert validate_step.details == {"reason": "data_quality_disabled"}
+
 
 def test_failed_reconciliation_commits_neither_target_nor_watermark():
     cp = InMemoryControlPlane()
-    cp.deploy_dataset(config())
+    cfg = config()
+    cp.deploy_dataset(cfg)
     target = InMemorySCD2Target()
     source = [{"customer_id": "C001", "name": "Alice", "segment": "A", "modified_at": dt(10)}]
 

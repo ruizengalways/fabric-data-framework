@@ -14,15 +14,64 @@ EXTERNAL                   enterprise/platform control outside this repository
 
 | Capability | Implementation owner | Current evidence |
 |---|---|---|
-| Immutable DatasetConfig / effective config hashing | `metadata/config.py` | REFERENCE + CI PROVEN |
+| Immutable DatasetConfig / effective config hashing | `metadata/config.py` | REFERENCE + CI PROVEN on last green baseline; current PR revalidation required after executable changes |
 | Capture/Bronze semantic presets | `capture/semantic_contracts.py` | REFERENCE + CI PROVEN |
 | FULL/WATERMARK/CDC and SCD1/SCD2 orthogonality | metadata/capture/apply | REFERENCE MODEL + CI PROVEN |
 | APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF | `apply/` | REFERENCE + CI PROVEN |
 | Provider-neutral CDC order/dedupe/checkpoint | capture/data-plane CDC modules | REFERENCE + CI PROVEN |
 | Debezium/Kafka and Delta CDF recovery contracts | CDC adapters | ADAPTER/RECOVERY CONTRACT + CI PROVEN |
 | Typed CaptureReceipt / progress authority | contracts/capabilities | REFERENCE + CI PROVEN |
+| Parent Pipeline fault isolation + fail-at-end aggregation | orchestration planner/dispatcher | REFERENCE; PR revalidation required for current bytes |
+| Source-controlled execution-group defaults + per-dataset DQ patch | `contracts/group_policy.py` + planner | REFERENCE; PR revalidation required for current bytes |
+| DQ enable/quarantine switches + absolute/fraction quarantine budgets | metadata + dataset runner | REFERENCE; PR revalidation required for current bytes |
+| Governed detailed quarantine payload + replay reference | `quality/quarantine_store.py` + recovery replay | REFERENCE; PR revalidation required for current bytes |
+| Conservative Pipeline recovery recommendation plan | `recovery/pipeline.py` | REFERENCE; PR revalidation required for current bytes |
+| Bounded retry / immutable attempt lineage / unknown-commit reconcile-before-retry | `recovery/runtime.py` | REFERENCE + CI PROVEN on prior baseline; composed by current recovery guidance |
 
-Semantic support is not live provider certification. Capture fidelity still upper-bounds truthful downstream history fidelity.
+Semantic support is not live provider certification. Capture fidelity still upper-bounds truthful downstream history fidelity. Current PR executable bytes must pass their own CI before the new rows above become CI PROVEN.
+
+## Normal runtime failure/recovery contract
+
+```text
+independent dataset failure
+  -> record dataset_run failure
+  -> continue independent siblings
+  -> block only dependents
+  -> aggregate parent after terminal states
+
+explicit retryable transient
+  -> bounded retry + backoff + attempt lineage
+
+DQ threshold exceeded
+  -> retain quarantine detail
+  -> fail dataset before target/state commit
+  -> fix data/rule then audited REPLAY
+
+reconciliation failed
+  -> no state advance
+  -> investigate before reprocess
+
+unknown/ambiguous commit
+  -> no blind retry
+  -> reconcile operation/target evidence first
+
+bounded source gap
+  -> BACKFILL
+
+authoritative reset only
+  -> FULL_REBUILD
+```
+
+Execution-group policy precedence is:
+
+```text
+DatasetConfig
+-> group defaults
+-> group per-dataset patch
+-> audited RuntimeOverride
+```
+
+When group policies are supplied to release/config bundle construction, their exact content participates in config-bundle identity. Dataset-only projects preserve the historical hash algorithm.
 
 ## Customer/domain project contract
 
@@ -33,6 +82,7 @@ Semantic support is not live provider certification. Capture fidelity still uppe
 | Dependency/cycle/capability validation | `deployment/project.py` | REFERENCE + CI PROVEN fail-closed |
 | Exact semantic-selection coverage / overclaim guard | deployment + capture onboarding | REFERENCE + CI PROVEN fail-closed |
 | Mixed FULL/WATERMARK/CDC + SCD1/SCD2 in one domain repo | DatasetConfig + project contract | REFERENCE MODEL + CI PROVEN |
+| Execution-group policy file loading / release identity | deployment delivery | REFERENCE; PR revalidation required for current bytes |
 
 Project validation is static/local. It does not create Fabric resources or become live evidence.
 
@@ -59,16 +109,7 @@ No row above is a live Fabric claim until retained exact-candidate execution evi
 | Explicit Pipeline rerun projection | `evidence/integration_evidence_rerun.py` | IMPLEMENTED + CI PROVEN |
 | Approved Pipeline / Copy / Spark / Warehouse runners | `evidence/approved_*_runner.py` | IMPLEMENTED + CI PROVEN RUNNER CONTRACTS |
 | Retained text secret scanning | `evidence/safety.py` | IMPLEMENTED + CI PROVEN fail-closed |
-| Exact candidate integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | MERGED + MAIN CI PROVEN PR #90; no live run |
-
-PR #90 regression provenance:
-
-```text
-merge SHA      7e12a320e73aa06f3e80f57e3deed14a6cc7add0
-final PR CI    33349005817
-main CI        33349064335
-tests          728
-```
+| Exact candidate integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | MERGED; no live selected-candidate run |
 
 Exact integration identity split:
 
@@ -78,12 +119,6 @@ IntegrationEvidence.release_hash
 
 IntegrationEvidence.domain_release_hash
   = exact customer/domain ReleaseManifest.bundle.release_hash
-
-ApprovedIntegrationRunnerConfig.framework_artifact_sha256
-  = exact framework candidate wheel SHA256
-
-ApprovedIntegrationRunnerConfig.release_hash
-  = exact customer/domain release hash
 ```
 
 These hashes must never be assumed equal.
@@ -94,85 +129,16 @@ These hashes must never be assumed equal.
 |---|---|---|
 | 0.4 source-controlled readiness matrix | `release/0.4.0/readiness-spec.json` | CONTRACT + CI PROVEN |
 | Exact candidate source/wheel readiness binding | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN fail-closed |
-| Exact customer/domain readiness binding | `evidence/release_readiness.py` | MERGED + MAIN CI PROVEN PR #92 |
+| Exact customer/domain readiness binding | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN |
 | Generic proof cannot bypass integration-backed gate | `evidence/release_readiness.py` | IMPLEMENTED + CI PROVEN fail-closed |
-| Strict partial release-proof merge | `evidence/release_readiness_merge.py` | MERGED PR #86; exact domain identity MAIN CI PROVEN PR #92 |
+| Strict partial release-proof merge | `evidence/release_readiness_merge.py` | IMPLEMENTED + CI PROVEN |
 | `release-readiness` / `release-proofs-merge` | `cli/release.py` | PRESENTATION + CI PROVEN |
 | Exact candidate wheel manifest | `deployment/candidate_artifact.py` | IMPLEMENTED + CI PROVEN fail-closed |
 | Main CI wheel + SHA256SUMS + CANDIDATE.json | `.github/workflows/ci.yml` | IMPLEMENTED + CI PROVEN |
-| Candidate certification aggregation | `evidence/candidate_certification.py` + workflow | MERGED + MAIN CI PROVEN PR #92 domain identity hardening |
-| Exact certified wheel promotion without rebuild | `.github/workflows/release.yml` | MERGED + MAIN CI PROVEN PR #92 pre-tag domain identity re-check |
-| Candidate non-integration release-proof producer | `.github/workflows/candidate-release-proofs.yml` | MERGED baseline PR #87; domain hardening MAIN CI PROVEN PR #92 |
-| Candidate representative business-path producer | `.github/workflows/candidate-business-path-evidence.yml` | MERGED + MAIN CI PROVEN PR #88; no live run |
-| Candidate integration-evidence producer | `.github/workflows/candidate-integration-evidence.yml` | MERGED + MAIN CI PROVEN PR #90; no live run |
-| Obsolete runner-level unbound business proof path | `evidence/approved_business_path_runner.py` | REMOVED + MAIN CI PROVEN PR #94 |
+| Candidate certification aggregation | `evidence/candidate_certification.py` + workflow | IMPLEMENTED + CI PROVEN |
+| Exact certified wheel promotion without rebuild | `.github/workflows/release.yml` | IMPLEMENTED + CI PROVEN |
 
-Key release milestones:
-
-```text
-strict proof merge PR #86:
-  merge SHA 0f70e037806482c677fccae0ce9432504f2a9885
-  main CI   33342806854
-
-candidate release-proof PR #87:
-  merge SHA 5a2edffe5930e9b8a2a79f66f4580ca4d9df2b4e
-  main CI   33343223496
-
-exact domain binding PR #92:
-  merge SHA     d5eed17f2ec2f869b4e3a448597e6d8d600568ea
-  final PR CI   33356959856
-  main CI       33357032461
-  tests         734
-
-unbound proof cleanup PR #94:
-  merge SHA     abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
-  final PR CI   33357795244
-  main CI       33357846835
-  tests         738
-```
-
-Ordinary CI remains intentionally `release_ready=false` with 15 required blockers.
-
-## Representative live business-path evidence
-
-| Capability | Implementation owner | Current evidence |
-|---|---|---|
-| Five-gate semantic evidence evaluator | `evidence/business_path_evidence.py` | IMPLEMENTED + CI PROVEN PR #88 |
-| Mutating fixture/fault driver with no PASS field | `evidence/business_path_driver.py` | IMPLEMENTED + CI PROVEN PR #88 |
-| Exact five-gate source-controlled plan | `evidence/business_path_plan.py` | IMPLEMENTED + CI PROVEN |
-| Approved business-path runner | `evidence/approved_business_path_runner.py` | IMPLEMENTED + CI PROVEN; report-only boundary MAIN CI PROVEN PR #94 |
-| Exact domain-bound business-path proof packaging | `evidence/business_path_release_proof.py` | MERGED + MAIN CI PROVEN PR #92; sole packaging owner enforced PR #94 |
-| `candidate-business-path-run` CLI | `cli/business_path.py` | PRESENTATION + CI PROVEN; always supplies exact ReleaseManifest |
-| Candidate business-path producer workflow | `.github/workflows/candidate-business-path-evidence.yml` | MERGED + MAIN CI PROVEN PR #88; no live run |
-| Customer business-path/integration input producer | `fabric-customer/.github/workflows/candidate-business-path-inputs.yml` | MERGED + CUSTOMER MAIN CI PROVEN PR #10/#11; no selected-candidate artifact retained |
-
-The runner does not construct `ReleaseReadinessProofBundle`. Candidate proof packaging is owned by `business_path_release_proof.py`, which requires the exact customer `ReleaseManifest`. `release_readiness_merge.py` rejects missing candidate `domain_release_hash` and requires the same value across all partial bundles.
-
-Exact-wheel scan of the PR #94 main artifact found only those two bundle construction owners.
-
-The framework contains no retained live business-path PASS evidence.
-
-## Current candidate-capable main artifact
-
-```text
-source SHA       abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
-main CI          33357846835
-wheel SHA256     d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7
-artifact ID      9745697101
-selected/frozen  false
-```
-
-This is candidate-capable only, not a selected/frozen candidate.
-
-## Customer input contract context
-
-```text
-PR #10 merge                 cda90f1c02fc9606aa64d2d1bd13f2ab89628aab
-PR #11 checkpoint            31f3f506bc1c16a445652de2ad48fe512cfec10a
-customer main CI             33353960915
-customer certification CI    33353960906
-production runtime pin       fabric-data-framework==0.3.0
-```
+Ordinary CI remains intentionally `release_ready=false` with required blockers. No runtime feature or test result in the current PR selects/freezes/releases 0.4.
 
 ## Real proof / release work still missing
 
@@ -180,16 +146,14 @@ production runtime pin       fabric-data-framework==0.3.0
 |---|---|
 | Frozen exact 0.4 candidate | NOT YET |
 | Selected-candidate customer input artifact | NOT YET RETAINED |
-| Candidate integration evidence | workflow merged; NO LIVE RUN / artifact |
-| Candidate business-path evidence | workflow merged; NO LIVE RUN / artifact |
+| Candidate integration evidence | NO SELECTED-CANDIDATE LIVE RUN |
+| Candidate business-path evidence | NO SELECTED-CANDIDATE LIVE RUN |
 | Complete release proof | NOT YET RETAINED |
-| `release-readiness-certified-<candidate SHA>` | NOT YET PRODUCED |
 | Enterprise Fabric identity/workspace authorization | NOT YET RETAINED |
 | Production control-plane certification | NOT YET RETAINED |
-| Live approved Pipeline/Copy/Spark | NOT YET RETAINED |
-| Live Warehouse marker/ambiguous-COMMIT proof | NOT YET RETAINED |
-| Release-readiness blockers = 0 | NOT YET; ordinary CI has 15 blockers |
-| Debezium/Kafka live certification | OUT OF REQUIRED 0.4 SCOPE unless promoted |
+| Live approved Pipeline/Copy/Spark for current bytes | NOT YET RETAINED |
+| Live Warehouse ambiguous-COMMIT proof for current bytes | NOT YET RETAINED |
+| Release-readiness blockers = 0 | NOT YET |
 | Capacity/IAM/network/DR/monitoring/governance | EXTERNAL / NOT YET RETAINED |
 
 ## Historical release truth
@@ -199,3 +163,5 @@ v0.3.0 immutable release = RELEASE PROVEN for v0.3.0
 0.4.0 source             = UNRELEASED / FEATURE FROZEN / READINESS BLOCKED
 release_allowed          = false
 ```
+
+`docs/machine/STATE.md` owns the exact current-main checkpoint. Do not infer an exact executable baseline from this capability matrix while a feature PR is still open.

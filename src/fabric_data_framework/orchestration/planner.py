@@ -16,6 +16,7 @@ from fabric_data_framework.metadata.config import (
     resolve_effective_config,
 )
 from ..contracts.dispatch import DatasetDispatchOutcome
+from ..contracts.group_policy import ExecutionGroupPolicy, PipelineFailurePolicy
 from ..metadata.capabilities import CapabilityRegistry, DEFAULT_CAPABILITY_REGISTRY
 from ..control_plane.repository import ControlPlaneRepository
 
@@ -36,6 +37,8 @@ class DispatchPlan:
     effective_configs: tuple[tuple[str, EffectiveDatasetConfig], ...]
     deployed_dataset_ids: frozenset[str]
     max_concurrency: int
+    failure_policy: PipelineFailurePolicy = PipelineFailurePolicy.FAIL_AT_END
+    execution_group_policy_hash: str | None = None
 
     def effective_for(self, dataset_id: str) -> EffectiveDatasetConfig:
         for candidate, effective in self.effective_configs:
@@ -97,13 +100,19 @@ def build_dispatch_plan(
     *,
     repository: ControlPlaneRepository,
     execution_group: str | None = None,
+    execution_group_policy: ExecutionGroupPolicy | None = None,
     requested_dataset_ids: Iterable[str] | None = None,
     overrides: Iterable[RuntimeOverride] = (),
     max_concurrency: int = 4,
     as_of: datetime | None = None,
     capability_registry: CapabilityRegistry = DEFAULT_CAPABILITY_REGISTRY,
 ) -> DispatchPlan:
-    """Resolve effective metadata and validate engine compatibility before execution."""
+    """Resolve group policy + audited overrides and validate scheduling before execution.
+
+    Precedence is deterministic: DatasetConfig, execution-group defaults, group
+    dataset-specific patch, then audited RuntimeOverride. Group policy is fail-closed:
+    typos that name a dataset outside the governed execution group reject the plan.
+    """
 
     if max_concurrency <= 0:
         raise ValueError("max_concurrency must be positive")
@@ -111,6 +120,30 @@ def build_dispatch_plan(
     evaluation_time = as_of or _utcnow()
     deployed = {config.dataset_id: config for config in repository.list_datasets()}
     deployed_ids = frozenset(deployed)
+
+    if execution_group_policy is not None:
+        if (
+            execution_group is not None
+            and execution_group != execution_group_policy.execution_group
+        ):
+            raise OrchestrationIntegrityError(
+                "execution_group does not match execution_group_policy.execution_group"
+            )
+        execution_group = execution_group_policy.execution_group
+        group_dataset_ids = {
+            dataset_id
+            for dataset_id, config in deployed.items()
+            if config.orchestration.execution_group == execution_group
+        }
+        unknown_policy_ids = sorted(
+            set(execution_group_policy.dataset_quality_overrides) - group_dataset_ids
+        )
+        if unknown_policy_ids:
+            raise OrchestrationIntegrityError(
+                "execution-group policy overrides datasets outside its group: "
+                + ",".join(unknown_policy_ids)
+            )
+
     requested = None if requested_dataset_ids is None else frozenset(requested_dataset_ids)
 
     if requested is not None:
@@ -129,11 +162,21 @@ def build_dispatch_plan(
 
     effective_by_id: dict[str, EffectiveDatasetConfig] = {}
     for dataset_id, base in deployed.items():
+        policy_applied = base
+        if (
+            execution_group_policy is not None
+            and base.orchestration.execution_group == execution_group_policy.execution_group
+        ):
+            policy_applied = execution_group_policy.apply_to(base)
+
         effective = resolve_effective_config(
-            base,
+            policy_applied,
             overrides_by_dataset.get(dataset_id, ()),
             as_of=evaluation_time,
         )
+        if policy_applied is not base:
+            effective = effective.model_copy(update={"base_config_hash": base.config_hash})
+
         config = effective.config
         if not config.enabled:
             continue
@@ -160,7 +203,10 @@ def build_dispatch_plan(
         config_limit = min(
             item.config.orchestration.max_concurrency for item in effective_by_id.values()
         )
-        effective_concurrency = min(max_concurrency, config_limit, len(effective_by_id))
+        limits = [max_concurrency, config_limit, len(effective_by_id)]
+        if execution_group_policy is not None and execution_group_policy.max_concurrency:
+            limits.append(execution_group_policy.max_concurrency)
+        effective_concurrency = min(limits)
     else:
         effective_concurrency = 1
 
@@ -172,6 +218,14 @@ def build_dispatch_plan(
         ),
         deployed_dataset_ids=deployed_ids,
         max_concurrency=effective_concurrency,
+        failure_policy=(
+            execution_group_policy.failure_policy
+            if execution_group_policy is not None
+            else PipelineFailurePolicy.FAIL_AT_END
+        ),
+        execution_group_policy_hash=(
+            execution_group_policy.policy_hash if execution_group_policy is not None else None
+        ),
     )
 
 
@@ -213,12 +267,17 @@ def aggregate_pipeline_status(
     plan: DispatchPlan,
     outcomes: Mapping[str, DatasetDispatchOutcome],
     *,
+    failure_policy: PipelineFailurePolicy | None = None,
     required_criticalities: frozenset[Criticality] = _DEFAULT_REQUIRED_CRITICALITIES,
 ) -> PipelineStatus:
     if not plan.selected_dataset_ids:
         return PipelineStatus.SUCCESS
     if all(outcome.status is DatasetStatus.SUCCEEDED for outcome in outcomes.values()):
         return PipelineStatus.SUCCESS
+
+    policy = failure_policy or plan.failure_policy
+    if policy is PipelineFailurePolicy.FAIL_AT_END:
+        return PipelineStatus.FAILED
 
     for dataset_id, outcome in outcomes.items():
         if (
@@ -231,3 +290,15 @@ def aggregate_pipeline_status(
 
 
 DEFAULT_REQUIRED_CRITICALITIES = _DEFAULT_REQUIRED_CRITICALITIES
+
+__all__ = [
+    "DEFAULT_REQUIRED_CRITICALITIES",
+    "DispatchPlan",
+    "ExecutionGroupPolicy",
+    "OrchestrationIntegrityError",
+    "PipelineFailurePolicy",
+    "aggregate_pipeline_status",
+    "blocking_dependencies",
+    "build_dispatch_plan",
+    "ready_dataset_ids",
+]

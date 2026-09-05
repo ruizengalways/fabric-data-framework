@@ -13,14 +13,35 @@
 | [`GETTING_STARTED.md`](GETTING_STARTED.md) | 本地怎么装、怎么测试、怎么打 wheel、Fabric 里怎么用 |
 | [`CUSTOMER_PROJECT_BOOTSTRAP.md`](CUSTOMER_PROJECT_BOOTSTRAP.md) | 新项目怎么初始化 customer repo，几十/几百张表怎么放在一个产品级 repo 里 |
 | [`DATASET_ONBOARDING.md`](DATASET_ONBOARDING.md) | 来了一个新数据源/新表，到底该选哪种 capture/Bronze/Silver 模式 |
-| [`OPERATIONS.md`](OPERATIONS.md) | CLI 是干什么的，release/evidence/approved run 怎么执行 |
+| [`PIPELINE_OPERATIONS_AND_RECOVERY.md`](PIPELINE_OPERATIONS_AND_RECOVERY.md) | **正常业务 Pipeline 主运维 runbook**：ForEach 多表 fail-at-end、execution-group defaults、DQ/quarantine 阈值、状态审计、RETRY/REPLAY/BACKFILL/FULL_REBUILD 和 incident repair |
+| [`OPERATIONS.md`](OPERATIONS.md) | CLI 是干什么的，release/evidence/approved run 怎么执行，以及 normal runtime recovery 与 certification 的边界 |
 | [`FRAMEWORK_DEVELOPER_CERTIFICATION.md`](FRAMEWORK_DEVELOPER_CERTIFICATION.md) | **Framework 开发者/新员工 certification 主 runbook**：从改代码、PR/main CI、exact artifact、Fabric bounded/full certification、SQL Database/Warehouse runtime binding 到证据交接，一步步 follow |
 | [`ONE_CALL_CERTIFICATION_RUNTIME.md`](ONE_CALL_CERTIFICATION_RUNTIME.md) | one-call runtime mapping、临时 process-env bridge、新 SQL Database 首次 bootstrap、durable Pipeline child 的精确 contract |
 | [`UNIFIED_FABRIC_CERTIFICATION.md`](UNIFIED_FABRIC_CERTIFICATION.md) | unified runner 的 operator contract、状态语义、governance 和 provider-stage 说明 |
-| [`FABRIC_PIPELINE_CHILD_CONTRACT.md`](FABRIC_PIPELINE_CHILD_CONTRACT.md) | 可复用 Fabric child Pipeline/Notebook 必须如何接收 7 个 Framework 参数、验证 exact config/plan 并持久化 DatasetDispatchOutcome |
+| [`FABRIC_PIPELINE_CHILD_CONTRACT.md`](FABRIC_PIPELINE_CHILD_CONTRACT.md) | 可复用 Fabric child Pipeline/Notebook 必须如何接收 Framework 参数、验证 exact config/plan 并持久化 DatasetDispatchOutcome |
 | [`FIRST_FABRIC_NOTEBOOK_TEST.md`](FIRST_FABRIC_NOTEBOOK_TEST.md) | 逐 cell 的诊断/兼容 runbook；新 candidate 默认先用 unified runner，失败时再用这里隔离单项 |
 | [`MANUAL_CERTIFICATION.md`](MANUAL_CERTIFICATION.md) | 旧/manual governance lane 和 Admin Override 的语义；不是新 unified runner 的默认执行方式 |
 | [`RELEASE_CANDIDATE.md`](RELEASE_CANDIDATE.md) | 0.4 feature freeze 后如何聚合 exact-candidate evidence、判断是否允许 release |
+
+## 正常业务 Pipeline 出错从哪里开始
+
+不要先去 certification 文档，也不要第一反应整批 100 张表重跑。先看：
+
+```text
+docs/human/PIPELINE_OPERATIONS_AND_RECOVERY.md
+```
+
+默认产品语义是：
+
+```text
+one table FAIL
+-> independent siblings continue
+-> dependents BLOCKED
+-> all runnable work reaches terminal state
+-> parent Pipeline FAILED at the end
+```
+
+Control Plane 中从 `pipeline_run -> dataset_run -> step_run/reconciliation/quarantine/attempt lineage` 定位 first failure。只有明确 `retryable=true` 的 transient failure 才适合 bounded automatic retry；unknown commit 必须先 reconcile，DQ 要先修数据/rule 再 retry/replay，dependency failure 先恢复 upstream。
 
 ## 如果你在开发这个 Framework，Certification 从哪里开始
 
@@ -128,6 +149,7 @@ fabric-customer
 包括：
 
 - DatasetConfig；
+- execution-group policy；
 - source/target metadata；
 - Fabric workspace/item binding；
 - customer-specific observer / mutation / execution-data extension；

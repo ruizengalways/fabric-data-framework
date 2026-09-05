@@ -2,7 +2,7 @@
 
 Planning/dependency decisions live in ``orchestration.planner`` while concrete
 execution lives behind a ready-wave backend. Both in-process and Fabric/native backends
-consume the same dependency and criticality semantics.
+consume the same dependency and failure semantics.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ from ..contracts.dispatch import (
     ExecutorResolver,
     PipelineDispatchResult,
 )
+from ..contracts.group_policy import ExecutionGroupPolicy, PipelineFailurePolicy
 from ..execution.backends.in_process import execute_ready_wave
 from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
@@ -40,6 +41,9 @@ from .planner import (
     ready_dataset_ids,
 )
 from ..control_plane.repository import ControlPlaneRepository
+
+
+_PIPELINE_ERROR_MESSAGE_LIMIT = 4096
 
 
 def _utcnow() -> datetime:
@@ -131,6 +135,8 @@ def _pipeline_audit(
     domain_git_sha: str,
     framework_version: str,
     config_bundle_hash: str,
+    error_code: str | None = None,
+    error_message: str | None = None,
 ) -> PipelineRunAudit:
     return PipelineRunAudit(
         pipeline_run_id=pipeline_run_id,
@@ -143,7 +149,33 @@ def _pipeline_audit(
         domain_git_sha=domain_git_sha,
         framework_version=framework_version,
         config_bundle_hash=config_bundle_hash,
+        error_code=error_code,
+        error_message=error_message,
     )
+
+
+def _bounded_message(value: str) -> str:
+    if len(value) <= _PIPELINE_ERROR_MESSAGE_LIMIT:
+        return value
+    suffix = "... [truncated]"
+    return value[: _PIPELINE_ERROR_MESSAGE_LIMIT - len(suffix)] + suffix
+
+
+def _aggregate_outcome_error(
+    selected_dataset_ids: tuple[str, ...],
+    outcomes: dict[str, DatasetDispatchOutcome],
+) -> str:
+    failures: list[str] = []
+    for dataset_id in selected_dataset_ids:
+        outcome = outcomes.get(dataset_id)
+        if outcome is None or outcome.status is DatasetStatus.SUCCEEDED:
+            continue
+        error_code = outcome.error_code or outcome.status.value
+        error_message = outcome.error_message or "no dataset error detail"
+        failures.append(
+            f"{dataset_id}[{outcome.status.value}/{error_code}]: {error_message}"
+        )
+    return _bounded_message("; ".join(failures) or "pipeline contained non-success dataset outcomes")
 
 
 def _record_failed_pipeline(
@@ -157,6 +189,8 @@ def _record_failed_pipeline(
     domain_git_sha: str,
     framework_version: str,
     config_bundle_hash: str,
+    error_code: str,
+    error_message: str,
 ) -> None:
     repository.record_pipeline_run(
         _pipeline_audit(
@@ -170,6 +204,8 @@ def _record_failed_pipeline(
             domain_git_sha=domain_git_sha,
             framework_version=framework_version,
             config_bundle_hash=config_bundle_hash,
+            error_code=error_code,
+            error_message=_bounded_message(error_message),
         )
     )
 
@@ -185,14 +221,24 @@ def dispatch_datasets_with_backend(
     config_bundle_hash: str,
     run_mode: RunMode = RunMode.NORMAL,
     execution_group: str | None = None,
+    execution_group_policy: ExecutionGroupPolicy | None = None,
     requested_dataset_ids: Iterable[str] | None = None,
     overrides: Iterable[RuntimeOverride] = (),
     max_concurrency: int = 4,
+    failure_policy: PipelineFailurePolicy | None = None,
     required_criticalities: frozenset[Criticality] = DEFAULT_REQUIRED_CRITICALITIES,
     pipeline_run_id: UUID | None = None,
     as_of: datetime | None = None,
 ) -> PipelineDispatchResult:
-    """Plan once and execute dependency-ready waves through a physical backend."""
+    """Plan once, isolate dataset faults, then aggregate the Pipeline after all work.
+
+    Dataset/provider exceptions are converted to terminal dataset outcomes by the
+    execution backend. Failed dependencies block only their dependents. Independent
+    siblings continue. An execution-group policy can set group-wide DQ/quarantine,
+    concurrency and failure defaults; audited RuntimeOverride values still have final
+    precedence. ``failure_policy`` is an explicit call-site override and otherwise the
+    source-controlled group policy (or FAIL_AT_END) is used.
+    """
 
     started_at = _utcnow()
     pipeline_run_id = pipeline_run_id or uuid4()
@@ -201,12 +247,13 @@ def dispatch_datasets_with_backend(
         plan = build_dispatch_plan(
             repository=repository,
             execution_group=execution_group,
+            execution_group_policy=execution_group_policy,
             requested_dataset_ids=requested_dataset_ids,
             overrides=overrides,
             max_concurrency=max_concurrency,
             as_of=as_of or started_at,
         )
-    except OrchestrationIntegrityError:
+    except OrchestrationIntegrityError as exc:
         _record_failed_pipeline(
             repository,
             pipeline_run_id=pipeline_run_id,
@@ -217,6 +264,8 @@ def dispatch_datasets_with_backend(
             domain_git_sha=domain_git_sha,
             framework_version=framework_version,
             config_bundle_hash=config_bundle_hash,
+            error_code="ORCHESTRATION_INTEGRITY_ERROR",
+            error_message=f"{type(exc).__name__}: {exc}",
         )
         raise
 
@@ -259,6 +308,7 @@ def dispatch_datasets_with_backend(
         ready = ready_dataset_ids(plan, remaining, outcomes)
         if not ready:
             if remaining:
+                message = "dispatcher made no progress; dependency graph is not schedulable"
                 _record_failed_pipeline(
                     repository,
                     pipeline_run_id=pipeline_run_id,
@@ -269,10 +319,10 @@ def dispatch_datasets_with_backend(
                     domain_git_sha=domain_git_sha,
                     framework_version=framework_version,
                     config_bundle_hash=config_bundle_hash,
+                    error_code="ORCHESTRATION_NO_PROGRESS",
+                    error_message=message,
                 )
-                raise OrchestrationIntegrityError(
-                    "dispatcher made no progress; dependency graph is not schedulable"
-                )
+                raise OrchestrationIntegrityError(message)
             break
 
         wave_outcomes = backend.execute_ready_wave(
@@ -286,6 +336,10 @@ def dispatch_datasets_with_backend(
         unexpected = sorted(set(wave_outcomes) - set(ready))
         missing = sorted(set(ready) - set(wave_outcomes))
         if unexpected or missing:
+            message = (
+                "execution backend returned an invalid ready-wave result: "
+                f"missing={missing}, unexpected={unexpected}"
+            )
             _record_failed_pipeline(
                 repository,
                 pipeline_run_id=pipeline_run_id,
@@ -296,19 +350,28 @@ def dispatch_datasets_with_backend(
                 domain_git_sha=domain_git_sha,
                 framework_version=framework_version,
                 config_bundle_hash=config_bundle_hash,
+                error_code="INVALID_READY_WAVE_RESULT",
+                error_message=message,
             )
-            raise OrchestrationIntegrityError(
-                "execution backend returned an invalid ready-wave result: "
-                f"missing={missing}, unexpected={unexpected}"
-            )
+            raise OrchestrationIntegrityError(message)
         outcomes.update(wave_outcomes)
         remaining.difference_update(wave_outcomes)
 
     final_status = aggregate_pipeline_status(
         plan,
         outcomes,
+        failure_policy=failure_policy,
         required_criticalities=required_criticalities,
     )
+    final_error_code: str | None = None
+    final_error_message: str | None = None
+    if final_status is PipelineStatus.FAILED:
+        final_error_code = "DATASET_FAILURES_AT_END"
+        final_error_message = _aggregate_outcome_error(plan.selected_dataset_ids, outcomes)
+    elif final_status is PipelineStatus.PARTIAL_SUCCESS:
+        final_error_code = "DATASET_WARNINGS_AT_END"
+        final_error_message = _aggregate_outcome_error(plan.selected_dataset_ids, outcomes)
+
     repository.record_pipeline_run(
         _pipeline_audit(
             pipeline_run_id=pipeline_run_id,
@@ -321,6 +384,8 @@ def dispatch_datasets_with_backend(
             domain_git_sha=domain_git_sha,
             framework_version=framework_version,
             config_bundle_hash=config_bundle_hash,
+            error_code=final_error_code,
+            error_message=final_error_message,
         )
     )
 
@@ -346,14 +411,16 @@ def dispatch_datasets(
     config_bundle_hash: str,
     run_mode: RunMode = RunMode.NORMAL,
     execution_group: str | None = None,
+    execution_group_policy: ExecutionGroupPolicy | None = None,
     requested_dataset_ids: Iterable[str] | None = None,
     overrides: Iterable[RuntimeOverride] = (),
     max_concurrency: int = 4,
+    failure_policy: PipelineFailurePolicy | None = None,
     required_criticalities: frozenset[Criticality] = DEFAULT_REQUIRED_CRITICALITIES,
     pipeline_run_id: UUID | None = None,
     as_of: datetime | None = None,
 ) -> PipelineDispatchResult:
-    """Backward-compatible in-process dispatcher."""
+    """Backward-compatible in-process dispatcher with fail-at-end aggregation."""
 
     return dispatch_datasets_with_backend(
         repository=repository,
@@ -365,9 +432,11 @@ def dispatch_datasets(
         config_bundle_hash=config_bundle_hash,
         run_mode=run_mode,
         execution_group=execution_group,
+        execution_group_policy=execution_group_policy,
         requested_dataset_ids=requested_dataset_ids,
         overrides=overrides,
         max_concurrency=max_concurrency,
+        failure_policy=failure_policy,
         required_criticalities=required_criticalities,
         pipeline_run_id=pipeline_run_id,
         as_of=as_of,
@@ -378,9 +447,11 @@ __all__ = [
     "DatasetDispatchOutcome",
     "DatasetDispatchRequest",
     "DatasetExecutor",
+    "ExecutionGroupPolicy",
     "ExecutorResolver",
     "OrchestrationIntegrityError",
     "PipelineDispatchResult",
+    "PipelineFailurePolicy",
     "ReadyWaveBackend",
     "dispatch_datasets",
     "dispatch_datasets_with_backend",

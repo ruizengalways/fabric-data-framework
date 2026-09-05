@@ -21,12 +21,13 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 
 
-CONTROL_PLANE_SCHEMA_VERSION = 4
+CONTROL_PLANE_SCHEMA_VERSION = 5
 CONTROL_PLANE_MIGRATIONS = (
     (1, "phase1_initial_control_plane_schema"),
     (2, "execution_policy_ordering_capture_receipt_recovery_and_cdc"),
     (3, "append_identity_semantics"),
     (4, "durable_target_operation_journal"),
+    (5, "pipeline_aggregate_failure_audit"),
 )
 
 NAMING_CONVENTION = {
@@ -237,6 +238,8 @@ pipeline_run = Table(
     Column("framework_version", String(64), nullable=False),
     Column("config_bundle_hash", String(64), nullable=False),
     Column("deployment_id", String(36), nullable=True),
+    Column("error_code", String(128), nullable=True),
+    Column("error_message", Text, nullable=True),
     Column("started_at", DateTime(timezone=True), nullable=False),
     Column("completed_at", DateTime(timezone=True), nullable=True),
 )
@@ -493,22 +496,38 @@ def current_schema_version(engine: Engine) -> int:
     return max(versions, default=0)
 
 
-def _apply_migration(connection, version: int) -> None:
-    if version != 3:
+def _add_column_if_missing(connection, table: Table, column_name: str) -> None:
+    columns = {item["name"] for item in inspect(connection).get_columns(table.name)}
+    if column_name in columns:
         return
-
-    columns = {item["name"] for item in inspect(connection).get_columns(load_policy.name)}
-    if "append_identity" in columns:
-        return
-
     preparer = connection.dialect.identifier_preparer
-    table_name = preparer.quote(load_policy.name)
-    column_name = preparer.quote("append_identity")
-    type_sql = load_policy.c.append_identity.type.compile(dialect=connection.dialect)
+    table_name = preparer.quote(table.name)
+    column = table.c[column_name]
+    quoted_column = preparer.quote(column_name)
+    type_sql = column.type.compile(dialect=connection.dialect)
     connection.exec_driver_sql(
-        f"ALTER TABLE {table_name} ADD COLUMN {column_name} {type_sql} "
-        "DEFAULT '[]' NOT NULL"
+        f"ALTER TABLE {table_name} ADD COLUMN {quoted_column} {type_sql}"
     )
+
+
+def _apply_migration(connection, version: int) -> None:
+    if version == 3:
+        columns = {item["name"] for item in inspect(connection).get_columns(load_policy.name)}
+        if "append_identity" in columns:
+            return
+        preparer = connection.dialect.identifier_preparer
+        table_name = preparer.quote(load_policy.name)
+        column_name = preparer.quote("append_identity")
+        type_sql = load_policy.c.append_identity.type.compile(dialect=connection.dialect)
+        connection.exec_driver_sql(
+            f"ALTER TABLE {table_name} ADD COLUMN {column_name} {type_sql} "
+            "DEFAULT '[]' NOT NULL"
+        )
+        return
+
+    if version == 5:
+        _add_column_if_missing(connection, pipeline_run, "error_code")
+        _add_column_if_missing(connection, pipeline_run, "error_message")
 
 
 def apply_baseline_schema(engine: Engine) -> int:
