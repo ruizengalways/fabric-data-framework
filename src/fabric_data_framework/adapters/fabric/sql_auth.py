@@ -14,12 +14,14 @@ customer/runtime concern, while SQL authentication is a framework concern.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 import re
 import struct
 from typing import Any, Literal
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, event
+from sqlalchemy.dialects.mssql.pyodbc import MSDialect_pyodbc
+from sqlalchemy.engine import URL
 
 
 FABRIC_SQL_AUTH_MODE_ENV_VAR = "FABRIC_SQL_AUTH_MODE"
@@ -28,8 +30,10 @@ FABRIC_SQL_AUTH_MODE_USER = "fabric-user"
 FABRIC_SQL_TOKEN_AUDIENCE = "https://database.windows.net/"
 SQL_COPT_SS_ACCESS_TOKEN = 1256
 
+CONTROL_PLANE_DATABASE_URL_ENV_VAR = "CONTROL_PLANE_DATABASE_URL"
 CONTROL_PLANE_SQL_SERVER_ENV_VAR = "CONTROL_PLANE_SQL_SERVER"
 CONTROL_PLANE_SQL_DATABASE_ENV_VAR = "CONTROL_PLANE_SQL_DATABASE"
+WAREHOUSE_DATABASE_URL_ENV_VAR = "WAREHOUSE_DATABASE_URL"
 WAREHOUSE_SQL_SERVER_ENV_VAR = "WAREHOUSE_SQL_SERVER"
 WAREHOUSE_SQL_DATABASE_ENV_VAR = "WAREHOUSE_SQL_DATABASE"
 
@@ -39,6 +43,8 @@ TokenGetter = Callable[[str], str]
 
 _DRIVER_RE = re.compile(r"^ODBC Driver (?P<version>\d+) for SQL Server$")
 _SERVER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,253}[A-Za-z0-9])?(?:(?:,|:)1433)?$")
+_TOKEN_URL_MARKER = "FabricDataFrameworkFabricUser"
+_DIALECT_LISTENER_INSTALLED = False
 
 
 def _nonempty(environ: Mapping[str, str], name: str) -> str | None:
@@ -76,6 +82,14 @@ def _role_endpoint_env_vars(role: SqlRuntimeRole) -> tuple[str, str]:
             "normal Fabric user identity is never promoted to session-control authority"
         )
     raise ValueError(f"unsupported SQL runtime role {role!r}")
+
+
+def _role_database_url_env_var(role: SqlRuntimeRole) -> str:
+    if role == "control-plane":
+        return CONTROL_PLANE_DATABASE_URL_ENV_VAR
+    if role == "warehouse":
+        return WAREHOUSE_DATABASE_URL_ENV_VAR
+    raise ValueError(f"unsupported Fabric user SQL runtime role {role!r}")
 
 
 def runtime_sql_env_requirements(
@@ -124,6 +138,14 @@ def _validate_database(value: str) -> str:
     return database
 
 
+def _import_pyodbc() -> Any:
+    try:
+        import pyodbc  # type: ignore
+    except Exception as exc:  # pragma: no cover - depends on Fabric Notebook runtime
+        raise RuntimeError("fabric-user SQL authentication requires pyodbc") from exc
+    return pyodbc
+
+
 def _select_odbc_driver(pyodbc_module: Any) -> str:
     candidates: list[tuple[int, str]] = []
     for name in pyodbc_module.drivers():
@@ -153,6 +175,94 @@ def _default_token_getter(audience: str) -> str:
     return token.strip()
 
 
+def _pack_access_token(token: str) -> bytes:
+    token_bytes = token.strip().encode("utf-16-le")
+    return struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+
+
+def _token_url_listener(dialect, conn_rec, cargs, cparams) -> None:
+    del dialect, conn_rec
+    if not cargs or _TOKEN_URL_MARKER not in cargs[0]:
+        return
+    cargs[0] = re.sub(r";Trusted_Connection=Yes(?=;|$)", "", cargs[0], flags=re.IGNORECASE)
+    token = _default_token_getter(FABRIC_SQL_TOKEN_AUDIENCE)
+    attrs = dict(cparams.get("attrs_before") or {})
+    attrs[SQL_COPT_SS_ACCESS_TOKEN] = _pack_access_token(token)
+    cparams["attrs_before"] = attrs
+
+
+def _ensure_token_url_listener() -> None:
+    global _DIALECT_LISTENER_INSTALLED
+    if _DIALECT_LISTENER_INSTALLED:
+        return
+    event.listen(MSDialect_pyodbc, "do_connect", _token_url_listener)
+    _DIALECT_LISTENER_INSTALLED = True
+
+
+def fabric_user_sqlalchemy_url(
+    *,
+    server: str,
+    database: str,
+    pyodbc_module: Any | None = None,
+) -> str:
+    """Build a non-secret mssql+pyodbc URL marked for Entra token injection."""
+
+    pyodbc = pyodbc_module or _import_pyodbc()
+    driver = _select_odbc_driver(pyodbc)
+    safe_server = _validate_server(server)
+    safe_database = _validate_database(database)
+    _ensure_token_url_listener()
+    return URL.create(
+        "mssql+pyodbc",
+        host=safe_server,
+        port=1433,
+        database=safe_database,
+        query={
+            "driver": driver,
+            "Encrypt": "yes",
+            "TrustServerCertificate": "no",
+            "APP": _TOKEN_URL_MARKER,
+        },
+    ).render_as_string(hide_password=True)
+
+
+def prepare_fabric_user_sql_runtime(
+    environ: Mapping[str, str],
+    *,
+    roles: Iterable[Literal["control-plane", "warehouse"]] = (
+        "control-plane",
+        "warehouse",
+    ),
+    pyodbc_module: Any | None = None,
+) -> dict[str, str]:
+    """Return a runtime mapping that existing SQLAlchemy runners can consume safely.
+
+    The synthesized ``*_DATABASE_URL`` values contain only endpoint/database/driver
+    metadata. They carry no bearer token, password or client secret. A fresh Entra token
+    is injected by the marked pyodbc dialect hook only when a physical connection opens.
+    """
+
+    runtime = dict(environ)
+    runtime[FABRIC_SQL_AUTH_MODE_ENV_VAR] = FABRIC_SQL_AUTH_MODE_USER
+    for role in tuple(roles):
+        server_env, database_env = _role_endpoint_env_vars(role)
+        server = _nonempty(runtime, server_env)
+        database = _nonempty(runtime, database_env)
+        missing = [
+            name
+            for name, value in ((server_env, server), (database_env, database))
+            if value is None
+        ]
+        if missing:
+            raise ValueError("missing Fabric SQL runtime env vars=" + ",".join(missing))
+        runtime[_role_database_url_env_var(role)] = fabric_user_sqlalchemy_url(
+            server=server,
+            database=database,
+            pyodbc_module=pyodbc_module,
+        )
+    return runtime
+
+
 def _fabric_user_engine(
     *,
     server: str,
@@ -160,15 +270,7 @@ def _fabric_user_engine(
     token_getter: TokenGetter | None = None,
     pyodbc_module: Any | None = None,
 ) -> Engine:
-    try:
-        pyodbc = pyodbc_module
-        if pyodbc is None:
-            import pyodbc as imported_pyodbc  # type: ignore
-
-            pyodbc = imported_pyodbc
-    except Exception as exc:  # pragma: no cover - depends on Fabric Notebook runtime
-        raise RuntimeError("fabric-user SQL authentication requires pyodbc") from exc
-
+    pyodbc = pyodbc_module or _import_pyodbc()
     driver = _select_odbc_driver(pyodbc)
     safe_server = _validate_server(server)
     safe_database = _validate_database(database)
@@ -181,16 +283,12 @@ def _fabric_user_engine(
     )
 
     def creator():
-        # A token is acquired per physical connection so SQLAlchemy pool replacement and
-        # long-running Notebook sessions do not reuse an expired token during reconnect.
         token = get_token(FABRIC_SQL_TOKEN_AUDIENCE)
         if not isinstance(token, str) or not token.strip():
             raise RuntimeError("Fabric SQL token getter returned an empty token")
-        token_bytes = token.strip().encode("utf-16-le")
-        packed_token = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
         return pyodbc.connect(
             connection_string,
-            attrs_before={SQL_COPT_SS_ACCESS_TOKEN: packed_token},
+            attrs_before={SQL_COPT_SS_ACCESS_TOKEN: _pack_access_token(token)},
             autocommit=False,
         )
 
@@ -236,6 +334,7 @@ def create_runtime_sql_engine(
 
 
 __all__ = [
+    "CONTROL_PLANE_DATABASE_URL_ENV_VAR",
     "CONTROL_PLANE_SQL_DATABASE_ENV_VAR",
     "CONTROL_PLANE_SQL_SERVER_ENV_VAR",
     "FABRIC_SQL_AUTH_MODE_DATABASE_URL",
@@ -243,9 +342,12 @@ __all__ = [
     "FABRIC_SQL_AUTH_MODE_USER",
     "FABRIC_SQL_TOKEN_AUDIENCE",
     "SQL_COPT_SS_ACCESS_TOKEN",
+    "WAREHOUSE_DATABASE_URL_ENV_VAR",
     "WAREHOUSE_SQL_DATABASE_ENV_VAR",
     "WAREHOUSE_SQL_SERVER_ENV_VAR",
     "create_runtime_sql_engine",
     "fabric_sql_auth_mode",
+    "fabric_user_sqlalchemy_url",
+    "prepare_fabric_user_sql_runtime",
     "runtime_sql_env_requirements",
 ]
