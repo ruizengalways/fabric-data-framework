@@ -101,7 +101,7 @@ def test_customer_input_contract_docs_match_current_customer_product_state():
     assert "product_operations_checkpoint_pr_26_main: fc224d606eb5833bf75db36bd338dcb7e9d93bb8" in state
     assert "pr_25_main_customer_ci: 33969382068" in state
     assert "pr_25_main_certification_contract_ci: 33969382063" in state
-    assert "certification_framework_sha: 3bd3375b796531e5ca6c7e144e7f50e154cec29f" in state
+    assert "certification_framework_sha: 17fbbd8ed2afb14771748a25d3e12d9bf63fe986" in state
     assert "product_pipeline_operations_reference_merged: true" in state
     assert "execution_group_policy_examples_ci_proven: true" in state
     assert "reusable_certification_pipeline_source_merged: true" in state
@@ -150,21 +150,31 @@ def test_domain_release_binding_docs_keep_pr92_as_merged_identity_milestone():
         assert phrase not in combined
 
 
-def test_pr109_is_current_code_and_prior_milestones_remain_historical():
+def test_pr112_is_current_code_and_prior_milestones_remain_historical():
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
 
-    # PR #109 is the current substantive executable Framework baseline.
-    assert "pull_request: 109" in state
-    assert "3bd3375b796531e5ca6c7e144e7f50e154cec29f" in state
-    assert "33997830902" in state
-    assert "33997925998" in state
-    assert "fe9adb12d9804dd146957dfc84925b18330edd0c189e5f713867e8e7e9478178" in state
-    assert "9978610894" in state
+    # PR #112 is the current substantive executable Framework baseline.
+    assert "code_baseline:" in state
+    assert "pull_request: 112" in state
+    assert "17fbbd8ed2afb14771748a25d3e12d9bf63fe986" in state
+    assert "34010577594" in state
+    assert "34010629765" in state
+    assert "0d7d351548712db3293b00a3b8eb968387f573b542d8fe506c9436a1b9b0a834" in state
+    assert "9982333832" in state
     assert "live_fabric_evidence_retained_for_current_bytes: false" in state
     assert "real-Fabric execution          NOT YET" in state
     assert "canonical_control_plane_profile: fabric_sql_database_v1" in state
     assert "lakehouse_as_enterprise_canonical_control_plane: false" in state
     assert "same_logical_topology_required: true" in state
+
+    # PR #109 remains recoverable as historical exact executable identity only.
+    assert "historical_framework_executable:" in state
+    assert "pull_request: 109" in state
+    assert "3bd3375b796531e5ca6c7e144e7f50e154cec29f" in state
+    assert "33997925998" in state
+    assert "fe9adb12d9804dd146957dfc84925b18330edd0c189e5f713867e8e7e9478178" in state
+    assert "9978610894" in state
+    assert "current_executable_identity: false" in state
 
     # PR #107 remains the product Pipeline operations milestone.
     assert "product_pipeline_operations_baseline:" in state
@@ -268,8 +278,8 @@ def test_business_path_runner_cannot_be_documented_as_candidate_proof_packager()
 def test_latest_candidate_capable_artifact_is_not_frozen():
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
     assert "candidate_status: not_frozen" in state
-    assert "candidate_git_sha: 3bd3375b796531e5ca6c7e144e7f50e154cec29f" in state
-    assert "wheel_inner_sha256: fe9adb12d9804dd146957dfc84925b18330edd0c189e5f713867e8e7e9478178" in state
+    assert "candidate_git_sha: 17fbbd8ed2afb14771748a25d3e12d9bf63fe986" in state
+    assert "wheel_inner_sha256: 0d7d351548712db3293b00a3b8eb968387f573b542d8fe506c9436a1b9b0a834" in state
     assert "selected_as_frozen_candidate: false" in state
     assert "release_allowed: false" in state
     assert "readiness_required_blockers: 15" in state

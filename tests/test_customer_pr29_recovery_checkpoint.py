@@ -3,6 +3,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+FRAMEWORK_PR109_MAIN = "3bd3375b796531e5ca6c7e144e7f50e154cec29f"
+FRAMEWORK_PR109_WHEEL_SHA = (
+    "fe9adb12d9804dd146957dfc84925b18330edd0c189e5f713867e8e7e9478178"
+)
+FRAMEWORK_PR112_MAIN = "17fbbd8ed2afb14771748a25d3e12d9bf63fe986"
+FRAMEWORK_PR112_WHEEL_SHA = (
+    "0d7d351548712db3293b00a3b8eb968387f573b542d8fe506c9436a1b9b0a834"
+)
+
 
 def test_customer_enterprise_candidate_input_alignment_is_complete():
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
@@ -25,15 +34,26 @@ def test_customer_enterprise_candidate_input_alignment_is_complete():
         assert token in state
 
 
-def test_customer_alignment_checkpoint_does_not_change_framework_executable_identity():
+def test_pr29_checkpoint_history_is_preserved_while_pr112_is_current():
     state = (ROOT / "docs/machine/STATE.md").read_text(encoding="utf-8")
+
+    # PR #109 remains recoverable as historical exact bytes; it is no longer current.
+    assert "historical_framework_executable:" in state
     assert "pull_request: 109" in state
-    assert "merge_sha: 3bd3375b796531e5ca6c7e144e7f50e154cec29f" in state
-    assert "wheel_inner_sha256: fe9adb12d9804dd146957dfc84925b18330edd0c189e5f713867e8e7e9478178" in state
+    assert f"merge_sha: {FRAMEWORK_PR109_MAIN}" in state
+    assert f"wheel_inner_sha256: {FRAMEWORK_PR109_WHEEL_SHA}" in state
     assert "artifact_id: 9978610894" in state
+    assert "current_executable_identity: false" in state
+
+    # PR #112 is the exact current executable identity.
+    assert "code_baseline:" in state
+    assert "pull_request: 112" in state
+    assert f"merge_sha: {FRAMEWORK_PR112_MAIN}" in state
+    assert f"wheel_inner_sha256: {FRAMEWORK_PR112_WHEEL_SHA}" in state
+    assert "artifact_id: 9982333832" in state
     assert "candidate_status: not_frozen" in state
     assert "release_allowed: false" in state
     assert "actual_selected_candidate_input_artifact_retained: false" in state
     assert "real_control_plane_external_evidence_retained: false" in state
     assert "real_warehouse_fault_controller_configured: false" in state
-    assert "next boundary is real isolated DEV Fabric execution, not more topology alignment" in state
+    assert "next execution boundary is real isolated DEV Fabric" in state
