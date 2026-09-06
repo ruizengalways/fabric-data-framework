@@ -1,73 +1,47 @@
 # Machine / Engineering Recovery Documentation
 
-Purpose: restore exact framework engineering context without forcing human-facing docs to carry implementation history.
+Use this directory when continuing Framework engineering, restoring an AI conversation, or auditing release evidence.
 
-## Read order for a new AI conversation
+## New conversation read order
 
-1. `STATE.md` — exact current baseline, release status, CI/test baseline, real-service gaps, next work.
-2. `ENTERPRISE_TOPOLOGY.md` — canonical DEV/UAT/PROD Fabric SQL Database control plane, Lakehouse medallion data plane, optional Warehouse, and CI/CD promotion boundary.
-3. `CONTEXT.md` — non-negotiable semantic/recovery/evidence invariants.
-4. `UNIFIED_CERTIFICATION.md` — one-call real-Fabric certification architecture, status/governance boundaries and exact-byte rerun rules.
-5. `APPROVED_EVIDENCE.md` — exact approved-run prerequisite, PASS/FAIL, authorization, and merge contracts.
-6. `BUSINESS_PATH_EVIDENCE.md` — representative live FULL/REPLACE, SCD1, SCD2, retry, reconciliation proof contract.
-7. `RELEASE_READINESS.md` — exact candidate identity, release gate aggregation and fail-closed release rules.
-8. `CAPABILITIES.md` — capability -> implementation owner -> evidence level.
-9. `IMPLEMENTATION_MAP.md` — code/module ownership and where to change what.
-10. `HISTORY.md` — merged milestone history; read only when historical provenance matters.
+Start with only:
 
-## File purpose
+```text
+1. STATE.md
+2. ENTERPRISE_TOPOLOGY.md
+3. UNIFIED_CERTIFICATION.md
+```
 
-| File | Machine use |
-|---|---|
-| `STATE.md` | answer “where are we now and what is next?” |
-| `ENTERPRISE_TOPOLOGY.md` | prevent DEV/UAT/PROD topology drift and Lakehouse-vs-control-plane confusion |
-| `CONTEXT.md` | prevent semantic/recovery regressions after context reset |
-| `UNIFIED_CERTIFICATION.md` | restore the minimal Notebook API, approved-run composition, status semantics and non-release boundary |
-| `APPROVED_EVIDENCE.md` | restore exact runner/evidence/authorization rules |
-| `BUSINESS_PATH_EVIDENCE.md` | restore exact five-gate live path, driver/observer, rerun and cleanup rules |
-| `RELEASE_READINESS.md` | prevent candidate/artifact evidence mismatch and release overclaim |
-| `CAPABILITIES.md` | prevent CI/reference/live evidence overclaim |
-| `IMPLEMENTATION_MAP.md` | find the correct module before editing code |
-| `HISTORY.md` | recover why/when a capability entered the framework |
+Then open a task-specific contract only when needed:
+
+- `CONTEXT.md` — semantic/recovery invariants.
+- `APPROVED_EVIDENCE.md` — approved-run evidence and authorization rules.
+- `BUSINESS_PATH_EVIDENCE.md` — five representative live business-path gates.
+- `RELEASE_READINESS.md` — exact candidate and release aggregation rules.
+- `CAPABILITIES.md` — capability/evidence matrix.
+- `IMPLEMENTATION_MAP.md` — module ownership.
+
+`STATE.md` is the only current-state recovery checkpoint. Do not add PR-by-PR checkpoint files or duplicate historical timelines here.
 
 ## Source-of-truth rule
 
-For exact implementation state:
-
 ```text
-code + tests > machine docs > human docs
+code + tests > STATE.md > task-specific machine docs > human docs
 ```
 
-If code/tests disagree with machine docs, repair machine docs in the same engineering slice.
+If code/tests disagree with `STATE.md`, repair `STATE.md` in the same engineering slice.
 
-Human docs intentionally omit PR history, Actions IDs, merge SHAs, test-count progression, and implementation archaeology.
+Git history already stores old implementation history. Current machine docs should contain only information required to understand current behavior, current evidence boundaries and the next action.
 
 ## Update policy
 
-After a meaningful framework slice:
+Update:
 
-- update `STATE.md` if baseline/gap/next-work changed;
-- update `ENTERPRISE_TOPOLOGY.md` if canonical environment topology, store roles or CI/CD promotion boundaries changed;
-- update `CONTEXT.md` if a new invariant or fail-closed boundary was introduced;
-- update `UNIFIED_CERTIFICATION.md` if the one-call API, runner ordering, status vocabulary, auto-discovery or authorization boundary changed;
-- update `APPROVED_EVIDENCE.md` if an approved-run prerequisite/PASS/authorization contract changed;
-- update `BUSINESS_PATH_EVIDENCE.md` if representative live path, scenario/driver/observer, explicit rerun or cleanup rules changed;
-- update `RELEASE_READINESS.md` if candidate identity, gate aggregation or exact-artifact rules changed;
-- update `CAPABILITIES.md` if a guarantee/evidence level changed;
-- update `IMPLEMENTATION_MAP.md` if module ownership/surface changed;
-- append `HISTORY.md` only for release-significant merged milestones.
+- `STATE.md` when executable identity, Customer binding, real evidence, release status or the next boundary changes;
+- `ENTERPRISE_TOPOLOGY.md` when environment/storage/promotion architecture changes;
+- `CONTEXT.md` when a semantic or fail-closed invariant changes;
+- `UNIFIED_CERTIFICATION.md` when certification execution/status/auth contracts change;
+- evidence/readiness docs when their actual contracts change;
+- `CAPABILITIES.md` / `IMPLEMENTATION_MAP.md` when capability level or code ownership changes.
 
-Do not create a new top-level historical runbook for every PR. Integrate stable behavior into the appropriate canonical machine file and keep history compact.
-
-## Documentation structure rule
-
-`docs/` must stay visually simple:
-
-```text
-docs/
-  README.md
-  human/
-  machine/
-```
-
-Executable/sample configuration belongs under root `examples/`, not under `docs/`.
+Do not create a historical runbook for each PR. Do not keep old candidate identities in the current recovery path after they are superseded.
