@@ -98,4 +98,4 @@ def test_current_docs_keep_real_fabric_and_release_boundaries_fail_closed():
     assert "candidate_status: not_frozen" in state
     assert "current_framework_real_fabric_certification_executed: false" in state
     assert "stop_on_real_fail: true" in state
-    assert "do not create another recovery/checkpoint PR" in state.lower()
+    assert "do not create another recovery/checkpoint pr" in state.lower()
