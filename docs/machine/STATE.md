@@ -152,17 +152,30 @@ customer_input_contract:
   merged_deployer_pr_23_main: 88d7c3b7b473ad84b5d96aa472293ae24c055c88
   merged_product_operations_pr_25_main: 1d70fe26baf3ceef1be7c0b0cd359f330316e0ee
   product_operations_checkpoint_pr_26_main: fc224d606eb5833bf75db36bd338dcb7e9d93bb8
+  merged_enterprise_topology_pr_27_main: fa495fce622de8a5344bf74ecc52885fe85596f4
+  enterprise_topology_checkpoint_pr_28_main: 9488b1b4b1f1f90a750bee66fee0c7b373c1839a
+  merged_candidate_input_topology_hardening_pr_29_main: 1effd5fe283afeb5b960a87e64638f1674433580
+  candidate_input_checkpoint_pr_30_main: 4676157be2d8203c7cd5a625e9e68540dc12d4ad
   pr_25_customer_ci: 33969274525
   pr_25_certification_contract_ci: 33969274509
   pr_25_main_customer_ci: 33969382068
   pr_25_main_certification_contract_ci: 33969382063
+  pr_29_customer_ci: 34001442382
+  pr_29_certification_contract_ci: 34001442376
+  pr_29_main_customer_ci: 34001481213
+  pr_29_main_certification_contract_ci: 34001481204
+  pr_30_main_customer_ci: 34001648070
+  pr_30_main_certification_contract_ci: 34001648061
   certification_framework_sha: 3bd3375b796531e5ca6c7e144e7f50e154cec29f
   released_runtime_pin: fabric-data-framework==0.3.0
   reusable_certification_pipeline_source_merged: true
   reusable_certification_pipeline_deployed_in_company_fabric: false
   product_pipeline_operations_reference_merged: true
   execution_group_policy_examples_ci_proven: true
-  enterprise_topology_customer_update_in_progress: true
+  enterprise_topology_customer_update_in_progress: false
+  enterprise_topology_customer_main_ci_proven: true
+  candidate_input_canonical_control_plane_profile: fabric_sql_database_v1
+  candidate_input_alternate_profile_rejected: true
   actual_selected_candidate_input_artifact_retained: false
   real_control_plane_external_evidence_retained: false
   review_bound_control_plane_evidence_retained: false
@@ -353,19 +366,23 @@ Customer production/runtime dependency remains exactly:
 fabric-data-framework==0.3.0
 ```
 
-Current merged Customer product operations reference:
+Current merged Customer enterprise/candidate-input alignment:
 
 ```text
-PR #25 merge/main                1d70fe26baf3ceef1be7c0b0cd359f330316e0ee
-PR customer-ci                   33969274525 SUCCESS
-PR certification-contract       33969274509 SUCCESS
-main customer-ci                 33969382068 SUCCESS
-main certification-contract      33969382063 SUCCESS
-post-merge docs checkpoint main  fc224d606eb5833bf75db36bd338dcb7e9d93bb8
-certification Framework SHA      3bd3375b796531e5ca6c7e144e7f50e154cec29f
+PR #27 enterprise topology main       fa495fce622de8a5344bf74ecc52885fe85596f4
+PR #29 candidate-input hardening main 1effd5fe283afeb5b960a87e64638f1674433580
+PR #29 customer-ci                    34001442382 SUCCESS
+PR #29 certification-contract        34001442376 SUCCESS
+PR #29 main customer-ci               34001481213 SUCCESS
+PR #29 main certification-contract    34001481204 SUCCESS
+PR #30 recovery checkpoint main       4676157be2d8203c7cd5a625e9e68540dc12d4ad
+PR #30 main customer-ci               34001648070 SUCCESS
+PR #30 main certification-contract    34001648061 SUCCESS
+certification Framework SHA           3bd3375b796531e5ca6c7e144e7f50e154cec29f
+canonical candidate-input profile     fabric_sql_database_v1
 ```
 
-A Customer enterprise-topology update is now required so its certification-contract lane and recovery docs consume PR #109. Until that Customer PR merges, the Framework checkpoint records `enterprise_topology_customer_update_in_progress: true` rather than inventing Customer evidence.
+The Customer enterprise-topology alignment is complete and independent main CI proven. PR #29 makes the Customer candidate-input workflow/builder fail closed to `fabric_sql_database_v1`; generic Framework support for other relational profiles does not alter the Customer canonical DEV/UAT/PROD lane. PR #30 is docs/tests-only recovery state and does not replace PR #29 as the substantive Customer certification-input baseline.
 
 Customer PR #23 remains the certification/Fabric-item deployer implementation milestone. The reusable certification Pipeline source is merged but is not yet evidenced as deployed in company Fabric.
 
@@ -397,25 +414,26 @@ customer production dependency migration             NOT ALLOWED YET
 
 ## Next operating order
 
-### A. Finish source/recovery alignment
+### A. Source/recovery alignment — complete
 
 ```text
-1. merge this PR #109 machine checkpoint
-2. update Customer certification-contract to exact Framework PR #109 SHA
-3. merge Customer enterprise topology/runbook/CI contract
-4. update Customer CURRENT_STATUS with exact Customer merge + independent main CI
-5. do not change Customer production pin
+Framework PR #109 executable baseline + PR #110 recovery checkpoint are main-CI proven
+Customer PR #27 enterprise topology is main-CI proven
+Customer PR #29 candidate-input profile hardening is main-CI proven
+Customer PR #30 recovery checkpoint is main-CI proven
+Customer production pin remains fabric-data-framework==0.3.0
+next boundary is real isolated DEV Fabric execution, not more topology alignment
 ```
 
 ### B. Next company Fabric DEV execution
 
 ```text
 1. use exact Framework PR #109 main artifact / wheel SHA256 above
-2. use Customer source after its enterprise-topology alignment merges
+2. use current Customer main after PR #29 hardening / PR #30 recovery checkpoint
 3. provision/use a dedicated DEV Fabric SQL Database as canonical Framework Control Plane
 4. deploy repository-owned certification Notebook/Pipeline only in isolated approved DEV
 5. record/resolve actual environment-local item UUIDs
-6. build exact Customer certification inputs for exact Customer SHA + PR #109 Framework wheel
+6. build exact Customer certification inputs for exact Customer SHA + PR #109 Framework wheel; profile must be fabric_sql_database_v1
 7. upload exact Framework wheel + CANDIDATE.json + SHA256SUMS + exact customer-inputs
 8. run bounded certification first; STOP on any real FAIL
 9. for a newly created dedicated Control Plane only, use explicit allow_control_plane_migration=True after bounded PASS
