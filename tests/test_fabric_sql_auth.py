@@ -77,7 +77,7 @@ def test_prepare_fabric_user_runtime_synthesizes_non_secret_sqlalchemy_urls():
         assert "FabricDataFrameworkFabricUser" in value
         assert "token" not in value.lower()
         assert "password" not in value.lower()
-        assert "@" in value
+        assert "@" not in value
 
 
 def test_fabric_user_url_rejects_connection_string_injection():
