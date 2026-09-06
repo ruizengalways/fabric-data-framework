@@ -74,12 +74,20 @@ The token-aware SQLAlchemy hook acts only on Framework-marked `mssql+pyodbc` URL
 
 ## Compatibility and preflight
 
-Approved integration preflight is mode-aware:
+The approved evidence runners intentionally keep their established URL-env-name preflight contract. They do **not** inspect `FABRIC_SQL_AUTH_MODE` before the existing authorization gate.
 
-- `database-url` requires the configured `*_DATABASE_URL` runtime variable.
-- `fabric-user` requires the corresponding non-secret server/database variables.
+For `database-url`, the runtime supplies the configured `*_DATABASE_URL` value directly.
 
-The existing runner configuration still names `CONTROL_PLANE_DATABASE_URL` and `WAREHOUSE_DATABASE_URL` for backward compatibility. `prepare_fabric_user_sql_runtime` synthesizes those values before existing SQLAlchemy-based certification runners execute.
+For `fabric-user`, the Customer/domain runtime first calls `prepare_fabric_user_sql_runtime`. That preparation step validates the non-secret server/database identity and synthesizes the compatible, non-secret token-aware values:
+
+```text
+CONTROL_PLANE_DATABASE_URL
+WAREHOUSE_DATABASE_URL
+```
+
+Only after preparation does the existing approved runner preflight execute. This preserves the established fail-closed property that an unauthorized approved-run attempt does not probe additional runtime authentication state before its mutation/authorization gate.
+
+The runner therefore remains backward compatible and unaware of how the URL-shaped runtime handle was obtained. The Framework marker on a Fabric-user URL causes a fresh Entra token to be injected only when a physical SQL connection is actually opened.
 
 ## Warehouse administrator boundary
 
