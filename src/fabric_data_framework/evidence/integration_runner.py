@@ -14,7 +14,6 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from fabric_data_framework.adapters.fabric.sql_auth import runtime_sql_env_requirements
 from fabric_data_framework.contracts.base import FrozenModel
 from ..control_plane.certification import CONTROL_PLANE_BACKEND_PROFILES
 from fabric_data_framework.contracts.environment import EnvironmentName
@@ -285,20 +284,23 @@ def _runtime_requirements(
     if kinds.intersection(_FABRIC_ITEM_KINDS):
         requirements.append(("Fabric REST access token", config.fabric_access_token_env_var))
     if kinds.intersection(_CONTROL_PLANE_RUNTIME_KINDS):
-        requirements.extend(
-            runtime_sql_env_requirements(
-                role="control-plane",
-                database_url_env_var=config.control_plane_database_url_env_var,
-                environ=environ,
+        if config.control_plane_database_url_env_var is None:
+            raise ValueError(
+                "CONTROL_PLANE_CERTIFICATION/FABRIC_PIPELINE_RUN/Warehouse evidence check "
+                "needs control-plane runtime configuration"
             )
-        )
+        if IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION in kinds:
+            purpose = "control-plane database URL"
+        elif IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN in kinds:
+            purpose = "Pipeline durable-outcome control-plane database URL"
+        else:
+            purpose = "Warehouse target-operation journal control-plane database URL"
+        requirements.append((purpose, config.control_plane_database_url_env_var))
     if kinds.intersection(_WAREHOUSE_RUNTIME_KINDS):
-        requirements.extend(
-            runtime_sql_env_requirements(
-                role="warehouse",
-                database_url_env_var=config.warehouse_database_url_env_var,
-                environ=environ,
-            )
+        if config.warehouse_database_url_env_var is None:
+            raise ValueError("Warehouse evidence check needs warehouse_database_url_env_var")
+        requirements.append(
+            ("Warehouse SQL database URL", config.warehouse_database_url_env_var)
         )
 
     # Admin/session-control credentials are intentionally not included automatically.
