@@ -48,7 +48,9 @@ from fabric_data_framework.evidence.integration_runner import (
 NOW = datetime(2026, 8, 30, 8, 0, tzinfo=timezone.utc)
 FRAMEWORK_VERSION = "0.4.0"
 DOMAIN_GIT_SHA = "1" * 40
-EXTENSION_ARTIFACT = "fabric-customer-0.4.0.dev1-py3-none-any.whl"
+EXTENSION_ARTIFACT = "fabric_data_framework-0.4.0-py3-none-any.whl"
+FRAMEWORK_ARTIFACT_SHA256 = "a" * 64
+INTEGRATION_INPUTS_HASH = "b" * 64
 
 
 def _copy_dataset() -> DatasetConfig:
@@ -115,17 +117,18 @@ def _release(configs: tuple[DatasetConfig, ...], *, include_extension: bool = Tr
     )
     if include_extension:
         release = release.model_copy(
-            update={"artifact_sha256": {EXTENSION_ARTIFACT: "a" * 64}}
+            update={"artifact_sha256": {EXTENSION_ARTIFACT: FRAMEWORK_ARTIFACT_SHA256}}
         )
     return release
 
 
-def _spec(release_hash: str, kind: IntegrationEvidenceCheckKind, check_id: str):
+def _spec(_release_hash: str, kind: IntegrationEvidenceCheckKind, check_id: str):
     return IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
         domain="customer",
         framework_version=FRAMEWORK_VERSION,
-        release_hash=release_hash,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="fabric.item.read",
@@ -200,7 +203,8 @@ def _prerequisite(
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=now,
         completed_at=now,
         checks=spec.checks,
@@ -208,12 +212,13 @@ def _prerequisite(
     )
 
 
-def _runner_config(release_hash: str, check_id: str, workspace_id, item_id):
+def _runner_config(_release_hash: str, check_id: str, workspace_id, item_id):
     return ApprovedIntegrationRunnerConfig(
         environment=EnvironmentName.DEV,
         domain="customer",
         framework_version=FRAMEWORK_VERSION,
-        release_hash=release_hash,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         fabric_access_token_env_var="FABRIC_ACCESS_TOKEN",
         bindings=(
             IntegrationCheckPhysicalBinding(
