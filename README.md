@@ -1,109 +1,129 @@
 # fabric-data-framework
 
-Reusable Microsoft Fabric data-engineering framework for capture semantics, execution planning, apply semantics, recovery, evidence, and release controls.
+Reusable Microsoft Fabric Data Engineering Framework.
 
-This repository is **framework code**, not a business-domain repository. A normal new dataset should be onboarded in `fabric-customer`; you only change this repository when the reusable framework itself needs a new capability.
+This repository owns reusable processing semantics and its own package lifecycle: ingestion, Bronze/Silver behavior, full refresh, incremental watermark, SCD1, SCD2, CDC/Debezium normalization, metadata/configuration, audit/observability, retry/idempotency, Fabric runtime abstractions, Lakehouse/Warehouse integration and **lightweight installed-wheel certification**.
 
-## Repo model
+## Repository boundary
 
 ```text
-fabric-data-framework
-  reusable Python package, semantics, runtime, adapters, recovery, evidence
+fabric-infra
+  Fabric capacity/workspace/permissions/infrastructure lifecycle
 
 fabric-customer
-  business datasets, DatasetConfig, Fabric item definitions, bounded extensions
+  Fabric-native, framework-agnostic source-system simulator
+  deterministic source changes + expected business truth
 
-fabric-infra
-  optional capacity/workspace/infrastructure lifecycle
+fabric-data-framework
+  reusable processing framework + framework-owned certification
 ```
 
-For an initial enterprise Fabric evaluation, `fabric-data-framework` + `fabric-customer` are enough. `fabric-infra` can be added later without changing the semantic model.
+Important invariant: `fabric-customer` may use Fabric capabilities but must not depend on this framework implementation. A real application/consumer project may depend on a released framework wheel; the customer simulator does not.
 
-## Mental model
+See `docs/human/ARCHITECTURE_BOUNDARIES.md`.
+
+## Source tests vs certification
+
+These are different lifecycle gates:
 
 ```text
-source semantics
-  -> capture / delivery
-  -> verified capture evidence
-  -> Bronze meaning
-  -> normalize / DQ / apply
-  -> target commit proof / recovery
-  -> downstream semantic checkpoint
-  -> retained release evidence
+tests/
+  source-level unit/component/integration tests
+
+certification/
+  built + installed wheel acceptance
+  real Fabric environment validation
 ```
 
-The important rule is:
+The certification lifecycle is deliberately:
 
 ```text
-capture fidelity is the ceiling of truthful downstream history fidelity
+source -> build wheel -> install exact wheel -> attest installed bytes -> certify in Fabric
 ```
 
-An SCD2 target cannot reconstruct history the source/capture path never provided.
+The `fabric-framework certify` command now refuses to proceed unless the active installed `fabric_data_framework` package payload matches the candidate wheel byte-for-byte. It does not silently certify `../src`.
 
-## How the framework is consumed
-
-Stable environments should consume an **immutable wheel** from a release, normally through a Fabric Environment custom library.
-
-```text
-GitHub release wheel
-      |
-      v
-Fabric Environment -> Publish
-      |
-      +-> Notebook
-      +-> Spark Job Definition
-      +-> Pipeline child execution
-```
-
-The wheel is not edited inside Fabric. Source code remains in Git.
-
-The CLI is mainly for local development, validation, packaging, deployment/evidence preparation, and approved operational checks. You do not need an interactive Fabric terminal to use the framework at runtime.
-
-For a new customer/domain repository, create a non-destructive source-controlled skeleton and then dry-run the complete metadata bundle before pushing it:
-
-```bash
-fabric-framework project-init ./fabric-health --domain health
-cd fabric-health
-# author DatasetConfig + config/capture/semantic-selections.json
-fabric-framework project-validate .
-```
-
-`project-init` does not guess keys, watermarks, delete semantics, SCD strategy, or create live Fabric resources. `project-validate` remains local/static: it checks config parsing, dependency integrity, capability compatibility and complete semantic onboarding without touching Fabric.
-
-## Start here
-
-Human documentation is intentionally small and task-oriented:
-
-- [`docs/human/README.md`](docs/human/README.md) — reading order and document purpose.
-- [`docs/human/CONCEPTS.md`](docs/human/CONCEPTS.md) — how to understand the framework.
-- [`docs/human/REPOSITORY_GUIDE.md`](docs/human/REPOSITORY_GUIDE.md) — what each important file/folder is for.
-- [`docs/human/GETTING_STARTED.md`](docs/human/GETTING_STARTED.md) — install, test, package, and use the framework.
-- [`docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md`](docs/human/CUSTOMER_PROJECT_BOOTSTRAP.md) — initialize a new customer repo, dry-run it, and organize tens or hundreds of datasets safely.
-- [`docs/human/DATASET_ONBOARDING.md`](docs/human/DATASET_ONBOARDING.md) — what to do when a new dataset arrives, with concrete examples.
-- [`docs/human/OPERATIONS.md`](docs/human/OPERATIONS.md) — release/evidence/operational CLI workflow.
-
-Machine/recovery documentation is separate under [`docs/machine/`](docs/machine/README.md). It contains exact CI baselines, evidence levels, current gaps, recovery invariants, and implementation history needed to continue engineering work safely.
+See `docs/human/CERTIFICATION_LIFECYCLE.md`.
 
 ## Local development
 
 ```bash
 python -m pip install -e '.[dev]'
-pytest
+pytest -q
+ruff check src tests
 ```
 
-Useful discovery commands:
+Editable install is for development only.
+
+## Build and locally prove the wheel install
 
 ```bash
-fabric-framework --help
-fabric-framework project-init --help
-fabric-framework project-validate --help
-fabric-framework capture-semantic-onboarding-validate --help
-fabric-framework integration-run-preflight --help
+python -m pip install build
+python -m build --wheel
+python -m venv .cert-venv
+.cert-venv/bin/python -m pip install dist/fabric_data_framework-*.whl
+.cert-venv/bin/python certification/smoke_installed_wheel.py --wheel dist/fabric_data_framework-*.whl
 ```
+
+The smoke checks exact installed package bytes plus framework-owned metadata, incremental watermark and CDC contracts. GitHub Actions repeats this in a clean interpreter.
+
+## Real Fabric certification
+
+Place one exact candidate wheel plus `CANDIDATE.json` under the attached Lakehouse path:
+
+```text
+/lakehouse/default/Files/framework_cert/
+```
+
+Install that exact wheel in the Fabric Environment/runtime, then run:
+
+```bash
+fabric-framework certify --certification-root /lakehouse/default/Files/framework_cert --require-complete
+```
+
+or inside a notebook:
+
+```python
+from fabric_data_framework.certification import certify_installed, print_certification_summary
+
+report = certify_installed(
+    spark=spark,
+    certification_root="/lakehouse/default/Files/framework_cert",
+)
+print_certification_summary(report)
+```
+
+The bounded real-Fabric suite covers exact candidate identity, Lakehouse Delta read/write, full replace, SCD1, SCD2, retry/idempotency and fail-closed reconciliation. The installed semantic preflight covers metadata/config, incremental watermark and CDC normalization. Warehouse/control-plane/provider checks remain environment-dependent and run only when explicitly configured/authorized; they are never claimed locally.
+
+## How consumers use the framework
+
+Stable environments consume an immutable wheel, normally through a published Fabric Environment. Framework code stays in Git; the wheel is not edited inside Fabric.
+
+For a real implementation project, the existing project tooling remains available:
+
+```bash
+fabric-framework project-init ./my-fabric-project --domain health
+fabric-framework project-validate ./my-fabric-project
+```
+
+Do not use `fabric-customer` as the framework application repository; it is the independent production-source testbed.
+
+## Documentation
+
+Start with:
+
+- `docs/human/README.md`
+- `docs/human/ARCHITECTURE_BOUNDARIES.md`
+- `docs/human/GETTING_STARTED.md`
+- `docs/human/DATASET_ONBOARDING.md`
+- `docs/human/CERTIFICATION_LIFECYCLE.md`
+- `docs/human/FRAMEWORK_DEVELOPER_CERTIFICATION.md`
+- `docs/human/TESTING_STRATEGY.md`
+- `docs/human/OPERATIONS.md`
+
+Machine/recovery evidence remains under `docs/machine/`.
 
 ## Release status
 
 - latest public release: `v0.3.0`
-- `main` currently contains `0.4.0` development work and is **not yet a public release**
-
-Exact development baseline, CI counts, evidence labels, and remaining release gates belong in `docs/machine/STATE.md`, not in this human landing page.
+- `main` currently contains `0.4.0` development work and is not yet a public release
