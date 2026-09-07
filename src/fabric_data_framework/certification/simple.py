@@ -37,9 +37,9 @@ def _discover_wheel(root: Path) -> Path:
     return wheels[0]
 
 
-def _runtime_names(customer_inputs_root: Path) -> tuple[str, ...]:
+def _runtime_names(integration_inputs_root: Path) -> tuple[str, ...]:
     runner = load_approved_integration_runner_config(
-        customer_inputs_root / "runner-config.json"
+        integration_inputs_root / "runner-config.json"
     )
     values = (
         runner.fabric_access_token_env_var,
@@ -61,16 +61,16 @@ def _notebook_fabric_token() -> str:
 
 
 def _resolve_runtime_environment(
-    customer_inputs_root: Path | None,
+    integration_inputs_root: Path | None,
     supplied: Mapping[str, str] | None,
 ) -> tuple[Mapping[str, str] | None, tuple[str, ...]]:
-    if customer_inputs_root is None:
+    if integration_inputs_root is None:
         return supplied, ()
 
-    names = _runtime_names(customer_inputs_root)
+    names = _runtime_names(integration_inputs_root)
     resolved = dict(os.environ if supplied is None else supplied)
     runner = load_approved_integration_runner_config(
-        customer_inputs_root / "runner-config.json"
+        integration_inputs_root / "runner-config.json"
     )
     token_name = runner.fabric_access_token_env_var
     if not resolved.get(token_name, "").strip():
@@ -85,14 +85,7 @@ def _scoped_process_runtime(
     runtime_environment: Mapping[str, str] | None,
     declared_names: tuple[str, ...],
 ) -> Iterator[None]:
-    """Mirror only declared runtime values into ``os.environ`` for extension calls.
-
-    Approved provider runners primarily consume the explicit mapping. Customer/domain
-    Python extension entry points historically read process environment directly. The
-    public one-call API therefore mirrors only runner-declared runtime names for the
-    duration of certification and restores the process environment exactly afterward.
-    Secret values are never copied into retained certification models or output files.
-    """
+    """Mirror only declared runtime values into ``os.environ`` during certification."""
 
     if runtime_environment is None or not declared_names:
         yield
@@ -117,19 +110,19 @@ def _scoped_process_runtime(
                 os.environ.pop(name, None)
 
 
-def _customer_identity_matches_bounded(
-    customer_inputs_root: Path,
+def _integration_identity_matches_bounded(
+    integration_inputs_root: Path,
     bounded_report,
 ) -> None:
     inputs = json.loads(
-        (customer_inputs_root / "INPUTS.json").read_text(encoding="utf-8")
+        (integration_inputs_root / "INPUTS.json").read_text(encoding="utf-8")
     )
     if inputs.get("candidate_git_sha") != bounded_report.candidate_git_sha:
-        raise ValueError("Customer input bundle candidate git SHA mismatch")
+        raise ValueError("integration input bundle candidate git SHA mismatch")
     if inputs.get("candidate_wheel_sha256") != bounded_report.artifact_sha256:
-        raise ValueError("Customer input bundle candidate wheel SHA256 mismatch")
+        raise ValueError("integration input bundle candidate wheel SHA256 mismatch")
     if inputs.get("framework_version") != bounded_report.framework_version:
-        raise ValueError("Customer input bundle framework version mismatch")
+        raise ValueError("integration input bundle framework version mismatch")
 
 
 def _bootstrap_control_plane_after_bounded_preflight(
@@ -137,20 +130,13 @@ def _bootstrap_control_plane_after_bounded_preflight(
     spark,
     candidate_manifest: Path,
     wheel: Path,
-    customer_inputs_root: Path,
+    integration_inputs_root: Path,
     output_dir: Path,
     environment: str,
     lakehouse_base_path: str,
     runtime_environment: Mapping[str, str] | None,
 ) -> None:
-    """Explicitly bootstrap a dedicated certification Control Plane after bounded PASS.
-
-    ``allow_control_plane_migration`` is a first-time certification-database operation,
-    not a release-certification shortcut. Before mutating SQL state we rerun the exact
-    bounded suite, bind the Customer bundle to those exact Framework bytes, then apply
-    the baseline schema and idempotently materialize the exact Customer semantic
-    metadata. Normal reruns leave this path disabled.
-    """
+    """Bootstrap a dedicated certification Control Plane only after bounded PASS."""
 
     bounded = run_bounded_certification(
         spark=spark,
@@ -165,9 +151,9 @@ def _bootstrap_control_plane_after_bounded_preflight(
     ):
         return
 
-    _customer_identity_matches_bounded(customer_inputs_root, bounded)
+    _integration_identity_matches_bounded(integration_inputs_root, bounded)
     runner = load_approved_integration_runner_config(
-        customer_inputs_root / "runner-config.json"
+        integration_inputs_root / "runner-config.json"
     )
     env_name = runner.control_plane_database_url_env_var
     if env_name is None or runtime_environment is None:
@@ -177,9 +163,9 @@ def _bootstrap_control_plane_after_bounded_preflight(
         return
 
     release_manifest = load_release_manifest(
-        customer_inputs_root / "release-manifest.json"
+        integration_inputs_root / "release-manifest.json"
     )
-    configs = load_dataset_configs(customer_inputs_root / "project/config/datasets")
+    configs = load_dataset_configs(integration_inputs_root / "project/config/datasets")
     engine = create_engine(database_url)
     try:
         observed_hash = materialize_semantic_metadata(
@@ -202,7 +188,7 @@ def certify(
     spark,
     certification_root: str | Path = DEFAULT_CERTIFICATION_ROOT,
     environment: str = "DEV",
-    customer_inputs_root: str | Path | None = None,
+    integration_inputs_root: str | Path | None = None,
     output_dir: str | Path | None = None,
     lakehouse_base_path: str = "Files/framework_cert",
     runtime_environment: Mapping[str, str] | None = None,
@@ -217,27 +203,21 @@ def certify(
         framework_cert/
           CANDIDATE.json
           fabric_data_framework-<version>-py3-none-any.whl
-          customer-inputs/        # optional exact Customer artifact
+          integration-inputs/        # optional framework-owned exact bundle
 
-    With no Customer bundle this executes bounded real-Fabric checks only. When the
-    exact bundle is present, one ``allow_live_mutations`` flag authorizes the normal
-    DEV/UAT certification mutations already owned by the approved runners, including
-    the reviewed fault drill when configured. Admin-level Warehouse session
-    termination remains a separate explicit authorization.
+    Without integration inputs this executes bounded real-Fabric checks only. With the
+    exact framework-owned integration bundle, one ``allow_live_mutations`` flag
+    authorizes normal bounded certification mutations already owned by approved
+    framework runners. Admin-level Warehouse session termination remains separate.
 
-    ``runtime_environment`` is an optional process-local mapping for runtime-only
-    values such as the Control Plane and Warehouse database URLs. The exact Customer
-    runner config declares the allowed environment-variable names. During the call,
-    only those declared names are temporarily mirrored into process environment so
-    customer/domain extension entry points and approved runners observe one consistent
-    runtime. The previous process environment is restored before this function returns.
+    ``runtime_environment`` contains runtime-only values such as Control Plane and
+    Warehouse database URLs. The integration runner config declares the allowed
+    environment-variable names. Only those names are mirrored into process environment
+    for the duration of the call and are restored before this function returns.
 
-    For a newly created dedicated certification Control Plane,
-    ``allow_control_plane_migration=True`` performs an explicit first-time bootstrap:
-    exact bounded checks must PASS first, the Customer bundle must match the same wheel,
-    then baseline schema plus exact Customer semantic metadata are materialized. This
-    path remains disabled on normal reruns and must not be used to silently alter a
-    shared/production Control Plane merely to make certification pass.
+    ``allow_control_plane_migration=True`` is only for first-time bootstrap of a
+    dedicated certification database after exact bounded checks PASS. It must not be
+    used to silently modify shared or production Control Plane state.
     """
 
     root = Path(certification_root)
@@ -248,25 +228,22 @@ def certify(
         )
     wheel = _discover_wheel(root)
 
-    resolved_customer = (
-        Path(customer_inputs_root)
-        if customer_inputs_root
-        else root / "customer-inputs"
+    resolved_inputs = (
+        Path(integration_inputs_root)
+        if integration_inputs_root
+        else root / "integration-inputs"
     )
-    if not resolved_customer.is_dir():
-        resolved_customer_value = None
-    else:
-        resolved_customer_value = resolved_customer
+    resolved_inputs_value = resolved_inputs if resolved_inputs.is_dir() else None
 
     resolved_output = Path(output_dir) if output_dir else root / "certification-output"
     resolved_runtime, declared_runtime_names = _resolve_runtime_environment(
-        resolved_customer_value,
+        resolved_inputs_value,
         runtime_environment,
     )
 
     with _scoped_process_runtime(resolved_runtime, declared_runtime_names):
         if (
-            resolved_customer_value is not None
+            resolved_inputs_value is not None
             and allow_live_mutations
             and allow_control_plane_migration
         ):
@@ -274,7 +251,7 @@ def certify(
                 spark=spark,
                 candidate_manifest=candidate_manifest,
                 wheel=wheel,
-                customer_inputs_root=resolved_customer_value,
+                integration_inputs_root=resolved_inputs_value,
                 output_dir=resolved_output,
                 environment=environment,
                 lakehouse_base_path=lakehouse_base_path,
@@ -288,10 +265,9 @@ def certify(
             output_dir=resolved_output,
             environment=environment,
             lakehouse_base_path=lakehouse_base_path,
-            customer_inputs_root=resolved_customer_value,
+            integration_inputs_root=resolved_inputs_value,
             environ=resolved_runtime,
-            auto_notebook_token=False if resolved_customer_value is not None else True,
-            install_extensions=True,
+            auto_notebook_token=False if resolved_inputs_value is not None else True,
             allow_control_plane_migration=allow_control_plane_migration,
             allow_control_plane_writes=allow_live_mutations,
             allow_pipeline_execution=allow_live_mutations,
