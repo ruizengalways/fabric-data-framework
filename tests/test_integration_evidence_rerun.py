@@ -20,14 +20,17 @@ from fabric_data_framework.evidence.integration_evidence_rerun import (
 
 
 NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)
+FRAMEWORK_ARTIFACT = "a" * 64
+INPUTS_HASH = "b" * 64
 
 
 def _spec() -> IntegrationEvidenceSpec:
     return IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
-        domain="customer",
+        domain="framework-certification",
         framework_version="0.4.0",
-        release_hash="a" * 64,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT,
+        integration_inputs_hash=INPUTS_HASH,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="fabric.item.read",
@@ -50,7 +53,8 @@ def _certified(spec: IntegrationEvidenceSpec) -> IntegrationEvidenceManifest:
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=NOW,
         completed_at=NOW,
         checks=spec.checks,
@@ -103,6 +107,8 @@ def test_explicit_pipeline_rerun_preserves_prerequisites_and_resets_only_selecte
 
     assert source.certified is True
     assert projected.certified is False
+    assert projected.framework_artifact_sha256 == FRAMEWORK_ARTIFACT
+    assert projected.integration_inputs_hash == INPUTS_HASH
     source_by_id = {item.check_id: item for item in source.results}
     projected_by_id = {item.check_id: item for item in projected.results}
     assert projected_by_id["fabric.item.read"] == source_by_id["fabric.item.read"]
