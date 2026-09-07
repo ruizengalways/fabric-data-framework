@@ -43,9 +43,13 @@ def _item(*, workspace_id, item_id, name, item_type):
     }
 
 
-def test_list_items_uses_type_filter_and_continuation_token_pagination():
+def test_list_items_uses_type_filter_and_validated_continuation_uri():
     workspace_id = uuid4()
     first_id, second_id = uuid4(), uuid4()
+    continuation = (
+        f"https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}/items"
+        "?type=DataPipeline&continuationToken=opaque%20next%2Ftoken"
+    )
     opener = _QueueOpener(
         [
             {
@@ -57,8 +61,8 @@ def test_list_items_uses_type_filter_and_continuation_token_pagination():
                         item_type="DataPipeline",
                     )
                 ],
-                "continuationToken": "opaque next/token",
-                "continuationUri": "https://malicious.invalid/must-not-be-followed",
+                "continuationToken": "opaque%20next%2Ftoken",
+                "continuationUri": continuation,
             },
             {
                 "value": [
@@ -88,6 +92,41 @@ def test_list_items_uses_type_filter_and_continuation_token_pagination():
         "continuationToken": ["opaque next/token"],
     }
     assert opener.requests[0][0].get_header("Authorization") == "Bearer secret-token"
+
+
+def test_list_items_rejects_cross_origin_continuation_uri():
+    workspace_id = uuid4()
+    opener = _QueueOpener(
+        [
+            {
+                "value": [],
+                "continuationToken": "opaque",
+                "continuationUri": "https://malicious.invalid/must-not-be-followed",
+            }
+        ]
+    )
+    client = FabricItemCatalogClient(token_provider=lambda: "token", opener=opener)
+
+    with pytest.raises(FabricRestError, match="escaped the configured API origin/path"):
+        client.list_items(workspace_id=workspace_id, item_type="DataPipeline")
+
+    assert len(opener.requests) == 1
+
+
+def test_list_items_preserves_encoded_token_when_uri_is_absent():
+    workspace_id = uuid4()
+    opener = _QueueOpener(
+        [
+            {"value": [], "continuationToken": "opaque%2Ftoken%3D"},
+            {"value": []},
+        ]
+    )
+    client = FabricItemCatalogClient(token_provider=lambda: "token", opener=opener)
+
+    assert client.list_items(workspace_id=workspace_id) == ()
+    second_url = opener.requests[1][0].full_url
+    assert "continuationToken=opaque%2Ftoken%3D" in second_url
+    assert "%252F" not in second_url
 
 
 def test_list_items_rejects_workspace_identity_mismatch():
