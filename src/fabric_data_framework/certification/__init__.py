@@ -1,5 +1,11 @@
 """Public certification API for real Microsoft Fabric environments."""
 
+from .bindings import (
+    CertificationBindingItem,
+    CertificationIntegrationBindings,
+    discover_certification_bindings,
+    discover_certification_bindings_from_names,
+)
 from .bounded import run_bounded_certification
 from .installed import InstalledWheelAttestation, attest_installed_wheel, certify_installed
 from .models import (
@@ -14,8 +20,10 @@ from .unified import print_certification_summary
 
 
 __all__ = [
+    "CertificationBindingItem",
     "CertificationCheckResult",
     "CertificationCheckStatus",
+    "CertificationIntegrationBindings",
     "CertificationOverallStatus",
     "DEFAULT_CERTIFICATION_ROOT",
     "InstalledWheelAttestation",
@@ -23,6 +31,8 @@ __all__ = [
     "attest_installed_wheel",
     "certify",
     "certify_installed",
+    "discover_certification_bindings",
+    "discover_certification_bindings_from_names",
     "print_certification_summary",
     "run_bounded_certification",
     "run_semantic_acceptance",
