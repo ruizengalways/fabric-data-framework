@@ -45,6 +45,8 @@ from fabric_data_framework.control_plane.sqlalchemy_repository import SqlAlchemy
 NOW = datetime(2026, 8, 29, 14, 0, tzinfo=timezone.utc)
 DOMAIN_GIT_SHA = "1" * 40
 FRAMEWORK_VERSION = "0.4.0"
+FRAMEWORK_ARTIFACT_SHA256 = "a" * 64
+INTEGRATION_INPUTS_HASH = "b" * 64
 
 
 class TrackingEnvironment(Mapping[str, str]):
@@ -97,12 +99,13 @@ def _release(configs: tuple[DatasetConfig, ...]):
     )
 
 
-def _spec(release_hash: str) -> IntegrationEvidenceSpec:
+def _spec(_release_hash: str) -> IntegrationEvidenceSpec:
     return IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
         domain="customer",
         framework_version=FRAMEWORK_VERSION,
-        release_hash=release_hash,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="fabric.item.read",
@@ -180,7 +183,8 @@ def _prerequisite(
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=NOW,
         completed_at=NOW,
         checks=spec.checks,
@@ -188,12 +192,13 @@ def _prerequisite(
     )
 
 
-def _runner_config(release_hash: str, workspace_id: UUID, item_id: UUID):
+def _runner_config(_release_hash: str, workspace_id: UUID, item_id: UUID):
     return ApprovedIntegrationRunnerConfig(
         environment=EnvironmentName.DEV,
         domain="customer",
         framework_version=FRAMEWORK_VERSION,
-        release_hash=release_hash,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         fabric_access_token_env_var="FABRIC_ACCESS_TOKEN",
         control_plane_profile="fabric_sql_database_v1",
         control_plane_database_url_env_var="CONTROL_PLANE_DATABASE_URL",
