@@ -1,6 +1,7 @@
-"""Public one-call certification API for real Microsoft Fabric environments."""
+"""Public certification API for real Microsoft Fabric environments."""
 
 from .bounded import run_bounded_certification
+from .installed import InstalledWheelAttestation, attest_installed_wheel, certify_installed
 from .models import (
     CertificationCheckResult,
     CertificationCheckStatus,
@@ -16,8 +17,11 @@ __all__ = [
     "CertificationCheckStatus",
     "CertificationOverallStatus",
     "DEFAULT_CERTIFICATION_ROOT",
+    "InstalledWheelAttestation",
     "UnifiedCertificationReport",
+    "attest_installed_wheel",
     "certify",
+    "certify_installed",
     "print_certification_summary",
     "run_bounded_certification",
 ]

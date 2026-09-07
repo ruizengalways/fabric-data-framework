@@ -1,4 +1,4 @@
-"""CLI presentation layer for the unified real-Fabric certification runner."""
+"""CLI presentation layer for installed-wheel real-Fabric certification."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import sys
 from ..certification import (
     CertificationCheckStatus,
     DEFAULT_CERTIFICATION_ROOT,
-    certify,
+    certify_installed,
     print_certification_summary,
 )
 
@@ -21,7 +21,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--certification-root",
         default=str(DEFAULT_CERTIFICATION_ROOT),
-        help="Directory containing CANDIDATE.json, one framework wheel and optional customer-inputs/.",
+        help="Directory containing CANDIDATE.json, exactly one installed candidate framework wheel and optional implementation inputs.",
     )
     parser.add_argument("--environment", default="DEV", choices=("DEV", "UAT", "PROD"))
     parser.add_argument("--customer-inputs")
@@ -56,7 +56,7 @@ def _active_spark():
     spark = SparkSession.getActiveSession()
     if spark is None:
         raise ValueError(
-            "no active SparkSession is available; use fabric_data_framework.certification.certify(...) inside the Fabric notebook"
+            "no active SparkSession is available; use fabric_data_framework.certification.certify_installed(...) inside the Fabric notebook"
         )
     return spark
 
@@ -64,7 +64,7 @@ def _active_spark():
 def _run(argv: list[str]) -> int:
     args = _parser().parse_args(argv)
     try:
-        report = certify(
+        report = certify_installed(
             spark=_active_spark(),
             certification_root=args.certification_root,
             environment=args.environment,
@@ -82,7 +82,7 @@ def _run(argv: list[str]) -> int:
             return 2
         return 0
     except (OSError, RuntimeError, TypeError, ValueError):
-        print("error: unified Fabric certification failed", file=sys.stderr)
+        print("error: installed-wheel Fabric certification failed", file=sys.stderr)
         return 2
 
 
