@@ -16,6 +16,10 @@ fabric-customer
 
 fabric-data-framework
   reusable processing framework + framework-owned certification
+
+implementation/domain repo (per real project)
+  DatasetConfig + mappings + environment bindings + deployment content
+  may depend on an approved/released framework wheel
 ```
 
 Important invariant: `fabric-customer` may use Fabric capabilities but must not depend on this framework implementation. A real application/consumer project may depend on a released framework wheel; the customer simulator does not.
@@ -41,7 +45,7 @@ The certification lifecycle is deliberately:
 source -> build wheel -> install exact wheel -> attest installed bytes -> certify in Fabric
 ```
 
-The `fabric-framework certify` command now refuses to proceed unless the active installed `fabric_data_framework` package payload matches the candidate wheel byte-for-byte. It does not silently certify `../src`.
+The `fabric-framework certify` command refuses to proceed unless the active installed `fabric_data_framework` package payload matches the candidate wheel byte-for-byte. It does not silently certify `../src`.
 
 See `docs/human/CERTIFICATION_LIFECYCLE.md`.
 
@@ -99,14 +103,20 @@ The bounded real-Fabric suite covers exact candidate identity, Lakehouse Delta r
 
 Stable environments consume an immutable wheel, normally through a published Fabric Environment. Framework code stays in Git; the wheel is not edited inside Fabric.
 
-For a real implementation project, the existing project tooling remains available:
+For a real implementation project:
 
 ```bash
-fabric-framework project-init ./my-fabric-project --domain health
-fabric-framework project-validate ./my-fabric-project
+fabric-framework project-init ./fabric-health --domain health
+fabric-framework project-validate ./fabric-health
 ```
 
-Do not use `fabric-customer` as the framework application repository; it is the independent production-source testbed.
+Author business DatasetConfig/framework metadata in that implementation/domain repo. Do not use `fabric-customer` as the framework application repository; it is the independent production-source testbed.
+
+See `docs/human/IMPLEMENTATION_PROJECT_BOOTSTRAP.md`.
+
+## Testing against realistic sources
+
+`fabric-customer` can generate a frozen deterministic source workload with its own `workload_digest`. Framework v1/v2 or other implementations can consume the same verified workload and compare normalized output against the same expected business truth. That is scenario validation, not framework wheel certification.
 
 ## Documentation
 
@@ -115,13 +125,14 @@ Start with:
 - `docs/human/README.md`
 - `docs/human/ARCHITECTURE_BOUNDARIES.md`
 - `docs/human/GETTING_STARTED.md`
+- `docs/human/IMPLEMENTATION_PROJECT_BOOTSTRAP.md`
 - `docs/human/DATASET_ONBOARDING.md`
 - `docs/human/CERTIFICATION_LIFECYCLE.md`
 - `docs/human/FRAMEWORK_DEVELOPER_CERTIFICATION.md`
 - `docs/human/TESTING_STRATEGY.md`
 - `docs/human/OPERATIONS.md`
 
-Machine/recovery evidence remains under `docs/machine/`.
+Machine/recovery truth remains under `docs/machine/STATE.md`.
 
 ## Release status
 
