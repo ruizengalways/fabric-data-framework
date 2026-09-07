@@ -109,7 +109,7 @@ def test_packaged_certification_policies_match_release_canonical_json():
         )
 
 
-def test_unified_runner_is_partial_when_exact_customer_inputs_are_absent(
+def test_unified_runner_is_partial_when_exact_integration_inputs_are_absent(
     monkeypatch,
     tmp_path,
 ):
@@ -153,7 +153,7 @@ def test_unified_runner_is_partial_when_exact_customer_inputs_are_absent(
     assert by_id["business.full.replace"].status is CertificationCheckStatus.NOT_RUN
     assert report.overall_status is CertificationOverallStatus.PARTIAL
     assert report.release_authorized is False
-    assert report.blockers == ("customer_inputs_not_supplied",)
+    assert report.blockers == ("integration_inputs_not_supplied",)
     assert (tmp_path / "certification-report.json").is_file()
 
 
