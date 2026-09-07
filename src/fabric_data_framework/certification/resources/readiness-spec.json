@@ -15,10 +15,10 @@
       "description": "Exact candidate wheel is retained, checksum-verified and install-tested."
     },
     {
-      "gate_id": "customer.compatibility",
-      "kind": "CUSTOMER_COMPATIBILITY",
+      "gate_id": "integration.inputs",
+      "kind": "INTEGRATION_INPUTS",
       "required": true,
-      "description": "fabric-customer exact-candidate compatibility validation is retained."
+      "description": "Framework-owned integration input bundle is validated and bound by exact integration_inputs_hash."
     },
     {
       "gate_id": "fabric.identity",
