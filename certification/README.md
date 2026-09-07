@@ -2,16 +2,21 @@
 
 This directory is intentionally separate from `tests/`.
 
-- `tests/` validates framework source code with unit/component/integration tests.
-- `certification/` validates a **built and installed wheel** and provides the entry into real Microsoft Fabric acceptance.
+- `tests/` validates framework source code and contracts.
+- `certification/` builds/uses framework-owned certification fixtures and validates a **built and installed wheel** before/inside real Microsoft Fabric.
 
-The lifecycle is:
+Lifecycle:
 
 ```text
-source -> build wheel -> install exact wheel -> attest installed bytes -> run Fabric certification
+source tests
+-> build exact wheel
+-> install exact wheel
+-> attest active installed package bytes
+-> semantic smoke
+-> real Fabric certification
 ```
 
-Do not add `../src` or the repository `src/` directory to the certification interpreter path.
+Do not add the repository `src/` directory to the certification interpreter path.
 
 Local installed-wheel smoke:
 
@@ -19,9 +24,10 @@ Local installed-wheel smoke:
 python -m build --wheel
 python -m venv .cert-venv
 .cert-venv/bin/python -m pip install dist/fabric_data_framework-*.whl
-.cert-venv/bin/python certification/smoke_installed_wheel.py --wheel dist/fabric_data_framework-*.whl
+.cert-venv/bin/python certification/smoke_installed_wheel.py \
+  --wheel dist/fabric_data_framework-*.whl
 ```
 
-On Windows use `.cert-venv\\Scripts\\python.exe`.
+The smoke proves the active package payload matches the candidate wheel package bytes. It does **not** claim real Fabric success.
 
-The smoke proves the active package payload matches the candidate wheel byte-for-byte. It does **not** claim Fabric runtime success. Real Fabric acceptance is described in `docs/human/CERTIFICATION_LIFECYCLE.md`.
+Framework-owned integration-input construction lives with this certification surface. Full execution/evidence rules are documented once in `docs/TESTING_AND_CERTIFICATION.md`.

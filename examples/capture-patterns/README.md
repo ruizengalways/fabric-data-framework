@@ -2,7 +2,7 @@
 
 Schema-valid example configurations for common source patterns.
 
-Use these as examples only; do not copy source names, connection refs, release identity, physical bindings, or capability assumptions into production without validating the real source.
+Use these as examples only; do not copy source names, connection refs, candidate identity, physical bindings, or capability assumptions into production without validating the real source.
 
 Files:
 
@@ -13,4 +13,4 @@ Files:
 - `configs/vendor.account_files.json` — recurring snapshot files + snapshot diff.
 - `capture-selections.json` — concise examples of the semantic claim made for each dataset.
 
-For the decision process behind these examples, read `docs/human/DATASET_ONBOARDING.md`.
+For the decision process behind these examples, read `docs/DATA_PATTERNS.md`.

@@ -1,91 +1,63 @@
 # fabric-data-framework
 
-Reusable Microsoft Fabric Data Engineering Framework.
+Reusable Microsoft Fabric data engineering framework for source capture, Bronze/Silver processing, data quality, orchestration, recovery, evidence, and package certification.
 
-This repository owns reusable processing semantics and its own package lifecycle: ingestion, Bronze/Silver behavior, full refresh, incremental watermark, SCD1, SCD2, CDC/Debezium normalization, metadata/configuration, audit/observability, retry/idempotency, Fabric runtime abstractions, Lakehouse/Warehouse integration and **lightweight installed-wheel certification**.
+The framework keeps **data semantics** separate from **Fabric execution mechanics**. A project describes what the source delivers and what the target must preserve; the framework validates those semantics, builds an execution plan, runs through approved Fabric adapters, and records durable evidence/recovery state.
 
 ## Repository boundary
 
 ```text
 fabric-infra
-  Fabric capacity/workspace/permissions/infrastructure lifecycle
+  Fabric capacity / workspace / permission infrastructure
 
 fabric-customer
   Fabric-native, framework-agnostic source-system simulator
-  deterministic source changes + expected business truth
+  deterministic source facts + expected business truth
 
 fabric-data-framework
-  reusable processing framework + framework-owned certification
+  reusable framework + package lifecycle + framework certification
 
-implementation/domain repo (per real project)
-  DatasetConfig + mappings + environment bindings + deployment content
-  may depend on an approved/released framework wheel
+implementation/domain repo
+  project DatasetConfig + mappings + DQ policy + environment bindings + deployment content
+  may depend on an approved framework wheel
 ```
 
-Important invariant: `fabric-customer` may use Fabric capabilities but must not depend on this framework implementation. A real application/consumer project may depend on a released framework wheel; the customer simulator does not.
+`fabric-customer` does not depend on this framework. Real projects such as `fabric-health` consume an approved/released framework wheel from their own implementation repository.
 
-See `docs/human/ARCHITECTURE_BOUNDARIES.md`.
-
-## Source tests vs certification
-
-These are different lifecycle gates:
-
-```text
-tests/
-  source-level unit/component/integration tests
-
-certification/
-  built + installed wheel acceptance
-  real Fabric environment validation
-```
-
-The certification lifecycle is deliberately:
-
-```text
-source -> build wheel -> install exact wheel -> attest installed bytes -> certify in Fabric
-```
-
-The `fabric-framework certify` command refuses to proceed unless the active installed `fabric_data_framework` package payload matches the candidate wheel byte-for-byte. It does not silently certify `../src`.
-
-See `docs/human/CERTIFICATION_LIFECYCLE.md`.
-
-## Local development
+## Quick start
 
 ```bash
 python -m pip install -e '.[dev]'
 pytest -q
 ruff check src tests
+
+python -m build --wheel
 ```
 
-Editable install is for development only.
-
-## Build and locally prove the wheel install
+For a real consuming project:
 
 ```bash
-python -m pip install build
-python -m build --wheel
-python -m venv .cert-venv
-.cert-venv/bin/python -m pip install dist/fabric_data_framework-*.whl
-.cert-venv/bin/python certification/smoke_installed_wheel.py --wheel dist/fabric_data_framework-*.whl
+fabric-framework project-init ./fabric-health --domain health
+fabric-framework project-validate ./fabric-health
 ```
 
-The smoke checks exact installed package bytes plus framework-owned metadata, incremental watermark and CDC contracts. GitHub Actions repeats this in a clean interpreter.
+Stable Fabric environments should consume immutable wheel bytes through a published Fabric Environment rather than an editable checkout.
 
-## Real Fabric certification
+## Certification boundary
 
-Place one exact candidate wheel plus `CANDIDATE.json` under the attached Lakehouse path:
+Source tests, installed-wheel acceptance, real Fabric certification, and release authorization are separate gates:
 
 ```text
-/lakehouse/default/Files/framework_cert/
+source tests
+-> build exact wheel
+-> install exact wheel
+-> attest installed package bytes
+-> framework semantic smoke
+-> real Fabric certification
+-> release readiness
 ```
 
-Install that exact wheel in the Fabric Environment/runtime, then run:
-
-```bash
-fabric-framework certify --certification-root /lakehouse/default/Files/framework_cert --require-complete
-```
-
-or inside a notebook:
+Minimal Fabric entry point:
 
 ```python
 from fabric_data_framework.certification import certify_installed, print_certification_summary
@@ -97,44 +69,23 @@ report = certify_installed(
 print_certification_summary(report)
 ```
 
-The bounded real-Fabric suite covers exact candidate identity, Lakehouse Delta read/write, full replace, SCD1, SCD2, retry/idempotency and fail-closed reconciliation. The installed semantic preflight covers metadata/config, incremental watermark and CDC normalization. Warehouse/control-plane/provider checks remain environment-dependent and run only when explicitly configured/authorized; they are never claimed locally.
-
-## How consumers use the framework
-
-Stable environments consume an immutable wheel, normally through a published Fabric Environment. Framework code stays in Git; the wheel is not edited inside Fabric.
-
-For a real implementation project:
-
-```bash
-fabric-framework project-init ./fabric-health --domain health
-fabric-framework project-validate ./fabric-health
-```
-
-Author business DatasetConfig/framework metadata in that implementation/domain repo. Do not use `fabric-customer` as the framework application repository; it is the independent production-source testbed.
-
-See `docs/human/IMPLEMENTATION_PROJECT_BOOTSTRAP.md`.
-
-## Testing against realistic sources
-
-`fabric-customer` can generate a frozen deterministic source workload with its own `workload_digest`. Framework v1/v2 or other implementations can consume the same verified workload and compare normalized output against the same expected business truth. That is scenario validation, not framework wheel certification.
+Real Fabric capabilities are never marked PASS from local CI alone.
 
 ## Documentation
 
-Start with:
+Start at [`docs/README.md`](docs/README.md).
 
-- `docs/human/README.md`
-- `docs/human/ARCHITECTURE_BOUNDARIES.md`
-- `docs/human/GETTING_STARTED.md`
-- `docs/human/IMPLEMENTATION_PROJECT_BOOTSTRAP.md`
-- `docs/human/DATASET_ONBOARDING.md`
-- `docs/human/CERTIFICATION_LIFECYCLE.md`
-- `docs/human/FRAMEWORK_DEVELOPER_CERTIFICATION.md`
-- `docs/human/TESTING_STRATEGY.md`
-- `docs/human/OPERATIONS.md`
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — repo ownership, semantic model, Control Plane/Data Plane topology.
+- [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — local development, wheel build, Fabric consumption.
+- [`docs/IMPLEMENTATION_PROJECT.md`](docs/IMPLEMENTATION_PROJECT.md) — bootstrap a real framework-consuming domain repo.
+- [`docs/DATA_PATTERNS.md`](docs/DATA_PATTERNS.md) — choose FULL, watermark, CDC, Bronze, SCD1/SCD2, delete semantics.
+- [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — runtime failure isolation, DQ, retry, replay, backfill and recovery.
+- [`docs/TESTING_AND_CERTIFICATION.md`](docs/TESTING_AND_CERTIFICATION.md) — source tests through exact-wheel real Fabric certification.
+- [`docs/RELEASE.md`](docs/RELEASE.md) — candidate identity, evidence and immutable promotion.
 
-Machine/recovery truth remains under `docs/machine/STATE.md`.
+Current engineering/release state lives only in [`docs/internal/STATE.md`](docs/internal/STATE.md).
 
 ## Release status
 
-- latest public release: `v0.3.0`
-- `main` currently contains `0.4.0` development work and is not yet a public release
+- Latest public release: `v0.3.0`.
+- `0.4.0` remains development/unreleased until exact-byte Fabric evidence and release-readiness gates are satisfied.
