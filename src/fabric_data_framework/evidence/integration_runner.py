@@ -1,8 +1,8 @@
 """Credential-free configuration and preflight for approved provider evidence runs.
 
-The source-controlled runner configuration contains only immutable release identity,
-physical item IDs and *names* of runtime environment variables. Secret values remain
-process-local. Preflight never serializes environment-variable values.
+The source-controlled runner configuration contains the exact framework wheel identity,
+the exact framework-owned integration-input identity, physical item IDs and names of
+runtime environment variables. Secret values remain process-local.
 """
 
 from __future__ import annotations
@@ -15,9 +15,9 @@ from uuid import UUID
 from pydantic import Field, model_validator
 
 from fabric_data_framework.contracts.base import FrozenModel
-from ..control_plane.certification import CONTROL_PLANE_BACKEND_PROFILES
 from fabric_data_framework.contracts.environment import EnvironmentName
-from .integration_evidence import (
+from fabric_data_framework.control_plane.certification import CONTROL_PLANE_BACKEND_PROFILES
+from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckSpec,
     IntegrationEvidenceSpec,
@@ -34,14 +34,12 @@ _FABRIC_ITEM_KINDS = frozenset(
         IntegrationEvidenceCheckKind.FABRIC_SPARK_CAPTURE,
     }
 )
-
 _WAREHOUSE_RUNTIME_KINDS = frozenset(
     {
         IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_TARGET_COMMIT,
         IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL,
     }
 )
-
 _MUTATING_KINDS = frozenset(
     {
         IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN,
@@ -53,7 +51,6 @@ _MUTATING_KINDS = frozenset(
         IntegrationEvidenceCheckKind.DELTA_CDF_PROVIDER,
     }
 )
-
 _CONTROL_PLANE_RUNTIME_KINDS = frozenset(
     {
         IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION,
@@ -64,15 +61,7 @@ _CONTROL_PLANE_RUNTIME_KINDS = frozenset(
 
 
 class IntegrationCheckPhysicalBinding(FrozenModel):
-    """Environment-local physical IDs for one evidence check.
-
-    ``dataset_id`` is optional for general provider checks, but exact candidate
-    integration certification uses it on the Pipeline binding so the customer/domain
-    repo owns the representative business dataset instead of passing business WHAT as
-    a framework-workflow input.
-
-    No connection string, access token or secret-bearing endpoint belongs here.
-    """
+    """Environment-local physical IDs for one framework certification check."""
 
     check_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z][a-z0-9_.-]*$")
     workspace_id: UUID | None = None
@@ -81,27 +70,13 @@ class IntegrationCheckPhysicalBinding(FrozenModel):
 
 
 class ApprovedIntegrationRunnerConfig(FrozenModel):
-    """Source-controlled configuration for one exact approved-environment run.
-
-    ``release_hash`` keeps its established meaning: the exact customer/domain
-    ``ReleaseManifest.bundle.release_hash``. Candidate certification additionally sets
-    ``framework_artifact_sha256`` to the exact framework wheel SHA256. This preserves
-    compatibility with existing approved provider runners while preventing the two
-    independent identities from being conflated.
-
-    ``warehouse_admin_database_url_env_var`` is deliberately separate from the ordinary
-    Warehouse target connection. It names the runtime credential used only for explicit
-    Admin/session-control evidence such as ``KILL``.
-    """
+    """Source-controlled configuration for one exact approved-environment run."""
 
     environment: EnvironmentName
     domain: str = Field(min_length=1, max_length=128)
     framework_version: str = Field(min_length=1, max_length=64)
-    release_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    framework_artifact_sha256: str | None = Field(
-        default=None,
-        pattern=r"^[0-9a-f]{64}$",
-    )
+    framework_artifact_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    integration_inputs_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     fabric_access_token_env_var: str = Field(
         default="FABRIC_ACCESS_TOKEN", pattern=_ENV_NAME_PATTERN
     )
@@ -130,23 +105,11 @@ class ApprovedIntegrationRunnerConfig(FrozenModel):
             self.control_plane_profile is not None
             and self.control_plane_profile not in self.supported_control_plane_profiles
         ):
-            raise ValueError(
-                f"unknown control-plane profile {self.control_plane_profile!r}"
-            )
-        if (
-            self.control_plane_profile is None
-            and self.control_plane_database_url_env_var is not None
-        ):
-            raise ValueError(
-                "control_plane_database_url_env_var requires control_plane_profile"
-            )
-        if (
-            self.control_plane_profile is not None
-            and self.control_plane_database_url_env_var is None
-        ):
-            raise ValueError(
-                "control_plane_profile requires control_plane_database_url_env_var"
-            )
+            raise ValueError(f"unknown control-plane profile {self.control_plane_profile!r}")
+        if self.control_plane_profile is None and self.control_plane_database_url_env_var is not None:
+            raise ValueError("control_plane_database_url_env_var requires control_plane_profile")
+        if self.control_plane_profile is not None and self.control_plane_database_url_env_var is None:
+            raise ValueError("control_plane_profile requires control_plane_database_url_env_var")
         if (
             self.warehouse_admin_database_url_env_var is not None
             and self.warehouse_database_url_env_var is None
@@ -156,8 +119,7 @@ class ApprovedIntegrationRunnerConfig(FrozenModel):
             )
         if (
             self.warehouse_admin_database_url_env_var is not None
-            and self.warehouse_admin_database_url_env_var
-            == self.warehouse_database_url_env_var
+            and self.warehouse_admin_database_url_env_var == self.warehouse_database_url_env_var
         ):
             raise ValueError(
                 "Warehouse Admin and ordinary Warehouse database URL env vars must differ"
@@ -172,16 +134,13 @@ class RuntimeEnvironmentRequirement(FrozenModel):
 
 
 class ApprovedIntegrationRunPlan(FrozenModel):
-    """Credential-free preflight result safe to retain as CI/deployment evidence."""
+    """Credential-free preflight result safe to retain as certification evidence."""
 
     environment: EnvironmentName
     domain: str
     framework_version: str
-    release_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    framework_artifact_sha256: str | None = Field(
-        default=None,
-        pattern=r"^[0-9a-f]{64}$",
-    )
+    framework_artifact_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    integration_inputs_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     check_ids: tuple[str, ...]
     bindings: tuple[IntegrationCheckPhysicalBinding, ...]
     runtime_requirements: tuple[RuntimeEnvironmentRequirement, ...]
@@ -206,23 +165,10 @@ def _require_same_release(
         raise ValueError("integration runner config and evidence spec domain differ")
     if config.framework_version != spec.framework_version:
         raise ValueError("integration runner config and evidence spec framework version differ")
-
-    if config.framework_artifact_sha256 is None:
-        # Compatibility path for existing dev/reference evidence created before the
-        # candidate identity split. It is valid only while the spec has no independent
-        # domain hash and uses the historical single release_hash identity.
-        if spec.domain_release_hash is not None:
-            raise ValueError(
-                "candidate integration runner requires framework_artifact_sha256"
-            )
-        if config.release_hash != spec.release_hash:
-            raise ValueError("integration runner config and evidence spec release hash differ")
-        return
-
-    if config.framework_artifact_sha256 != spec.release_hash:
+    if config.framework_artifact_sha256 != spec.framework_artifact_sha256:
         raise ValueError("integration runner framework artifact SHA256 mismatch")
-    if config.release_hash != spec.domain_release_hash:
-        raise ValueError("integration runner domain release hash mismatch")
+    if config.integration_inputs_hash != spec.integration_inputs_hash:
+        raise ValueError("integration runner integration inputs hash mismatch")
 
 
 def _selected_checks(
@@ -286,8 +232,7 @@ def _runtime_requirements(
     if kinds.intersection(_CONTROL_PLANE_RUNTIME_KINDS):
         if config.control_plane_database_url_env_var is None:
             raise ValueError(
-                "CONTROL_PLANE_CERTIFICATION/FABRIC_PIPELINE_RUN/Warehouse evidence check "
-                "needs control-plane runtime configuration"
+                "CONTROL_PLANE_CERTIFICATION/FABRIC_PIPELINE_RUN/Warehouse evidence check needs control-plane runtime configuration"
             )
         if IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION in kinds:
             purpose = "control-plane database URL"
@@ -299,14 +244,8 @@ def _runtime_requirements(
     if kinds.intersection(_WAREHOUSE_RUNTIME_KINDS):
         if config.warehouse_database_url_env_var is None:
             raise ValueError("Warehouse evidence check needs warehouse_database_url_env_var")
-        requirements.append(
-            ("Warehouse SQL database URL", config.warehouse_database_url_env_var)
-        )
+        requirements.append(("Warehouse SQL database URL", config.warehouse_database_url_env_var))
 
-    # Admin/session-control credentials are intentionally not included automatically.
-    # Whether they are required is an exact run-recipe decision, and the approved
-    # Warehouse fault runner adds that requirement only when session termination
-    # recovery is explicitly enabled and separately authorized.
     seen: set[str] = set()
     result: list[RuntimeEnvironmentRequirement] = []
     for purpose, env_var in requirements:
@@ -332,15 +271,7 @@ def build_approved_integration_run_plan(
     selected_check_ids: Iterable[str] | None = None,
     allow_mutating_checks: bool = False,
 ) -> ApprovedIntegrationRunPlan:
-    """Validate exact-release bindings and runtime prerequisites without reading secrets.
-
-    By default all *required* evidence checks are planned. ``selected_check_ids`` can
-    stage a safer subset, for example the read-only Fabric item smoke before database
-    credentials or mutating provider checks are authorized.
-
-    The environment mapping is inspected only for presence/non-empty values. Secret
-    values are never copied into the returned plan.
-    """
+    """Validate exact identities, bindings and runtime prerequisites without secrets."""
 
     _require_same_release(config, spec)
     checks = _selected_checks(spec, selected_check_ids)
@@ -355,8 +286,8 @@ def build_approved_integration_run_plan(
         environment=config.environment,
         domain=config.domain,
         framework_version=config.framework_version,
-        release_hash=config.release_hash,
         framework_artifact_sha256=config.framework_artifact_sha256,
+        integration_inputs_hash=config.integration_inputs_hash,
         check_ids=tuple(item.check_id for item in checks),
         bindings=selected_bindings,
         runtime_requirements=runtime_requirements,
