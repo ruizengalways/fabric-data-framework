@@ -1,0 +1,204 @@
+name: candidate-integration-inputs
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: "Successful main framework-ci run that built the exact candidate wheel"
+        required: true
+        type: string
+      candidate_git_sha:
+        description: "Exact 40-character candidate source SHA; dispatch at this same ref"
+        required: true
+        type: string
+      candidate_wheel_sha256:
+        description: "Exact inner candidate wheel SHA256"
+        required: true
+        type: string
+      environment:
+        description: "Approved Fabric environment represented by these non-secret physical bindings"
+        required: true
+        default: DEV
+        type: choice
+        options: [DEV, UAT, PROD]
+      workspace_id:
+        description: "Workspace UUID used by framework certification"
+        required: true
+        type: string
+      item_read_id:
+        description: "Read-only Fabric item UUID"
+        required: true
+        type: string
+      pipeline_item_id:
+        description: "Certification Pipeline item UUID"
+        required: true
+        type: string
+      copy_job_id:
+        description: "Certification Copy Job item UUID"
+        required: true
+        type: string
+      spark_job_id:
+        description: "Certification Spark Job Definition item UUID"
+        required: true
+        type: string
+      control_plane_profile:
+        description: "Production-eligible framework control-plane profile"
+        required: true
+        default: fabric_sql_database_v1
+        type: choice
+        options: [fabric_sql_database_v1]
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: candidate-integration-inputs-${{ inputs.candidate_git_sha }}-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      CANDIDATE_SHA: ${{ inputs.candidate_git_sha }}
+      CANDIDATE_WHEEL_SHA256: ${{ inputs.candidate_wheel_sha256 }}
+      CERTIFICATION_ENVIRONMENT: ${{ inputs.environment }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate exact candidate identity and dispatch ref
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from uuid import UUID
+
+          if re.fullmatch(r"[0-9a-f]{40}", os.environ["CANDIDATE_SHA"]) is None:
+              raise SystemExit("candidate_git_sha must be a 40-character lowercase git SHA")
+          if re.fullmatch(r"[0-9a-f]{64}", os.environ["CANDIDATE_WHEEL_SHA256"]) is None:
+              raise SystemExit("candidate_wheel_sha256 must be a 64-character lowercase SHA256")
+          value = os.environ["CANDIDATE_RUN_ID"]
+          if not value.isdigit() or int(value) < 1:
+              raise SystemExit("candidate_run_id must be a positive GitHub Actions run ID")
+          if os.environ["GITHUB_SHA"] != os.environ["CANDIDATE_SHA"]:
+              raise SystemExit("candidate-integration-inputs must be dispatched at the exact candidate ref")
+          for raw in (
+              "${{ inputs.workspace_id }}",
+              "${{ inputs.item_read_id }}",
+              "${{ inputs.pipeline_item_id }}",
+              "${{ inputs.copy_job_id }}",
+              "${{ inputs.spark_job_id }}",
+          ):
+              UUID(raw)
+          PY
+
+      - name: Checkout exact framework candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.candidate_git_sha }}
+          fetch-depth: 0
+
+      - name: Verify candidate source and successful main CI provenance
+        id: candidate
+        run: |
+          test "$(git rev-parse HEAD)" = "${CANDIDATE_SHA}"
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor "${CANDIDATE_SHA}" origin/main
+          VERSION="$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+          print(tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])
+          PY
+          )"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+          RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}")"
+          export RUN_JSON
+          python - <<'PY'
+          import json
+          import os
+
+          run = json.loads(os.environ["RUN_JSON"])
+          if run["head_sha"] != os.environ["CANDIDATE_SHA"] or run["head_branch"] != "main":
+              raise SystemExit("candidate CI does not bind exact main candidate SHA")
+          if run["event"] != "push" or run["conclusion"] != "success":
+              raise SystemExit("candidate CI must be a successful main push")
+          if run["path"] != ".github/workflows/ci.yml":
+              raise SystemExit("candidate CI workflow path mismatch")
+          PY
+          RUN_ATTEMPT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["run_attempt"])')"
+          echo "run_attempt=${RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download and authenticate exact framework wheel
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+          CANDIDATE_RUN_ATTEMPT: ${{ steps.candidate.outputs.run_attempt }}
+        run: |
+          rm -rf candidate-dist
+          gh run download "${CANDIDATE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "framework-wheel-${CANDIDATE_SHA}" \
+            --dir candidate-dist
+          python src/fabric_data_framework/deployment/candidate_artifact.py verify \
+            --dist-dir candidate-dist \
+            --manifest candidate-dist/CANDIDATE.json \
+            --candidate-sha "${CANDIDATE_SHA}" \
+            --workflow-run-id "${CANDIDATE_RUN_ID}" \
+            --workflow-run-attempt "${CANDIDATE_RUN_ATTEMPT}" \
+            --expected-version "${FRAMEWORK_VERSION}" \
+            --expected-wheel-sha256 "${CANDIDATE_WHEEL_SHA256}"
+          (cd candidate-dist && sha256sum -c SHA256SUMS)
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+
+      - name: Install exact candidate wheel
+        run: |
+          python -m pip install candidate-dist/*.whl
+          python -m pip check
+
+      - name: Build exact framework-owned integration input bundle
+        env:
+          FRAMEWORK_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          WHEEL="$(find candidate-dist -maxdepth 1 -name 'fabric_data_framework-*.whl' -type f -print -quit)"
+          test -n "${WHEEL}"
+          rm -rf retained
+          python certification/build_integration_inputs.py \
+            --framework-wheel "${WHEEL}" \
+            --output retained/integration-inputs \
+            --candidate-git-sha "${CANDIDATE_SHA}" \
+            --candidate-wheel-sha256 "${CANDIDATE_WHEEL_SHA256}" \
+            --framework-version "${FRAMEWORK_VERSION}" \
+            --environment "${CERTIFICATION_ENVIRONMENT}" \
+            --workspace-id "${{ inputs.workspace_id }}" \
+            --item-read-id "${{ inputs.item_read_id }}" \
+            --pipeline-item-id "${{ inputs.pipeline_item_id }}" \
+            --copy-job-id "${{ inputs.copy_job_id }}" \
+            --spark-job-id "${{ inputs.spark_job_id }}" \
+            --control-plane-profile "${{ inputs.control_plane_profile }}"
+
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          payload = json.loads(Path("retained/integration-inputs/INPUTS.json").read_text())
+          if payload["candidate_git_sha"] != os.environ["CANDIDATE_SHA"]:
+              raise SystemExit("integration input candidate SHA mismatch")
+          if payload["candidate_wheel_sha256"] != os.environ["CANDIDATE_WHEEL_SHA256"]:
+              raise SystemExit("integration input candidate wheel SHA mismatch")
+          if re.fullmatch(r"[0-9a-f]{64}", payload["integration_inputs_hash"]) is None:
+              raise SystemExit("integration_inputs_hash is invalid")
+          PY
+
+      - name: Upload exact framework integration inputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: integration-inputs-${{ inputs.candidate_git_sha }}-${{ inputs.environment }}
+          path: retained/integration-inputs/
+          if-no-files-found: error
+          retention-days: 90
