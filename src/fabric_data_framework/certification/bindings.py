@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable
 from typing import Literal
 from uuid import UUID
 
@@ -143,21 +143,17 @@ def discover_certification_bindings(
 
 def discover_certification_bindings_from_names(
     *,
-    token_provider,
+    token_provider: Callable[[], str],
     workspace_id: UUID | str,
     item_read_name: str,
     item_read_type: str,
     pipeline_name: str,
     copy_job_name: str,
     spark_job_name: str,
-    client_kwargs: Mapping[str, object] | None = None,
 ) -> CertificationIntegrationBindings:
-    """Convenience wrapper constructing the read-only Fabric item catalog client."""
+    """Discover bindings through the standard Fabric API without retaining a token."""
 
-    client = FabricItemCatalogClient(
-        token_provider=token_provider,
-        **dict(client_kwargs or {}),
-    )
+    client = FabricItemCatalogClient(token_provider=token_provider)
     return discover_certification_bindings(
         client=client,
         workspace_id=workspace_id,
