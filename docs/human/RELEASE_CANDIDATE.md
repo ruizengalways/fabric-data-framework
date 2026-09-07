@@ -33,7 +33,7 @@ freeze exact Git SHA + wheel SHA256 + main CI identity
 -> any executable code change means a new candidate and new real-Fabric evidence
 ```
 
-Documentation-only commits do not change already-built executable wheel bytes, but `docs/machine/STATE.md` must always identify the exact executable baseline separately from repository HEAD.
+A documentation-only commit does not change the Framework package source/payload, but CI may still emit a newly built wheel artifact with its own Git/CANDIDATE identity. `docs/machine/STATE.md` therefore records the exact executable artifact selected for the next Fabric run separately from repository documentation HEAD.
 
 ## 3. Required lifecycle
 
@@ -54,7 +54,7 @@ There is no release-time wheel rebuild.
 
 ## 4. Current executable baseline
 
-The latest executable framework baseline already proven on `main` is:
+The exact Framework artifact currently selected as the next real-Fabric baseline is:
 
 ```text
 framework Git SHA       38741777955ffdb59cf9bdeea361bdd6651c5ee2
@@ -170,7 +170,7 @@ Release readiness must fail closed until all required exact-byte evidence is pre
 ```text
 public release                   v0.3.0
 0.4 source                       development / unreleased
-current executable baseline      38741777955ffdb59cf9bdeea361bdd6651c5ee2
+next Fabric artifact baseline    38741777955ffdb59cf9bdeea361bdd6651c5ee2
 source/main CI                   PASS
 installed-wheel acceptance       PASS
 real Fabric exact-wheel evidence FABRIC CERTIFICATION REQUIRED
