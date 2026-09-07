@@ -1,42 +1,61 @@
 # Documentation
 
-Documentation is split by audience.
+This directory intentionally has a small number of canonical documents. A fact should have **one home**; other documents link to it instead of copying the same explanation.
 
-## Human docs
+## I want to...
 
-Start with `human/README.md` when learning or using the Framework.
+| Goal | Read |
+|---|---|
+| Understand the framework and repo boundaries | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| Start developing or consume the wheel in Fabric | [`GETTING_STARTED.md`](GETTING_STARTED.md) |
+| Create a real project such as `fabric-health` | [`IMPLEMENTATION_PROJECT.md`](IMPLEMENTATION_PROJECT.md) |
+| Onboard a new table/source and choose the right semantics | [`DATA_PATTERNS.md`](DATA_PATTERNS.md) |
+| Recover a failed business Pipeline safely | [`OPERATIONS.md`](OPERATIONS.md) |
+| Test/certify exact framework wheel bytes | [`TESTING_AND_CERTIFICATION.md`](TESTING_AND_CERTIFICATION.md) |
+| Build/freeze/promote a framework release candidate | [`RELEASE.md`](RELEASE.md) |
+| Look up Fabric SQL auth or Pipeline child details | [`reference/`](reference/) |
+| Resume framework engineering or inspect current evidence state | [`internal/STATE.md`](internal/STATE.md) |
 
-Human docs cover:
-
-- architecture and concepts;
-- new-project bootstrap and dataset onboarding;
-- normal Pipeline operations/recovery;
-- Fabric-native SQL authentication;
-- current Framework developer certification;
-- release-candidate operating rules.
-
-They intentionally do not preserve superseded candidate identities, old Fabric test walkthroughs, PR timelines or CI archaeology.
-
-## Machine / engineering recovery docs
-
-Start with `machine/STATE.md` when continuing Framework engineering or opening a new AI conversation.
-
-Use this minimal read order:
+## Canonical ownership
 
 ```text
-1. machine/STATE.md
-2. machine/ENTERPRISE_TOPOLOGY.md
-3. machine/UNIFIED_CERTIFICATION.md
+ARCHITECTURE.md
+  architecture + ownership + topology + durable semantic model
+
+GETTING_STARTED.md
+  installation/build/Fabric consumption only
+
+IMPLEMENTATION_PROJECT.md
+  real consumer project bootstrap only
+
+DATA_PATTERNS.md
+  source/capture/Bronze/apply decision rules only
+
+OPERATIONS.md
+  normal runtime operations and recovery only
+
+TESTING_AND_CERTIFICATION.md
+  test/certification execution and evidence semantics only
+
+RELEASE.md
+  candidate/readiness/promotion only
+
+reference/
+  narrow technical contracts
+
+internal/
+  current state, capability matrix, module ownership
 ```
 
-Open other machine contracts only when the task needs them.
+Do not create a new top-level document when an existing canonical topic can absorb the information. Git history is the historical record; current docs do not maintain PR timelines or superseded candidate walkthroughs.
 
-`machine/STATE.md` contains current executable identity, current Customer binding, real-evidence state, release gates and the exact next boundary. Git history is the historical record; do not duplicate it into current-state docs.
-
-## Truth rule
+## Truth order
 
 ```text
-code + tests > machine/STATE.md > task-specific machine docs > human docs
+code + tests + executable schemas
+  > internal/STATE.md
+  > canonical topic docs
+  > examples / local README files
 ```
 
-If these disagree, fix the current-state docs in the same engineering slice rather than adding another recovery checkpoint file.
+If a document disagrees with current behavior, update the canonical document in the same engineering change rather than adding another explanatory file.
