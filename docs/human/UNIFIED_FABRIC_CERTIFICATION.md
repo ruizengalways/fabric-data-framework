@@ -2,7 +2,7 @@
 
 This is the default operator path for validating an exact Framework wheel in a real Microsoft Fabric environment.
 
-The goal is simple: **CI proves reusable code contracts; the unified runner re-proves the environment-facing boundaries for the exact wheel in real Fabric without making an operator copy many notebook cells or fill a certification form by hand.**
+The goal is simple: **CI proves reusable code contracts; the unified runner re-proves environment-facing boundaries for the exact installed wheel in real Fabric without making an operator copy many notebook cells or manually invent PASS evidence.**
 
 Framework developers who need a start-to-finish procedural runbook should use [`FRAMEWORK_DEVELOPER_CERTIFICATION.md`](FRAMEWORK_DEVELOPER_CERTIFICATION.md). This document defines the unified runner contract and operational semantics.
 
@@ -17,19 +17,33 @@ Put the exact Framework artifact in the conventional attached-Lakehouse director
   SHA256SUMS
 ```
 
-Then run:
+Install that exact wheel in the Fabric Environment/runtime, then prefer:
+
+```python
+from fabric_data_framework.certification import certify_installed, print_certification_summary
+
+report = certify_installed(
+    spark=spark,
+    certification_root="/lakehouse/default/Files/framework_cert",
+)
+print_certification_summary(report)
+```
+
+The compatibility convenience API remains:
 
 ```python
 from fabric_data_framework.certification import certify, print_certification_summary
-
 report = certify(spark=spark)
 print_certification_summary(report)
 ```
 
-With only the Framework artifact present, this automatically executes the bounded real-Fabric suite:
+With only the Framework artifact present, certification executes the self-contained/bounded path:
 
 ```text
-exact installed candidate / wheel-byte identity
+installed package vs exact wheel byte attestation
+metadata/config smoke
+incremental watermark smoke
+CDC normalization/dedup smoke
 Lakehouse Delta write/read
 FULL -> REPLACE + incomplete-FULL destructive guard
 WATERMARK -> SCD1
@@ -38,38 +52,44 @@ retry / idempotency
 reconciliation fail-closed
 ```
 
-The JSON report is written under:
-
-```text
-/lakehouse/default/Files/framework_cert/certification-output/
-```
-
 No manual PASS dropdown is required.
 
 ### Important: no SQL Database auto-discovery
 
-`certify(spark=spark)` does **not** scan the Fabric workspace and choose a SQL Database.
+The runner does **not** scan the Fabric workspace and choose a SQL Database, Warehouse or Pipeline.
 
-If `customer-inputs/` is absent, the run is bounded-only and no Control Plane SQL Database is contacted.
+Without an optional integration-input bundle, the run is bounded/self-contained and no Control Plane SQL Database is contacted.
 
-If `customer-inputs/` exists, its exact `runner-config.json` declares which runtime environment-variable name represents the Control Plane database URL and which names represent Warehouse/runtime credentials. The actual runtime-only values must already exist in the process environment or be supplied explicitly through `runtime_environment`.
+## 2. Optional environment-dependent integration bundle
 
-## 2. Full environment certification
-
-The exact Customer certification input artifact produced for the same Framework candidate can be extracted under:
+Historical code and CLI surfaces use the name:
 
 ```text
-/lakehouse/default/Files/framework_cert/customer-inputs/
-  INPUTS.json
-  runner-config.json
-  release-manifest.json
-  project/
-  dist/
+customer-inputs/
+--customer-inputs
 ```
 
-The unified runner verifies that the Customer bundle binds the same candidate Git SHA, wheel SHA256 and Framework version before any live provider stage runs.
+That spelling is retained for backward compatibility only. Architecturally it now means:
 
-For an approved disposable/certification environment where the ordinary live mutations are authorized:
+> optional framework certification integration-input bundle.
+
+It is owned by the framework certification lifecycle, not by the `fabric-customer` source simulator.
+
+A bundle may contain exact runtime declarations/recipes such as:
+
+```text
+INPUTS.json
+runner-config.json
+release-manifest.json
+project/
+dist/
+```
+
+The unified runner validates that the integration bundle is bound to the same Framework candidate identity before any live provider stage runs.
+
+## 3. Full environment certification
+
+For an approved disposable/certification environment where ordinary live mutations are authorized:
 
 ```python
 from fabric_data_framework.certification import certify, print_certification_summary
@@ -87,23 +107,23 @@ report = certify(
 print_certification_summary(report)
 ```
 
-The variables `control_plane_database_url` and `warehouse_database_url` should come from the organization's approved runtime secret/credential mechanism. Do not hard-code real secrets into the Notebook or source-controlled configuration.
+The variables should come from the organization's approved runtime secret/credential mechanism. Do not hard-code real secrets into the Notebook or source-controlled integration input.
 
-When `runtime_environment` is omitted, the unified runner falls back to the current process environment.
+When `runtime_environment` is omitted, the unified runner falls back to the current process environment for names declared by the exact runner config.
 
-The runner then attempts, in dependency order:
+Depending on configured prerequisites and authorization, the runner may attempt in dependency order:
 
 ```text
 bounded exact-wheel suite
 Fabric item read / authorization smoke
 real Control Plane reference conformance
-reviewed production Control Plane certification
+reviewed Control Plane certification
 Fabric Pipeline
 Fabric Copy capture
 Fabric Spark capture
 Warehouse normal commit
 Warehouse ambiguous-COMMIT recovery drill
-five representative live business paths:
+representative live business paths:
   full.replace
   watermark.scd1
   watermark.scd2
@@ -111,16 +131,16 @@ five representative live business paths:
   reconciliation.fail_closed
 ```
 
-It reuses the existing approved runners; it does not maintain a second implementation of Pipeline, Capture, Warehouse, recovery or business-path semantics.
+It reuses approved Framework runners; it does not maintain a second implementation of Pipeline, Capture, Warehouse, recovery or business-path semantics.
 
-## 3. How physical resources and runtime values are resolved
+## 4. Physical resources and runtime values
 
-Physical Fabric IDs, dataset selections and execution recipes belong in the exact Customer certification input bundle. The notebook operator should not type them repeatedly.
+Physical Fabric IDs, dataset selections and execution/fault recipes belong in the exact integration-input bundle. The notebook operator should not type them repeatedly.
 
 The resolution model is intentionally split:
 
 ```text
-source-controlled exact Customer bundle
+source-controlled exact integration bundle
   -> environment name
   -> Control Plane profile
   -> workspace/item IDs
@@ -135,38 +155,38 @@ runtime-only environment
   -> optional explicit Fabric access token
 ```
 
-For the reference Customer certification harness, the normal runtime names are:
+Typical runtime names may include:
 
 ```text
 CONTROL_PLANE_DATABASE_URL
 WAREHOUSE_DATABASE_URL
-WAREHOUSE_ADMIN_DATABASE_URL   # only when the reviewed session-termination recipe requires it
-FABRIC_ACCESS_TOKEN            # optional explicit token; Notebook execution may obtain current Fabric identity
+WAREHOUSE_ADMIN_DATABASE_URL
+FABRIC_ACCESS_TOKEN
 ```
 
 The source-controlled runner config contains environment-variable **names**, not secret values.
 
-Conceptually, SQL Database selection is therefore:
+Conceptually, SQL Database selection is:
 
 ```text
 runner-config.json
   control_plane_database_url_env_var = CONTROL_PLANE_DATABASE_URL
 
 runtime_environment/process environment
-  CONTROL_PLANE_DATABASE_URL = <actual approved Control Plane SQL Database URL>
+  CONTROL_PLANE_DATABASE_URL = <actual approved certification SQL Database URL>
 ```
 
-If that runtime value is missing, the check remains not ready/blocked. The Framework does not search for another database.
+If the runtime value is missing, the check remains not ready/blocked. The Framework does not search for another database.
 
-For Fabric REST access, the runner first honors the configured access-token environment variable. In a Fabric Notebook it can also try the current NotebookUtils Fabric/Power BI token when no explicit token was supplied. The token is not written into the certification report.
+For Fabric REST access, the runner first honors the configured token environment variable. In a Fabric Notebook it may use current NotebookUtils Fabric/Power BI identity when supported and no explicit token was supplied. Tokens are not written into retained reports.
 
 Do not place passwords, bearer tokens, connection strings or signed URLs into retained evidence references.
 
-## 4. Control Plane migration is separate
+## 5. Control Plane migration is separate
 
-Production Control Plane certification historically does not silently migrate a database. The unified runner preserves that boundary.
+Certification must not silently migrate a shared/production database.
 
-For a newly created dedicated certification Control Plane database, schema bootstrap must be an explicit decision:
+For a newly created dedicated certification Control Plane, schema bootstrap requires explicit authorization:
 
 ```python
 report = certify(
@@ -177,21 +197,15 @@ report = certify(
 )
 ```
 
-Once the schema is already deployed, leave `allow_control_plane_migration=False` on normal certification reruns.
+Once the schema is already deployed, leave `allow_control_plane_migration=False` on normal reruns.
 
-## 5. Warehouse session termination stays separately authorized
+## 6. Warehouse session termination stays separately authorized
 
-`allow_live_mutations=True` may run the reviewed ordinary certification mutations and the configured ambiguous-COMMIT fault drill. It does **not** silently grant Admin-level exact-session termination authority.
+`allow_live_mutations=True` does not silently grant Admin-level exact-session termination authority.
 
-If, and only if, company governance has approved the reviewed Warehouse fault recipe to terminate the exact certification session:
+If, and only if, governance approves the reviewed Warehouse fault recipe:
 
 ```python
-runtime_environment = {
-    "CONTROL_PLANE_DATABASE_URL": control_plane_database_url,
-    "WAREHOUSE_DATABASE_URL": warehouse_database_url,
-    "WAREHOUSE_ADMIN_DATABASE_URL": warehouse_admin_database_url,
-}
-
 report = certify(
     spark=spark,
     runtime_environment=runtime_environment,
@@ -202,32 +216,22 @@ report = certify(
 
 Never enable this against shared or production resources merely to make a check green.
 
-## 6. External enterprise evidence is not automatable into existence
+## 7. External enterprise evidence is not automatable into existence
 
-The runner can consume and validate the seven reviewed Control Plane evidence references:
+The runner may consume reviewed Control Plane evidence such as identity/access, network security, backup/restore, availability/recovery, monitoring/alerting and retention/governance.
 
-```text
-backend service identity
-identity / access control
-network security
-backup / restore
-availability / recovery
-monitoring / alerting
-retention / governance
-```
-
-It cannot infer those controls from a successful SQL connection. If the exact Customer input bundle still reports incomplete or unbound external evidence, the unified report shows that condition as `BLOCKED`; it does not manufacture PASS.
+It cannot infer those controls from a successful SQL connection. Missing or unbound evidence is `BLOCKED`; the runner does not manufacture PASS.
 
 The same rule applies to a missing real Warehouse fault controller.
 
-## 7. Result semantics
+## 8. Result semantics
 
 Every stage has one of four statuses:
 
 ```text
 PASS      the actual check executed and passed
 FAIL      the actual check executed and failed
-NOT_RUN   intentionally not executed, usually because authorization/prerequisites were absent
+NOT_RUN   intentionally not executed because authorization/prerequisites were absent
 BLOCKED   a required external/configuration prerequisite is not ready
 ```
 
@@ -245,30 +249,35 @@ release_authorized = false
 
 Certification execution never freezes a candidate and never publishes a release.
 
-## 8. Why CI and real Fabric both exist
+## 9. Why CI and real Fabric both exist
 
-Do not run the full Framework pytest suite in a Fabric Notebook merely to repeat CI. PR/main CI remains responsible for hundreds of deterministic unit, contract, recovery, package-boundary and failure-path tests.
+Do not run the entire Framework pytest suite in a Fabric Notebook merely to repeat CI. PR/main CI remains responsible for deterministic unit, contract, recovery, package-boundary and failure-path tests.
 
 Real Fabric reruns the boundaries CI cannot prove:
 
 ```text
-exact candidate bytes install in Fabric
+exact candidate bytes installed in Fabric
 real Lakehouse Delta behavior
-real Fabric REST authorization
+real Fabric identity/REST authorization
 real Fabric SQL transaction/CAS behavior
 real Pipeline/Copy/Spark execution
 real Warehouse commit/recovery behavior
-real representative end-to-end business paths
 ```
 
-This is complementary evidence, not duplicate test theater.
+Until those exact environment calls execute and retained evidence exists for the exact wheel bytes, report `FABRIC CERTIFICATION REQUIRED`.
 
-## 9. Manual runbook is now troubleshooting/reference
+## 10. Relationship to fabric-customer
 
-`FIRST_FABRIC_NOTEBOOK_TEST.md` retains the explicit cells so individual probes can be isolated when debugging an unexpected failure or when validating an older wheel that predates the unified runner.
+`fabric-customer` may optionally provide a separate realistic source workload for end-to-end implementation testing. Its `workload_digest` can bind v1/v2 scenario comparisons.
 
-For new candidate bytes, start with this unified runner instead of copying the cells one by one.
+That is a different lifecycle:
 
-## 10. Exact-byte rule after Framework changes
+```text
+framework certification
+  proves framework wheel/environment behavior
 
-Real-Fabric evidence belongs to the exact tested wheel. If Framework code changes, build a new main artifact and run certification again. Results from an older wheel remain historical evidence only and must not be relabeled as proof for new bytes.
+customer scenario validation
+  proves an implementation against frozen realistic source facts
+```
+
+Neither repository needs to import the other to perform its owned responsibility.
