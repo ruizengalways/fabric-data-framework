@@ -71,7 +71,7 @@ fabric-framework project-validate ./fabric-health
 
 Author business DatasetConfig/framework metadata in that consuming project, not in the `fabric-customer` source simulator.
 
-Use `IMPLEMENTATION_PROJECT_BOOTSTRAP.md` for the complete repo/layout/runbook. The older filename `CUSTOMER_PROJECT_BOOTSTRAP.md` is retained only as a compatibility pointer because the phrase "customer repo" is now ambiguous.
+Use `IMPLEMENTATION_PROJECT_BOOTSTRAP.md` for the complete repo/layout/runbook.
 
 ## 8. New dataset
 
