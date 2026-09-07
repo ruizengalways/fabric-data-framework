@@ -30,6 +30,8 @@ from fabric_data_framework.evidence.integration_runner import ApprovedIntegratio
 
 NOW = datetime(2026, 8, 29, 13, 30, tzinfo=timezone.utc)
 SECRET_URL = "mssql+pyodbc://user:s3cr3t@example.invalid/control"
+FRAMEWORK_ARTIFACT_SHA256 = "a" * 64
+INTEGRATION_INPUTS_HASH = "b" * 64
 
 
 class TrackingEnvironment(Mapping[str, str]):
@@ -58,7 +60,8 @@ def _spec(kind=IntegrationEvidenceCheckKind.CONTROL_PLANE_CERTIFICATION):
         environment=EnvironmentName.DEV,
         domain="customer",
         framework_version="0.4.0",
-        release_hash="a" * 64,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="control-plane.certify",
@@ -78,7 +81,8 @@ def _config(profile="fabric_sql_database_v1"):
         environment=EnvironmentName.DEV,
         domain="customer",
         framework_version="0.4.0",
-        release_hash="a" * 64,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         control_plane_database_url_env_var="CONTROL_PLANE_DATABASE_URL",
         control_plane_profile=profile,
     )
