@@ -18,7 +18,7 @@ release:
   real_fabric_execution_for_current_executable: NOT_YET
 
 executable_baseline:
-  # Latest executable Framework main bytes proven before subsequent docs-only work.
+  # Exact main artifact selected as the next real-Fabric baseline.
   git_sha: 38741777955ffdb59cf9bdeea361bdd6651c5ee2
   main_ci_run: 34091549404
   python_3_11: success
@@ -134,19 +134,19 @@ customer.compatibility
 
 may still exist in Framework compatibility surfaces or serialized readiness contracts. Interpret them as deprecated names for optional Framework integration/candidate contracts, not as repository ownership by `fabric-customer`.
 
-### 2. Executable baseline is separate from documentation HEAD
+### 2. Exact artifact baseline is separate from documentation HEAD
 
-The exact executable baseline above is the wheel built from Framework SHA:
+The exact artifact selected for the next real-Fabric run was built from Framework SHA:
 
 ```text
 38741777955ffdb59cf9bdeea361bdd6651c5ee2
 ```
 
-Subsequent documentation-only commits do not create new executable wheel bytes. If executable Framework source/package content changes, this baseline becomes historical and a new main wheel + installed-wheel acceptance result must replace it here.
+A later documentation-only commit does not change Framework package source/payload. CI may nevertheless rebuild a wheel and emit a different artifact/CANDIDATE identity. That does not automatically replace this selected baseline. If the artifact chosen for Fabric changes—or executable package content changes—update this section with the exact new main artifact and installed-wheel acceptance result before claiming evidence for it.
 
 ### 3. Current local/CI proof
 
-For the exact executable baseline:
+For the exact selected artifact baseline:
 
 ```text
 Framework source CI                PASS
