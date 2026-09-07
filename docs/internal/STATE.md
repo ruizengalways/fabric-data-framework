@@ -58,6 +58,7 @@ enterprise_topology:
   canonical_control_plane_profile: fabric_sql_database_v1
   medallion_data_plane: Lakehouse / OneLake
   warehouse_role: optional SQL-first Gold / dimensional serving
+  warehouse_platform: Fabric Warehouse
   same_logical_topology_required: true
   promote_runtime_state_between_environments: false
 
