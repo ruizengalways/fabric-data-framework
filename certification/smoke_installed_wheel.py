@@ -1,11 +1,11 @@
-"""Thin acceptance smoke that must be launched by an interpreter using the wheel install."""
+"""Thin acceptance smoke launched by an interpreter using the wheel install."""
 
 from __future__ import annotations
 
 import argparse
 import json
 
-from fabric_data_framework.certification import attest_installed_wheel
+from fabric_data_framework.certification import attest_installed_wheel, run_semantic_acceptance
 
 
 def main() -> int:
@@ -13,6 +13,7 @@ def main() -> int:
     parser.add_argument("--wheel", required=True)
     args = parser.parse_args()
     result = attest_installed_wheel(args.wheel)
+    semantic = run_semantic_acceptance()
     print(
         json.dumps(
             {
@@ -21,6 +22,7 @@ def main() -> int:
                 "wheel_sha256": result.wheel_sha256,
                 "installed_root": str(result.installed_root),
                 "checked_package_files": result.checked_package_files,
+                "semantic_checks": semantic,
             },
             sort_keys=True,
         )

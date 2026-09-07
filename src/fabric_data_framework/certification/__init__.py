@@ -8,6 +8,7 @@ from .models import (
     CertificationOverallStatus,
     UnifiedCertificationReport,
 )
+from .semantic import run_semantic_acceptance
 from .simple import DEFAULT_CERTIFICATION_ROOT, certify
 from .unified import print_certification_summary
 
@@ -24,4 +25,5 @@ __all__ = [
     "certify_installed",
     "print_certification_summary",
     "run_bounded_certification",
+    "run_semantic_acceptance",
 ]

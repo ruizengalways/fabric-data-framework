@@ -97,7 +97,7 @@ def certify_installed(
     certification_root,
     **kwargs,
 ):
-    """Attest the installed candidate wheel, then run the existing Fabric suite."""
+    """Attest installed bytes, run framework-owned semantics, then real Fabric checks."""
 
     root = Path(certification_root)
     wheels = sorted(root.glob("fabric_data_framework-*.whl"))
@@ -108,10 +108,10 @@ def certify_installed(
         )
     attest_installed_wheel(wheels[0])
 
-    # Late import keeps this module independent from the existing certification runner
-    # and avoids a circular import through the package public surface.
+    from .semantic import run_semantic_acceptance
     from .simple import certify
 
+    run_semantic_acceptance()
     return certify(
         spark=spark,
         certification_root=root,
