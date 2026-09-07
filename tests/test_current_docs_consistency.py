@@ -6,9 +6,9 @@ STATE = ROOT / "docs/machine/STATE.md"
 FRAMEWORK_SHA = "17fbbd8ed2afb14771748a25d3e12d9bf63fe986"
 FRAMEWORK_MAIN_CI = "34010629765"
 FRAMEWORK_WHEEL_SHA = "0d7d351548712db3293b00a3b8eb968387f573b542d8fe506c9436a1b9b0a834"
-CUSTOMER_MAIN_SHA = "93ef6c0142d57d447a6ca85afce089406ff6b00a"
-CUSTOMER_MAIN_CI = "34025700377"
-CUSTOMER_CERT_CI = "34025700373"
+CUSTOMER_MAIN_SHA = "9b461e7b9dfacb45fa9b42caf56ebc67d3d4092b"
+CUSTOMER_MAIN_CI = "34073023216"
+CUSTOMER_CERT_CI = "34073023163"
 
 
 def test_state_is_a_current_recovery_checkpoint():
@@ -37,6 +37,11 @@ def test_state_is_a_current_recovery_checkpoint():
         f"customer_main_ci: {CUSTOMER_MAIN_CI}",
         f"customer_main_certification_contract_ci: {CUSTOMER_CERT_CI}",
         "production_runtime_pin: fabric-data-framework==0.3.0",
+        "one_click_bootstrap_source_on_customer_main: true",
+        "one_click_bootstrap_command: python certification/bootstrap.py --apply --environment DEV",
+        "environment_is_fabric_environment_item: false",
+        "repeated_sql_server_database_cli_args_required: false",
+        "repository_owned_certification_resources_bootstrapped_in_company_fabric: false",
         "repository_owned_certification_notebook_deployed: false",
         "repository_owned_certification_pipeline_deployed: false",
         "current_framework_real_fabric_certification_executed: false",
@@ -44,6 +49,7 @@ def test_state_is_a_current_recovery_checkpoint():
         "control_plane_external_evidence_not_review_bound",
         "warehouse_real_fault_controller_not_configured",
         "isolated DEV Fabric",
+        "bootstrap_terminal_state: READY / NOT_RUN",
     ):
         assert token in state
 
@@ -97,5 +103,6 @@ def test_current_docs_keep_real_fabric_and_release_boundaries_fail_closed():
     assert "release_allowed: false" in state
     assert "candidate_status: not_frozen" in state
     assert "current_framework_real_fabric_certification_executed: false" in state
+    assert "repository_owned_certification_resources_bootstrapped_in_company_fabric: false" in state
     assert "stop_on_real_fail: true" in state
     assert "do not create another recovery/checkpoint pr" in state.lower()

@@ -6,7 +6,7 @@ This file is the single recovery checkpoint for current Framework engineering st
 
 ```yaml
 schema: fabric-data-framework-machine-state-v2
-updated: 2026-09-06
+updated: 2026-09-07
 
 release:
   public_release: v0.3.0
@@ -52,13 +52,18 @@ fabric_native_auth:
   normal_user_implies_warehouse_session_control: false
 
 customer_contract:
-  customer_main_sha: 93ef6c0142d57d447a6ca85afce089406ff6b00a
-  customer_main_ci: 34025700377
-  customer_main_certification_contract_ci: 34025700373
+  customer_main_sha: 9b461e7b9dfacb45fa9b42caf56ebc67d3d4092b
+  customer_main_ci: 34073023216
+  customer_main_certification_contract_ci: 34073023163
   production_runtime_pin: fabric-data-framework==0.3.0
   certification_framework_sha: 17fbbd8ed2afb14771748a25d3e12d9bf63fe986
   fabric_rest_auth_default: azure-cli
   sql_runtime_auth_default: fabric-user
+  one_click_bootstrap_source_on_customer_main: true
+  one_click_bootstrap_command: python certification/bootstrap.py --apply --environment DEV
+  environment_is_fabric_environment_item: false
+  repeated_sql_server_database_cli_args_required: false
+  repository_owned_certification_resources_bootstrapped_in_company_fabric: false
   repository_owned_certification_notebook_deployed: false
   repository_owned_certification_pipeline_deployed: false
   current_framework_real_fabric_certification_executed: false
@@ -75,30 +80,35 @@ strict_evidence:
 
 next_boundary:
   environment: isolated DEV Fabric
-  action: deploy and execute the repository-owned certification Notebook and Pipeline with the exact executable artifact above
+  action: configure the real DEV workspace identity, run Customer one-click bootstrap, retain READY/NOT_RUN bootstrap evidence, then execute bounded certification
+  bootstrap_terminal_state: READY / NOT_RUN
   stop_on_real_fail: true
 ```
 
 ## Recovery interpretation
 
-The current repository `main` may contain documentation/test-only commits after the executable baseline. Those commits **do not create a new executable candidate**. Until executable Framework source changes, the exact bytes for the next real-Fabric run remain the artifact recorded under `executable_baseline`.
+The current Framework repository `main` may contain documentation/test-only commits after the executable baseline. Those commits **do not create a new executable candidate**. Until executable Framework source changes, the exact bytes for the next real-Fabric run remain the artifact recorded under `executable_baseline`.
 
-The Customer repo is already aligned to the current Fabric-native path, but merged source is not proof of company-Fabric deployment. There is still no retained evidence that the repository-owned certification Notebook/Pipeline were deployed or that the current Framework bytes were executed in real Fabric.
+The Customer one-click certification preparation capability is now on Customer `main` and its independent main CI contracts are green. That source capability can resolve/create the dedicated certification Lakehouse, Fabric SQL Database, Warehouse, repo-owned Copy/Spark/seed jobs, runner/worker Notebooks and child Pipeline, stage exact Framework/Customer bytes, and prepare SQL fixtures/metadata.
+
+That merged source is still **not** company-Fabric deployment evidence. No retained current-source bootstrap result, repository-owned item UUID/definition evidence, or current Framework real-Fabric certification execution has been recorded yet.
 
 ## Next action
 
-Do not create another recovery/checkpoint PR just to record history. The next engineering boundary is:
+Do not create another recovery/checkpoint PR just to record history. The next engineering boundary is real execution:
 
 ```text
 exact Framework artifact above
-+ current fabric-customer main
--> isolated DEV Fabric
--> deploy certification Notebook + Pipeline
--> retain real item UUIDs / definition hashes
--> run bounded certification
++ Customer main above
+-> create/commit certification/environments/DEV.json with the real isolated DEV workspace UUID
+-> az login + gh auth
+-> python certification/bootstrap.py --apply --environment DEV
+-> require bootstrap_status=READY and certification_result=NOT_RUN
+-> retain genuine bootstrap-result.json / item UUIDs / definition hashes / staged byte hashes
+-> open/run framework-certification-runner bounded/read-safe first
 -> STOP on any real FAIL
 -> continue only explicitly approved live stages
--> retain genuine evidence
+-> retain genuine Framework evidence
 ```
 
 Production stays on `fabric-data-framework==0.3.0` until immutable Framework `v0.4.0` exists and strict release governance authorizes migration.
