@@ -1,10 +1,4 @@
-"""Exact-candidate certification over retained release and integration evidence.
-
-This module never executes Fabric and never creates evidence. It validates an exact
-candidate's retained proof bundle and IntegrationEvidenceManifest against
-source-controlled policy, then delegates final readiness aggregation to the existing
-release-readiness evaluator.
-"""
+"""Exact-candidate certification over retained release and integration evidence."""
 
 from __future__ import annotations
 
@@ -31,20 +25,18 @@ def materialize_candidate_integration_spec(
     environment: EnvironmentName | str,
     domain: str,
     artifact_sha256: str,
-    domain_release_hash: str | None = None,
+    integration_inputs_hash: str,
 ) -> IntegrationEvidenceSpec:
-    """Bind the integration template to exact framework and domain release identities."""
+    """Bind the integration template to exact framework and input-bundle identities."""
 
-    if template.release_hash is not None:
-        raise ValueError("integration evidence template release_hash must be null")
-    if template.domain_release_hash is not None:
-        raise ValueError("integration evidence template domain_release_hash must be null")
+    if template.framework_artifact_sha256 is not None:
+        raise ValueError("integration evidence template framework_artifact_sha256 must be null")
+    if template.integration_inputs_hash is not None:
+        raise ValueError("integration evidence template integration_inputs_hash must be null")
     if re.fullmatch(r"[0-9a-f]{64}", artifact_sha256) is None:
         raise ValueError("artifact_sha256 must be a 64-character lowercase SHA256")
-    if domain_release_hash is not None and re.fullmatch(
-        r"[0-9a-f]{64}", domain_release_hash
-    ) is None:
-        raise ValueError("domain_release_hash must be a 64-character lowercase SHA256")
+    if re.fullmatch(r"[0-9a-f]{64}", integration_inputs_hash) is None:
+        raise ValueError("integration_inputs_hash must be a 64-character lowercase SHA256")
     normalized_domain = domain.strip()
     if not normalized_domain:
         raise ValueError("certification domain must be non-empty")
@@ -55,8 +47,8 @@ def materialize_candidate_integration_spec(
         {
             "environment": EnvironmentName(environment).value,
             "domain": normalized_domain,
-            "release_hash": artifact_sha256,
-            "domain_release_hash": domain_release_hash,
+            "framework_artifact_sha256": artifact_sha256,
+            "integration_inputs_hash": integration_inputs_hash,
         }
     )
     return IntegrationEvidenceSpec.model_validate(payload)
@@ -81,30 +73,21 @@ def certify_release_candidate(
     proofs: ReleaseReadinessProofBundle,
     integration_evidence: IntegrationEvidenceManifest,
 ) -> ReleaseReadinessReport:
-    """Require exact integration certification and zero readiness blockers.
+    """Require exact integration certification and zero readiness blockers."""
 
-    This is intentionally stricter than generating a normal readiness report. It is
-    the reusable boundary used by the candidate-certification workflow before a
-    ``release-readiness-certified-<sha>`` artifact may be retained.
-
-    Candidate certification requires the non-integration proof bundle and certified
-    integration evidence to bind the same non-null customer/domain release hash. This
-    closes the final identity gap between independently retained evidence producers.
-    """
-
-    if proofs.domain_release_hash is None:
-        raise ValueError("candidate release proof must bind exact domain_release_hash")
-    if integration_evidence.domain_release_hash is None:
-        raise ValueError("candidate integration evidence must bind exact domain_release_hash")
-    if proofs.domain_release_hash != integration_evidence.domain_release_hash:
-        raise ValueError("candidate proof/integration domain release hash mismatch")
+    if proofs.integration_inputs_hash is None:
+        raise ValueError("candidate release proof must bind exact integration_inputs_hash")
+    if integration_evidence.integration_inputs_hash is None:
+        raise ValueError("candidate integration evidence must bind exact integration_inputs_hash")
+    if proofs.integration_inputs_hash != integration_evidence.integration_inputs_hash:
+        raise ValueError("candidate proof/integration input hash mismatch")
 
     expected_integration_spec = materialize_candidate_integration_spec(
         integration_template,
         environment=environment,
         domain=domain,
         artifact_sha256=artifact_sha256,
-        domain_release_hash=proofs.domain_release_hash,
+        integration_inputs_hash=proofs.integration_inputs_hash,
     )
     if expected_integration_spec.framework_version != readiness_spec.framework_version:
         raise ValueError(
@@ -124,8 +107,8 @@ def certify_release_candidate(
         proofs=proofs,
         integration_evidence=integration_evidence,
     )
-    if report.domain_release_hash != proofs.domain_release_hash:
-        raise ValueError("candidate readiness report lost exact domain release identity")
+    if report.integration_inputs_hash != proofs.integration_inputs_hash:
+        raise ValueError("candidate readiness report lost exact integration input identity")
     if not report.release_ready:
         raise ValueError(
             "release candidate is not certified; required gates not PASS: "
@@ -134,7 +117,4 @@ def certify_release_candidate(
     return report
 
 
-__all__ = [
-    "certify_release_candidate",
-    "materialize_candidate_integration_spec",
-]
+__all__ = ["certify_release_candidate", "materialize_candidate_integration_spec"]
