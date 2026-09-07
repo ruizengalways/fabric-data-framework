@@ -16,6 +16,27 @@ dependencies = [
 [project.scripts]
 fabric-framework = "fabric_data_framework.cli:main"
 
+[project.entry-points."fabric_data_framework.capture_observers"]
+"cert.capture-observer" = "fabric_data_framework.certification.fixtures:observe_capture"
+
+[project.entry-points."fabric_data_framework.spark_execution_data"]
+"cert.spark-execution-data" = "fabric_data_framework.certification.fixtures:spark_execution_data"
+
+[project.entry-points."fabric_data_framework.warehouse_mutations"]
+"cert.warehouse-mutation" = "fabric_data_framework.certification.fixtures:warehouse_mutation"
+
+[project.entry-points."fabric_data_framework.warehouse_commit_fault_injectors"]
+"cert.warehouse-fault" = "fabric_data_framework.certification.fixtures:warehouse_fault_injector"
+
+[project.entry-points."fabric_data_framework.business_path_observers"]
+"cert.business-path-observer" = "fabric_data_framework.certification.fixtures:observe_business_path"
+
+[project.entry-points."fabric_data_framework.business_path_drivers"]
+"cert.business-path-driver" = "fabric_data_framework.certification.fixtures:drive_business_path"
+
+[project.entry-points."fabric_data_framework.applys"]
+"cert.noop-apply" = "fabric_data_framework.certification.fixtures:forbidden_noop_apply"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8,<10",
