@@ -224,7 +224,7 @@ def test_candidate_certification_rejects_integration_evidence_for_other_wheel():
 
 
 def test_candidate_certification_rejects_mismatched_integration_input_identity():
-    with pytest.raises(ValueError, match="integration inputs hash mismatch"):
+    with pytest.raises(ValueError, match="integration input hash mismatch"):
         certify_release_candidate(
             _readiness_spec(),
             _template(),
