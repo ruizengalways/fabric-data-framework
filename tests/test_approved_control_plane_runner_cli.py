@@ -13,6 +13,10 @@ from fabric_data_framework.evidence.integration_evidence import (
 from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
 
 
+FRAMEWORK_ARTIFACT_SHA256 = "a" * 64
+INTEGRATION_INPUTS_HASH = "b" * 64
+
+
 def _write(path: Path, value) -> None:
     if hasattr(value, "model_dump"):
         payload = value.model_dump(mode="json")
@@ -26,7 +30,8 @@ def _spec():
         environment=EnvironmentName.DEV,
         domain="customer",
         framework_version="0.4.0",
-        release_hash="a" * 64,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="control-plane.certify",
@@ -41,7 +46,8 @@ def _config():
         environment=EnvironmentName.DEV,
         domain="customer",
         framework_version="0.4.0",
-        release_hash="a" * 64,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         control_plane_database_url_env_var="CONTROL_PLANE_DATABASE_URL",
         control_plane_profile="fabric_sql_database_v1",
     )
