@@ -100,7 +100,63 @@ Installed semantic preflight additionally covers framework-owned metadata/config
 
 These checks require actual Fabric execution before they can be marked Fabric-proven.
 
-## 8. Optional framework-owned integration inputs
+## 8. Discover and review DEV Fabric item bindings
+
+Environment-dependent certification needs exact physical IDs for one approved workspace and four readable/executable Fabric items:
+
+```text
+workspace_id
+item_read_id
+pipeline_item_id     type=DataPipeline
+copy_job_id          type=CopyJob
+spark_job_id         type=SparkJobDefinition
+```
+
+Do not use example UUIDs and do not infer an ID from a display name manually. The framework provides a read-only discovery API that calls the Fabric Core List Items endpoint, follows pagination, requires an exact case-sensitive display-name and type match, and fails closed on zero or multiple matches. It never creates, updates, deletes or runs an item.
+
+Inside a Fabric notebook, use a runtime token provider without retaining the token in the output:
+
+```python
+import notebookutils
+
+from fabric_data_framework.certification import (
+    discover_certification_bindings_from_names,
+)
+
+bindings = discover_certification_bindings_from_names(
+    token_provider=lambda: notebookutils.credentials.getToken("pbi"),
+    workspace_id="<dedicated-dev-certification-workspace-uuid>",
+    item_read_name="<exact-readable-item-name>",
+    item_read_type="Lakehouse",
+    pipeline_name="<exact-certification-pipeline-name>",
+    copy_job_name="<exact-certification-copy-job-name>",
+    spark_job_name="<exact-certification-spark-job-name>",
+)
+
+print(bindings.model_dump_json(indent=2))
+print(bindings.workflow_dispatch_inputs())
+```
+
+For a local/jumpbox CLI, place the token only in an environment variable; never pass a bearer token on the command line:
+
+```bash
+export FABRIC_ACCESS_TOKEN='<ephemeral-token>'
+
+fabric-framework discover-certification-bindings \
+  --workspace-id '<workspace-uuid>' \
+  --item-read-name '<exact-readable-item-name>' \
+  --item-read-type Lakehouse \
+  --pipeline-name '<exact-pipeline-name>' \
+  --copy-job-name '<exact-copy-job-name>' \
+  --spark-job-name '<exact-spark-job-name>' \
+  --output integration-bindings.json
+```
+
+Review `integration-bindings.json` against the dedicated DEV workspace before using its five UUID fields as inputs to `.github/workflows/candidate-integration-inputs.yml`. The discovery output is non-secret metadata, but it is still environment-specific configuration and should be reviewed like any other physical binding.
+
+Discovery proves only that the principal can enumerate an exact item identity. It does **not** prove execution permission, item correctness, Control Plane availability, Warehouse access, business-path readiness or certification PASS.
+
+## 9. Framework-owned integration inputs
 
 Environment-dependent Control Plane, Pipeline, Copy, Spark, Warehouse and business-path checks use an exact framework-owned integration bundle.
 
@@ -128,7 +184,7 @@ integration_inputs_hash
 
 A customer/domain release identity does not participate in framework candidate certification.
 
-## 9. Runtime-only values and secrets
+## 10. Runtime-only values and secrets
 
 The integration runner config declares allowed environment-variable names. Actual credential/connection values are supplied at runtime only.
 
@@ -155,7 +211,7 @@ The one-call runtime mirrors only declared values into process environment for t
 
 For Fabric-native SQL user authentication details, see [`reference/FABRIC_SQL_AUTH.md`](reference/FABRIC_SQL_AUTH.md).
 
-## 10. Live mutation authorization
+## 11. Live mutation authorization
 
 Normal environment-dependent live execution is explicit:
 
@@ -186,7 +242,7 @@ allow_warehouse_session_termination=True
 
 Do not infer Admin session-control permission from ordinary Warehouse or Fabric workspace access.
 
-## 11. Environment-dependent stages
+## 12. Environment-dependent stages
 
 When the exact integration inputs and runtime prerequisites exist, the unified certification path may execute in dependency order:
 
@@ -209,7 +265,7 @@ representative business paths:
 
 The framework reuses approved runners. It does not maintain a second implementation solely for certification.
 
-## 12. Provider completion is not enough
+## 13. Provider completion is not enough
 
 Examples of necessary fail-closed boundaries:
 
@@ -221,7 +277,7 @@ Warehouse call exception + unresolved target commit               != safe retry
 
 The framework must prove its own semantic outcome for the exact run identity.
 
-## 13. Result semantics
+## 14. Result semantics
 
 Certification/evidence uses explicit statuses such as:
 
@@ -240,7 +296,7 @@ Until exact real Fabric execution exists for the current executable artifact, us
 FABRIC CERTIFICATION REQUIRED
 ```
 
-## 14. Evidence rules
+## 15. Evidence rules
 
 Retained evidence must preserve exact identity and reject contradictory reruns rather than use a “latest wins” or “PASS wins” rule.
 
@@ -256,7 +312,7 @@ non-secret evidence references
 
 Any framework executable change produces new candidate bytes and requires new exact-byte evidence for release claims.
 
-## 15. CI vs Fabric
+## 16. CI vs Fabric
 
 CI should prove deterministic unit, contract, failure-path, package-boundary and installed-wheel behavior.
 
@@ -273,7 +329,7 @@ real Warehouse commit/recovery behavior
 
 Do not rerun the entire pytest suite inside a Notebook as a substitute for these environment proofs.
 
-## 16. Framework certification vs simulator regression
+## 17. Framework certification vs simulator regression
 
 `fabric-customer` may provide a frozen realistic source workload for implementation regression testing. Its `workload_digest` identifies source facts.
 
@@ -289,6 +345,6 @@ implementation scenario validation
 
 The workload digest never replaces `framework_artifact_sha256`.
 
-## 17. Release boundary
+## 18. Release boundary
 
 Certification always remains separate from release authorization. Continue with [`RELEASE.md`](RELEASE.md) for candidate freeze, readiness and exact-byte promotion.
