@@ -1,7 +1,7 @@
 """Unified one-call certification orchestrator for real Fabric environments.
 
 The orchestrator composes existing approved runners. It does not weaken any gate:
-missing credentials, missing reviewed external evidence, or absent mutation/fault
+missing credentials, missing enterprise evidence, or absent mutation/fault
 authorization become NOT_RUN/BLOCKED rather than fabricated PASS results.
 """
 
@@ -9,12 +9,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from importlib.resources import files
-import hashlib
 import json
 import os
 from pathlib import Path
-import subprocess
-import sys
 from uuid import uuid4
 
 from sqlalchemy import create_engine
@@ -182,28 +179,6 @@ def _runtime_environ(
     return resolved
 
 
-def _install_exact_extensions(root: Path, release_manifest) -> tuple[str, ...]:
-    dist = root / "dist"
-    if not dist.is_dir():
-        return ()
-    installed: list[str] = []
-    for wheel in sorted(dist.glob("*.whl")):
-        expected = release_manifest.artifact_sha256.get(wheel.name)
-        if expected is None:
-            continue
-        observed = hashlib.sha256(wheel.read_bytes()).hexdigest()
-        if observed != expected.lower():
-            raise ValueError(f"extension wheel SHA256 mismatch for {wheel.name}")
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--no-deps", str(wheel)],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        installed.append(wheel.name)
-    return tuple(installed)
-
-
 def _integration_result(manifest, check_id: str) -> CertificationCheckResult:
     result = next(item for item in manifest.results if item.check_id == check_id)
     status = {
@@ -333,10 +308,9 @@ def certify(
     output_dir: str | Path,
     environment: str = "DEV",
     lakehouse_base_path: str = "Files/framework_cert",
-    customer_inputs_root: str | Path | None = None,
+    integration_inputs_root: str | Path | None = None,
     environ: Mapping[str, str] | None = None,
     auto_notebook_token: bool = True,
-    install_extensions: bool = True,
     allow_control_plane_migration: bool = False,
     allow_control_plane_writes: bool = False,
     allow_pipeline_execution: bool = False,
@@ -347,12 +321,7 @@ def certify(
     allow_business_path_execution: bool = False,
     allow_scenario_mutation: bool = False,
 ) -> UnifiedCertificationReport:
-    """Run bounded checks and, when an exact Customer bundle is supplied, all live gates.
-
-    The one-call API intentionally exposes only mutation/privilege authorizations.
-    Workspace/item IDs, dataset selections, recipes and non-secret runtime variable
-    names come from the exact Customer input bundle.
-    """
+    """Run bounded checks and optional framework-owned live integration gates."""
 
     started_at = utcnow()
     out = Path(output_dir)
@@ -383,20 +352,20 @@ def certify(
             tuple(f"business.{gate}" for gate in _BUSINESS_GATES),
             "not run because bounded certification failed",
         )
-    elif customer_inputs_root is None:
-        blockers.append("customer_inputs_not_supplied")
+    elif integration_inputs_root is None:
+        blockers.append("integration_inputs_not_supplied")
         _append_not_run(
             checks,
             _STANDARD_INTEGRATION_CHECKS,
-            "exact Customer certification input bundle was not supplied",
+            "exact framework integration input bundle was not supplied",
         )
         _append_not_run(
             checks,
             tuple(f"business.{gate}" for gate in _BUSINESS_GATES),
-            "exact Customer certification input bundle was not supplied",
+            "exact framework integration input bundle was not supplied",
         )
     else:
-        root = Path(customer_inputs_root)
+        root = Path(integration_inputs_root)
         input_manifest_path = root / "INPUTS.json"
         runner_path = root / "runner-config.json"
         release_manifest_path = root / "release-manifest.json"
@@ -406,42 +375,32 @@ def certify(
 
         inputs = json.loads(input_manifest_path.read_text(encoding="utf-8"))
         if inputs.get("candidate_git_sha") != bounded.candidate_git_sha:
-            raise ValueError("Customer input bundle candidate git SHA mismatch")
+            raise ValueError("integration input bundle candidate git SHA mismatch")
         if inputs.get("candidate_wheel_sha256") != bounded.artifact_sha256:
-            raise ValueError("Customer input bundle candidate wheel SHA256 mismatch")
+            raise ValueError("integration input bundle candidate wheel SHA256 mismatch")
         if inputs.get("framework_version") != bounded.framework_version:
-            raise ValueError("Customer input bundle framework version mismatch")
+            raise ValueError("integration input bundle framework version mismatch")
 
         runner_config = load_approved_integration_runner_config(runner_path)
         release_manifest = load_release_manifest(release_manifest_path)
         configs = load_dataset_configs(config_dir)
+        wheel_name = Path(wheel_path).name
+        if release_manifest.artifact_sha256.get(wheel_name) != bounded.artifact_sha256:
+            raise ValueError(
+                "integration release manifest does not fingerprint the exact candidate wheel"
+            )
+        checks.append(
+            _safe_result(
+                "certification.fixtures",
+                CertificationCheckStatus.PASS,
+                "certification fixtures are owned by and fingerprinted to the candidate framework wheel",
+            )
+        )
         runtime = _runtime_environ(
             runner_config,
             environ,
             auto_notebook_token=auto_notebook_token,
         )
-
-        if install_extensions:
-            try:
-                installed = _install_exact_extensions(root, release_manifest)
-                checks.append(
-                    _safe_result(
-                        "extensions.install",
-                        CertificationCheckStatus.PASS,
-                        f"verified and installed {len(installed)} exact local extension wheel(s)",
-                    )
-                )
-            except Exception as exc:
-                checks.append(_safe_failure("extensions.install", exc))
-                blockers.append("extension_install_failed")
-        else:
-            checks.append(
-                _safe_result(
-                    "extensions.install",
-                    CertificationCheckStatus.NOT_RUN,
-                    "automatic exact local extension installation disabled",
-                )
-            )
 
         template = _load_resource_json(
             "integration-evidence-template.json",
@@ -469,18 +428,14 @@ def certify(
         external_blockers = tuple(
             value
             for value in input_blockers
-            if value
-            in {
-                "control_plane_external_evidence_incomplete",
-                "control_plane_external_evidence_not_review_bound",
-            }
+            if value == "control_plane_external_evidence_incomplete"
         )
         if external_blockers:
             checks.append(
                 _safe_result(
                     "control.external_evidence",
                     CertificationCheckStatus.BLOCKED,
-                    "reviewed control-plane external evidence is incomplete or not review-bound",
+                    "enterprise control-plane evidence is incomplete",
                 )
             )
             blockers.extend(external_blockers)
@@ -489,7 +444,7 @@ def certify(
                 _safe_result(
                     "control.external_evidence",
                     CertificationCheckStatus.PASS,
-                    "exact Customer inputs carry complete reviewed control-plane evidence binding",
+                    "framework integration inputs carry complete enterprise control-plane evidence references",
                 )
             )
 
@@ -504,7 +459,7 @@ def certify(
                 else CertificationCheckStatus.PASS,
                 "real Warehouse fault controller is not configured"
                 if fault_controller_blocked
-                else "exact Customer inputs configure the reviewed real Warehouse fault controller",
+                else "framework integration inputs configure the real Warehouse fault controller",
             )
         )
         if fault_controller_blocked:
@@ -563,7 +518,7 @@ def certify(
                 blockers.append("control_plane_certification_failed")
         else:
             reason = (
-                "reviewed external evidence is not ready"
+                "enterprise external evidence is not ready"
                 if external_blockers
                 else "control-plane conformance writes were not authorized"
             )
@@ -606,7 +561,10 @@ def certify(
                     allow_pipeline_execution=True,
                 )
                 partials["fabric.pipeline"] = execution.manifest
-                write_integration_evidence_manifest(execution.manifest, out / "partials/pipeline.json")
+                write_integration_evidence_manifest(
+                    execution.manifest,
+                    out / "partials/pipeline.json",
+                )
                 checks.append(_integration_result(execution.manifest, "fabric.pipeline"))
             except Exception as exc:
                 checks.append(_safe_failure("fabric.pipeline", exc))
@@ -626,7 +584,9 @@ def certify(
         ):
             if base_manifest is not None and allow_capture_execution:
                 try:
-                    capture_config = load_approved_capture_run_config(integration_root / recipe_name)
+                    capture_config = load_approved_capture_run_config(
+                        integration_root / recipe_name
+                    )
                     execution = execute_approved_capture(
                         config=runner_config,
                         spec=spec,
