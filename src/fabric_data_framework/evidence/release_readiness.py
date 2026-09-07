@@ -1,9 +1,8 @@
 """Fail-closed release-candidate readiness aggregation.
 
 This module does not execute Fabric or invent proof. It evaluates retained release
-proofs and the existing IntegrationEvidenceManifest against a source-controlled
-readiness specification for an exact framework version, candidate git SHA, framework
-artifact SHA256 and, when supplied, exact customer/domain release SHA256.
+proofs and IntegrationEvidenceManifest against source-controlled policy for an exact
+framework version, candidate git SHA, candidate wheel SHA256 and integration-input hash.
 """
 
 from __future__ import annotations
@@ -29,7 +28,7 @@ RELEASE_READINESS_SCHEMA_VERSION = 1
 class ReleaseReadinessGateKind(str, Enum):
     SOURCE_VERIFICATION = "SOURCE_VERIFICATION"
     WHEEL_INTEGRITY = "WHEEL_INTEGRITY"
-    CUSTOMER_COMPATIBILITY = "CUSTOMER_COMPATIBILITY"
+    INTEGRATION_INPUTS = "INTEGRATION_INPUTS"
     FABRIC_IDENTITY = "FABRIC_IDENTITY"
     CONTROL_PLANE = "CONTROL_PLANE"
     FABRIC_PIPELINE = "FABRIC_PIPELINE"
@@ -121,7 +120,10 @@ class ReleaseReadinessProofBundle(FrozenModel):
     framework_version: str = Field(min_length=1, max_length=64)
     candidate_git_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
     artifact_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-    domain_release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    integration_inputs_hash: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     results: tuple[ReleaseReadinessProofResult, ...] = ()
 
     @model_validator(mode="after")
@@ -147,7 +149,10 @@ class ReleaseReadinessReport(FrozenModel):
     framework_version: str
     candidate_git_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
     artifact_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-    domain_release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    integration_inputs_hash: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     generated_at: datetime
     release_ready: bool
     blockers: tuple[str, ...]
@@ -232,16 +237,7 @@ def evaluate_release_readiness(
     integration_evidence: IntegrationEvidenceManifest | None = None,
     now=_utcnow,
 ) -> ReleaseReadinessReport:
-    """Evaluate an exact release candidate without inferring missing evidence.
-
-    Integration-backed gates may only be satisfied by IntegrationEvidenceManifest.
-    Other gates may only be satisfied by the explicit proof bundle. Missing evidence is
-    NOT_RUN. Required gates are ready only when PASS.
-
-    When both proof and integration evidence carry a customer/domain release identity,
-    they must match exactly. The resolved identity is retained in the readiness report
-    so exact-byte promotion can re-verify the same business release.
-    """
+    """Evaluate an exact release candidate without inferring missing evidence."""
 
     if not __import__("re").fullmatch(r"[0-9a-f]{40}", candidate_git_sha):
         raise ValueError("candidate_git_sha must be a 40-character lowercase git SHA")
@@ -252,7 +248,7 @@ def evaluate_release_readiness(
 
     gate_by_id = {gate.gate_id: gate for gate in spec.gates}
     proof_by_id: dict[str, ReleaseReadinessProofResult] = {}
-    domain_release_hash: str | None = None
+    integration_inputs_hash: str | None = None
     if proofs is not None:
         if proofs.framework_version != spec.framework_version:
             raise ValueError("release proof framework version mismatch")
@@ -262,7 +258,7 @@ def evaluate_release_readiness(
             raise ValueError("release proof artifact SHA256 mismatch")
         if artifact_sha256 is None and proofs.artifact_sha256 is not None:
             artifact_sha256 = proofs.artifact_sha256
-        domain_release_hash = proofs.domain_release_hash
+        integration_inputs_hash = proofs.integration_inputs_hash
         for proof in proofs.results:
             gate = gate_by_id.get(proof.gate_id)
             if gate is None:
@@ -279,25 +275,24 @@ def evaluate_release_readiness(
         if integration_evidence.framework_version != spec.framework_version:
             raise ValueError("integration evidence framework version mismatch")
         if artifact_sha256 is None:
-            raise ValueError(
-                "artifact_sha256 is required when integration evidence is supplied"
-            )
-        if integration_evidence.release_hash != artifact_sha256:
-            raise ValueError("integration evidence release hash does not match artifact SHA256")
+            raise ValueError("artifact_sha256 is required when integration evidence is supplied")
+        if integration_evidence.framework_artifact_sha256 != artifact_sha256:
+            raise ValueError("integration evidence framework artifact SHA256 mismatch")
         if proofs is not None and (
-            proofs.domain_release_hash != integration_evidence.domain_release_hash
+            proofs.integration_inputs_hash != integration_evidence.integration_inputs_hash
         ):
-            raise ValueError("release proof domain release hash mismatch")
-        if domain_release_hash is None:
-            domain_release_hash = integration_evidence.domain_release_hash
+            raise ValueError("release proof integration inputs hash mismatch")
+        if integration_inputs_hash is None:
+            integration_inputs_hash = integration_evidence.integration_inputs_hash
 
     results: list[ReleaseReadinessGateResult] = []
     for gate in spec.gates:
         if gate.integration_check_id is not None:
-            if integration_evidence is None:
-                result = _missing_result(gate)
-            else:
-                result = _from_integration(gate, integration_evidence)
+            result = (
+                _missing_result(gate)
+                if integration_evidence is None
+                else _from_integration(gate, integration_evidence)
+            )
         else:
             proof = proof_by_id.get(gate.gate_id)
             result = _missing_result(gate) if proof is None else _from_proof(gate, proof)
@@ -322,7 +317,7 @@ def evaluate_release_readiness(
         framework_version=spec.framework_version,
         candidate_git_sha=candidate_git_sha,
         artifact_sha256=artifact_sha256,
-        domain_release_hash=domain_release_hash,
+        integration_inputs_hash=integration_inputs_hash,
         generated_at=generated_at,
         release_ready=not blockers,
         blockers=blockers,
