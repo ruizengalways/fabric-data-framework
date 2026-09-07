@@ -9,6 +9,7 @@ evidence.
 from __future__ import annotations
 
 import argparse
+import hashlib
 from importlib.metadata import version as installed_version
 import json
 from pathlib import Path
@@ -53,6 +54,7 @@ from fabric_data_framework.evidence.integration_runner import (
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 _SHA64 = re.compile(r"^[0-9a-f]{64}$")
 _DOMAIN = "framework-certification"
+_INPUT_SCHEMA_VERSION = 1
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -119,6 +121,54 @@ def _artifact_inputs(project_root: Path, framework_wheel: Path) -> dict[str, Pat
         raise ValueError("framework wheel name collides with certification artifact")
     result[framework_wheel.name] = framework_wheel
     return result
+
+
+def _project_file_hashes(project_root: Path) -> dict[str, str]:
+    files = sorted(path for path in project_root.rglob("*") if path.is_file())
+    if not files:
+        raise ValueError("integration project is empty")
+    return {
+        path.relative_to(project_root).as_posix(): artifact_sha256(path)
+        for path in files
+    }
+
+
+def _integration_inputs_hash(
+    *,
+    project_root: Path,
+    environment: str,
+    control_plane_profile: str,
+    bindings: tuple[IntegrationCheckPhysicalBinding, ...],
+) -> str:
+    """Hash only certification inputs, never framework candidate bytes.
+
+    The hash covers the complete reference project plus environment-local non-secret
+    physical bindings and runtime variable *names*. Candidate git SHA, framework
+    version and framework wheel SHA are deliberately excluded because the framework
+    artifact has its own independent identity.
+    """
+
+    payload = {
+        "input_schema_version": _INPUT_SCHEMA_VERSION,
+        "domain": _DOMAIN,
+        "environment": environment,
+        "project_files": _project_file_hashes(project_root),
+        "control_plane_profile": control_plane_profile,
+        "runtime_env_vars": {
+            "fabric_access_token": "FABRIC_ACCESS_TOKEN",
+            "control_plane_database_url": "CONTROL_PLANE_DATABASE_URL",
+            "warehouse_database_url": "WAREHOUSE_DATABASE_URL",
+            "warehouse_admin_database_url": "WAREHOUSE_ADMIN_DATABASE_URL",
+        },
+        "bindings": [item.model_dump(mode="json") for item in bindings],
+    }
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _validate_project(
@@ -223,40 +273,47 @@ def main() -> int:
     )
     live_ready, blockers = _validate_project(project_root, manifest, args.framework_wheel)
 
+    bindings = (
+        IntegrationCheckPhysicalBinding(
+            check_id="fabric.item.read",
+            workspace_id=args.workspace_id,
+            item_id=args.item_read_id,
+        ),
+        IntegrationCheckPhysicalBinding(
+            check_id="fabric.pipeline",
+            workspace_id=args.workspace_id,
+            item_id=args.pipeline_item_id,
+            dataset_id="cert.full_replace",
+        ),
+        IntegrationCheckPhysicalBinding(
+            check_id="fabric.copy",
+            workspace_id=args.workspace_id,
+            item_id=args.copy_job_id,
+        ),
+        IntegrationCheckPhysicalBinding(
+            check_id="fabric.spark",
+            workspace_id=args.workspace_id,
+            item_id=args.spark_job_id,
+        ),
+    )
+    integration_inputs_hash = _integration_inputs_hash(
+        project_root=project_root,
+        environment=args.environment,
+        control_plane_profile=args.control_plane_profile,
+        bindings=bindings,
+    )
     runner = ApprovedIntegrationRunnerConfig(
         environment=EnvironmentName(args.environment),
         domain=_DOMAIN,
         framework_version=args.framework_version,
-        release_hash=manifest.bundle.release_hash,
         framework_artifact_sha256=args.candidate_wheel_sha256,
+        integration_inputs_hash=integration_inputs_hash,
         fabric_access_token_env_var="FABRIC_ACCESS_TOKEN",
         control_plane_database_url_env_var="CONTROL_PLANE_DATABASE_URL",
         warehouse_database_url_env_var="WAREHOUSE_DATABASE_URL",
         warehouse_admin_database_url_env_var="WAREHOUSE_ADMIN_DATABASE_URL",
         control_plane_profile=args.control_plane_profile,
-        bindings=(
-            IntegrationCheckPhysicalBinding(
-                check_id="fabric.item.read",
-                workspace_id=args.workspace_id,
-                item_id=args.item_read_id,
-            ),
-            IntegrationCheckPhysicalBinding(
-                check_id="fabric.pipeline",
-                workspace_id=args.workspace_id,
-                item_id=args.pipeline_item_id,
-                dataset_id="cert.full_replace",
-            ),
-            IntegrationCheckPhysicalBinding(
-                check_id="fabric.copy",
-                workspace_id=args.workspace_id,
-                item_id=args.copy_job_id,
-            ),
-            IntegrationCheckPhysicalBinding(
-                check_id="fabric.spark",
-                workspace_id=args.workspace_id,
-                item_id=args.spark_job_id,
-            ),
-        ),
+        bindings=bindings,
     )
 
     output = args.output.resolve()
@@ -266,11 +323,11 @@ def main() -> int:
     write_json_model(manifest, output / "release-manifest.json")
     write_json_model(runner, output / "runner-config.json")
     input_manifest = {
-        "input_schema_version": 1,
+        "input_schema_version": _INPUT_SCHEMA_VERSION,
         "candidate_git_sha": args.candidate_git_sha,
         "candidate_wheel_sha256": args.candidate_wheel_sha256,
         "framework_version": args.framework_version,
-        "integration_release_hash": manifest.bundle.release_hash,
+        "integration_inputs_hash": integration_inputs_hash,
         "config_bundle_hash": manifest.bundle.config_bundle_hash,
         "framework_wheel_filename": args.framework_wheel.name,
         "live_prerequisites_configured": live_ready,
@@ -282,7 +339,7 @@ def main() -> int:
     )
     print(
         "built exact framework integration inputs "
-        f"datasets={len(configs)} integration_release_hash={manifest.bundle.release_hash} "
+        f"datasets={len(configs)} integration_inputs_hash={integration_inputs_hash} "
         f"live_prerequisites_configured={str(live_ready).lower()}"
     )
     return 0
