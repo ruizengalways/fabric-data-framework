@@ -380,8 +380,15 @@ def certify(
             raise ValueError("integration input bundle candidate wheel SHA256 mismatch")
         if inputs.get("framework_version") != bounded.framework_version:
             raise ValueError("integration input bundle framework version mismatch")
+        integration_inputs_hash = inputs.get("integration_inputs_hash")
+        if not isinstance(integration_inputs_hash, str):
+            raise ValueError("integration input bundle is missing integration_inputs_hash")
 
         runner_config = load_approved_integration_runner_config(runner_path)
+        if runner_config.framework_artifact_sha256 != bounded.artifact_sha256:
+            raise ValueError("runner config framework artifact SHA256 mismatch")
+        if runner_config.integration_inputs_hash != integration_inputs_hash:
+            raise ValueError("runner config integration input hash mismatch")
         release_manifest = load_release_manifest(release_manifest_path)
         configs = load_dataset_configs(config_dir)
         wheel_name = Path(wheel_path).name
@@ -411,7 +418,7 @@ def certify(
             environment=environment,
             domain=release_manifest.domain,
             artifact_sha256=bounded.artifact_sha256,
-            domain_release_hash=release_manifest.bundle.release_hash,
+            integration_inputs_hash=integration_inputs_hash,
         )
         _write_json(spec, out / "integration-spec.json")
 
