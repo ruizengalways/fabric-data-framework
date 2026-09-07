@@ -1,0 +1,9 @@
+{
+  "check_id": "warehouse.commit",
+  "dataset_id": "cert.warehouse",
+  "operation_kind": "CERTIFICATION_REPLACE",
+  "target_reference": "dbo.cert_warehouse_target",
+  "mutation_extension": "cert.warehouse-mutation",
+  "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl",
+  "mutation_payload": {"table": "dbo.cert_warehouse_target", "rows": [{"id": 1, "value": "warehouse-certified"}]}
+}

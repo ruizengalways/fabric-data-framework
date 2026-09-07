@@ -22,6 +22,8 @@ from fabric_data_framework.evidence.integration_evidence_merge import (
 
 
 NOW = datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc)
+FRAMEWORK_ARTIFACT = "a" * 64
+INPUTS_HASH = "b" * 64
 ITEM_WORKSPACE = UUID("00000000-0000-0000-0000-000000000101")
 ITEM_ID = UUID("00000000-0000-0000-0000-000000000102")
 PIPELINE_RUN = UUID("00000000-0000-0000-0000-000000000201")
@@ -33,9 +35,10 @@ PIPELINE_ROOT = UUID("00000000-0000-0000-0000-000000000204")
 def _spec() -> IntegrationEvidenceSpec:
     return IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
-        domain="customer",
+        domain="framework-certification",
         framework_version="0.4.0",
-        release_hash="a" * 64,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT,
+        integration_inputs_hash=INPUTS_HASH,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="fabric.item.read",
@@ -120,7 +123,8 @@ def _manifest(
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=started_at,
         completed_at=completed_at,
         checks=spec.checks,
@@ -138,11 +142,7 @@ def _result(manifest: IntegrationEvidenceManifest, check_id: str):
 
 def test_merges_item_and_pipeline_partials_in_spec_order():
     spec = _spec()
-    item_partial = _manifest(
-        spec,
-        item=_item_pass(),
-        completed_at=NOW + timedelta(seconds=10),
-    )
+    item_partial = _manifest(spec, item=_item_pass(), completed_at=NOW + timedelta(seconds=10))
     pipeline_partial = _manifest(
         spec,
         pipeline=_pipeline_pass(),
@@ -156,6 +156,8 @@ def test_merges_item_and_pipeline_partials_in_spec_order():
     assert _result(merged, "fabric.item.read") == _item_pass()
     assert _result(merged, "fabric.pipeline") == _pipeline_pass()
     assert _result(merged, "kafka.optional").status is IntegrationEvidenceStatus.NOT_RUN
+    assert merged.framework_artifact_sha256 == FRAMEWORK_ARTIFACT
+    assert merged.integration_inputs_hash == INPUTS_HASH
     assert merged.started_at == item_partial.started_at
     assert merged.completed_at == pipeline_partial.completed_at
     assert merged.certified is True
@@ -165,7 +167,6 @@ def test_merges_item_and_pipeline_partials_in_spec_order():
 def test_required_checks_must_all_be_covered_before_merge_certifies():
     spec = _spec()
     merged = merge_integration_evidence_manifests(spec, (_manifest(spec, item=_item_pass()),))
-
     assert merged.certified is False
     with pytest.raises(ValueError, match="fabric.pipeline"):
         validate_integration_evidence_manifest(spec, merged, require_certified=True)
@@ -174,25 +175,21 @@ def test_required_checks_must_all_be_covered_before_merge_certifies():
 def test_pass_plus_not_run_resolves_to_pass_and_fail_plus_not_run_resolves_to_fail():
     spec = _spec()
     pass_merged = merge_integration_evidence_manifests(
-        spec,
-        (_manifest(spec, item=_item_pass()), _manifest(spec)),
+        spec, (_manifest(spec, item=_item_pass()), _manifest(spec))
     )
     assert _result(pass_merged, "fabric.item.read").status is IntegrationEvidenceStatus.PASS
 
     fail_merged = merge_integration_evidence_manifests(
-        spec,
-        (_manifest(spec, item=_item_fail()), _manifest(spec)),
+        spec, (_manifest(spec, item=_item_fail()), _manifest(spec))
     )
     assert _result(fail_merged, "fabric.item.read").status is IntegrationEvidenceStatus.FAIL
 
 
 def test_identical_duplicate_substantive_result_is_accepted():
     spec = _spec()
-    first = _manifest(spec, item=_item_pass())
-    second = _manifest(spec, item=_item_pass())
-
-    merged = merge_integration_evidence_manifests(spec, (first, second))
-
+    merged = merge_integration_evidence_manifests(
+        spec, (_manifest(spec, item=_item_pass()), _manifest(spec, item=_item_pass()))
+    )
     assert _result(merged, "fabric.item.read") == _item_pass()
 
 
@@ -200,32 +197,32 @@ def test_different_pass_evidence_for_same_check_is_conflict():
     spec = _spec()
     first = _manifest(spec, item=_item_pass(reference="fabric-item-read:first"))
     second = _manifest(spec, item=_item_pass(reference="fabric-item-read:second"))
-
     with pytest.raises(IntegrationEvidenceMergeConflict, match="explicitly choose one rerun"):
         merge_integration_evidence_manifests(spec, (first, second))
 
 
 def test_pass_vs_fail_and_different_fail_vs_fail_are_conflicts():
     spec = _spec()
-    pass_manifest = _manifest(spec, item=_item_pass())
-    fail_manifest = _manifest(spec, item=_item_fail())
     with pytest.raises(IntegrationEvidenceMergeConflict, match="fabric.item.read"):
-        merge_integration_evidence_manifests(spec, (pass_manifest, fail_manifest))
-
-    first_fail = _manifest(spec, item=_item_fail(detail="first failure"))
-    second_fail = _manifest(spec, item=_item_fail(detail="second failure"))
+        merge_integration_evidence_manifests(
+            spec, (_manifest(spec, item=_item_pass()), _manifest(spec, item=_item_fail()))
+        )
     with pytest.raises(IntegrationEvidenceMergeConflict, match="fabric.item.read"):
-        merge_integration_evidence_manifests(spec, (first_fail, second_fail))
+        merge_integration_evidence_manifests(
+            spec,
+            (
+                _manifest(spec, item=_item_fail(detail="first failure")),
+                _manifest(spec, item=_item_fail(detail="second failure")),
+            ),
+        )
 
 
 def test_all_not_run_becomes_one_canonical_not_run_result():
     spec = _spec()
     first = _manifest(spec, completed_at=NOW + timedelta(minutes=1))
     second = _manifest(spec, completed_at=NOW + timedelta(minutes=4))
-
     merged = merge_integration_evidence_manifests(spec, (first, second))
     result = _result(merged, "fabric.item.read")
-
     assert result.status is IntegrationEvidenceStatus.NOT_RUN
     assert result.started_at == second.completed_at
     assert result.completed_at == second.completed_at
@@ -239,7 +236,8 @@ def test_each_input_must_match_exact_spec_identity_and_check_spec():
     for changed in (
         manifest.model_copy(update={"domain": "other"}),
         manifest.model_copy(update={"framework_version": "9.9.9"}),
-        manifest.model_copy(update={"release_hash": "b" * 64}),
+        manifest.model_copy(update={"framework_artifact_sha256": "c" * 64}),
+        manifest.model_copy(update={"integration_inputs_hash": "d" * 64}),
     ):
         with pytest.raises(ValueError):
             merge_integration_evidence_manifests(spec, (changed,))
@@ -247,8 +245,7 @@ def test_each_input_must_match_exact_spec_identity_and_check_spec():
     changed_checks = spec.checks[:-1]
     with pytest.raises(ValueError, match="check specification"):
         merge_integration_evidence_manifests(
-            spec,
-            (manifest.model_copy(update={"checks": changed_checks}),),
+            spec, (manifest.model_copy(update={"checks": changed_checks}),)
         )
 
 

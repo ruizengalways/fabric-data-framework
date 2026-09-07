@@ -16,15 +16,17 @@ from fabric_data_framework.evidence.integration_runner import (
 )
 
 
-RELEASE_HASH = "a" * 64
+FRAMEWORK_ARTIFACT = "a" * 64
+INPUTS_HASH = "b" * 64
 
 
 def _spec(*checks):
     return IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
-        domain="customer",
+        domain="framework-certification",
         framework_version="0.4.0",
-        release_hash=RELEASE_HASH,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT,
+        integration_inputs_hash=INPUTS_HASH,
         checks=checks,
     )
 
@@ -32,9 +34,10 @@ def _spec(*checks):
 def _config(*bindings, **updates):
     values = {
         "environment": EnvironmentName.DEV,
-        "domain": "customer",
+        "domain": "framework-certification",
         "framework_version": "0.4.0",
-        "release_hash": RELEASE_HASH,
+        "framework_artifact_sha256": FRAMEWORK_ARTIFACT,
+        "integration_inputs_hash": INPUTS_HASH,
         "fabric_access_token_env_var": "FABRIC_ACCESS_TOKEN",
         "control_plane_profile": "fabric_sql_database_v1",
         "control_plane_database_url_env_var": "FABRIC_CONTROL_PLANE_DATABASE_URL",
@@ -70,6 +73,8 @@ def test_read_only_preflight_is_ready_with_token_and_exact_item_binding():
     )
 
     assert plan.ready is True
+    assert plan.framework_artifact_sha256 == FRAMEWORK_ARTIFACT
+    assert plan.integration_inputs_hash == INPUTS_HASH
     assert plan.mutating_check_ids == ()
     assert plan.runtime_requirements[0].env_var == "FABRIC_ACCESS_TOKEN"
     assert plan.runtime_requirements[0].present is True
@@ -198,7 +203,7 @@ def test_binding_not_declared_in_spec_is_rejected():
         )
 
 
-def test_config_and_evidence_spec_must_be_same_exact_release():
+def test_config_and_evidence_spec_must_bind_same_exact_framework_artifact():
     spec = _spec(
         IntegrationEvidenceCheckSpec(
             check_id="fabric.item.read",
@@ -211,10 +216,34 @@ def test_config_and_evidence_spec_must_be_same_exact_release():
             workspace_id=uuid4(),
             item_id=uuid4(),
         ),
-        release_hash="b" * 64,
+        framework_artifact_sha256="c" * 64,
     )
 
-    with pytest.raises(ValueError, match="release hash differ"):
+    with pytest.raises(ValueError, match="framework artifact SHA256 mismatch"):
+        build_approved_integration_run_plan(
+            config,
+            spec,
+            environ={"FABRIC_ACCESS_TOKEN": "secret"},
+        )
+
+
+def test_config_and_evidence_spec_must_bind_same_exact_integration_inputs():
+    spec = _spec(
+        IntegrationEvidenceCheckSpec(
+            check_id="fabric.item.read",
+            kind=IntegrationEvidenceCheckKind.FABRIC_ITEM_READ,
+        )
+    )
+    config = _config(
+        IntegrationCheckPhysicalBinding(
+            check_id="fabric.item.read",
+            workspace_id=uuid4(),
+            item_id=uuid4(),
+        ),
+        integration_inputs_hash="d" * 64,
+    )
+
+    with pytest.raises(ValueError, match="integration inputs hash mismatch"):
         build_approved_integration_run_plan(
             config,
             spec,
@@ -231,8 +260,9 @@ def test_control_plane_profile_and_runtime_url_name_are_declared_together():
     with pytest.raises(ValidationError, match="requires control_plane_database_url_env_var"):
         ApprovedIntegrationRunnerConfig(
             environment=EnvironmentName.DEV,
-            domain="customer",
+            domain="framework-certification",
             framework_version="0.4.0",
-            release_hash=RELEASE_HASH,
+            framework_artifact_sha256=FRAMEWORK_ARTIFACT,
+            integration_inputs_hash=INPUTS_HASH,
             control_plane_profile="fabric_sql_database_v1",
         )

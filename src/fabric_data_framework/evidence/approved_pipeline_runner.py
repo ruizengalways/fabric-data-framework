@@ -7,7 +7,7 @@ same generated ``dataset_run_id`` from the relational control plane.
 
 The safe evidence report deliberately retains provider/native status and framework
 outcome separately. This allows later business-path certification to prove cases such
-as "Fabric Completed but framework reconciliation FAILED" without trusting a customer
+as "Fabric Completed but framework reconciliation FAILED" without trusting a fixture
 observer to self-report provider success.
 """
 
@@ -154,8 +154,6 @@ def _require_exact_release_artifacts(
         raise ValueError("release manifest and approved runner config domain differ")
     if release_manifest.bundle.framework_version != config.framework_version:
         raise ValueError("release manifest and approved runner framework version differ")
-    if release_manifest.bundle.release_hash != config.release_hash:
-        raise ValueError("release manifest and approved runner release hash differ")
     observed_bundle_hash = config_bundle_hash(configs)
     if observed_bundle_hash != release_manifest.bundle.config_bundle_hash:
         raise ValueError("dataset config bundle hash does not match exact release manifest")

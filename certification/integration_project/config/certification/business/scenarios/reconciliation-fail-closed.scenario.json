@@ -1,0 +1,5 @@
+{
+  "gate_id": "reconciliation.fail_closed", "dataset_id": "cert.reconciliation_fail_closed", "observer_extension": "cert.business-path-observer", "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl", "scenario_artifact_name": "reconciliation-fail-closed.scenario.json",
+  "expected_success_target_sha256": "4dbbe5c9a8ca11bca69695557f911a69f8bb80ba8c2c9d41bcc509e20e941050", "expected_success_target_row_count": 1, "expected_success_progress_sha256": "2754e52f13625a18a0b2530baa778fd9aa3430ceaa361c81b8f8dbceac57ff57", "expected_success_history_sha256": null, "expected_failure_error_code": "RECONCILIATION_FAILED",
+  "parameters": {"target": {"table": "dbo.cert_recon_target", "columns": ["id", "value"]}, "progress": {"table": "dbo.cert_progress", "columns": ["dataset_id", "checkpoint"], "where": {"dataset_id": "cert.reconciliation_fail_closed"}}}
+}

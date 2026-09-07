@@ -28,7 +28,7 @@ from fabric_data_framework.evidence.release_readiness import (
 NOW = datetime(2026, 8, 30, 12, 0, tzinfo=timezone.utc)
 CANDIDATE = "a" * 40
 ARTIFACT = "b" * 64
-DOMAIN_RELEASE = "c" * 64
+INPUTS_HASH = "c" * 64
 
 
 def _spec() -> ReleaseReadinessSpec:
@@ -53,12 +53,12 @@ def _spec() -> ReleaseReadinessSpec:
     )
 
 
-def _proofs(*, domain_release_hash: str | None = DOMAIN_RELEASE) -> ReleaseReadinessProofBundle:
+def _proofs(*, integration_inputs_hash: str | None = INPUTS_HASH) -> ReleaseReadinessProofBundle:
     return ReleaseReadinessProofBundle(
         framework_version="0.4.0",
         candidate_git_sha=CANDIDATE,
         artifact_sha256=ARTIFACT,
-        domain_release_hash=domain_release_hash,
+        integration_inputs_hash=integration_inputs_hash,
         results=(
             ReleaseReadinessProofResult(
                 gate_id="source.tests",
@@ -76,9 +76,7 @@ def _proofs(*, domain_release_hash: str | None = DOMAIN_RELEASE) -> ReleaseReadi
     )
 
 
-def _integration(
-    *, domain_release_hash: str | None = DOMAIN_RELEASE
-) -> IntegrationEvidenceManifest:
+def _integration(*, integration_inputs_hash: str | None = INPUTS_HASH) -> IntegrationEvidenceManifest:
     check = IntegrationEvidenceCheckSpec(
         check_id="fabric.pipeline",
         kind=IntegrationEvidenceCheckKind.FABRIC_PIPELINE_RUN,
@@ -98,10 +96,10 @@ def _integration(
     )
     return IntegrationEvidenceManifest(
         environment=EnvironmentName.DEV,
-        domain="customer",
+        domain="framework-certification",
         framework_version="0.4.0",
-        release_hash=ARTIFACT,
-        domain_release_hash=domain_release_hash,
+        framework_artifact_sha256=ARTIFACT,
+        integration_inputs_hash=integration_inputs_hash,
         started_at=NOW,
         completed_at=NOW,
         checks=(check,),
@@ -115,7 +113,7 @@ def test_missing_evidence_blocks_release_without_inference():
     )
 
     assert report.release_ready is False
-    assert report.domain_release_hash is None
+    assert report.integration_inputs_hash is None
     assert report.blockers == ("source.tests", "fabric.pipeline")
     assert [item.status for item in report.results] == [
         ReleaseReadinessStatus.NOT_RUN,
@@ -136,20 +134,20 @@ def test_retained_proofs_and_exact_artifact_integration_can_make_release_ready()
 
     assert report.release_ready is True
     assert report.blockers == ()
-    assert report.domain_release_hash == DOMAIN_RELEASE
+    assert report.integration_inputs_hash == INPUTS_HASH
     assert report.results[0].status is ReleaseReadinessStatus.PASS
     assert report.results[1].status is ReleaseReadinessStatus.PASS
     assert report.results[2].status is ReleaseReadinessStatus.OUT_OF_SCOPE
 
 
-def test_proof_and_integration_domain_release_identity_must_match_when_both_supplied():
-    with pytest.raises(ValueError, match="domain release hash mismatch"):
+def test_proof_and_integration_input_identity_must_match_when_both_supplied():
+    with pytest.raises(ValueError, match="integration inputs hash mismatch"):
         evaluate_release_readiness(
             _spec(),
             candidate_git_sha=CANDIDATE,
             artifact_sha256=ARTIFACT,
             proofs=_proofs(),
-            integration_evidence=_integration(domain_release_hash="d" * 64),
+            integration_evidence=_integration(integration_inputs_hash="d" * 64),
             now=lambda: NOW,
         )
 
@@ -163,7 +161,7 @@ def test_proof_bundle_must_match_exact_candidate_sha():
 
 
 def test_live_integration_must_match_exact_artifact_sha256():
-    with pytest.raises(ValueError, match="release hash does not match"):
+    with pytest.raises(ValueError, match="framework artifact SHA256 mismatch"):
         evaluate_release_readiness(
             _spec(),
             candidate_git_sha=CANDIDATE,
@@ -177,6 +175,8 @@ def test_integration_backed_gate_cannot_be_bypassed_by_generic_proof():
     proofs = ReleaseReadinessProofBundle(
         framework_version="0.4.0",
         candidate_git_sha=CANDIDATE,
+        artifact_sha256=ARTIFACT,
+        integration_inputs_hash=INPUTS_HASH,
         results=(
             ReleaseReadinessProofResult(
                 gate_id="fabric.pipeline",
@@ -205,6 +205,8 @@ def test_required_gate_cannot_escape_as_out_of_scope():
     proofs = ReleaseReadinessProofBundle(
         framework_version="0.4.0",
         candidate_git_sha=CANDIDATE,
+        artifact_sha256=ARTIFACT,
+        integration_inputs_hash=INPUTS_HASH,
         results=(
             ReleaseReadinessProofResult(
                 gate_id="source.tests",

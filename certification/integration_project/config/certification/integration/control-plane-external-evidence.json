@@ -1,0 +1,9 @@
+{
+  "backend_service_identity_reference": null,
+  "identity_access_control_reference": null,
+  "network_security_reference": null,
+  "backup_restore_reference": null,
+  "availability_recovery_reference": null,
+  "monitoring_alerting_reference": null,
+  "retention_governance_reference": null
+}

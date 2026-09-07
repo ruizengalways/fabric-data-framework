@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from fabric_data_framework.contracts.environment import EnvironmentName
 from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceCheckKind,
@@ -15,16 +17,16 @@ from fabric_data_framework.evidence.integration_runner import (
 
 
 FRAMEWORK_SHA = "a" * 64
-DOMAIN_SHA = "b" * 64
+INPUTS_SHA = "b" * 64
 
 
 def _candidate_spec() -> IntegrationEvidenceSpec:
     return IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
-        domain="customer",
+        domain="framework-certification",
         framework_version="0.4.0",
-        release_hash=FRAMEWORK_SHA,
-        domain_release_hash=DOMAIN_SHA,
+        framework_artifact_sha256=FRAMEWORK_SHA,
+        integration_inputs_hash=INPUTS_SHA,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="delta.reference",
@@ -35,15 +37,19 @@ def _candidate_spec() -> IntegrationEvidenceSpec:
     )
 
 
-def test_candidate_runner_requires_independent_framework_and_domain_hashes():
-    spec = _candidate_spec()
-    config = ApprovedIntegrationRunnerConfig(
+def _runner_config() -> ApprovedIntegrationRunnerConfig:
+    return ApprovedIntegrationRunnerConfig(
         environment=EnvironmentName.DEV,
-        domain="customer",
+        domain="framework-certification",
         framework_version="0.4.0",
-        release_hash=DOMAIN_SHA,
         framework_artifact_sha256=FRAMEWORK_SHA,
+        integration_inputs_hash=INPUTS_SHA,
     )
+
+
+def test_candidate_runner_requires_exact_framework_and_integration_input_identities():
+    spec = _candidate_spec()
+    config = _runner_config()
     plan = build_approved_integration_run_plan(
         config,
         spec,
@@ -51,16 +57,16 @@ def test_candidate_runner_requires_independent_framework_and_domain_hashes():
         selected_check_ids=("delta.reference",),
         allow_mutating_checks=True,
     )
-    assert plan.release_hash == DOMAIN_SHA
+
     assert plan.framework_artifact_sha256 == FRAMEWORK_SHA
+    assert plan.integration_inputs_hash == INPUTS_SHA
 
     for changed, message in (
         ({"framework_artifact_sha256": "c" * 64}, "framework artifact"),
-        ({"release_hash": "d" * 64}, "domain release"),
-        ({"framework_artifact_sha256": None}, "requires framework_artifact_sha256"),
+        ({"integration_inputs_hash": "d" * 64}, "integration inputs"),
     ):
         bad = config.model_copy(update=changed)
-        try:
+        with pytest.raises(ValueError, match=message):
             build_approved_integration_run_plan(
                 bad,
                 spec,
@@ -68,53 +74,34 @@ def test_candidate_runner_requires_independent_framework_and_domain_hashes():
                 selected_check_ids=("delta.reference",),
                 allow_mutating_checks=True,
             )
-        except ValueError as exc:
-            assert message in str(exc)
-        else:
-            raise AssertionError("mismatched candidate identities must fail closed")
 
 
-def test_manifest_hash_and_validation_include_domain_release_identity():
+def test_manifest_hash_and_validation_include_both_explicit_identities():
     spec = _candidate_spec()
     manifest = run_integration_evidence(spec, runners={})
-    assert manifest.release_hash == FRAMEWORK_SHA
-    assert manifest.domain_release_hash == DOMAIN_SHA
+
+    assert manifest.framework_artifact_sha256 == FRAMEWORK_SHA
+    assert manifest.integration_inputs_hash == INPUTS_SHA
     validate_integration_evidence_manifest(spec, manifest)
 
-    changed = manifest.model_copy(update={"domain_release_hash": "c" * 64})
-    try:
-        validate_integration_evidence_manifest(spec, changed)
-    except ValueError as exc:
-        assert "domain release hash" in str(exc)
-    else:
-        raise AssertionError("domain release identity mismatch must fail closed")
+    changed_artifact = manifest.model_copy(update={"framework_artifact_sha256": "c" * 64})
+    with pytest.raises(ValueError, match="framework artifact SHA256 mismatch"):
+        validate_integration_evidence_manifest(spec, changed_artifact)
+
+    changed_inputs = manifest.model_copy(update={"integration_inputs_hash": "d" * 64})
+    with pytest.raises(ValueError, match="integration inputs hash mismatch"):
+        validate_integration_evidence_manifest(spec, changed_inputs)
 
 
-def test_legacy_single_hash_runner_remains_supported_only_without_domain_hash():
-    legacy = IntegrationEvidenceSpec(
-        environment=EnvironmentName.DEV,
-        domain="customer",
-        framework_version="0.4.0",
-        release_hash=DOMAIN_SHA,
-        checks=(
-            IntegrationEvidenceCheckSpec(
-                check_id="delta.reference",
-                kind=IntegrationEvidenceCheckKind.DELTA_CDF_PROVIDER,
-                required=False,
-            ),
-        ),
-    )
-    config = ApprovedIntegrationRunnerConfig(
-        environment=EnvironmentName.DEV,
-        domain="customer",
-        framework_version="0.4.0",
-        release_hash=DOMAIN_SHA,
-    )
-    plan = build_approved_integration_run_plan(
-        config,
-        legacy,
-        environ={},
-        selected_check_ids=("delta.reference",),
-        allow_mutating_checks=True,
-    )
-    assert plan.framework_artifact_sha256 is None
+def test_legacy_single_hash_fields_are_not_part_of_current_models():
+    spec_fields = IntegrationEvidenceSpec.model_fields
+    runner_fields = ApprovedIntegrationRunnerConfig.model_fields
+
+    assert "release_hash" not in spec_fields
+    assert "domain_release_hash" not in spec_fields
+    assert "release_hash" not in runner_fields
+    assert "domain_release_hash" not in runner_fields
+    assert "framework_artifact_sha256" in spec_fields
+    assert "integration_inputs_hash" in spec_fields
+    assert "framework_artifact_sha256" in runner_fields
+    assert "integration_inputs_hash" in runner_fields

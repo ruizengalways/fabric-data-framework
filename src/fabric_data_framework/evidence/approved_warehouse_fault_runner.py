@@ -310,8 +310,6 @@ def _require_exact_release_dataset(
         raise ValueError("release manifest and approved runner config domain differ")
     if release_manifest.bundle.framework_version != config.framework_version:
         raise ValueError("release manifest and approved runner framework version differ")
-    if release_manifest.bundle.release_hash != config.release_hash:
-        raise ValueError("release manifest and approved runner release hash differ")
     if config_bundle_hash(configs) != release_manifest.bundle.config_bundle_hash:
         raise ValueError("dataset config bundle hash does not match exact release manifest")
     for artifact_name, label in (

@@ -1,0 +1,5 @@
+{
+  "gate_id": "watermark.scd1", "dataset_id": "cert.watermark_scd1", "observer_extension": "cert.business-path-observer", "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl", "scenario_artifact_name": "watermark-scd1.scenario.json",
+  "expected_success_target_sha256": "8e5bc31855f840645e0f91e99dc5f4005f60ba21920d8ee7a5f0dc7427e60193", "expected_success_target_row_count": 2, "expected_success_progress_sha256": "8963770b19a9ddd1a31dd0fc508d4a52ae501c8d7ff5c2ce56e42277d74b07ec", "expected_success_history_sha256": null, "expected_failure_error_code": null,
+  "parameters": {"target": {"table": "dbo.cert_scd1_target", "columns": ["id", "value"]}, "progress": {"table": "dbo.cert_progress", "columns": ["dataset_id", "checkpoint"], "where": {"dataset_id": "cert.watermark_scd1"}}}
+}

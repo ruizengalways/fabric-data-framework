@@ -13,12 +13,17 @@ from fabric_data_framework.evidence.integration_runner import (
 )
 
 
+FRAMEWORK_SHA = "a" * 64
+INPUTS_SHA = "b" * 64
+
+
 def test_pipeline_preflight_requires_token_and_control_plane_database_by_name():
     spec = IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
-        domain="customer",
+        domain="framework-certification",
         framework_version="0.4.0",
-        release_hash="a" * 64,
+        framework_artifact_sha256=FRAMEWORK_SHA,
+        integration_inputs_hash=INPUTS_SHA,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="fabric.pipeline",
@@ -28,9 +33,10 @@ def test_pipeline_preflight_requires_token_and_control_plane_database_by_name():
     )
     config = ApprovedIntegrationRunnerConfig(
         environment=EnvironmentName.DEV,
-        domain="customer",
+        domain="framework-certification",
         framework_version="0.4.0",
-        release_hash="a" * 64,
+        framework_artifact_sha256=FRAMEWORK_SHA,
+        integration_inputs_hash=INPUTS_SHA,
         fabric_access_token_env_var="FABRIC_ACCESS_TOKEN",
         control_plane_profile="fabric_sql_database_v1",
         control_plane_database_url_env_var="CONTROL_PLANE_DATABASE_URL",
@@ -67,6 +73,8 @@ def test_pipeline_preflight_requires_token_and_control_plane_database_by_name():
         allow_mutating_checks=True,
     )
     assert ready.ready is True
+    assert ready.framework_artifact_sha256 == FRAMEWORK_SHA
+    assert ready.integration_inputs_hash == INPUTS_SHA
     rendered = ready.model_dump_json()
     assert "secret-token" not in rendered
     assert "mssql+pyodbc://runtime-secret" not in rendered

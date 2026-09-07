@@ -32,7 +32,9 @@ from fabric_data_framework.evidence.integration_evidence import (
 from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
 
 
-EXTENSION_ARTIFACT = "fabric-customer-0.4.0.dev1-py3-none-any.whl"
+EXTENSION_ARTIFACT = "fabric_data_framework-0.4.0-py3-none-any.whl"
+FRAMEWORK_ARTIFACT_SHA256 = "a" * 64
+INTEGRATION_INPUTS_HASH = "b" * 64
 
 
 def _write(path: Path, model) -> None:
@@ -65,12 +67,13 @@ def _artifacts(tmp_path: Path):
         config_schema_version=1,
         fabric_item_manifest_version="dev-v1",
         build_id="warehouse-cli-test",
-    ).model_copy(update={"artifact_sha256": {EXTENSION_ARTIFACT: "a" * 64}})
+    ).model_copy(update={"artifact_sha256": {EXTENSION_ARTIFACT: FRAMEWORK_ARTIFACT_SHA256}})
     spec = IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
         domain="sales",
         framework_version="0.4.0",
-        release_hash=release.bundle.release_hash,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="fabric.item.read",
@@ -90,7 +93,8 @@ def _artifacts(tmp_path: Path):
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=release.generated_at,
         completed_at=release.generated_at,
         checks=spec.checks,
@@ -120,7 +124,8 @@ def _artifacts(tmp_path: Path):
         environment=EnvironmentName.DEV,
         domain="sales",
         framework_version="0.4.0",
-        release_hash=release.bundle.release_hash,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         control_plane_profile="fabric_sql_database_v1",
         control_plane_database_url_env_var="CONTROL_PLANE_DATABASE_URL",
         warehouse_database_url_env_var="WAREHOUSE_DATABASE_URL",
@@ -185,7 +190,8 @@ def test_warehouse_cli_routes_exact_inputs_and_writes_report_and_manifest(tmp_pa
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=now,
         completed_at=now,
         checks=spec.checks,

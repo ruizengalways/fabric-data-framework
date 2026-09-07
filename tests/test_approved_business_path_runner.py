@@ -105,8 +105,8 @@ def _spec(release: ReleaseManifest) -> IntegrationEvidenceSpec:
         environment=EnvironmentName.DEV,
         domain="customer",
         framework_version="0.4.0",
-        release_hash=WHEEL_SHA,
-        domain_release_hash=release.bundle.release_hash,
+        framework_artifact_sha256=WHEEL_SHA,
+        integration_inputs_hash=release.bundle.release_hash,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="fabric.item.read",
@@ -129,8 +129,8 @@ def _prerequisite(spec: IntegrationEvidenceSpec) -> IntegrationEvidenceManifest:
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
-        domain_release_hash=spec.domain_release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=NOW,
         completed_at=NOW,
         checks=spec.checks,
@@ -169,8 +169,8 @@ def _runner_config(release: ReleaseManifest) -> ApprovedIntegrationRunnerConfig:
         environment=EnvironmentName.DEV,
         domain="customer",
         framework_version="0.4.0",
-        release_hash=release.bundle.release_hash,
         framework_artifact_sha256=WHEEL_SHA,
+        integration_inputs_hash=release.bundle.release_hash,
         control_plane_profile="fabric_sql_database_v1",
         control_plane_database_url_env_var="CONTROL_PLANE_DATABASE_URL",
         bindings=(
@@ -456,7 +456,7 @@ def test_identity_or_prerequisite_mismatch_blocks_before_driver(monkeypatch):
 
     cases = (
         (runner_config.model_copy(update={"framework_artifact_sha256": "9" * 64}), spec, prerequisite, "framework artifact"),
-        (runner_config, spec.model_copy(update={"domain_release_hash": "9" * 64}), prerequisite, "domain release"),
+        (runner_config, spec.model_copy(update={"integration_inputs_hash": "9" * 64}), prerequisite, "integration input"),
         (
             runner_config,
             spec,

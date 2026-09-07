@@ -2,7 +2,7 @@
 
 The runner never converts provider ``Completed`` into framework capture success by
 itself. It reuses the concrete REST transports plus ``FabricCaptureAdapter`` and
-requires a bounded customer/domain observation extension to produce the post-run facts
+requires a bounded certification observation extension to produce the post-run facts
 that Fabric's generic job APIs do not expose: row counts, landing identity, source
 bounds/checkpoints and snapshot completeness.
 """
@@ -207,8 +207,6 @@ def _require_exact_release_dataset(
         raise ValueError("release manifest and approved runner config domain differ")
     if release_manifest.bundle.framework_version != runner_config.framework_version:
         raise ValueError("release manifest and approved runner framework version differ")
-    if release_manifest.bundle.release_hash != runner_config.release_hash:
-        raise ValueError("release manifest and approved runner release hash differ")
     observed_bundle_hash = config_bundle_hash(configs)
     if observed_bundle_hash != release_manifest.bundle.config_bundle_hash:
         raise ValueError("dataset config bundle hash does not match exact release manifest")

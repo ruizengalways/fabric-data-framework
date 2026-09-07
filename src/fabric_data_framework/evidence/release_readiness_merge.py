@@ -1,7 +1,7 @@
 """Fail-closed merge for exact-candidate partial release proof bundles.
 
-Release proof is intentionally produced in stages. Portable source/wheel/customer
-checks and representative live business-path drills may be retained by different
+Release proof is intentionally produced in stages. Portable source/wheel/integration
+input checks and representative live business-path drills may be retained by different
 workflows. This module combines those partial bundles without inventing evidence and
 without applying timestamp, PASS-wins, or latest-wins precedence.
 """
@@ -40,8 +40,8 @@ def _validate_partial_bundle(
         raise ValueError("release proof framework version does not match readiness spec")
     if bundle.artifact_sha256 is None:
         raise ValueError("partial release proof bundle must bind exact artifact_sha256")
-    if bundle.domain_release_hash is None:
-        raise ValueError("partial release proof bundle must bind exact domain_release_hash")
+    if bundle.integration_inputs_hash is None:
+        raise ValueError("partial release proof bundle must bind exact integration_inputs_hash")
 
     gates = {gate.gate_id: gate for gate in spec.gates}
     for result in bundle.results:
@@ -64,12 +64,12 @@ def merge_release_readiness_proof_bundles(
     spec: ReleaseReadinessSpec,
     bundles: Iterable[ReleaseReadinessProofBundle],
 ) -> ReleaseReadinessProofBundle:
-    """Merge staged proof for one exact framework and customer/domain release.
+    """Merge staged proof for one exact framework candidate and integration-input bundle.
 
     Rules are deliberately strict:
 
     - every input must match the readiness schema/framework and bind the same
-      candidate SHA, exact wheel SHA and exact customer/domain release hash;
+      candidate SHA, exact wheel SHA and exact integration-input hash;
     - every proof result must match the source-controlled readiness spec;
     - integration-backed gates are rejected because IntegrationEvidenceManifest owns them;
     - retained evidence text is secret-scanned before it can enter merged output;
@@ -90,14 +90,14 @@ def merge_release_readiness_proof_bundles(
 
     first = items[0]
     assert first.artifact_sha256 is not None
-    assert first.domain_release_hash is not None
+    assert first.integration_inputs_hash is not None
     for bundle in items[1:]:
         if bundle.candidate_git_sha != first.candidate_git_sha:
             raise ValueError("partial release proof candidate git SHA mismatch")
         if bundle.artifact_sha256 != first.artifact_sha256:
             raise ValueError("partial release proof artifact SHA256 mismatch")
-        if bundle.domain_release_hash != first.domain_release_hash:
-            raise ValueError("partial release proof domain release hash mismatch")
+        if bundle.integration_inputs_hash != first.integration_inputs_hash:
+            raise ValueError("partial release proof integration inputs hash mismatch")
 
     result_maps = [{item.gate_id: item for item in bundle.results} for bundle in items]
     merged: list[ReleaseReadinessProofResult] = []
@@ -128,7 +128,7 @@ def merge_release_readiness_proof_bundles(
         framework_version=spec.framework_version,
         candidate_git_sha=first.candidate_git_sha,
         artifact_sha256=first.artifact_sha256,
-        domain_release_hash=first.domain_release_hash,
+        integration_inputs_hash=first.integration_inputs_hash,
         results=tuple(merged),
     )
 

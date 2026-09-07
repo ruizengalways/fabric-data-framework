@@ -1,0 +1,11 @@
+{
+  "scenario_hash": "2971597c1c6ce9365107e1853713a78b81b2f34313ac1bcb6b1628eed3acbea1",
+  "driver_extension": "cert.business-path-driver",
+  "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl",
+  "driver_config_artifact_name": "full-replace.driver.json",
+  "parameters": {"control_table": "dbo.cert_pipeline_control", "actions": {
+    "PREPARE_BASELINE": {"failure_mode": "SUCCESS", "replacements": [{"table": "dbo.cert_full_source", "rows": [{"id": 1, "value": "old"}]}, {"table": "dbo.cert_full_target", "rows": [{"id": 1, "value": "old"}]}, {"table": "dbo.cert_progress", "rows": [{"dataset_id": "cert.full_replace", "checkpoint": "baseline"}]}]},
+    "PREPARE_ATTEMPT_1": {"failure_mode": "SUCCESS", "replacements": [{"table": "dbo.cert_full_source", "rows": [{"id": 1, "value": "new"}, {"id": 2, "value": "added"}]}]},
+    "CLEANUP": {"failure_mode": "SUCCESS", "replacements": [{"table": "dbo.cert_full_source", "rows": []}, {"table": "dbo.cert_full_target", "rows": []}, {"table": "dbo.cert_progress", "rows": []}]}
+  }}
+}

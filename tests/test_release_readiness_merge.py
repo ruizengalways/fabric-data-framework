@@ -21,7 +21,7 @@ from fabric_data_framework.evidence.release_readiness_merge import (
 
 CANDIDATE = "a" * 40
 WHEEL = "b" * 64
-DOMAIN = "c" * 64
+INPUTS_HASH = "c" * 64
 
 
 def _spec() -> ReleaseReadinessSpec:
@@ -67,7 +67,7 @@ def _bundle(
     *results: ReleaseReadinessProofResult,
     candidate: str = CANDIDATE,
     wheel: str | None = WHEEL,
-    domain: str | None = DOMAIN,
+    integration_inputs_hash: str | None = INPUTS_HASH,
     schema: int = 1,
 ) -> ReleaseReadinessProofBundle:
     return ReleaseReadinessProofBundle(
@@ -75,7 +75,7 @@ def _bundle(
         framework_version="0.4.0",
         candidate_git_sha=candidate,
         artifact_sha256=wheel,
-        domain_release_hash=domain,
+        integration_inputs_hash=integration_inputs_hash,
         results=results,
     )
 
@@ -102,7 +102,7 @@ def test_merge_combines_disjoint_exact_candidate_partial_proofs():
     )
     assert merged.candidate_git_sha == CANDIDATE
     assert merged.artifact_sha256 == WHEEL
-    assert merged.domain_release_hash == DOMAIN
+    assert merged.integration_inputs_hash == INPUTS_HASH
     assert [item.gate_id for item in merged.results] == ["source.tests", "full.replace"]
 
 
@@ -155,15 +155,19 @@ def test_merge_rejects_pass_fail_conflict():
         )
 
 
-def test_merge_requires_exact_wheel_and_domain_binding_on_every_partial_bundle():
+def test_merge_requires_exact_wheel_and_integration_input_binding_on_every_partial_bundle():
     with pytest.raises(ValueError, match="artifact_sha256"):
         merge_release_readiness_proof_bundles(_spec(), (_bundle(wheel=None),))
     with pytest.raises(ValueError, match="artifact SHA256 mismatch"):
         merge_release_readiness_proof_bundles(_spec(), (_bundle(), _bundle(wheel="d" * 64)))
-    with pytest.raises(ValueError, match="domain_release_hash"):
-        merge_release_readiness_proof_bundles(_spec(), (_bundle(domain=None),))
-    with pytest.raises(ValueError, match="domain release hash mismatch"):
-        merge_release_readiness_proof_bundles(_spec(), (_bundle(), _bundle(domain="e" * 64)))
+    with pytest.raises(ValueError, match="integration_inputs_hash"):
+        merge_release_readiness_proof_bundles(
+            _spec(), (_bundle(integration_inputs_hash=None),)
+        )
+    with pytest.raises(ValueError, match="integration inputs hash mismatch"):
+        merge_release_readiness_proof_bundles(
+            _spec(), (_bundle(), _bundle(integration_inputs_hash="e" * 64))
+        )
 
 
 def test_merge_requires_same_schema_and_exact_candidate_sha():
@@ -217,7 +221,7 @@ def test_release_proofs_merge_cli_writes_exact_merged_bundle(tmp_path):
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["candidate_git_sha"] == CANDIDATE
     assert payload["artifact_sha256"] == WHEEL
-    assert payload["domain_release_hash"] == DOMAIN
+    assert payload["integration_inputs_hash"] == INPUTS_HASH
     assert [item["gate_id"] for item in payload["results"]] == ["source.tests", "full.replace"]
 
 

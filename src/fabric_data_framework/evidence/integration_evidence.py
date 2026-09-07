@@ -1,10 +1,8 @@
 """Credential-free evidence contracts and runner for approved integration checks.
 
-This module is intentionally provider-execution agnostic: concrete check callables may
-invoke the existing Fabric Pipeline, Copy Job, Spark, Warehouse and control-plane
-certification APIs. The harness aggregates only sanitized evidence references and
-correlation identifiers. It never accepts or persists access tokens, passwords or
-connection secrets.
+Integration evidence binds two independent hashes: the exact candidate framework wheel
+and the exact framework-owned integration input bundle. No customer/domain release
+identity participates in framework release certification.
 """
 
 from __future__ import annotations
@@ -86,10 +84,14 @@ class IntegrationEvidenceSpec(FrozenModel):
     environment: EnvironmentName
     domain: str = Field(min_length=1, max_length=128)
     framework_version: str = Field(min_length=1, max_length=64)
-    # release_hash is the exact framework artifact SHA256 used by candidate readiness.
-    release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-    # domain_release_hash is the independent DatasetConfig/domain release identity.
-    domain_release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    framework_artifact_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    integration_inputs_hash: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     checks: tuple[IntegrationEvidenceCheckSpec, ...] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -199,8 +201,14 @@ class IntegrationEvidenceManifest(FrozenModel):
     environment: EnvironmentName
     domain: str = Field(min_length=1, max_length=128)
     framework_version: str = Field(min_length=1, max_length=64)
-    release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-    domain_release_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    framework_artifact_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    integration_inputs_hash: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     started_at: datetime
     completed_at: datetime
     checks: tuple[IntegrationEvidenceCheckSpec, ...]
@@ -272,8 +280,6 @@ def _failed_runner(
     completed_at: datetime,
     exc: Exception,
 ) -> IntegrationEvidenceCheckResult:
-    # Exception messages are deliberately excluded because provider/driver exceptions
-    # may contain credential-bearing URLs or connection strings.
     return IntegrationEvidenceCheckResult(
         check_id=spec.check_id,
         kind=spec.kind,
@@ -290,13 +296,7 @@ def run_integration_evidence(
     runners: Mapping[str, IntegrationEvidenceCheckRunner],
     now: Callable[[], datetime] = _utcnow,
 ) -> IntegrationEvidenceManifest:
-    """Run registered checks in spec order and aggregate credential-free evidence.
-
-    Missing runners become NOT_RUN. Exceptions become FAIL without copying exception
-    text into the retained manifest. A runner must return the exact check_id/kind it
-    was registered for; mismatches fail closed. Runner IDs not present in the spec are
-    rejected rather than silently ignored.
-    """
+    """Run registered checks in spec order and aggregate credential-free evidence."""
 
     expected_ids = {item.check_id for item in spec.checks}
     unexpected_runner_ids = sorted(set(runners) - expected_ids)
@@ -337,8 +337,8 @@ def run_integration_evidence(
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
-        domain_release_hash=spec.domain_release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=started_at,
         completed_at=completed_at,
         checks=spec.checks,
@@ -362,10 +362,10 @@ def validate_integration_evidence_manifest(
         raise ValueError("evidence domain mismatch")
     if manifest.framework_version != spec.framework_version:
         raise ValueError("evidence framework version mismatch")
-    if manifest.release_hash != spec.release_hash:
-        raise ValueError("evidence framework artifact release hash mismatch")
-    if manifest.domain_release_hash != spec.domain_release_hash:
-        raise ValueError("evidence domain release hash mismatch")
+    if manifest.framework_artifact_sha256 != spec.framework_artifact_sha256:
+        raise ValueError("evidence framework artifact SHA256 mismatch")
+    if manifest.integration_inputs_hash != spec.integration_inputs_hash:
+        raise ValueError("evidence integration inputs hash mismatch")
     if manifest.checks != spec.checks:
         raise ValueError("retained evidence check specification does not match requested spec")
     if require_certified and not manifest.certified:

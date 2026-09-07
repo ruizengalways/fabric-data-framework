@@ -1,0 +1,12 @@
+{
+  "scenario_hash": "49981d851186ec43db86781564d9525218bff252f0e95349646a0ac79166b0b8",
+  "driver_extension": "cert.business-path-driver",
+  "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl",
+  "driver_config_artifact_name": "retry-idempotency.driver.json",
+  "parameters": {"control_table": "dbo.cert_pipeline_control", "actions": {
+    "PREPARE_BASELINE": {"failure_mode": "SUCCESS", "replacements": [{"table": "dbo.cert_retry_source", "rows": [{"id": 1, "value": "old"}]}, {"table": "dbo.cert_retry_target", "rows": [{"id": 1, "value": "old"}]}, {"table": "dbo.cert_progress", "rows": [{"dataset_id": "cert.retry_idempotency", "checkpoint": "baseline"}]}]},
+    "PREPARE_ATTEMPT_1": {"failure_mode": "CERTIFICATION_RETRYABLE_FAILURE", "replacements": [{"table": "dbo.cert_retry_source", "rows": [{"id": 1, "value": "new"}]}]},
+    "PREPARE_ATTEMPT_2": {"failure_mode": "SUCCESS", "replacements": [{"table": "dbo.cert_retry_source", "rows": [{"id": 1, "value": "new"}]}]},
+    "CLEANUP": {"failure_mode": "SUCCESS", "replacements": [{"table": "dbo.cert_retry_source", "rows": []}, {"table": "dbo.cert_retry_target", "rows": []}, {"table": "dbo.cert_progress", "rows": []}]}
+  }}
+}

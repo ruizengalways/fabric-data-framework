@@ -18,6 +18,8 @@ from fabric_data_framework.evidence.integration_evidence import (
 
 
 NOW = datetime(2026, 8, 29, 13, 0, tzinfo=timezone.utc)
+FRAMEWORK_SHA = "a" * 64
+INPUTS_SHA = "b" * 64
 WORKSPACE = UUID("00000000-0000-0000-0000-000000001001")
 ITEM = UUID("00000000-0000-0000-0000-000000001002")
 PIPELINE_RUN = UUID("00000000-0000-0000-0000-000000001003")
@@ -29,9 +31,10 @@ PIPELINE_ROOT = UUID("00000000-0000-0000-0000-000000001006")
 def _spec() -> IntegrationEvidenceSpec:
     return IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
-        domain="customer",
+        domain="framework-certification",
         framework_version="0.4.0",
-        release_hash="a" * 64,
+        framework_artifact_sha256=FRAMEWORK_SHA,
+        integration_inputs_hash=INPUTS_SHA,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="fabric.item.read",
@@ -91,7 +94,8 @@ def _manifest(spec: IntegrationEvidenceSpec, *, item=None, pipeline=None):
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=NOW,
         completed_at=NOW + timedelta(minutes=2),
         checks=spec.checks,
@@ -136,6 +140,8 @@ def test_console_merge_combines_two_partials_and_certifies(tmp_path: Path):
 
     assert rc == 0
     merged = json.loads(output_path.read_text(encoding="utf-8"))
+    assert merged["framework_artifact_sha256"] == FRAMEWORK_SHA
+    assert merged["integration_inputs_hash"] == INPUTS_SHA
     assert [result["status"] for result in merged["results"]] == ["PASS", "PASS"]
 
 

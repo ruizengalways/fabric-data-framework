@@ -17,15 +17,15 @@ def _prepare_root(tmp_path: Path) -> Path:
     return root
 
 
-def _prepare_customer(root: Path) -> Path:
-    customer = root / "customer-inputs"
-    customer.mkdir()
+def _prepare_integration_inputs(root: Path) -> Path:
+    inputs = root / "integration-inputs"
+    inputs.mkdir()
     runner = {
         "environment": "DEV",
-        "domain": "customer-certification",
+        "domain": "framework-certification",
         "framework_version": "0.4.0",
-        "release_hash": "0" * 64,
         "framework_artifact_sha256": "1" * 64,
+        "integration_inputs_hash": "2" * 64,
         "fabric_access_token_env_var": "FABRIC_ACCESS_TOKEN",
         "control_plane_database_url_env_var": "CONTROL_PLANE_DATABASE_URL",
         "warehouse_database_url_env_var": "WAREHOUSE_DATABASE_URL",
@@ -33,14 +33,14 @@ def _prepare_customer(root: Path) -> Path:
         "control_plane_profile": "fabric_sql_database_v1",
         "bindings": [],
     }
-    (customer / "runner-config.json").write_text(
+    (inputs / "runner-config.json").write_text(
         json.dumps(runner) + "\n",
         encoding="utf-8",
     )
-    return customer
+    return inputs
 
 
-def test_simple_certification_does_not_invent_customer_or_database_configuration(
+def test_simple_certification_does_not_invent_integration_or_database_configuration(
     monkeypatch,
     tmp_path,
 ):
@@ -55,18 +55,18 @@ def test_simple_certification_does_not_invent_customer_or_database_configuration
 
     simple_module.certify(spark=object(), certification_root=root)
 
-    assert observed["customer_inputs_root"] is None
+    assert observed["integration_inputs_root"] is None
     assert observed["environ"] is None
     assert observed["allow_control_plane_writes"] is False
     assert observed["allow_warehouse_execution"] is False
 
 
-def test_simple_certification_scopes_explicit_runtime_environment_for_extensions(
+def test_simple_certification_scopes_explicit_runtime_environment_for_framework_inputs(
     monkeypatch,
     tmp_path,
 ):
     root = _prepare_root(tmp_path)
-    customer = _prepare_customer(root)
+    inputs = _prepare_integration_inputs(root)
     runtime_environment = {
         "CONTROL_PLANE_DATABASE_URL": "runtime-control-plane-value",
         "WAREHOUSE_DATABASE_URL": "runtime-warehouse-value",
@@ -92,7 +92,7 @@ def test_simple_certification_scopes_explicit_runtime_environment_for_extensions
         allow_live_mutations=True,
     )
 
-    assert observed["customer_inputs_root"] == customer
+    assert observed["integration_inputs_root"] == inputs
     assert observed["environ"] is not runtime_environment
     assert observed["environ"]["CONTROL_PLANE_DATABASE_URL"] == "runtime-control-plane-value"
     assert observed["environ"]["WAREHOUSE_DATABASE_URL"] == "runtime-warehouse-value"
@@ -109,25 +109,26 @@ def test_simple_certification_scopes_explicit_runtime_environment_for_extensions
     assert "FABRIC_ACCESS_TOKEN" not in os.environ
 
 
-def test_control_plane_bootstrap_requires_bounded_pass_and_exact_customer_identity(
+def test_control_plane_bootstrap_requires_bounded_pass_and_exact_integration_identity(
     monkeypatch,
     tmp_path,
 ):
     root = _prepare_root(tmp_path)
-    customer = _prepare_customer(root)
-    (customer / "INPUTS.json").write_text(
+    inputs = _prepare_integration_inputs(root)
+    (inputs / "INPUTS.json").write_text(
         json.dumps(
             {
                 "candidate_git_sha": "a" * 40,
                 "candidate_wheel_sha256": "b" * 64,
                 "framework_version": "0.4.0",
+                "integration_inputs_hash": "2" * 64,
             }
         )
         + "\n",
         encoding="utf-8",
     )
-    (customer / "project/config/datasets").mkdir(parents=True)
-    (customer / "release-manifest.json").write_text("{}\n", encoding="utf-8")
+    (inputs / "project/config/datasets").mkdir(parents=True)
+    (inputs / "release-manifest.json").write_text("{}\n", encoding="utf-8")
 
     bounded = SimpleNamespace(
         candidate_git_sha="a" * 40,
@@ -146,7 +147,7 @@ def test_control_plane_bootstrap_requires_bounded_pass_and_exact_customer_identi
         lambda _: runner,
     )
     release = SimpleNamespace(
-        domain="customer-certification",
+        domain="framework-certification",
         bundle=SimpleNamespace(
             domain_git_sha="c" * 40,
             framework_version="0.4.0",
@@ -172,7 +173,7 @@ def test_control_plane_bootstrap_requires_bounded_pass_and_exact_customer_identi
         spark=object(),
         candidate_manifest=root / "CANDIDATE.json",
         wheel=root / "fabric_data_framework-0.4.0-py3-none-any.whl",
-        customer_inputs_root=customer,
+        integration_inputs_root=inputs,
         output_dir=root / "certification-output",
         environment="DEV",
         lakehouse_base_path="Files/framework_cert",
@@ -185,7 +186,7 @@ def test_control_plane_bootstrap_requires_bounded_pass_and_exact_customer_identi
     observed_engine, kwargs = materialized[0]
     assert observed_engine is engine
     assert kwargs["configs"] is configs
-    assert kwargs["domain"] == "customer-certification"
+    assert kwargs["domain"] == "framework-certification"
     assert kwargs["domain_git_sha"] == "c" * 40
     assert kwargs["framework_version"] == "0.4.0"
     assert disposed == [True]
@@ -196,7 +197,7 @@ def test_control_plane_bootstrap_does_not_mutate_after_bounded_failure(
     tmp_path,
 ):
     root = _prepare_root(tmp_path)
-    customer = _prepare_customer(root)
+    inputs = _prepare_integration_inputs(root)
     bounded = SimpleNamespace(
         checks=(SimpleNamespace(status=CertificationCheckStatus.FAIL),),
     )
@@ -211,7 +212,7 @@ def test_control_plane_bootstrap_does_not_mutate_after_bounded_failure(
         spark=object(),
         candidate_manifest=root / "CANDIDATE.json",
         wheel=root / "fabric_data_framework-0.4.0-py3-none-any.whl",
-        customer_inputs_root=customer,
+        integration_inputs_root=inputs,
         output_dir=root / "certification-output",
         environment="DEV",
         lakehouse_base_path="Files/framework_cert",
@@ -226,7 +227,7 @@ def test_simple_certification_bootstraps_only_with_explicit_first_time_authoriza
     tmp_path,
 ):
     root = _prepare_root(tmp_path)
-    _prepare_customer(root)
+    _prepare_integration_inputs(root)
     monkeypatch.setattr(simple_module, "_notebook_fabric_token", lambda: "token")
     bootstrap_calls = []
     monkeypatch.setattr(
@@ -259,3 +260,4 @@ def test_simple_certification_bootstraps_only_with_explicit_first_time_authoriza
         allow_control_plane_migration=True,
     )
     assert len(bootstrap_calls) == 1
+    assert bootstrap_calls[0]["integration_inputs_root"] == root / "integration-inputs"

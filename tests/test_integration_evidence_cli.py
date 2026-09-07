@@ -16,14 +16,17 @@ from fabric_data_framework.evidence.integration_evidence import (
 
 
 NOW = datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc)
+FRAMEWORK_SHA = "a" * 64
+INPUTS_SHA = "b" * 64
 
 
 def _spec():
     return IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
-        domain="customer",
+        domain="framework-certification",
         framework_version="0.4.0",
-        release_hash="a" * 64,
+        framework_artifact_sha256=FRAMEWORK_SHA,
+        integration_inputs_hash=INPUTS_SHA,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="fabric.item.read",
@@ -52,7 +55,8 @@ def test_cli_requires_exact_certified_manifest(tmp_path, capsys):
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=NOW,
         completed_at=NOW,
         checks=spec.checks,

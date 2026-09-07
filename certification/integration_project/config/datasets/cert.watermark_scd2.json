@@ -1,0 +1,15 @@
+{
+  "dataset_id": "cert.watermark_scd2",
+  "source": {"system": "certification", "object": "dbo.cert_scd2_source", "connection_ref": "cert_source"},
+  "target": {"layer": "silver", "object": "cert_scd2_current"},
+  "load": {
+    "capture_strategy": "WATERMARK", "apply_strategy": "SCD2", "business_key": ["id"], "merge_key": ["id"], "append_identity": [], "tracked_columns": ["value"], "delete_policy": "IGNORE",
+    "watermark": {"column": "modified_at", "tie_breaker": ["id"], "overlap_window_seconds": 0}
+  },
+  "orchestration": {"execution_group": "cert_business_path", "criticality": "HIGH", "dependencies": [], "priority": 10, "retry_count": 1, "timeout_seconds": 1800, "batch_size": 1000, "max_concurrency": 1},
+  "quality": {"policy_name": "certification_strict", "quarantine_policy": "reject"},
+  "reconciliation": {"policy_name": "certification_exact", "required_for_state_commit": true},
+  "execution": {"engine": "AUTO", "progress_owner": "FRAMEWORK", "apply_engine": "AUTO"},
+  "enabled": true,
+  "config_schema_version": 1
+}

@@ -60,6 +60,7 @@ class ApprovedBusinessPathExecutionReport(FrozenModel):
     framework_version: str = Field(min_length=1, max_length=64)
     candidate_git_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
     artifact_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    integration_inputs_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     domain: str = Field(min_length=1, max_length=128)
     gate_id: BusinessPathGate
     dataset_id: str = Field(min_length=1, max_length=256)
@@ -212,18 +213,16 @@ def _require_safe_preflight(
         raise ValueError("business path release/runner domain mismatch")
     if release_manifest.bundle.framework_version != runner_config.framework_version:
         raise ValueError("business path release/framework version mismatch")
-    if release_manifest.bundle.release_hash != runner_config.release_hash:
-        raise ValueError("business path domain release hash mismatch")
     if runner_config.framework_artifact_sha256 != artifact_sha256:
         raise ValueError("business path runner framework artifact SHA256 mismatch")
     if integration_spec.framework_version != runner_config.framework_version:
         raise ValueError("business path integration/framework version mismatch")
     if integration_spec.domain != runner_config.domain:
         raise ValueError("business path integration/runner domain mismatch")
-    if integration_spec.release_hash != artifact_sha256:
+    if integration_spec.framework_artifact_sha256 != artifact_sha256:
         raise ValueError("business path integration framework artifact SHA256 mismatch")
-    if integration_spec.domain_release_hash != release_manifest.bundle.release_hash:
-        raise ValueError("business path integration domain release hash mismatch")
+    if integration_spec.integration_inputs_hash != runner_config.integration_inputs_hash:
+        raise ValueError("business path integration input identity mismatch")
     if config_bundle_hash(configs) != release_manifest.bundle.config_bundle_hash:
         raise ValueError("business path config bundle does not match exact release manifest")
 
@@ -438,6 +437,7 @@ def execute_approved_business_path(
         framework_version=runner_config.framework_version,
         candidate_git_sha=candidate_git_sha,
         artifact_sha256=artifact_sha256,
+        integration_inputs_hash=runner_config.integration_inputs_hash,
         domain=runner_config.domain,
         gate_id=scenario.gate_id,
         dataset_id=scenario.dataset_id,

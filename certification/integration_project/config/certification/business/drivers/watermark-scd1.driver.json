@@ -1,0 +1,11 @@
+{
+  "scenario_hash": "afebf4bf9b0720e5d1f0e4c1c1ca67cff2a3679600d98eeb49d52ea440399de3",
+  "driver_extension": "cert.business-path-driver",
+  "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl",
+  "driver_config_artifact_name": "watermark-scd1.driver.json",
+  "parameters": {"control_table": "dbo.cert_pipeline_control", "actions": {
+    "PREPARE_BASELINE": {"failure_mode": "SUCCESS", "replacements": [{"table": "dbo.cert_scd1_source", "rows": [{"id": 1, "value": "old", "modified_at": "2026-08-30T00:00:00Z"}]}, {"table": "dbo.cert_scd1_target", "rows": [{"id": 1, "value": "old"}]}, {"table": "dbo.cert_progress", "rows": [{"dataset_id": "cert.watermark_scd1", "checkpoint": "2026-08-30T00:00:00Z"}]}]},
+    "PREPARE_ATTEMPT_1": {"failure_mode": "SUCCESS", "replacements": [{"table": "dbo.cert_scd1_source", "rows": [{"id": 1, "value": "new", "modified_at": "2026-08-31T00:00:00Z"}, {"id": 2, "value": "added", "modified_at": "2026-08-31T00:00:00Z"}]}]},
+    "CLEANUP": {"failure_mode": "SUCCESS", "replacements": [{"table": "dbo.cert_scd1_source", "rows": []}, {"table": "dbo.cert_scd1_target", "rows": []}, {"table": "dbo.cert_progress", "rows": []}]}
+  }}
+}

@@ -17,16 +17,22 @@ def test_candidate_certification_workflow_is_manual_exact_candidate_aggregation_
     assert 'ref: ${{ inputs.candidate_git_sha }}' in workflow
     assert 'framework-wheel-${CANDIDATE_SHA}' in workflow
     assert "candidate_artifact.py verify" in workflow
-    assert '".github/workflows/candidate-release-proofs.yml"' in workflow
-    assert '".github/workflows/candidate-integration-evidence.yml"' in workflow
-    assert 'release-proofs-${CANDIDATE_SHA}' in workflow
-    assert 'integration-evidence-${CANDIDATE_SHA}' in workflow
+    assert ".github/workflows/candidate-release-proofs.yml" in workflow
+    assert ".github/workflows/candidate-integration-evidence.yml" in workflow
+    assert 'release-proofs-${CANDIDATE_SHA}-${CERTIFICATION_ENVIRONMENT}' in workflow
+    assert 'integration-evidence-${CANDIDATE_SHA}-${CERTIFICATION_ENVIRONMENT}' in workflow
     assert "fabric-framework candidate-certify" in workflow
-    assert 'release-readiness-certified-${{ inputs.candidate_git_sha }}' in workflow
+    assert 'release-readiness-certified-${{ inputs.candidate_git_sha }}-${{ inputs.environment }}' in workflow
+    assert 'CERTIFICATION_DOMAIN: framework-certification' in workflow
+    assert 'integration_inputs_hash' in workflow
+    assert 'framework_artifact_sha256' in workflow
     assert "retention-days: 90" in workflow
     assert "python -m pip wheel" not in workflow
     assert "gh release create" not in workflow
     assert "git tag" not in workflow
+    assert "customer_git_sha" not in workflow
+    assert "customer_inputs_run_id" not in workflow
+    assert "CUSTOMER_REPO_TOKEN" not in workflow
 
 
 def test_candidate_certification_workflow_environment_choices_match_typed_contract():
@@ -35,9 +41,7 @@ def test_candidate_certification_workflow_environment_choices_match_typed_contra
     )
 
     environment_block = workflow.split("      environment:\n", 1)[1].split(
-        "      domain:\n", 1
+        "\n\npermissions:", 1
     )[0]
-    assert "- DEV" in environment_block
-    assert "- UAT" in environment_block
-    assert "- PROD" in environment_block
-    assert "- TEST" not in environment_block
+    assert "options: [DEV, UAT, PROD]" in environment_block
+    assert "TEST" not in environment_block

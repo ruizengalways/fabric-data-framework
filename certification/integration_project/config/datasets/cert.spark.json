@@ -1,0 +1,18 @@
+{
+  "dataset_id": "cert.spark",
+  "source": {"system": "certification", "object": "dbo.cert_spark_source", "connection_ref": "cert_source"},
+  "target": {"layer": "silver", "object": "cert_spark_target"},
+  "load": {
+    "capture_strategy": "WATERMARK",
+    "apply_strategy": "REPLACE",
+    "business_key": [], "merge_key": [], "append_identity": [], "tracked_columns": [], "delete_policy": "IGNORE",
+    "watermark": {"column": "modified_at", "tie_breaker": ["id"], "overlap_window_seconds": 0}
+  },
+  "orchestration": {"execution_group": "cert_integration", "criticality": "HIGH", "dependencies": [], "priority": 10, "retry_count": 1, "timeout_seconds": 1800, "batch_size": 1000, "max_concurrency": 1},
+  "quality": {"policy_name": "certification_strict", "quarantine_policy": "reject"},
+  "reconciliation": {"policy_name": "certification_exact", "required_for_state_commit": true},
+  "execution": {"engine": "SPARK", "progress_owner": "FRAMEWORK", "apply_engine": "CUSTOM"},
+  "extensions": {"apply": "cert.noop-apply"},
+  "enabled": true,
+  "config_schema_version": 1
+}

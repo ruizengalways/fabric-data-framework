@@ -2,7 +2,7 @@
 
 The framework owns the SQL transaction, target-side operation marker, durable
 control-plane target-operation journal and ambiguous-outcome reconciliation. A bounded
-customer/domain extension may execute the representative mutation only through the
+certification extension may execute the representative mutation only through the
 Connection supplied by the framework; it cannot commit the transaction or declare the
 check PASS.
 
@@ -234,8 +234,6 @@ def _require_exact_release_dataset(
         raise ValueError("release manifest and approved runner config domain differ")
     if release_manifest.bundle.framework_version != config.framework_version:
         raise ValueError("release manifest and approved runner framework version differ")
-    if release_manifest.bundle.release_hash != config.release_hash:
-        raise ValueError("release manifest and approved runner release hash differ")
     if config_bundle_hash(configs) != release_manifest.bundle.config_bundle_hash:
         raise ValueError("dataset config bundle hash does not match exact release manifest")
     if run_config.extension_artifact_name not in release_manifest.artifact_sha256:

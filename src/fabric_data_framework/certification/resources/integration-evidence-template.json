@@ -3,8 +3,8 @@
   "environment": "DEV",
   "domain": "candidate-template",
   "framework_version": "0.4.0",
-  "release_hash": null,
-  "domain_release_hash": null,
+  "framework_artifact_sha256": null,
+  "integration_inputs_hash": null,
   "checks": [
     {
       "check_id": "fabric.item.read",
