@@ -38,7 +38,7 @@ def merge_integration_evidence_manifests(
 
     Rules are deliberately strict:
 
-    - every input must match the exact evidence spec/environment/domain/framework/release;
+    - every input must match the exact environment/domain/framework wheel/integration inputs;
     - ``NOT_RUN`` is absence of evidence and may be filled by another partial manifest;
     - one substantive result (PASS/FAIL/EXTERNAL_REQUIRED) is retained unchanged;
     - model-identical duplicate substantive results are harmless;
@@ -98,8 +98,8 @@ def merge_integration_evidence_manifests(
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
-        domain_release_hash=spec.domain_release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=min(manifest.started_at for manifest in items),
         completed_at=merged_completed_at,
         checks=spec.checks,
