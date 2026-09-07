@@ -46,9 +46,10 @@ def test_candidate_release_proofs_authenticates_exact_integration_inputs():
     assert ".github/workflows/candidate-integration-inputs.yml" in workflow
     assert "integration-inputs-${CANDIDATE_SHA}-${CERTIFICATION_ENVIRONMENT}" in workflow
     assert "integration-inputs/INPUTS.json" in workflow
-    assert 'inputs["integration_inputs_hash"]' in workflow
+    assert 'inputs.get("integration_inputs_hash")' in workflow
     assert "proof.integration_inputs_hash != input_hash" in workflow
-    assert "bundle.integration_inputs_hash != os.environ[\"INTEGRATION_INPUTS_HASH\"]" in workflow
+    assert "integration_inputs_hash=input_hash" in workflow
+    assert 'INTEGRATION_INPUTS_HASH: ${{ steps.inputs.outputs.integration_inputs_hash }}' in workflow
 
 
 def test_candidate_release_proofs_only_creates_static_passes_it_observed():
