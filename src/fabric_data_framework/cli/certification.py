@@ -3,20 +3,23 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 import sys
 
+from ..adapters.fabric.auth import EnvironmentAccessTokenProvider
 from ..certification import (
     CertificationCheckStatus,
     DEFAULT_CERTIFICATION_ROOT,
     certify_installed,
+    discover_certification_bindings_from_names,
     print_certification_summary,
 )
 
 
-CERTIFICATION_COMMANDS = frozenset({"certify"})
+CERTIFICATION_COMMANDS = frozenset({"certify", "discover-certification-bindings"})
 
 
-def _parser() -> argparse.ArgumentParser:
+def _certify_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="fabric-framework certify")
     parser.add_argument(
         "--certification-root",
@@ -46,6 +49,21 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _binding_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="fabric-framework discover-certification-bindings"
+    )
+    parser.add_argument("--workspace-id", required=True)
+    parser.add_argument("--item-read-name", required=True)
+    parser.add_argument("--item-read-type", required=True)
+    parser.add_argument("--pipeline-name", required=True)
+    parser.add_argument("--copy-job-name", required=True)
+    parser.add_argument("--spark-job-name", required=True)
+    parser.add_argument("--access-token-env-var", default="FABRIC_ACCESS_TOKEN")
+    parser.add_argument("--output")
+    return parser
+
+
 def _active_spark():
     try:
         from pyspark.sql import SparkSession
@@ -61,8 +79,8 @@ def _active_spark():
     return spark
 
 
-def _run(argv: list[str]) -> int:
-    args = _parser().parse_args(argv)
+def _run_certify(argv: list[str]) -> int:
+    args = _certify_parser().parse_args(argv)
     try:
         report = certify_installed(
             spark=_active_spark(),
@@ -86,9 +104,44 @@ def _run(argv: list[str]) -> int:
         return 2
 
 
+def _run_binding_discovery(argv: list[str]) -> int:
+    args = _binding_parser().parse_args(argv)
+    try:
+        result = discover_certification_bindings_from_names(
+            token_provider=EnvironmentAccessTokenProvider(
+                env_var=args.access_token_env_var,
+            ),
+            workspace_id=args.workspace_id,
+            item_read_name=args.item_read_name,
+            item_read_type=args.item_read_type,
+            pipeline_name=args.pipeline_name,
+            copy_job_name=args.copy_job_name,
+            spark_job_name=args.spark_job_name,
+        )
+        rendered = result.model_dump_json(indent=2) + "\n"
+        if args.output:
+            output = Path(args.output)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(rendered, encoding="utf-8")
+        else:
+            print(rendered, end="")
+        return 0
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except (OSError, RuntimeError, TypeError) as exc:
+        print(
+            f"error: certification binding discovery failed ({type(exc).__name__})",
+            file=sys.stderr,
+        )
+        return 2
+
+
 def run_if_matched(argv: list[str]) -> int | None:
     if argv and argv[0] == "certify":
-        return _run(argv[1:])
+        return _run_certify(argv[1:])
+    if argv and argv[0] == "discover-certification-bindings":
+        return _run_binding_discovery(argv[1:])
     return None
 
 
