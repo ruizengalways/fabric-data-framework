@@ -121,7 +121,8 @@ def _run(argv: list[str]) -> int:
         print(
             f"gate_id={execution.gate_id.value} dataset_id={execution.dataset_id} "
             f"scenario_hash={execution.scenario_hash} status={execution.proof.status.value} "
-            f"domain_release_hash={release_manifest.bundle.release_hash}"
+            f"framework_artifact_sha256={runner_config.framework_artifact_sha256} "
+            f"integration_inputs_hash={runner_config.integration_inputs_hash}"
         )
         return 0
     except (KeyError, OSError, TypeError, ValueError, RuntimeError) as exc:
