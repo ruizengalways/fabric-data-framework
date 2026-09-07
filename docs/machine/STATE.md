@@ -2,38 +2,86 @@
 
 This file is the single recovery checkpoint for current Framework engineering state.
 
-**GitHub `main` is truth.** Do not reconstruct the current candidate from old PRs, old Fabric test records, chat history, or Git history. Git history is only for archaeology when explicitly needed.
+**GitHub `main` is truth.** Do not reconstruct current architecture from old PRs, old Customer certification bundles, chat history or historical Fabric runs. Git history is for archaeology only.
 
 ```yaml
-schema: fabric-data-framework-machine-state-v2
+schema: fabric-data-framework-machine-state-v3
 updated: 2026-09-07
 
 release:
   public_release: v0.3.0
   source_version: 0.4.0-development-unreleased
-  feature_freeze: true
   candidate_status: not_frozen
   release_allowed: false
   strict_release_ready: false
   readiness_required_blockers: 15
+  real_fabric_execution_for_current_executable: NOT_YET
 
 executable_baseline:
-  source_pr: 112
-  source_sha: 17fbbd8ed2afb14771748a25d3e12d9bf63fe986
-  pr_ci_run: 34010577594
-  main_ci_run: 34010629765
+  # Exact main artifact selected as the next real-Fabric baseline.
+  git_sha: 38741777955ffdb59cf9bdeea361bdd6651c5ee2
+  main_ci_run: 34091549404
   python_3_11: success
   python_3_13: success
   wheel_build: success
-  readiness_contract: success
-  artifact_id: 9982333832
-  artifact_name: framework-wheel-17fbbd8ed2afb14771748a25d3e12d9bf63fe986
+  readiness_contract: success_fail_closed
+  installed_wheel_acceptance_run: 34091549510
+  installed_wheel_acceptance: success
+  artifact_id: 10006992444
+  artifact_name: framework-wheel-38741777955ffdb59cf9bdeea361bdd6651c5ee2
   wheel_filename: fabric_data_framework-0.4.0-py3-none-any.whl
-  wheel_sha256: 0d7d351548712db3293b00a3b8eb968387f573b542d8fe506c9436a1b9b0a834
-  artifact_zip_digest: sha256:07e6f54e9fa4a9b93f4536afd2d0f59754cde4fd33bd26dd3a15ae4b8c2b9791
+  wheel_sha256: 201947410f75b88596af897c78d6fd056a9a3040fbec4d83d85b5439d7077cf0
+  artifact_zip_digest: sha256:7f418fe8d099d5a0b3cd1fffa656d8217496fea4845259064d9cd88d639d78ec
+  readiness_artifact_id: 10006996671
+  readiness_artifact_digest: sha256:053c3ea4a0d85ea5809b94be9b8517a837c5c9af2f783e086957d22a2d49f520
   selected_as_frozen_candidate: false
-  live_fabric_evidence_retained_for_current_bytes: false
-  real_fabric_execution: NOT_YET
+  live_fabric_evidence_retained_for_exact_wheel: false
+
+repository_boundaries:
+  framework:
+    repo: ruizengalways/fabric-data-framework
+    owns:
+      - reusable_processing_framework
+      - package_lifecycle
+      - installed_wheel_certification
+      - real_fabric_framework_certification
+  customer_simulator:
+    repo: ruizengalways/fabric-customer
+    main_sha: 71c6c083e25cd133488d59318a856f7822f670f5
+    main_ci_run: 34095079211
+    main_ci: success
+    version: 0.2.0
+    framework_dependency_allowed: false
+    owns:
+      - deterministic_source_facts
+      - source_delivery_behavior
+      - expected_business_truth
+      - workload_integrity_digest
+  implementation_domain_repo:
+    per_real_project: true
+    may_depend_on_approved_framework_wheel: true
+    owns:
+      - DatasetConfig
+      - project_mappings_and_rules
+      - environment_bindings
+      - project_deployment_content
+      - implementation_adapters
+  infra:
+    repo_role: Fabric_capacity_workspace_permission_lifecycle
+
+customer_workload_contract:
+  framework_agnostic: true
+  canonical_seed: 20260907
+  scenario_days: 7
+  source_modes:
+    - snapshot
+    - incremental
+    - debezium_shaped_cdc
+  integrity_files:
+    - SHA256SUMS
+    - WORKLOAD.json
+  verification_command: fabric-customer verify --output <materialized-root>
+  framework_v1_v2_comparison_requires_same_workload_digest: true
 
 enterprise_topology:
   environments: [DEV, UAT, PROD]
@@ -44,71 +92,107 @@ enterprise_topology:
   same_logical_topology_required: true
   runtime_state_promoted_between_environments: false
 
-fabric_native_auth:
-  sql_runtime_default: fabric-user
-  sql_identity: signed-in Fabric Notebook user via Microsoft Entra
-  key_vault_required_for_default_lane: false
-  key_vault_optional: true
-  normal_user_implies_warehouse_session_control: false
+certification_lifecycle:
+  source_tests: framework_repo_tests
+  wheel_build: exact_main_artifact
+  installed_wheel_attestation: required
+  installed_semantic_smoke: required
+  bounded_real_fabric: required_for_real_fabric_claim
+  environment_dependent_integration: explicit_configuration_and_authorization
+  release_authorized_by_certification_runner: false
+  legacy_names:
+    customer_inputs: optional_framework_certification_integration_bundle
+    customer_compatibility_gate: deprecated_serialized_readiness_name
 
-customer_contract:
-  customer_main_sha: 9b461e7b9dfacb45fa9b42caf56ebc67d3d4092b
-  customer_main_ci: 34073023216
-  customer_main_certification_contract_ci: 34073023163
-  production_runtime_pin: fabric-data-framework==0.3.0
-  certification_framework_sha: 17fbbd8ed2afb14771748a25d3e12d9bf63fe986
-  fabric_rest_auth_default: azure-cli
-  sql_runtime_auth_default: fabric-user
-  one_click_bootstrap_source_on_customer_main: true
-  one_click_bootstrap_command: python certification/bootstrap.py --apply --environment DEV
-  environment_is_fabric_environment_item: false
-  repeated_sql_server_database_cli_args_required: false
-  repository_owned_certification_resources_bootstrapped_in_company_fabric: false
-  repository_owned_certification_notebook_deployed: false
-  repository_owned_certification_pipeline_deployed: false
-  current_framework_real_fabric_certification_executed: false
-  actual_selected_candidate_input_artifact_retained: false
-
-strict_evidence:
-  real_control_plane_external_evidence_retained: false
-  review_bound_control_plane_evidence_retained: false
-  real_warehouse_fault_controller_configured: false
-  blockers:
-    - control_plane_external_evidence_incomplete
-    - control_plane_external_evidence_not_review_bound
-    - warehouse_real_fault_controller_not_configured
+fabric_status:
+  exact_framework_wheel_installed_in_real_dev_fabric: not_retained
+  lakehouse_bounded_certification: not_retained
+  control_plane_certification: not_retained
+  pipeline_copy_spark_integration: not_retained
+  warehouse_commit_recovery: not_retained
+  status_label: FABRIC_CERTIFICATION_REQUIRED
 
 next_boundary:
   environment: isolated DEV Fabric
-  action: configure the real DEV workspace identity, run Customer one-click bootstrap, retain READY/NOT_RUN bootstrap evidence, then execute bounded certification
-  bootstrap_terminal_state: READY / NOT_RUN
+  action: install exact executable-baseline wheel in a dedicated Fabric Environment, publish/restart runtime, run certify_installed bounded first, stop on any real FAIL, then explicitly configure only required integration resources
   stop_on_real_fail: true
 ```
 
 ## Recovery interpretation
 
-The current Framework repository `main` may contain documentation/test-only commits after the executable baseline. Those commits **do not create a new executable candidate**. Until executable Framework source changes, the exact bytes for the next real-Fabric run remain the artifact recorded under `executable_baseline`.
+### 1. Do not resurrect the removed Customer certification architecture
 
-The Customer one-click certification preparation capability is now on Customer `main` and its independent main CI contracts are green. That source capability can resolve/create the dedicated certification Lakehouse, Fabric SQL Database, Warehouse, repo-owned Copy/Spark/seed jobs, runner/worker Notebooks and child Pipeline, stage exact Framework/Customer bytes, and prepare SQL fixtures/metadata.
+The current `fabric-customer` main is an independent source-system simulator. It does **not** pin or import `fabric-data-framework`, does not own Framework DatasetConfig, and does not own Framework certification bootstrap.
 
-That merged source is still **not** company-Fabric deployment evidence. No retained current-source bootstrap result, repository-owned item UUID/definition evidence, or current Framework real-Fabric certification execution has been recorded yet.
+Historical names such as:
+
+```text
+customer-inputs
+--customer-inputs
+customer.compatibility
+```
+
+may still exist in Framework compatibility surfaces or serialized readiness contracts. Interpret them as deprecated names for optional Framework integration/candidate contracts, not as repository ownership by `fabric-customer`.
+
+### 2. Exact artifact baseline is separate from documentation HEAD
+
+The exact artifact selected for the next real-Fabric run was built from Framework SHA:
+
+```text
+38741777955ffdb59cf9bdeea361bdd6651c5ee2
+```
+
+A later documentation-only commit does not change Framework package source/payload. CI may nevertheless rebuild a wheel and emit a different artifact/CANDIDATE identity. That does not automatically replace this selected baseline. If the artifact chosen for Fabric changes—or executable package content changes—update this section with the exact new main artifact and installed-wheel acceptance result before claiming evidence for it.
+
+### 3. Current local/CI proof
+
+For the exact selected artifact baseline:
+
+```text
+Framework source CI                PASS
+Framework wheel build              PASS
+Framework clean installed-wheel    PASS
+Framework real Fabric              REQUIRED / NOT RETAINED
+```
+
+For the current Customer simulator main:
+
+```text
+no framework dependency            PASS
+unit/architecture tests            PASS
+full Ruff                          PASS
+wheel build/install                PASS
+deterministic materialize/verify   PASS
+real Fabric simulator execution    REQUIRED / NOT RETAINED
+```
+
+### 4. Release readiness remains fail-closed
+
+The current readiness contract still reports 15 required blockers because real environment/evidence gates have not been retained for the exact Framework wheel. One legacy gate is named `customer.compatibility`; this is a compatibility field name, not a requirement that the current `fabric-customer` repo become framework-coupled again.
+
+Do not mark `v0.4.0` ready merely because source CI and installed-wheel acceptance are green.
 
 ## Next action
 
-Do not create another recovery/checkpoint PR just to record history. The next engineering boundary is real execution:
+The next engineering boundary is **real Fabric execution**, not another simulator/certification ownership refactor:
 
 ```text
-exact Framework artifact above
-+ Customer main above
--> create/commit certification/environments/DEV.json with the real isolated DEV workspace UUID
--> az login + gh auth
--> python certification/bootstrap.py --apply --environment DEV
--> require bootstrap_status=READY and certification_result=NOT_RUN
--> retain genuine bootstrap-result.json / item UUIDs / definition hashes / staged byte hashes
--> open/run framework-certification-runner bounded/read-safe first
+exact Framework wheel SHA256
+201947410f75b88596af897c78d6fd056a9a3040fbec4d83d85b5439d7077cf0
+
+-> isolated DEV Fabric Environment
+-> install exact wheel
+-> Publish / restart runtime
+-> attach dedicated certification Lakehouse
+-> stage matching CANDIDATE.json + wheel under Files/framework_cert
+-> run certify_installed(...)
+-> require exact installed-byte identity PASS
+-> require bounded Lakehouse checks PASS
 -> STOP on any real FAIL
--> continue only explicitly approved live stages
--> retain genuine Framework evidence
+-> configure Control Plane / Pipeline / Copy / Spark / Warehouse only for explicitly required later stages
+-> retain exact-wheel evidence
 ```
 
-Production stays on `fabric-data-framework==0.3.0` until immutable Framework `v0.4.0` exists and strict release governance authorizes migration.
+Separately, `fabric-customer` may materialize one verified production-like workload. Record its `workload_digest` when using it for framework v1/v2 or implementation regression evidence.
+
+Public production/release status remains `v0.3.0` until immutable `v0.4.0` is explicitly authorized and published.

@@ -1,32 +1,52 @@
 # One-call Fabric certification runtime contract
 
-Audience: Framework developers and Fabric operators using `fabric_data_framework.certification.certify` with an exact Customer certification bundle.
+Audience: Framework developers and Fabric operators using framework-owned certification against exact framework wheel bytes.
 
 This document exists so a new engineer can understand the runtime/Control Plane behavior without relying on chat history.
 
-## Public entry point
+## Public entry points
+
+Preferred installed-wheel entry point:
 
 ```python
-from fabric_data_framework.certification import certify, print_certification_summary
+from fabric_data_framework.certification import certify_installed, print_certification_summary
 
-report = certify(spark=spark)
+report = certify_installed(
+    spark=spark,
+    certification_root="/lakehouse/default/Files/framework_cert",
+)
 print_certification_summary(report)
 ```
 
-The conventional root is:
+The older convenience entry point remains available:
+
+```python
+from fabric_data_framework.certification import certify
+report = certify(spark=spark)
+```
+
+Both belong to `fabric-data-framework`. `fabric-customer` is not the owner of this lifecycle.
+
+## Conventional certification root
 
 ```text
 /lakehouse/default/Files/framework_cert/
   CANDIDATE.json
   exactly one fabric_data_framework-*.whl
-  customer-inputs/                     # optional
+  customer-inputs/        # optional LEGACY DIRECTORY NAME
 ```
 
-No `customer-inputs/` means bounded certification only. The Framework does not scan the workspace and does not guess a SQL Database, Warehouse or Pipeline.
+The physical directory/CLI spelling `customer-inputs` is retained for backward compatibility. Its meaning is now:
+
+> optional framework certification integration-input bundle.
+
+It does **not** mean the `fabric-customer` repository owns or must generate the bundle.
+
+No optional integration bundle means bounded/self-contained certification only. The Framework does not scan the workspace and does not guess a SQL Database, Warehouse or Pipeline.
 
 ## Runtime values are explicit, not source-controlled
 
-The exact Customer `runner-config.json` owns the allowed runtime variable names. The reference Customer bundle normally declares:
+An optional integration runner config may declare allowed runtime variable names such as:
 
 ```text
 FABRIC_ACCESS_TOKEN
@@ -52,11 +72,11 @@ report = certify(
 
 or, when the mapping is omitted, the current process environment.
 
-The mapping is runtime-only. Values must not be committed into the Customer bundle or retained in certification reports/evidence.
+The mapping is runtime-only. Secret values must not be committed into integration input bundles or retained in certification reports/evidence.
 
-## Why the public API temporarily mirrors declared names into process environment
+## Scoped environment bridge
 
-Approved Framework runners accept an explicit `environ` mapping. Customer/domain Python extension entry points may also need the same runtime value and historically read `os.environ` directly.
+Approved Framework runners accept an explicit `environ` mapping. Legacy integration extension entry points may also read `os.environ` directly.
 
 The public one-call API therefore uses one scoped rule:
 
@@ -65,28 +85,28 @@ exact runner-config declared names
   + runtime_environment/current process values
   -> one resolved runtime mapping
   -> declared names temporarily mirrored into os.environ
-  -> approved runners + exact Customer extensions execute
+  -> approved runners / legacy bounded extensions execute
   -> previous os.environ values restored before certify() returns
 ```
 
-Only names declared by the exact runner config are mirrored. The public API does not copy arbitrary Customer metadata into process environment.
+Only names declared by the exact runner config are mirrored. The public API does not copy arbitrary integration metadata into process environment.
 
 The Fabric REST token follows the same resolved runtime. If the configured token name is absent in a Fabric Notebook, the public API may obtain the current NotebookUtils `pbi` token for the duration of the call.
 
-This runtime bridge changes execution visibility only. It does not make secret values eligible for retained reports, source-controlled input bundles or evidence references.
+This bridge changes execution visibility only. It does not make secret values eligible for retained reports or evidence references.
 
 ## First-time dedicated Control Plane bootstrap
 
-A newly created certification SQL Database has two separate requirements before Pipeline/Warehouse stages can use it:
+A newly created certification SQL Database may need:
 
 ```text
 1. current Framework Control Plane schema
-2. exact Customer semantic dataset definitions
+2. exact certification semantic dataset definitions required by the integration bundle
 ```
 
-A schema-only migration is insufficient because `SqlAlchemyControlPlaneRepository.get_dataset()` deliberately fails when the exact released dataset definition has not been deployed/materialized.
+A schema-only migration can be insufficient because the Framework intentionally fails when an exact deployed dataset definition is required but absent.
 
-For a newly provisioned **dedicated certification database**, use:
+For a newly provisioned **dedicated certification database**, use explicit authorization:
 
 ```python
 report = certify(
@@ -97,24 +117,22 @@ report = certify(
 )
 ```
 
-The explicit first-time path is fail-closed and ordered:
+The first-time path remains fail-closed and ordered:
 
 ```text
 exact Framework bounded suite
   -> all bounded checks must PASS
-  -> exact Customer INPUTS identity must match the same Framework wheel
-  -> resolve the configured Control Plane runtime URL
+  -> optional integration INPUTS identity must match the same Framework wheel
+  -> resolve configured Control Plane runtime URL
   -> apply current baseline schema
-  -> idempotently materialize exact Customer semantic metadata
+  -> idempotently materialize exact certification semantic metadata
   -> verify materialized config bundle hash
-  -> run the normal unified certification stages
+  -> run normal unified certification stages
 ```
-
-`materialize_semantic_metadata` preserves environment-local runtime state while updating the released semantic definition tables.
 
 If bounded certification fails, the first-time bootstrap does not create/mutate the SQL Control Plane.
 
-If the Customer bundle does not match the exact Framework wheel, bootstrap fails before semantic metadata deployment.
+If the optional integration bundle does not match the exact Framework wheel, bootstrap fails before semantic metadata deployment.
 
 If the Control Plane runtime URL is absent, bootstrap is not invented against another database; the later Control Plane stage remains not ready.
 
@@ -142,25 +160,7 @@ Normal certification must not silently migrate or redeploy a shared/production C
 
 A Fabric Data Pipeline reaching provider `Completed` is not enough for `fabric.pipeline` PASS.
 
-The reusable Pipeline child must receive exactly:
-
-```text
-framework_pipeline_run_id
-framework_dataset_run_id
-dataset_id
-run_mode
-attempt
-effective_config_hash
-execution_plan_hash
-```
-
-and must execute through:
-
-```python
-execute_pipeline_child(...)
-```
-
-The Framework validates the exact deployed DatasetConfig/effective config/execution plan and persists the exact terminal `DatasetRunAudit`. The parent runner then reads the durable `DatasetDispatchOutcome` for the same generated dataset run ID.
+The reusable Pipeline child must receive exactly the Framework execution identity fields required by the current contract and execute through the Framework child/runtime boundary. The parent runner then reads the durable Framework outcome for the same generated dataset run identity.
 
 Therefore:
 
@@ -170,7 +170,7 @@ Fabric Completed + Framework FAILED          != success business path
 Fabric Completed + exact Framework SUCCEEDED  can satisfy the provider/framework gate
 ```
 
-Customer/domain code returns semantic execution facts only. It cannot author release-readiness PASS.
+Optional integration extensions can return semantic execution facts only. They cannot author release-readiness PASS.
 
 ## Warehouse Admin boundary
 
@@ -192,6 +192,6 @@ The one-call runner always keeps:
 release_authorized = false
 ```
 
-It does not select/freeze a candidate, publish `v0.4.0`, change `release_allowed`, or migrate the Customer production pin.
+It does not select/freeze a candidate, publish `v0.4.0`, or change release governance.
 
-Every real-Fabric result belongs only to the exact wheel bytes identified by `CANDIDATE.json` and the wheel SHA256. Any Framework source change requires a new exact main artifact and new real-Fabric execution for those bytes.
+Every real-Fabric result belongs only to the exact wheel bytes identified by `CANDIDATE.json` and the wheel SHA256. Any executable Framework source change requires a new exact artifact and new real-Fabric execution for those bytes.

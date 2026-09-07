@@ -4,7 +4,9 @@
 
 Use this repository when you are developing or consuming reusable framework capability. Use `fabric-customer` when you need the independent Fabric-native source-system simulator/testbed. Use `fabric-infra` for capacity/workspace/permission infrastructure lifecycle.
 
-A real business implementation project can be its own repository and depend on the framework wheel. `fabric-customer` itself must not depend on the framework.
+A real business implementation project should normally be its own repository and may depend on the framework wheel. `fabric-customer` itself must not depend on the framework.
+
+See `ARCHITECTURE_BOUNDARIES.md` before creating a new repo.
 
 ## 2. Local framework development
 
@@ -40,7 +42,7 @@ This interpreter must not put the repository `src/` on its import path.
 Recommended stable pattern:
 
 ```text
-GitHub Release / CI candidate wheel
+GitHub Release / approved CI candidate wheel
   -> Fabric Environment custom library
   -> Publish Environment
   -> Notebook / Spark Job / Pipeline child
@@ -60,7 +62,7 @@ It first attests that the active package payload equals the candidate wheel byte
 
 ## 7. New implementation project
 
-If you need a source-controlled application project that uses the framework:
+If you need a source-controlled application/domain project that uses the framework:
 
 ```bash
 fabric-framework project-init ./fabric-health --domain health
@@ -69,10 +71,16 @@ fabric-framework project-validate ./fabric-health
 
 Author business DatasetConfig/framework metadata in that consuming project, not in the `fabric-customer` source simulator.
 
+Use `IMPLEMENTATION_PROJECT_BOOTSTRAP.md` for the complete repo/layout/runbook. The older filename `CUSTOMER_PROJECT_BOOTSTRAP.md` is retained only as a compatibility pointer because the phrase "customer repo" is now ambiguous.
+
 ## 8. New dataset
 
 Understand source fidelity first: full snapshot, incremental watermark, ordered/net changes, CDC/business events, delete visibility and schema behavior. Then select the framework capture/apply strategy in the consuming project. See `DATASET_ONBOARDING.md`.
 
-## 9. Real Fabric evidence
+## 9. Realistic regression workload
+
+For v1/v2 behavior comparisons, `fabric-customer` can generate one frozen framework-neutral workload with a `workload_digest`. Keep project config/adapters in the implementation repo; keep source/truth generation in the simulator.
+
+## 10. Real Fabric evidence
 
 Start with lower-risk checks and increase mutation scope deliberately. Do not run fault/admin operations by default. Real Fabric status must be reported separately from local status.

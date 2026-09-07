@@ -1,275 +1,182 @@
 # 0.4 release-candidate readiness
 
-`0.4.0` is still development source. A green build, retained wheel, or Fabric-reported `Completed` state is not enough to publish it.
+`0.4.0` is still development source. A green build, retained wheel, installed-wheel smoke or Fabric-reported `Completed` state is not enough to publish it.
 
-## Freeze rule
+## 1. Current ownership model
 
-Once one main-CI wheel is explicitly selected as the candidate, stop adding product features. Only release blockers, certification defects, compatibility defects, evidence defects and documentation defects may change it. Any code fix creates a new candidate SHA and requires new exact-candidate evidence.
+Release governance belongs to `fabric-data-framework`.
+
+```text
+fabric-data-framework
+  exact framework wheel + certification + release evidence
+
+fabric-customer
+  independent framework-agnostic realistic source workload
+  optional for end-to-end scenario evidence, not release-input ownership
+
+implementation/domain repo
+  project-specific framework config/adapters
+```
+
+Historical code/evidence field names containing `customer`, such as `customer.compatibility`, `customer-inputs`, or domain release fields, are compatibility names. They do not make the current `fabric-customer` simulator responsible for framework certification or candidate production inputs.
+
+## 2. Freeze rule
 
 No exact 0.4 candidate is frozen yet.
 
-## Release chain
+When one successful main-CI wheel is explicitly selected as the release candidate:
 
 ```text
-main CI builds exact framework candidate bytes
-        ↓
-customer repo packages exact domain certification inputs
-        ↓
-collect fully certified Fabric/control/Warehouse integration evidence
-        ↓
-run five representative live business-path drills
-        ↓
-re-verify static/customer proof and strict-merge live business-path proof
-        ↓
-candidate certification validates all retained evidence and identities
-        ↓
-framework-release re-verifies and promotes the exact certified bytes
+freeze exact Git SHA + wheel SHA256 + main CI identity
+-> stop feature work on those candidate bytes
+-> only release/certification/evidence defects may create a replacement candidate
+-> any executable code change means a new candidate and new real-Fabric evidence
+```
+
+A documentation-only commit does not change the Framework package source/payload, but CI may still emit a newly built wheel artifact with its own Git/CANDIDATE identity. `docs/machine/STATE.md` therefore records the exact executable artifact selected for the next Fabric run separately from repository documentation HEAD.
+
+## 3. Required lifecycle
+
+```text
+source CI
+  -> exact main wheel artifact
+  -> clean installed-wheel acceptance
+  -> exact wheel identity retained
+  -> real Fabric bounded certification
+  -> environment-dependent Control Plane / Pipeline / Copy / Spark / Warehouse evidence as required
+  -> representative live business-path evidence
+  -> strict release-readiness aggregation
+  -> explicit candidate selection/freeze
+  -> exact-byte promotion without rebuilding the wheel
 ```
 
 There is no release-time wheel rebuild.
 
-## Keep framework and domain identities separate
+## 4. Current executable baseline
 
-A candidate has two independent SHA256 identities:
+The exact Framework artifact currently selected as the next real-Fabric baseline is:
+
+```text
+framework Git SHA       38741777955ffdb59cf9bdeea361bdd6651c5ee2
+main framework CI       34091549404
+Python 3.11             PASS
+Python 3.13             PASS
+wheel build             PASS
+readiness contract      PASS (fail-closed / release not ready)
+installed-wheel run     34091549510 PASS
+wheel filename          fabric_data_framework-0.4.0-py3-none-any.whl
+wheel SHA256            201947410f75b88596af897c78d6fd056a9a3040fbec4d83d85b5439d7077cf0
+wheel artifact ID       10006992444
+artifact ZIP digest     sha256:7f418fe8d099d5a0b3cd1fffa656d8217496fea4845259064d9cd88d639d78ec
+```
+
+The readiness artifact for those bytes is fail-closed and still reports the required live/evidence blockers. Therefore these bytes are **candidate-capable**, not selected/frozen/release-authorized.
+
+## 5. Exact identity is non-negotiable
+
+The candidate identity is the exact Framework wheel SHA256 plus the Git/main-CI provenance in `CANDIDATE.json`.
+
+The uploaded GitHub artifact ZIP digest is useful transport evidence but is not the framework wheel identity.
+
+Installed-wheel certification also verifies that the active installed package payload matches the candidate wheel package bytes. A source checkout or a different wheel with the same version string does not satisfy this gate.
+
+## 6. Real Fabric certification
+
+Real Fabric execution for the current exact wheel has not yet been retained.
+
+The minimum next environment gate is:
+
+```text
+exact candidate wheel
+-> install in dedicated Fabric DEV Environment
+-> publish/restart runtime
+-> certify_installed(...)
+-> exact candidate identity PASS
+-> Lakehouse bounded checks PASS
+```
+
+Only after actual execution may those checks be labeled PASS. Until then:
+
+```text
+FABRIC CERTIFICATION REQUIRED
+```
+
+Environment-dependent integration checks may additionally require dedicated:
+
+- Fabric SQL Database Control Plane;
+- Pipeline / Copy / Spark provider items;
+- Warehouse;
+- explicit runtime credentials/identity;
+- separately approved fault/session-termination authority where applicable.
+
+No local/CI result can manufacture those PASS states.
+
+## 7. Representative workload evidence
+
+`fabric-customer` can now generate a deterministic framework-neutral workload with:
+
+```text
+SHA256SUMS
+WORKLOAD.json
+workload_digest
+```
+
+This is useful for implementation regression/business-path evidence:
+
+```text
+same verified customer workload_digest
+  -> framework v1 implementation
+  -> framework v2 implementation
+  -> normalize business outputs
+  -> compare each against the same expected truth
+```
+
+The customer workload digest is **not** the framework wheel SHA and must never replace candidate identity.
+
+For any scenario evidence retained for release governance, record both identities independently:
 
 ```text
 framework wheel SHA256
-  identifies the exact framework binary
-
-customer ReleaseManifest.bundle.release_hash
-  identifies the exact customer/domain release
+customer workload_digest
+implementation/domain Git SHA when applicable
+Fabric environment/workspace identity
 ```
 
-They are not expected to be equal and must never be assumed equal.
+## 8. Legacy readiness gate names
 
-The machine chain carries them separately:
-
-```text
-IntegrationEvidence.release_hash
-  = framework wheel SHA256
-
-IntegrationEvidence.domain_release_hash
-  = customer ReleaseManifest.bundle.release_hash
-
-ReleaseReadinessProofBundle.artifact_sha256
-  = framework wheel SHA256
-
-ReleaseReadinessProofBundle.domain_release_hash
-  = customer ReleaseManifest.bundle.release_hash
-
-ReleaseReadinessReport.domain_release_hash
-  = customer ReleaseManifest.bundle.release_hash
-```
-
-Customer approved-run config keeps the same split:
+Current readiness code may still expose historical names such as:
 
 ```text
-ApprovedIntegrationRunnerConfig.framework_artifact_sha256
-  = framework wheel SHA256
-
-ApprovedIntegrationRunnerConfig.release_hash
-  = customer/domain release hash
-```
-
-## Current candidate-capable main artifact
-
-The current code baseline is PR #94, independently re-proven on main:
-
-```text
-source SHA       abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
-final PR CI      33357795244
-main CI          33357846835
-tests            738
-wheel SHA256     d763cd4410a69ff6a83c492f3a546d096502c96c87eeddb37c2ae9404557e7b7
-artifact ID      9745697101
-```
-
-Main CI retains:
-
-```text
-fabric_data_framework-0.4.0-py3-none-any.whl
-SHA256SUMS
-CANDIDATE.json
-```
-
-`CANDIDATE.json` binds package version, source SHA, main Actions run ID/attempt, wheel filename and exact inner wheel SHA256. GitHub's uploaded artifact ZIP digest is not the wheel identity.
-
-This wheel is **candidate-capable only**. It is not selected/frozen and has no live certification.
-
-## Step 1 — exact customer/domain input artifact
-
-Customer producer is implemented and merged:
-
-```text
-fabric-customer/.github/workflows/candidate-business-path-inputs.yml
-feature PR #10 merge      cda90f1c02fc9606aa64d2d1bd13f2ab89628aab
-checkpoint PR #11 merge   31f3f506bc1c16a445652de2ad48fe512cfec10a
-customer main CI          33353960915 SUCCESS
-cert contract CI           33353960906 SUCCESS
-```
-
-It packages exact customer `ReleaseManifest`, DatasetConfig bundle, approved runner config, run recipes, business-path plan/scenarios and fingerprinted bounded extension wheels. It does not execute Fabric or decide PASS.
-
-This is producer contract proof only. No selected-candidate customer input artifact has been retained yet. The customer repo intentionally still has real-environment blockers that must be replaced only with reviewed enterprise evidence/fault infrastructure.
-
-Customer production/runtime dependency remains `fabric-data-framework==0.3.0` until immutable v0.4.0 exists.
-
-## Step 2 — certified integration evidence
-
-`.github/workflows/candidate-integration-evidence.yml` is **MERGED + MAIN CI PROVEN** from PR #90. It authenticates exact framework source/main-CI/wheel bytes and exact customer SHA/input-producer provenance before live mutation.
-
-It must execute real approved paths for:
-
-```text
-Fabric identity/item read
-production control-plane certification
-Pipeline
-Copy
-Spark
-Warehouse target+marker commit
-real ambiguous-COMMIT recovery
-```
-
-Publication requires:
-
-```text
-integration-evidence-merge --require-certified
-integration-evidence-validate --require-certified
-```
-
-No current candidate has certified integration evidence. Green workflow-contract CI is not a live Fabric claim.
-
-## Step 3 — representative business paths
-
-`.github/workflows/candidate-business-path-evidence.yml` is merged and main-CI proven from PR #88. It executes exactly:
-
-```text
-full.replace
-watermark.scd1
-watermark.scd2
-retry.idempotency
-reconciliation.fail_closed
-```
-
-The customer release owns deterministic scenarios, fixture/fault driver and read-only observer. Driver and observer cannot say PASS; the framework evaluator alone decides PASS/FAIL from provider/framework/state facts.
-
-PR #92 added exact domain-bound proof packaging through `business_path_release_proof.py`: the evaluator result can become candidate proof only when paired with the exact Customer `ReleaseManifest.bundle.release_hash`.
-
-PR #94 removes the obsolete runner-level shortcut that could create a `ReleaseReadinessProofBundle` without `domain_release_hash`. `approved_business_path_runner.py` now returns only the evaluated execution report. Candidate proof packaging is exclusively owned by `business_path_release_proof.py`, and the CLI always passes the exact `ReleaseManifest`.
-
-Exact-wheel scan of the PR #94 main artifact found no other business-path candidate proof constructor.
-
-No real five-gate artifact has been retained yet.
-
-## Step 4 — complete non-integration proof
-
-`.github/workflows/candidate-release-proofs.yml` creates static PASS only for facts it re-verifies:
-
-```text
-source.tests
-wheel.integrity
 customer.compatibility
+customer-inputs
 ```
 
-The five live gates arrive from the business-path producer. `release-proofs-merge` has no latest-wins or PASS-wins rule; contradictory substantive proof conflicts.
+Treat them as deprecated compatibility labels for release/integration contracts. New docs and new automation should use framework/integration terminology. Renaming serialized public fields should happen only through an explicit compatibility/deprecation migration, not as an incidental documentation change.
 
-The workflow does **not** accept `domain_release_hash` as a dispatch input. It authenticates the retained business-path artifact and `customer-release-manifest.json`, including exact customer git SHA, framework version, framework candidate/wheel identity, domain release hash and five PASS business gates. Only then can that authenticated domain hash enter static proof.
+## 9. Release authorization
 
-Strict candidate partial-proof merge requires every input bundle to carry the same non-empty domain release hash.
-
-## Step 5 — candidate certification
-
-`fabric-framework candidate-certify` is aggregation only. Exact candidate certification requires:
+Certification runners keep:
 
 ```text
-proofs.domain_release_hash is present
-integration.domain_release_hash is present
-proofs.domain_release_hash == integration.domain_release_hash
+release_authorized = false
 ```
 
-The resulting readiness report carries the same hash.
+They do not freeze a candidate, create `v0.4.0`, or authorize promotion.
 
-Certification also requires:
+Release readiness must fail closed until all required exact-byte evidence is present and consistent. Candidate selection/freeze and promotion are separate explicit governance actions.
+
+## 10. Current state
 
 ```text
-exact framework source/wheel identity matches
-retained proof text is credential-safe
-integration evidence is fully certified
-all 15 required readiness gates PASS
-release_ready = true
-blockers = []
+public release                   v0.3.0
+0.4 source                       development / unreleased
+next Fabric artifact baseline    38741777955ffdb59cf9bdeea361bdd6651c5ee2
+source/main CI                   PASS
+installed-wheel acceptance       PASS
+real Fabric exact-wheel evidence FABRIC CERTIFICATION REQUIRED
+candidate frozen                 no
+release authorized               no
+immutable v0.4.0                 not published
 ```
 
-It does not execute Fabric, rebuild bytes, tag, or release.
-
-## Step 6 — exact promotion
-
-Before `framework-release` creates the immutable tag:
-
-```text
-release-readiness.json.domain_release_hash
-  == release-proofs.json.domain_release_hash
-  == integration-evidence.json.domain_release_hash
-```
-
-Promotion re-verifies candidate source/version/run/wheel and uses the exact already-certified wheel bytes.
-
-## Portable proof milestones
-
-```text
-PR #92 exact domain identity binding
-  merge SHA        d5eed17f2ec2f869b4e3a448597e6d8d600568ea
-  final PR CI      33356959856
-  main CI          33357032461
-  tests            734
-
-PR #94 unbound-proof cleanup
-  merge SHA        abc8b3a2b80b3f6babf88fdc2347a3bfe69be356
-  final PR CI      33357795244
-  main CI          33357846835
-  Python 3.11      SUCCESS
-  Python 3.13      SUCCESS — 738 passed
-  wheel build      SUCCESS
-  ordinary readiness SUCCESS — release_ready=false / 15 blockers
-```
-
-These are portable fail-closed contract proofs, not live Fabric certification.
-
-## Current state
-
-```text
-public release                     v0.3.0
-0.4 source                         feature-frozen / unreleased
-release allowed                    no
-candidate                          not yet frozen
-ordinary required blockers         15
-strict partial proof merge         merged + main CI proven (#86/#92 domain binding)
-candidate-release-proofs           merged + main CI proven (#87/#92 hardening)
-candidate-business-path-evidence   merged + main CI proven (#88); no live run
-candidate-integration-evidence     merged + main CI proven (#90); no live run
-customer input producer contract   merged + customer main CI proven (#10/#11)
-selected-candidate input artifact  not yet retained
-release-proof/domain binding       merged + main CI proven (#92)
-unbound business-proof cleanup     merged + main CI proven (#94)
-certified integration artifact     not yet produced
-five live business-path proofs     not yet retained
-certified readiness artifact       not yet produced
-immutable v0.4.0                   not yet published
-```
-
-## Next sequence
-
-```text
-1. finish the PR #94 merged-main documentation checkpoint
-2. replace customer live placeholders only with reviewed real enterprise bindings/evidence
-3. only then select/freeze one NEW exact framework main candidate
-4. produce exact customer certification input artifact for that candidate
-5. run protected candidate-integration-evidence
-6. run five candidate-business-path-evidence drills
-7. run candidate-release-proofs for the same framework + domain identities
-8. candidate-certify must reach blockers=[]
-9. framework-release promotes exact certified wheel bytes
-10. only after immutable v0.4.0 exists migrate customer runtime dependency from v0.3.0
-```
-
-No current state above is a live Fabric certification or release claim.
+The next release-relevant work is real Fabric execution for an explicitly selected exact wheel, not rebuilding the customer-owned certification system that was removed by the repository-boundary refactor.
