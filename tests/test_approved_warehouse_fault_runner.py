@@ -53,8 +53,10 @@ from fabric_data_framework.contracts.target_operation import TargetOperationStat
 NOW = datetime(2026, 8, 30, 10, 0, tzinfo=timezone.utc)
 FRAMEWORK_VERSION = "0.4.0"
 DOMAIN_GIT_SHA = "1" * 40
-MUTATION_ARTIFACT = "fabric-customer-0.4.0.dev1-py3-none-any.whl"
-FAULT_ARTIFACT = "fabric-customer-faults-0.4.0.dev1-py3-none-any.whl"
+MUTATION_ARTIFACT = "fabric_data_framework-0.4.0-py3-none-any.whl"
+FAULT_ARTIFACT = MUTATION_ARTIFACT
+FRAMEWORK_ARTIFACT_SHA256 = "a" * 64
+INTEGRATION_INPUTS_HASH = "b" * 64
 
 
 class TrackingEnvironment(Mapping[str, str]):
@@ -92,7 +94,7 @@ def _dataset() -> DatasetConfig:
     )
 
 
-def _release(configs: tuple[DatasetConfig, ...], *, include_fault=True):
+def _release(configs: tuple[DatasetConfig, ...]):
     release = build_release_manifest(
         domain="sales",
         domain_release_version="0.4.0-dev",
@@ -104,18 +106,18 @@ def _release(configs: tuple[DatasetConfig, ...], *, include_fault=True):
         build_id="warehouse-fault-runner-test",
         generated_at=NOW,
     )
-    artifacts = {MUTATION_ARTIFACT: "a" * 64}
-    if include_fault:
-        artifacts[FAULT_ARTIFACT] = "b" * 64
-    return release.model_copy(update={"artifact_sha256": artifacts})
+    return release.model_copy(
+        update={"artifact_sha256": {MUTATION_ARTIFACT: FRAMEWORK_ARTIFACT_SHA256}}
+    )
 
 
-def _spec(release_hash: str) -> IntegrationEvidenceSpec:
+def _spec(_release_hash: str) -> IntegrationEvidenceSpec:
     return IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
         domain="sales",
         framework_version=FRAMEWORK_VERSION,
-        release_hash=release_hash,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="fabric.item.read",
@@ -147,7 +149,8 @@ def _prerequisite(
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=NOW,
         completed_at=NOW,
         checks=spec.checks,
@@ -195,12 +198,13 @@ def _prerequisite(
     )
 
 
-def _runner_config(release_hash: str):
+def _runner_config(_release_hash: str):
     return ApprovedIntegrationRunnerConfig(
         environment=EnvironmentName.DEV,
         domain="sales",
         framework_version=FRAMEWORK_VERSION,
-        release_hash=release_hash,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         control_plane_profile="fabric_sql_database_v1",
         control_plane_database_url_env_var="CONTROL_PLANE_DATABASE_URL",
         warehouse_database_url_env_var="WAREHOUSE_DATABASE_URL",
@@ -421,13 +425,16 @@ def test_fault_drill_requires_normal_warehouse_pass_before_secret_read():
 
 def test_fault_injector_artifact_must_be_fingerprinted_before_secret_read():
     configs = (_dataset(),)
-    release = _release(configs, include_fault=False)
+    release = _release(configs)
     spec = _spec(release.bundle.release_hash)
     env = TrackingEnvironment(
         {
             "CONTROL_PLANE_DATABASE_URL": "sqlite:///control-secret.db",
             "WAREHOUSE_DATABASE_URL": "sqlite:///warehouse-secret.db",
         }
+    )
+    run_config = _run_config().model_copy(
+        update={"fault_injector_artifact_name": "missing-fault-fixture.whl"}
     )
 
     with pytest.raises(ValueError, match="fault injector extension artifact"):
@@ -437,7 +444,7 @@ def test_fault_injector_artifact_must_be_fingerprinted_before_secret_read():
             prerequisite_manifest=_prerequisite(spec),
             release_manifest=release,
             configs=configs,
-            run_config=_run_config(),
+            run_config=run_config,
             environ=env,
             evidence_references=("artifact:fault-drill",),
             allow_warehouse_fault_injection=True,
