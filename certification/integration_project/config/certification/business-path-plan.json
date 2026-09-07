@@ -1,0 +1,11 @@
+{
+  "plan_schema_version": 1,
+  "plan_artifact_name": "business-path-plan.json",
+  "entries": [
+    {"gate_id": "full.replace", "scenario_path": "config/certification/business/scenarios/full-replace.scenario.json", "driver_config_path": "config/certification/business/drivers/full-replace.driver.json", "pipeline_check_id": "fabric.pipeline"},
+    {"gate_id": "watermark.scd1", "scenario_path": "config/certification/business/scenarios/watermark-scd1.scenario.json", "driver_config_path": "config/certification/business/drivers/watermark-scd1.driver.json", "pipeline_check_id": "fabric.pipeline"},
+    {"gate_id": "watermark.scd2", "scenario_path": "config/certification/business/scenarios/watermark-scd2.scenario.json", "driver_config_path": "config/certification/business/drivers/watermark-scd2.driver.json", "pipeline_check_id": "fabric.pipeline"},
+    {"gate_id": "retry.idempotency", "scenario_path": "config/certification/business/scenarios/retry-idempotency.scenario.json", "driver_config_path": "config/certification/business/drivers/retry-idempotency.driver.json", "pipeline_check_id": "fabric.pipeline"},
+    {"gate_id": "reconciliation.fail_closed", "scenario_path": "config/certification/business/scenarios/reconciliation-fail-closed.scenario.json", "driver_config_path": "config/certification/business/drivers/reconciliation-fail-closed.driver.json", "pipeline_check_id": "fabric.pipeline"}
+  ]
+}

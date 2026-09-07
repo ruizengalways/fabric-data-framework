@@ -1,0 +1,7 @@
+{
+  "check_id": "fabric.copy",
+  "dataset_id": "cert.copy",
+  "landing_reference": "dbo.cert_copy_landing",
+  "observation_extension": "cert.capture-observer",
+  "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl"
+}

@@ -1,0 +1,13 @@
+{
+  "check_id": "warehouse.ambiguous_commit",
+  "dataset_id": "cert.warehouse",
+  "operation_kind": "CERTIFICATION_FAULT",
+  "target_reference": "dbo.cert_warehouse_fault_target",
+  "mutation_extension": "cert.warehouse-mutation",
+  "mutation_extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl",
+  "mutation_payload": {"table": "dbo.cert_warehouse_fault_target", "rows": [{"id": 1, "value": "fault-commit"}]},
+  "fault_injector_extension": "cert.warehouse-fault",
+  "fault_injector_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl",
+  "fault_payload": {"controller_url": "https://warehouse-fault-controller.example.invalid", "token_env_var": null},
+  "enable_session_termination_recovery": false
+}

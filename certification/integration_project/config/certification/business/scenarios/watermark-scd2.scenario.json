@@ -1,0 +1,5 @@
+{
+  "gate_id": "watermark.scd2", "dataset_id": "cert.watermark_scd2", "observer_extension": "cert.business-path-observer", "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl", "scenario_artifact_name": "watermark-scd2.scenario.json",
+  "expected_success_target_sha256": "8e5bc31855f840645e0f91e99dc5f4005f60ba21920d8ee7a5f0dc7427e60193", "expected_success_target_row_count": 2, "expected_success_progress_sha256": "83578ca2d1bd12e6a85af1581b450349ca0d05aaa68c08fb584ec81bacfcde37", "expected_success_history_sha256": "e11c536e55d0c0eb471e2b915aad955d67980db74876ca84658e8d8d63d85de0", "expected_failure_error_code": null,
+  "parameters": {"target": {"table": "dbo.cert_scd2_current", "columns": ["id", "value"]}, "progress": {"table": "dbo.cert_progress", "columns": ["dataset_id", "checkpoint"], "where": {"dataset_id": "cert.watermark_scd2"}}, "history": {"table": "dbo.cert_scd2_history", "columns": ["id", "value", "is_current"], "business_key_columns": ["id"], "current_flag_column": "is_current"}}
+}

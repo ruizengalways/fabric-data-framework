@@ -1,0 +1,11 @@
+{
+  "scenario_hash": "1c5ba1b83fc358027226b35eb1192f2d989f4dfa4b053f46a98ec3479b36271c",
+  "driver_extension": "cert.business-path-driver",
+  "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl",
+  "driver_config_artifact_name": "reconciliation-fail-closed.driver.json",
+  "parameters": {"control_table": "dbo.cert_pipeline_control", "actions": {
+    "PREPARE_BASELINE": {"failure_mode": "SUCCESS", "replacements": [{"table": "dbo.cert_recon_source", "rows": [{"id": 1, "value": "old"}]}, {"table": "dbo.cert_recon_target", "rows": [{"id": 1, "value": "old"}]}, {"table": "dbo.cert_progress", "rows": [{"dataset_id": "cert.reconciliation_fail_closed", "checkpoint": "baseline"}]}]},
+    "PREPARE_ATTEMPT_1": {"failure_mode": "RECONCILIATION_FAILED", "replacements": [{"table": "dbo.cert_recon_source", "rows": [{"id": 1, "value": "new"}]}]},
+    "CLEANUP": {"failure_mode": "SUCCESS", "replacements": [{"table": "dbo.cert_recon_source", "rows": []}, {"table": "dbo.cert_recon_target", "rows": []}, {"table": "dbo.cert_progress", "rows": []}]}
+  }}
+}

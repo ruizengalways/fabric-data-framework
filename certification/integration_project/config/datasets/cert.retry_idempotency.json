@@ -1,0 +1,12 @@
+{
+  "dataset_id": "cert.retry_idempotency",
+  "source": {"system": "certification", "object": "dbo.cert_retry_source", "connection_ref": "cert_source"},
+  "target": {"layer": "silver", "object": "cert_retry_target"},
+  "load": {"capture_strategy": "FULL", "apply_strategy": "REPLACE", "business_key": [], "merge_key": [], "append_identity": [], "tracked_columns": [], "delete_policy": "IGNORE"},
+  "orchestration": {"execution_group": "cert_business_path", "criticality": "HIGH", "dependencies": [], "priority": 10, "retry_count": 1, "timeout_seconds": 1800, "batch_size": 1000, "max_concurrency": 1},
+  "quality": {"policy_name": "certification_strict", "quarantine_policy": "reject"},
+  "reconciliation": {"policy_name": "certification_exact", "required_for_state_commit": true},
+  "execution": {"engine": "AUTO", "progress_owner": "FRAMEWORK", "apply_engine": "AUTO"},
+  "enabled": true,
+  "config_schema_version": 1
+}

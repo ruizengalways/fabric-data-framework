@@ -1,0 +1,10 @@
+{
+  "check_id": "fabric.spark",
+  "dataset_id": "cert.spark",
+  "landing_reference": "dbo.cert_spark_landing",
+  "observation_extension": "cert.capture-observer",
+  "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl",
+  "spark_execution_data_extension": "cert.spark-execution-data",
+  "source_upper_bound": "2026-08-31T00:00:00Z",
+  "parameters": {"certification_mode": "bounded"}
+}
