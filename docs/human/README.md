@@ -4,23 +4,44 @@
 
 ## 推荐阅读顺序
 
-1. `CONCEPTS.md` — Framework 的边界、数据语义和整体运行模型。
-2. `ENTERPRISE_FABRIC_ARCHITECTURE.md` — DEV/UAT/PROD canonical Fabric 架构。
-3. `GETTING_STARTED.md` — 安装、测试、打 wheel、Fabric 中消费 package。
-4. `CUSTOMER_PROJECT_BOOTSTRAP.md` — 新 domain/customer repo 怎么初始化。
-5. `DATASET_ONBOARDING.md` — 新表/新源如何选择 capture、Bronze、Silver 策略。
-6. `PIPELINE_OPERATIONS_AND_RECOVERY.md` — 多表 Pipeline 正常运维、fail-at-end 和恢复策略。
-7. `FABRIC_NATIVE_SQL_AUTH.md` — Fabric-native Microsoft Entra SQL 认证。
-8. `FRAMEWORK_DEVELOPER_CERTIFICATION.md` — Framework 开发者当前 certification 主 runbook。
-9. `ONE_CALL_CERTIFICATION_RUNTIME.md` — one-call runtime / Control Plane bootstrap contract。
-10. `UNIFIED_FABRIC_CERTIFICATION.md` — unified certification runner contract。
-11. `RELEASE_CANDIDATE.md` — exact-candidate evidence 和 release gate。
+1. `ARCHITECTURE_BOUNDARIES.md` — 先看 repo ownership，避免把 simulator、implementation 和 certification 混在一起。
+2. `CONCEPTS.md` — Framework 的数据语义和整体运行模型。
+3. `ENTERPRISE_FABRIC_ARCHITECTURE.md` — DEV/UAT/PROD canonical Fabric 架构。
+4. `GETTING_STARTED.md` — 安装、source tests、打 wheel、Fabric 中消费 package。
+5. `IMPLEMENTATION_PROJECT_BOOTSTRAP.md` — 新 business/domain implementation repo 怎么初始化。
+6. `DATASET_ONBOARDING.md` — 新表/新源如何选择 capture、Bronze、Silver 策略。
+7. `PIPELINE_OPERATIONS_AND_RECOVERY.md` — 多表 Pipeline 正常运维、fail-at-end 和恢复策略。
+8. `CERTIFICATION_LIFECYCLE.md` — source test、installed-wheel acceptance、real Fabric certification 的硬边界。
+9. `FRAMEWORK_DEVELOPER_CERTIFICATION.md` — Framework 开发者 certification 主 runbook。
+10. `FABRIC_NATIVE_SQL_AUTH.md` — Fabric-native Microsoft Entra SQL 认证。
+11. `ONE_CALL_CERTIFICATION_RUNTIME.md` / `UNIFIED_FABRIC_CERTIFICATION.md` — environment-dependent integration runner contract。
+12. `RELEASE_CANDIDATE.md` — exact-candidate evidence 和 release gate。
 
-如果要恢复**当前 exact executable、Customer main、真实 Fabric evidence 状态和下一步**，不要从人读文档猜，直接看：
+如果要恢复**当前 exact main wheel、CI、真实 Fabric evidence 状态和下一步**，不要从旧 runbook 猜，直接看：
 
 ```text
 docs/machine/STATE.md
 ```
+
+## 四个职责，不是三个代码库强行装所有东西
+
+```text
+fabric-infra
+  Fabric capacity/workspace/permission infrastructure lifecycle
+
+fabric-customer
+  Fabric-native, framework-agnostic source-system simulator
+  deterministic source facts + expected business truth
+
+fabric-data-framework
+  reusable processing framework + installed-wheel certification
+
+implementation/domain repo（每个真实项目独立）
+  DatasetConfig / source-to-target mapping / environment bindings / deployment content
+  可以依赖 released framework wheel
+```
+
+`fabric-customer` **不是** implementation/domain repo。它不能因为某个真实项目需要 SCD2、watermark 或 framework adapter 就重新依赖 Framework。
 
 ## 企业环境 topology
 
@@ -38,7 +59,7 @@ Canonical Control Plane profile：
 fabric_sql_database_v1
 ```
 
-不要在 DEV 把 control state 放 Lakehouse，到 UAT/PROD 再换 SQL Database。CI/CD promote code、schema、DatasetConfig、execution policy 和 Fabric item definitions；runtime rows、watermarks、credentials、business data 和 physical UUIDs 保持环境本地化。
+不要在 DEV 把 control state 放 Lakehouse，到 UAT/PROD 再换 SQL Database。CI/CD promote code、schema、DatasetConfig、execution policy 和 implementation-owned Fabric definitions；runtime rows、watermarks、credentials、business data 和 physical UUIDs 保持环境本地化。
 
 ## 正常业务 Pipeline 出错
 
@@ -65,29 +86,44 @@ one dataset FAIL
 Framework 开发者从：
 
 ```text
+docs/human/CERTIFICATION_LIFECYCLE.md
 docs/human/FRAMEWORK_DEVELOPER_CERTIFICATION.md
 ```
 
-开始。当前默认认证方向是 exact artifact + Fabric-native identity + unified runner，不再维护旧 candidate 的逐 cell/manual 教程作为默认路径。
+开始。
 
-最小 bounded 入口仍是：
+当前正确链路是：
+
+```text
+source tests
+-> build exact wheel
+-> clean install
+-> installed package byte attestation
+-> framework-owned semantic smoke
+-> real Fabric bounded/unified certification
+-> retained evidence
+```
+
+真实 Fabric certification 也属于 `fabric-data-framework`。`fabric-customer` 只提供可选的独立 production-like source workload；它不是 certification bootstrap owner。
+
+Notebook 最小入口：
 
 ```python
-from fabric_data_framework.certification import certify, print_certification_summary
+from fabric_data_framework.certification import certify_installed, print_certification_summary
 
-report = certify(spark=spark)
+report = certify_installed(
+    spark=spark,
+    certification_root="/lakehouse/default/Files/framework_cert",
+)
 print_certification_summary(report)
 ```
 
-完整 company-Fabric 操作步骤由 `fabric-customer/docs/runbooks/TEST_FRAMEWORK_IN_COMPANY_FABRIC.md` 持有，因为具体 Fabric item deployment、Customer inputs 和环境 binding 属于 Customer/reference domain repo。
-
 ## 通常应该改哪个 repo
 
-新业务表、新数据源、新 domain：通常改 `fabric-customer`。
-
-只有缺少通用能力时才改 `fabric-data-framework`，例如新的 capture semantics、apply strategy、provider transport、recovery/evidence contract 或 reusable CLI/runtime capability。
-
-Capacity/workspace/基础设施生命周期属于 `fabric-infra`。
+- Framework 缺少通用能力：改 `fabric-data-framework`。
+- Source simulator 缺少真实 source behavior/scenario：改 `fabric-customer`。
+- 某个真实业务项目来了新表/新源：改该项目自己的 implementation/domain repo。
+- Capacity/workspace/permission 基础设施：改 `fabric-infra`。
 
 ## 最重要的原则
 
