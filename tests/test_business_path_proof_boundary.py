@@ -14,15 +14,15 @@ def test_approved_runner_cannot_package_unbound_candidate_proof():
     assert "write_business_path_partial_proof_bundle" not in source
 
 
-def test_exact_release_manifest_is_required_by_candidate_proof_packager():
+def test_candidate_proof_packager_binds_explicit_framework_integration_identity():
     source = PACKAGER.read_text(encoding="utf-8")
     assert "ReleaseManifest" in source
-    assert "release_manifest.bundle.release_hash" in source
-    assert "domain_release_hash=release_manifest.bundle.release_hash" in source
+    assert "integration_inputs_hash=report.integration_inputs_hash" in source
+    assert "domain_release_hash" not in source
     assert "build_business_path_partial_proof_bundle" in source
 
 
-def test_cli_uses_only_domain_bound_candidate_proof_writer():
+def test_cli_uses_only_bound_candidate_proof_writer():
     source = CLI.read_text(encoding="utf-8")
     assert "write_business_path_release_proof_bundle" in source
     assert "write_business_path_partial_proof_bundle" not in source
