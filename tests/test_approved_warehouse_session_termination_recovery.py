@@ -58,8 +58,10 @@ from fabric_data_framework.contracts.target_operation import TargetOperationStat
 NOW = datetime(2026, 8, 30, 11, 0, tzinfo=timezone.utc)
 FRAMEWORK_VERSION = "0.4.0"
 DOMAIN_GIT_SHA = "1" * 40
-MUTATION_ARTIFACT = "fabric-customer-0.4.0.dev1-py3-none-any.whl"
-FAULT_ARTIFACT = "fabric-customer-faults-0.4.0.dev1-py3-none-any.whl"
+MUTATION_ARTIFACT = "fabric_data_framework-0.4.0-py3-none-any.whl"
+FAULT_ARTIFACT = MUTATION_ARTIFACT
+FRAMEWORK_ARTIFACT_SHA256 = "a" * 64
+INTEGRATION_INPUTS_HASH = "b" * 64
 SESSION_BINDING = FabricWarehouseSessionBinding(
     session_id=81,
     connection_id=UUID("11111111-2222-3333-4444-555555555555"),
@@ -164,21 +166,17 @@ def _release(configs: tuple[DatasetConfig, ...]):
         build_id="warehouse-session-recovery-test",
         generated_at=NOW,
     ).model_copy(
-        update={
-            "artifact_sha256": {
-                MUTATION_ARTIFACT: "a" * 64,
-                FAULT_ARTIFACT: "b" * 64,
-            }
-        }
+        update={"artifact_sha256": {MUTATION_ARTIFACT: FRAMEWORK_ARTIFACT_SHA256}}
     )
 
 
-def _spec(release_hash: str) -> IntegrationEvidenceSpec:
+def _spec(_release_hash: str) -> IntegrationEvidenceSpec:
     return IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
         domain="sales",
         framework_version=FRAMEWORK_VERSION,
-        release_hash=release_hash,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         checks=(
             IntegrationEvidenceCheckSpec(
                 check_id="fabric.item.read",
@@ -205,7 +203,8 @@ def _prerequisite(spec: IntegrationEvidenceSpec) -> IntegrationEvidenceManifest:
         environment=spec.environment,
         domain=spec.domain,
         framework_version=spec.framework_version,
-        release_hash=spec.release_hash,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=NOW,
         completed_at=NOW,
         checks=spec.checks,
@@ -240,12 +239,13 @@ def _prerequisite(spec: IntegrationEvidenceSpec) -> IntegrationEvidenceManifest:
     )
 
 
-def _runner_config(release_hash: str, *, admin=True):
+def _runner_config(_release_hash: str, *, admin=True):
     return ApprovedIntegrationRunnerConfig(
         environment=EnvironmentName.DEV,
         domain="sales",
         framework_version=FRAMEWORK_VERSION,
-        release_hash=release_hash,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+        integration_inputs_hash=INTEGRATION_INPUTS_HASH,
         control_plane_profile="fabric_sql_database_v1",
         control_plane_database_url_env_var="CONTROL_PLANE_DATABASE_URL",
         warehouse_database_url_env_var="WAREHOUSE_DATABASE_URL",
@@ -428,7 +428,8 @@ def test_runner_config_requires_admin_and_target_env_var_names_to_be_distinct():
             environment=EnvironmentName.DEV,
             domain="sales",
             framework_version=FRAMEWORK_VERSION,
-            release_hash="a" * 64,
+            framework_artifact_sha256=FRAMEWORK_ARTIFACT_SHA256,
+            integration_inputs_hash=INTEGRATION_INPUTS_HASH,
             control_plane_profile="fabric_sql_database_v1",
             control_plane_database_url_env_var="CONTROL_PLANE_DATABASE_URL",
             warehouse_database_url_env_var="WAREHOUSE_DATABASE_URL",
