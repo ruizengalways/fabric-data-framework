@@ -20,14 +20,17 @@ from fabric_data_framework.evidence.integration_evidence import (
 
 
 NOW = datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc)
+FRAMEWORK_ARTIFACT = "a" * 64
+INPUTS_HASH = "b" * 64
 
 
 def _spec(*checks):
     return IntegrationEvidenceSpec(
         environment=EnvironmentName.DEV,
-        domain="customer",
+        domain="framework-certification",
         framework_version="0.4.0",
-        release_hash="a" * 64,
+        framework_artifact_sha256=FRAMEWORK_ARTIFACT,
+        integration_inputs_hash=INPUTS_HASH,
         checks=checks
         or (
             IntegrationEvidenceCheckSpec(
@@ -92,6 +95,8 @@ def test_all_required_pass_results_certify_manifest():
     )
 
     assert manifest.certified is True
+    assert manifest.framework_artifact_sha256 == FRAMEWORK_ARTIFACT
+    assert manifest.integration_inputs_hash == INPUTS_HASH
     assert len(manifest.manifest_hash) == 64
     validate_integration_evidence_manifest(spec, manifest, require_certified=True)
 
@@ -231,32 +236,38 @@ def test_runner_result_identity_mismatch_is_recorded_as_fail():
     assert manifest.results[0].detail == "integration check runner raised ValueError"
 
 
-def test_retained_manifest_must_match_exact_environment_release_and_check_spec():
+def test_retained_manifest_must_match_exact_environment_artifact_inputs_and_check_spec():
     spec = _spec()
     manifest = IntegrationEvidenceManifest(
-        environment=EnvironmentName.DEV,
-        domain="customer",
-        framework_version="0.4.0",
-        release_hash="a" * 64,
+        environment=spec.environment,
+        domain=spec.domain,
+        framework_version=spec.framework_version,
+        framework_artifact_sha256=spec.framework_artifact_sha256,
+        integration_inputs_hash=spec.integration_inputs_hash,
         started_at=NOW,
         completed_at=NOW + timedelta(seconds=2),
         checks=spec.checks,
         results=(_item_pass(), _pipeline_pass()),
     )
-    changed_spec = spec.model_copy(update={"release_hash": "c" * 64})
 
-    with pytest.raises(ValueError, match="release hash mismatch"):
-        validate_integration_evidence_manifest(changed_spec, manifest)
+    changed_artifact = spec.model_copy(update={"framework_artifact_sha256": "c" * 64})
+    with pytest.raises(ValueError, match="framework artifact SHA256 mismatch"):
+        validate_integration_evidence_manifest(changed_artifact, manifest)
+
+    changed_inputs = spec.model_copy(update={"integration_inputs_hash": "d" * 64})
+    with pytest.raises(ValueError, match="integration inputs hash mismatch"):
+        validate_integration_evidence_manifest(changed_inputs, manifest)
 
 
 def test_manifest_rejects_missing_or_extra_result_membership():
     spec = _spec()
     with pytest.raises(ValidationError, match="membership must exactly match"):
         IntegrationEvidenceManifest(
-            environment=EnvironmentName.DEV,
-            domain="customer",
-            framework_version="0.4.0",
-            release_hash="a" * 64,
+            environment=spec.environment,
+            domain=spec.domain,
+            framework_version=spec.framework_version,
+            framework_artifact_sha256=spec.framework_artifact_sha256,
+            integration_inputs_hash=spec.integration_inputs_hash,
             started_at=NOW,
             completed_at=NOW,
             checks=spec.checks,
