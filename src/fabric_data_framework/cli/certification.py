@@ -21,10 +21,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--certification-root",
         default=str(DEFAULT_CERTIFICATION_ROOT),
-        help="Directory containing CANDIDATE.json, exactly one installed candidate framework wheel and optional implementation inputs.",
+        help="Directory containing CANDIDATE.json, exactly one candidate framework wheel and optional framework integration inputs.",
     )
     parser.add_argument("--environment", default="DEV", choices=("DEV", "UAT", "PROD"))
-    parser.add_argument("--customer-inputs")
+    parser.add_argument("--integration-inputs")
     parser.add_argument("--output-dir")
     parser.add_argument("--lakehouse-base-path", default="Files/framework_cert")
     parser.add_argument(
@@ -68,7 +68,7 @@ def _run(argv: list[str]) -> int:
             spark=_active_spark(),
             certification_root=args.certification_root,
             environment=args.environment,
-            customer_inputs_root=args.customer_inputs,
+            integration_inputs_root=args.integration_inputs,
             output_dir=args.output_dir,
             lakehouse_base_path=args.lakehouse_base_path,
             allow_live_mutations=args.allow_live_mutations,
