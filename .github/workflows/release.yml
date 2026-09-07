@@ -23,6 +23,12 @@ on:
         description: "Successful candidate-certification run that retained release_ready=true evidence"
         required: true
         type: string
+      certification_environment:
+        description: "Environment used by the retained candidate certification run"
+        required: true
+        default: DEV
+        type: choice
+        options: [DEV, UAT, PROD]
 
 permissions:
   actions: read
@@ -41,6 +47,7 @@ jobs:
       CANDIDATE_SHA: ${{ inputs.candidate_git_sha }}
       CANDIDATE_WHEEL_SHA256: ${{ inputs.candidate_wheel_sha256 }}
       READINESS_RUN_ID: ${{ inputs.readiness_run_id }}
+      CERTIFICATION_ENVIRONMENT: ${{ inputs.certification_environment }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Validate release inputs
@@ -179,34 +186,35 @@ jobs:
       - name: Verify certified readiness run provenance
         run: |
           RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${READINESS_RUN_ID}")"
-          RUN_CONCLUSION="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["conclusion"])')"
-          RUN_EVENT="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["event"])')"
-          RUN_PATH="$(printf '%s' "${RUN_JSON}" | python -c 'import json,sys; print(json.load(sys.stdin)["path"])')"
-          if [ "${RUN_CONCLUSION}" != "success" ]; then
-            echo "Readiness run conclusion is ${RUN_CONCLUSION}, not success." >&2
-            exit 1
-          fi
-          if [ "${RUN_EVENT}" != "workflow_dispatch" ]; then
-            echo "Certified readiness must come from an explicit workflow_dispatch run." >&2
-            exit 1
-          fi
-          if [ "${RUN_PATH}" != ".github/workflows/candidate-certification.yml" ]; then
-            echo "Certified readiness run used unexpected workflow ${RUN_PATH}." >&2
-            exit 1
-          fi
+          export RUN_JSON
+          python - <<'PY'
+          import json
+          import os
+
+          run = json.loads(os.environ["RUN_JSON"])
+          if run["conclusion"] != "success":
+              raise SystemExit("certified readiness run must be successful")
+          if run["event"] != "workflow_dispatch":
+              raise SystemExit("certified readiness must come from workflow_dispatch")
+          if run["path"] != ".github/workflows/candidate-certification.yml":
+              raise SystemExit("certified readiness workflow path mismatch")
+          if run["head_sha"] != os.environ["CANDIDATE_SHA"]:
+              raise SystemExit("certified readiness candidate SHA mismatch")
+          PY
 
       - name: Download certified readiness evidence
         run: |
           rm -rf certified-evidence
           gh run download "${READINESS_RUN_ID}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --name "release-readiness-certified-${CANDIDATE_SHA}" \
+            --name "release-readiness-certified-${CANDIDATE_SHA}-${CERTIFICATION_ENVIRONMENT}" \
             --dir certified-evidence
           test -f certified-evidence/release-readiness.json
           test -f certified-evidence/release-proofs.json
           test -f certified-evidence/integration-evidence.json
+          test -f certified-evidence/INPUTS.json
 
-      - name: Verify certified readiness binds exact candidate and domain release
+      - name: Verify certified readiness binds exact candidate and integration inputs
         env:
           EXPECTED_VERSION: ${{ steps.release.outputs.version }}
         run: |
@@ -219,8 +227,13 @@ jobs:
           expected_version = os.environ["EXPECTED_VERSION"]
           expected_sha = os.environ["CANDIDATE_SHA"]
           expected_wheel = os.environ["CANDIDATE_WHEEL_SHA256"]
+          expected_environment = os.environ["CERTIFICATION_ENVIRONMENT"]
 
           report = json.loads(Path("certified-evidence/release-readiness.json").read_text())
+          inputs = json.loads(Path("certified-evidence/INPUTS.json").read_text())
+          proofs = json.loads(Path("certified-evidence/release-proofs.json").read_text())
+          integration = json.loads(Path("certified-evidence/integration-evidence.json").read_text())
+
           if report.get("framework_version") != expected_version:
               raise SystemExit("readiness framework version mismatch")
           if report.get("candidate_git_sha") != expected_sha:
@@ -233,27 +246,38 @@ jobs:
           if not required or any(result.get("status") != "PASS" for result in required):
               raise SystemExit("every required readiness result must be PASS")
 
-          domain_hash = report.get("domain_release_hash")
-          if not isinstance(domain_hash, str) or re.fullmatch(r"[0-9a-f]{64}", domain_hash) is None:
-              raise SystemExit("readiness domain_release_hash must be a non-empty lowercase SHA256")
+          input_hash = report.get("integration_inputs_hash")
+          if not isinstance(input_hash, str) or re.fullmatch(r"[0-9a-f]{64}", input_hash) is None:
+              raise SystemExit("readiness integration_inputs_hash must be a lowercase SHA256")
 
-          proofs = json.loads(Path("certified-evidence/release-proofs.json").read_text())
+          if inputs.get("candidate_git_sha") != expected_sha:
+              raise SystemExit("certification inputs candidate SHA mismatch")
+          if inputs.get("candidate_wheel_sha256") != expected_wheel:
+              raise SystemExit("certification inputs wheel SHA mismatch")
+          if inputs.get("framework_version") != expected_version:
+              raise SystemExit("certification inputs framework version mismatch")
+          if inputs.get("environment") != expected_environment:
+              raise SystemExit("certification inputs environment mismatch")
+          if inputs.get("integration_inputs_hash") != input_hash:
+              raise SystemExit("certification input hash mismatch")
+
           if proofs.get("framework_version") != expected_version:
               raise SystemExit("release proof framework version mismatch")
           if proofs.get("candidate_git_sha") != expected_sha:
               raise SystemExit("release proof candidate git SHA mismatch")
           if proofs.get("artifact_sha256") != expected_wheel:
               raise SystemExit("release proof artifact SHA256 mismatch")
-          if proofs.get("domain_release_hash") != domain_hash:
-              raise SystemExit("release proof domain release hash mismatch")
+          if proofs.get("integration_inputs_hash") != input_hash:
+              raise SystemExit("release proof integration input hash mismatch")
 
-          integration = json.loads(Path("certified-evidence/integration-evidence.json").read_text())
           if integration.get("framework_version") != expected_version:
               raise SystemExit("integration evidence framework version mismatch")
-          if integration.get("release_hash") != expected_wheel:
-              raise SystemExit("integration evidence release_hash mismatch")
-          if integration.get("domain_release_hash") != domain_hash:
-              raise SystemExit("integration evidence domain release hash mismatch")
+          if integration.get("framework_artifact_sha256") != expected_wheel:
+              raise SystemExit("integration evidence framework artifact SHA mismatch")
+          if integration.get("integration_inputs_hash") != input_hash:
+              raise SystemExit("integration evidence integration input hash mismatch")
+          if integration.get("environment") != expected_environment:
+              raise SystemExit("integration evidence environment mismatch")
           PY
 
       - name: Create immutable tag at exact candidate SHA
@@ -276,6 +300,7 @@ jobs:
             certified-evidence/release-readiness.json \
             certified-evidence/release-proofs.json \
             certified-evidence/integration-evidence.json \
+            certified-evidence/INPUTS.json \
             --verify-tag \
             --title "fabric-data-framework ${RELEASE_TAG}" \
             --generate-notes
