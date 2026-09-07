@@ -1,5 +1,4 @@
 from pathlib import Path
-from types import SimpleNamespace
 from zipfile import ZipFile
 
 import pytest
@@ -30,7 +29,11 @@ def test_attestation_accepts_exact_installed_package_bytes(monkeypatch, tmp_path
     package = installed_root / "fabric_data_framework"
     package.mkdir(parents=True)
     (package / "example.py").write_bytes(b"candidate")
-    monkeypatch.setattr(installed_module, "distribution", lambda _: FakeDistribution(installed_root))
+    monkeypatch.setattr(
+        installed_module,
+        "distribution",
+        lambda _: FakeDistribution(installed_root),
+    )
 
     result = installed_module.attest_installed_wheel(wheel)
 
@@ -45,7 +48,11 @@ def test_attestation_rejects_source_or_other_install_bytes(monkeypatch, tmp_path
     package = installed_root / "fabric_data_framework"
     package.mkdir(parents=True)
     (package / "example.py").write_bytes(b"different")
-    monkeypatch.setattr(installed_module, "distribution", lambda _: FakeDistribution(installed_root))
+    monkeypatch.setattr(
+        installed_module,
+        "distribution",
+        lambda _: FakeDistribution(installed_root),
+    )
 
     with pytest.raises(ValueError, match="does not match candidate wheel bytes"):
         installed_module.attest_installed_wheel(wheel)
