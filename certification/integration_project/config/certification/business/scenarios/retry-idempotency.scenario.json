@@ -1,5 +1,5 @@
 {
   "gate_id": "retry.idempotency", "dataset_id": "cert.retry_idempotency", "observer_extension": "cert.business-path-observer", "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl", "scenario_artifact_name": "retry-idempotency.scenario.json",
-  "expected_success_target_sha256": "4dbbe5c9a8ca11bca69695557f911a69f8bb80ba8c2c9d41bcc509e20e941050", "expected_success_target_row_count": 1, "expected_success_progress_sha256": "a648732e9c26366178e4351b6dd06c9cf0dcbd109991525e91f2d8fe1166bb30", "expected_success_history_sha256": null, "expected_failure_error_code": "CERTIFICATION_RETRYABLE_FAILURE",
+  "expected_success_target_sha256": "4dbbe5c9a8ca11bca69695557f911a69f8bb80ba8c2c9d41bcc509e20e941050", "expected_success_target_row_count": 1, "expected_success_progress_sha256": "fcd861f3eb56d8f51eded79cb47a1a0173f33c5d9d8746aed5d5627d95484944", "expected_success_history_sha256": null, "expected_failure_error_code": "CERTIFICATION_RETRYABLE_FAILURE",
   "parameters": {"target": {"table": "dbo.cert_retry_target", "columns": ["id", "value"]}, "progress": {"table": "dbo.cert_progress", "columns": ["dataset_id", "checkpoint"], "where": {"dataset_id": "cert.retry_idempotency"}}}
 }

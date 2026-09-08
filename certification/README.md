@@ -13,8 +13,8 @@ source tests
 -> install exact wheel
 -> attest active installed package bytes
 -> semantic smoke
--> discover/review exact DEV physical bindings when integration gates are needed
--> build framework-owned integration inputs
+-> bootstrap/read back framework-owned DEV Fabric assets
+-> build framework-owned integration inputs from exact physical IDs
 -> real Fabric certification
 ```
 
@@ -32,4 +32,10 @@ python -m venv .cert-venv
 
 The smoke proves the active package payload matches the candidate wheel package bytes. It does **not** claim real Fabric success.
 
-Framework-owned integration-input construction lives with this certification surface. Use the read-only `discover_certification_bindings_from_names(...)` API or `fabric-framework discover-certification-bindings` before producing environment-dependent integration inputs. The complete binding discovery, review, execution and evidence rules are documented once in `docs/TESTING_AND_CERTIFICATION.md`.
+For a first-time dedicated DEV workspace, use `fabric-framework bootstrap-certification-assets`. It creates/updates the framework-owned Environment, Spark Job Definition, Copy Job and Data Pipeline only when `--allow-item-mutation` is explicit, publishes the Environment using the stable `beta=false` API, and verifies definitions by provider read-back. Without the mutation flag it is read-back-only.
+
+Use the returned executable item IDs together with the known certification Lakehouse ID (`item_read_id`) when building the exact integration-input bundle. `fabric-framework discover-certification-bindings` remains an optional independent read-only audit.
+
+The bootstrap does not create capacity, workspace, networking, Lakehouse, Control Plane or Warehouse infrastructure. Those remain environment/infra prerequisites.
+
+The complete bootstrap, binding, dependency-wheel, execution and evidence rules are documented once in `docs/TESTING_AND_CERTIFICATION.md`.

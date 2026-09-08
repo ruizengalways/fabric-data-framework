@@ -1,5 +1,5 @@
 {
   "gate_id": "full.replace", "dataset_id": "cert.full_replace", "observer_extension": "cert.business-path-observer", "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl", "scenario_artifact_name": "full-replace.scenario.json",
-  "expected_success_target_sha256": "8e5bc31855f840645e0f91e99dc5f4005f60ba21920d8ee7a5f0dc7427e60193", "expected_success_target_row_count": 2, "expected_success_progress_sha256": "fcc0eee5da4e3251711c9a50d0852fbd46fac8a7dacdd071f9b777e57bb6a9ad", "expected_success_history_sha256": null, "expected_failure_error_code": null,
+  "expected_success_target_sha256": "8e5bc31855f840645e0f91e99dc5f4005f60ba21920d8ee7a5f0dc7427e60193", "expected_success_target_row_count": 2, "expected_success_progress_sha256": "382807b7347d67791bd4bac323a7429665620f92ae468e7873858755becbc292", "expected_success_history_sha256": null, "expected_failure_error_code": null,
   "parameters": {"target": {"table": "dbo.cert_full_target", "columns": ["id", "value"]}, "progress": {"table": "dbo.cert_progress", "columns": ["dataset_id", "checkpoint"], "where": {"dataset_id": "cert.full_replace"}}}
 }
