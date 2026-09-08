@@ -63,6 +63,11 @@ enterprise_topology:
   promote_runtime_state_between_environments: false
 
 runtime_recovery:
+  rebuild_scope_contract_status: merged_on_main
+  rebuild_scope_runtime_merge_sha: 40034aae983c6437cd6c1fbf77217ab8efbc919a
+  rebuild_scope_pr_head_ci_sha: f53e1d0364fcf3427d45fb90d2df0712e21e685f
+  rebuild_scope_pr_ci_status: passed
+  rebuild_scope_main_ci_status: passed
   run_modes:
     - RETRY
     - BACKFILL
@@ -102,9 +107,7 @@ fabric_proof:
   status_label: FABRIC_CERTIFICATION_REQUIRED
 
 next_boundary:
-  - finish source/contract CI for rebuild-scope hard cut
-  - merge rebuild-scope change only after exact-head CI is green
-  - build and retain a new exact main wheel because rebuild-scope changes packaged code
+  - build and retain a new exact main wheel for current executable source
   - record framework_artifact_sha256 and integration_inputs_hash for that new source
   - install the exact wheel in isolated DEV Fabric
   - run certify_installed bounded first
@@ -128,6 +131,8 @@ No customer/domain release identity participates in framework candidate certific
 `fabric-customer` remains useful as an independent realistic source simulator. When an implementation compares framework versions against the same scenario, record the same verified `workload_digest`; that identity is independent from the framework wheel SHA.
 
 ## Rebuild scope hard cut
+
+The rebuild-scope contract is now on `main` via runtime merge `40034aae983c6437cd6c1fbf77217ab8efbc919a`. PR-head source/contract CI and post-merge main CI both passed. This is packaged `0.4.0` development source and therefore requires a new exact candidate wheel before any current-source release claim.
 
 `FULL_REBUILD` is one run mode with three explicit scopes. The scope is carried in the typed `FullRebuildRequestSpec` stored in `ReprocessRequest.range_json`.
 
@@ -187,7 +192,7 @@ The previous single-key FULL_REBUILD payload:
 {"authoritative_reset": true}
 ```
 
-is no longer sufficient. A request must include an explicit `rebuild_scope`.
+is no longer sufficient for creating a new request. A new request must include an explicit `rebuild_scope`.
 
 ## Purge boundary
 
