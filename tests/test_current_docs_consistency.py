@@ -9,6 +9,7 @@ STATE = DOCS / "internal/STATE.md"
 CANONICAL_DOCS = (
     "README.md",
     "ARCHITECTURE.md",
+    "CODE_READING_GUIDE.md",
     "GETTING_STARTED.md",
     "IMPLEMENTATION_PROJECT.md",
     "DATA_PATTERNS.md",
@@ -39,6 +40,7 @@ def test_docs_index_is_navigation_not_a_second_architecture_doc():
     index = _read("README.md")
     for relative in (
         "ARCHITECTURE.md",
+        "CODE_READING_GUIDE.md",
         "GETTING_STARTED.md",
         "IMPLEMENTATION_PROJECT.md",
         "DATA_PATTERNS.md",

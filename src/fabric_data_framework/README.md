@@ -2,6 +2,8 @@
 
 Use this file when browsing source code. It describes the current code organization, not implementation history.
 
+For a full end-to-end reading path — `DatasetConfig -> ExecutionPlan -> orchestration -> backend -> remote child -> capture/quality/apply/reconciliation -> durable outcome -> certification/release` — read [`docs/CODE_READING_GUIDE.md`](../../docs/CODE_READING_GUIDE.md).
+
 ## Start here by task
 
 | You want to understand/change | Start here |
