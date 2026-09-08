@@ -156,12 +156,12 @@ The canonical operator manual for data correctness repair/rebuild/v1-v2 cutover 
 
 | Area | Canonical owner |
 |---|---|
-| Active installed package vs wheel bytes | `certification/installed.py` |
-| Installed semantic smoke | `certification/semantic.py` |
-| Lakehouse bounded Fabric checks | `certification/bounded.py` |
-| Conventional one-call API | `certification/simple.py` |
-| Unified environment-dependent orchestrator | `certification/unified.py` |
-| Framework-owned reference integration fixtures/config | `certification/integration_project/` and packaged certification resources |
+| Active installed package vs wheel bytes | `src/fabric_data_framework/certification/installed.py` |
+| Installed semantic smoke | `src/fabric_data_framework/certification/semantic.py` |
+| Lakehouse bounded Fabric checks | `src/fabric_data_framework/certification/bounded.py` |
+| Conventional one-call API | `src/fabric_data_framework/certification/simple.py` |
+| Unified environment-dependent orchestrator | `src/fabric_data_framework/certification/unified.py` |
+| Framework-owned reference integration fixtures/config | `src/fabric_data_framework/certification/integration_project/` and packaged certification resources |
 
 `certify_installed()` is the preferred high-level boundary: attest installed bytes first, then execute semantic/Fabric certification.
 
