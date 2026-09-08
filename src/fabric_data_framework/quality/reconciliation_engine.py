@@ -152,6 +152,25 @@ def _evaluate_observation(
             partition=partition,
         )
 
+    if check.kind is ReconciliationCheckKind.CHECKSUM_MATCH:
+        if observation.expected is None or observation.actual is None:
+            return _metric(
+                check=check,
+                name=name,
+                expected="source checksum",
+                actual="missing checksum observation",
+                passed=False,
+                partition=partition,
+            )
+        return _metric(
+            check=check,
+            name=name,
+            expected=observation.expected,
+            actual=observation.actual,
+            passed=observation.expected == observation.actual,
+            partition=partition,
+        )
+
     if check.kind is ReconciliationCheckKind.UNIQUE_KEY:
         actual = _numeric(observation.actual)
         if actual is None or actual < 0 or not actual.is_integer():
@@ -304,7 +323,6 @@ def evaluate_reconciliation_policy(
             continue
 
         seen_partitions: set[tuple[tuple[str, object], ...]] = set()
-        structural_error = False
         for observation in check_observations:
             partition_error = _validate_partition(check, observation)
             if partition_error is not None:
@@ -316,7 +334,6 @@ def evaluate_reconciliation_policy(
                         actual=partition_error,
                     )
                 )
-                structural_error = True
                 continue
             partition_key = tuple(
                 (key, (observation.partition or {})[key]) for key in check.partition_by
@@ -330,12 +347,9 @@ def evaluate_reconciliation_policy(
                         actual=str(dict(partition_key)),
                     )
                 )
-                structural_error = True
                 continue
             seen_partitions.add(partition_key)
             metrics.append(_evaluate_observation(check, observation))
-        if structural_error:
-            continue
 
     failed = tuple(metric for metric in metrics if not metric.passed)
     if any(metric.blocking for metric in failed):
