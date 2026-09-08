@@ -76,10 +76,12 @@ Real Fabric capabilities are never marked PASS from local CI alone.
 Start at [`docs/README.md`](docs/README.md).
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — repo ownership, semantic model, Control Plane/Data Plane topology.
+- [`docs/CODE_READING_GUIDE.md`](docs/CODE_READING_GUIDE.md) — current end-to-end code reading order and runtime call flow.
 - [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — local development, wheel build, Fabric consumption.
 - [`docs/IMPLEMENTATION_PROJECT.md`](docs/IMPLEMENTATION_PROJECT.md) — bootstrap a real framework-consuming domain repo.
-- [`docs/DATA_PATTERNS.md`](docs/DATA_PATTERNS.md) — choose FULL, watermark, CDC, Bronze, SCD1/SCD2, delete semantics.
-- [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — runtime failure isolation, DQ, retry, replay, backfill and recovery.
+- [`docs/DATA_PATTERNS.md`](docs/DATA_PATTERNS.md) — choose FULL, watermark/lookback, CDC, APPEND, Bronze, SCD1/SCD2, and delete semantics.
+- [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — transient runtime failure isolation, retry, replay, backfill, unknown commit, and dependency recovery.
+- [`docs/REPAIR_AND_REBUILD.md`](docs/REPAIR_AND_REBUILD.md) — data-correctness repair, FULL_REBUILD scope, contaminated dependency impact, v1/v2 cutover, UAT, rollback, and retention.
 - [`docs/TESTING_AND_CERTIFICATION.md`](docs/TESTING_AND_CERTIFICATION.md) — source tests through exact-wheel real Fabric certification.
 - [`docs/RELEASE.md`](docs/RELEASE.md) — candidate identity, evidence and immutable promotion.
 
