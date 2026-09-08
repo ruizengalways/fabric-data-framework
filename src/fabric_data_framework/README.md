@@ -10,15 +10,75 @@ For a full end-to-end reading path — `DatasetConfig -> ExecutionPlan -> orches
 |---|---|
 | dataset metadata and policy | `metadata/config.py`, `metadata/` |
 | source/capture semantics | `capture/` |
+| APPEND/change-log execution | `capture/watermark.py` -> `execution/append.py` -> `apply/append.py` -> `quality/append.py` |
 | Bronze/Silver apply semantics | `apply/`, `execution/` |
-| execution plan / orchestration | `contracts/execution_plan.py`, `orchestration/`, `orchestration/dispatcher.py` |
+| execution plan / orchestration | `contracts/execution_plan.py`, `orchestration/planner.py`, `orchestration/dispatcher.py` |
 | Fabric / CDC provider adapters | `adapters/` |
 | quality/schema ordering rules | `quality/`, `contracts/schema.py` |
 | control-plane state/runtime repository | `control_plane/` |
 | target idempotency / unknown commit recovery | `contracts/target_operation.py`, `control_plane/target_operation_journal.py`, `recovery/` |
+| FULL_REBUILD scope + state cutover | `contracts/rebuild.py`, `recovery/rebuild.py` |
+| dependency-aware rebuild impact | `contracts/rebuild_impact.py`, `recovery/rebuild_impact.py` |
+| target version / blue-green cutover | `contracts/target_version.py`, `recovery/target_cutover.py` |
 | approved integration evidence | `evidence/` |
 | release/deployment materialization | `deployment/delivery.py`, `deployment/contracts.py` |
 | command line interface | `cli/` |
+
+## APPEND/change-log trace
+
+For application audit/change-history rows that are incrementally readable but may be re-observed because of bounded lookback:
+
+```text
+capture/watermark.py
+  source window + overlap semantics
+        |
+        v
+execution/append.py
+  capture-neutral batch coordination
+        |
+        v
+apply/append.py
+  append_identity dedup + idempotent replay + conflict fail-closed
+        |
+        v
+quality/append.py
+  APPEND reconciliation
+```
+
+Keep these separate:
+
+```text
+entity key != event identity != incremental cursor
+```
+
+Raw/Event Bronze may retain repeated source observations. Silver APPEND may collapse exact replay under a stable `append_identity`. The same identity with different business payload must fail closed.
+
+## Rebuild and cutover trace
+
+Data-correctness repair is not ordinary retry/replay recovery. The canonical runtime ownership is:
+
+```text
+contracts/rebuild.py
+  TARGET_ONLY / CAPTURE_AND_TARGET / AUTHORITATIVE_RESET
+        |
+        v
+recovery/rebuild.py
+  exact requested/completed scope + target/reconciliation/state-cutover gates
+
+contracts/rebuild_impact.py
+        |
+        v
+recovery/rebuild_impact.py
+  first bad root + downstream contaminated descendants only
+
+contracts/target_version.py
+        |
+        v
+recovery/target_cutover.py
+  candidate/UAT/approval/generation/idempotency cutover gates
+```
+
+The framework never automatically deletes the old physical target version and does not automate permanent business-data purge. Detailed operator procedure lives in [`docs/REPAIR_AND_REBUILD.md`](../../docs/REPAIR_AND_REBUILD.md).
 
 ## Dependency shape
 
@@ -29,8 +89,8 @@ semantic contracts
   config / capture / apply / quality / contracts
             |
             v
-runtime + orchestration
-  execution / dispatcher / control plane / recovery
+planning + runtime + orchestration
+  execution-plan compilation / dispatcher / backends / control plane / recovery
             |
             v
 provider adapters
@@ -54,6 +114,10 @@ core -X-> CLI
 ```
 
 `evidence/` proves existing contracts; it must not become a second semantic truth.
+
+## Current execution-plan ownership
+
+`contracts/execution_plan.py` currently contains both immutable plan contracts and the compiler functions. That is current code fact, not a recommendation. The compiler/contract separation is intentionally assessed as a separate architecture change so this map does not pretend a future folder already exists.
 
 ## `evidence/` reading order
 
@@ -88,7 +152,7 @@ repository.py / relational_repository.py
 Do not move them merely for aesthetics. A folder extraction should happen only when:
 
 1. the ownership boundary is clear;
-2. public/import compatibility can be preserved or intentionally versioned;
+2. compatibility is intentionally preserved or intentionally hard-cut as a versioned contract decision;
 3. dependency direction improves;
 4. the full contract suite proves behavior did not change.
 
