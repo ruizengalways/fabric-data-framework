@@ -7,10 +7,11 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationError, model_validator
 
 from fabric_data_framework.metadata.config import RunMode
 from fabric_data_framework.contracts.base import FrozenModel
+from fabric_data_framework.contracts.rebuild import FullRebuildRequestSpec
 
 
 def _utcnow() -> datetime:
@@ -65,13 +66,24 @@ class ReprocessRequest(FrozenModel):
                     "REPLAY request requires original_dataset_run_id or quarantine_ids"
                 )
         if self.run_mode is RunMode.FULL_REBUILD:
-            if (self.range_json or {}).get("authoritative_reset") is not True:
+            try:
+                FullRebuildRequestSpec.model_validate(self.range_json or {})
+            except ValidationError as exc:
                 raise ValueError(
-                    "FULL_REBUILD request requires range_json.authoritative_reset=true"
-                )
+                    "FULL_REBUILD request requires range_json with exact "
+                    "rebuild_scope and authoritative_reset=true"
+                ) from exc
         if self.updated_at is not None and self.updated_at < self.created_at:
             raise ValueError("updated_at cannot be before created_at")
         return self
+
+    @property
+    def full_rebuild_spec(self) -> FullRebuildRequestSpec:
+        """Return the typed FULL_REBUILD payload or reject use on another run mode."""
+
+        if self.run_mode is not RunMode.FULL_REBUILD:
+            raise ValueError("full_rebuild_spec is only valid for FULL_REBUILD requests")
+        return FullRebuildRequestSpec.model_validate(self.range_json or {})
 
 
 class DatasetAttemptLineage(FrozenModel):

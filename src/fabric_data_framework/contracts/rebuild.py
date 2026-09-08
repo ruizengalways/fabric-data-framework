@@ -1,14 +1,40 @@
-"""Stable FULL_REBUILD state-cutover contracts."""
+"""Stable FULL_REBUILD scope and state-cutover contracts."""
 
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 from uuid import UUID
 
 from pydantic import Field
 
 from fabric_data_framework.contracts.base import FrozenModel
+
+
+class RebuildScope(str, Enum):
+    """Authorized physical breadth of one FULL_REBUILD request.
+
+    TARGET_ONLY rebuilds the downstream target from already-retained authoritative
+    capture/Bronze facts and therefore must preserve capture progress state exactly.
+
+    CAPTURE_AND_TARGET reconstructs capture/Bronze and downstream target while keeping
+    the same progress kind (for example WATERMARK remains WATERMARK). The physical
+    checkpoint/boundary may be replaced after the rebuilt target is proven.
+
+    AUTHORITATIVE_RESET is the widest reset. It permits an explicitly authorized
+    replacement of capture progress kind/state after authoritative reconstruction.
+    """
+
+    TARGET_ONLY = "TARGET_ONLY"
+    CAPTURE_AND_TARGET = "CAPTURE_AND_TARGET"
+    AUTHORITATIVE_RESET = "AUTHORITATIVE_RESET"
+
+
+class FullRebuildRequestSpec(FrozenModel):
+    """Typed payload carried by ``ReprocessRequest.range_json`` for FULL_REBUILD."""
+
+    rebuild_scope: RebuildScope
+    authoritative_reset: Literal[True]
 
 
 class RebuildProgressKind(str, Enum):
@@ -55,13 +81,15 @@ class FullRebuildStateAdapter(Protocol):
         expected_version: int,
         rebuild_request_id: UUID,
         dataset_run_id: UUID,
-        replacement: FullRebuildStateReplacement,
+        replacement: FullRebuildStateReplacement | None,
     ) -> FullRebuildStateSnapshot: ...
 
 
 __all__ = [
+    "FullRebuildRequestSpec",
     "FullRebuildStateAdapter",
     "FullRebuildStateReplacement",
     "FullRebuildStateSnapshot",
     "RebuildProgressKind",
+    "RebuildScope",
 ]

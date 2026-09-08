@@ -75,6 +75,26 @@ def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
         assert token in state
 
 
+def test_state_and_operations_lock_rebuild_scope_contract():
+    state = STATE.read_text(encoding="utf-8")
+    operations = _read("OPERATIONS.md")
+    implementation_map = _read("internal/IMPLEMENTATION_MAP.md")
+
+    for token in (
+        "TARGET_ONLY",
+        "CAPTURE_AND_TARGET",
+        "AUTHORITATIVE_RESET",
+    ):
+        assert token in state
+        assert token in operations
+        assert token in implementation_map
+
+    assert "requested_scope_must_equal_completed_scope: true" in state
+    assert "automatic_business_data_purge_supported: false" in state
+    assert "manual_operator_governance_only" in state
+    assert "Rebuild is not purge" in operations
+
+
 def test_current_docs_lock_framework_owned_candidate_identity():
     docs = "\n".join(
         _read(relative)

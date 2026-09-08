@@ -4,7 +4,7 @@ This file is the **single current-state recovery checkpoint** for `fabric-data-f
 
 ```yaml
 schema: fabric-data-framework-state-v4
-updated: 2026-09-07
+updated: 2026-09-08
 
 release:
   public_release: v0.3.0
@@ -62,6 +62,24 @@ enterprise_topology:
   same_logical_topology_required: true
   promote_runtime_state_between_environments: false
 
+runtime_recovery:
+  run_modes:
+    - RETRY
+    - BACKFILL
+    - REPLAY
+    - FULL_REBUILD
+  full_rebuild_scopes:
+    - TARGET_ONLY
+    - CAPTURE_AND_TARGET
+    - AUTHORITATIVE_RESET
+  target_only_capture_state_change_allowed: false
+  capture_and_target_progress_kind_change_allowed: false
+  authoritative_reset_progress_kind_change_allowed: true
+  requested_scope_must_equal_completed_scope: true
+  target_commit_and_reconciliation_gate_required_before_state_cutover: true
+  automatic_business_data_purge_supported: false
+  purge_policy: manual_operator_governance_only
+
 certification:
   source_tests: required
   exact_wheel_build: required
@@ -84,9 +102,10 @@ fabric_proof:
   status_label: FABRIC_CERTIFICATION_REQUIRED
 
 next_boundary:
-  - finish source/contract CI for the current hard-cut candidate-certification architecture
-  - build and retain a new exact main wheel for current executable source
-  - record framework_artifact_sha256 and integration_inputs_hash
+  - finish source/contract CI for rebuild-scope hard cut
+  - merge rebuild-scope change only after exact-head CI is green
+  - build and retain a new exact main wheel because rebuild-scope changes packaged code
+  - record framework_artifact_sha256 and integration_inputs_hash for that new source
   - install the exact wheel in isolated DEV Fabric
   - run certify_installed bounded first
   - stop on any real FAIL
@@ -107,6 +126,79 @@ integration_inputs_hash
 No customer/domain release identity participates in framework candidate certification, and the framework release workflows do not depend on `fabric-customer` to produce certification inputs.
 
 `fabric-customer` remains useful as an independent realistic source simulator. When an implementation compares framework versions against the same scenario, record the same verified `workload_digest`; that identity is independent from the framework wheel SHA.
+
+## Rebuild scope hard cut
+
+`FULL_REBUILD` is one run mode with three explicit scopes. The scope is carried in the typed `FullRebuildRequestSpec` stored in `ReprocessRequest.range_json`.
+
+```text
+TARGET_ONLY
+  trusted retained capture/Bronze remains authoritative
+  rebuild downstream target/Silver only
+  capture/runtime state replacement must remain exactly unchanged
+
+CAPTURE_AND_TARGET
+  reconstruct capture/Bronze and downstream target
+  checkpoint/boundary may change
+  RebuildProgressKind may not change
+
+AUTHORITATIVE_RESET
+  widest authoritative reconstruction
+  explicit post-rebuild state is required
+  RebuildProgressKind may change (NONE/WATERMARK/CDC/EXTERNAL)
+```
+
+All scopes require:
+
+```text
+authoritative_reset=true
+requested rebuild_scope == physical completed_scope
+authoritative reconstruction evidence
+target committed
+required reconciliation passed
+```
+
+Only after those gates pass may the rebuild marker/runtime state advance. `rebuild_request_id` remains stable across retry attempts and is the idempotency identity; `dataset_run_id` remains attempt-specific audit evidence.
+
+Primary implementation files:
+
+```text
+src/fabric_data_framework/contracts/rebuild.py
+src/fabric_data_framework/contracts/recovery.py
+src/fabric_data_framework/recovery/rebuild.py
+```
+
+Primary tests:
+
+```text
+tests/test_full_rebuild.py
+tests/test_recovery.py
+```
+
+Canonical operator documentation:
+
+```text
+docs/OPERATIONS.md
+```
+
+The previous single-key FULL_REBUILD payload:
+
+```text
+{"authoritative_reset": true}
+```
+
+is no longer sufficient. A request must include an explicit `rebuild_scope`.
+
+## Purge boundary
+
+The framework deliberately does not automate irreversible business-data purge. Dataset pause/stop remains metadata/override driven, but permanent hard deletion of Bronze/Silver/Gold or control-plane state is a manual, environment-specific operator/governance action.
+
+```text
+rebuild != purge
+FULL_REBUILD != automatic DROP/DELETE lifecycle
+```
+
+Do not add automatic purge to normal framework execution merely for symmetry with rebuild.
 
 ## Real Fabric boundary
 

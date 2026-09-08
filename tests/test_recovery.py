@@ -3,6 +3,7 @@ from uuid import uuid4
 import pytest
 
 from fabric_data_framework.metadata.config import DatasetStatus, RunMode
+from fabric_data_framework.contracts.rebuild import RebuildScope
 from fabric_data_framework.contracts.recovery import (
     DatasetAttemptLineage,
     ReprocessRequest,
@@ -58,12 +59,24 @@ def test_reprocess_request_modes_validate_required_scope_and_authorization():
             reason="replay",
             requested_by="operator",
         )
-    with pytest.raises(ValueError, match="authoritative_reset"):
+    with pytest.raises(ValueError, match="rebuild_scope"):
         ReprocessRequest(
             dataset_id="erp.order",
             run_mode=RunMode.FULL_REBUILD,
             reason="rebuild",
             requested_by="operator",
+            range_json={"authoritative_reset": True},
+        )
+    with pytest.raises(ValueError, match="rebuild_scope"):
+        ReprocessRequest(
+            dataset_id="erp.order",
+            run_mode=RunMode.FULL_REBUILD,
+            reason="rebuild",
+            requested_by="operator",
+            range_json={
+                "rebuild_scope": "UNKNOWN",
+                "authoritative_reset": True,
+            },
         )
 
     retry = ReprocessRequest(
@@ -92,13 +105,17 @@ def test_reprocess_request_modes_validate_required_scope_and_authorization():
         run_mode=RunMode.FULL_REBUILD,
         reason="approved rebuild",
         requested_by="operator",
-        range_json={"authoritative_reset": True},
+        range_json={
+            "rebuild_scope": RebuildScope.TARGET_ONLY.value,
+            "authoritative_reset": True,
+        },
     )
 
     assert retry.original_dataset_run_id == original
     assert backfill.range_json == {"lower": 10, "upper": 20}
     assert replay.run_mode is RunMode.REPLAY
     assert rebuild.run_mode is RunMode.FULL_REBUILD
+    assert rebuild.full_rebuild_spec.rebuild_scope is RebuildScope.TARGET_ONLY
 
 
 def test_failure_classification_is_conservative():
