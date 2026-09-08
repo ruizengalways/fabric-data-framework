@@ -152,13 +152,15 @@ def test_control_plane_v3_migration_survives_later_additive_migrations():
         )
 
     assert current_schema_version(engine) == 2
-    assert apply_baseline_schema(engine) == CONTROL_PLANE_SCHEMA_VERSION == 5
+    assert apply_baseline_schema(engine) == CONTROL_PLANE_SCHEMA_VERSION == 6
 
     inspector = inspect(engine)
     columns = {column["name"] for column in inspector.get_columns("load_policy")}
     assert "append_identity" in columns
     assert "target_operation" in inspector.get_table_names()
     assert "target_operation_event" in inspector.get_table_names()
+    assert "quarantine_review_event" in inspector.get_table_names()
+    assert "quarantine_manual_correction" in inspector.get_table_names()
     pipeline_columns = {column["name"] for column in inspector.get_columns("pipeline_run")}
     assert {"error_code", "error_message"}.issubset(pipeline_columns)
     with engine.connect() as connection:

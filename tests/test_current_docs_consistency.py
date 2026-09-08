@@ -99,21 +99,24 @@ def test_root_readme_surfaces_code_reading_and_repair_runbooks():
 def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
     state = STATE.read_text(encoding="utf-8")
     for token in (
-        "fabric-data-framework-state-v4",
+        "fabric-data-framework-state-v5",
         "public_release: v0.3.0",
         "source_version: 0.4.0-development-unreleased",
         "candidate_status: not_frozen",
-        "exact_candidate_source_selected: true",
+        "exact_candidate_source_selected: false",
         "release_allowed: false",
+        "current_source_candidate_git_sha: not_selected",
+        "current_source_framework_artifact_sha256: not_selected",
+        "integration_inputs_hash: not_constructed_for_current_source",
+        "integration_inputs_status: blocked_pending_new_exact_current_source_artifact_then_approved_live_DEV_bindings",
+        "current_source_requires_new_exact_artifact_before_release_claim: true",
         "candidate_git_sha: 81f4d5f93983e8288246f5b1521f763091880297",
-        "candidate_main_framework_ci_run: 34216247521",
-        "candidate_main_installed_wheel_run: 34216247544",
         "framework_artifact_sha256: 845f68d938a39ada944a1a71513b4f46b3a68416a5b53d60dbd10c2f6f95327c",
-        "integration_inputs_hash: not_constructed_for_selected_candidate",
-        "integration_inputs_status: blocked_pending_approved_live_DEV_bindings",
-        "exact_current_candidate_selected: true",
-        "selected_candidate_real_fabric_execution: not_run",
+        "status: superseded_for_current_source_by_packaged_runtime_changes",
+        "exact_current_candidate_selected: false",
+        "current_source_real_fabric_execution: not_run",
         "canonical_control_plane_profile: fabric_sql_database_v1",
+        "control_plane_schema_version: 6",
         "promote_runtime_state_between_environments: false",
         "framework_dependency_allowed: false",
         "status_label: FABRIC_CERTIFICATION_REQUIRED",
@@ -122,6 +125,33 @@ def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
         "stop on any real FAIL",
     ):
         assert token in state
+
+
+def test_quarantine_governance_is_documented_as_immutable_and_fail_closed():
+    state = STATE.read_text(encoding="utf-8")
+    operations = _read("OPERATIONS.md")
+
+    for token in (
+        "original_quarantine_evidence_mutable: false",
+        "bronze_manual_correction_allowed: false",
+        "review_transitions_append_only: true",
+        "review_transition_conflict_policy: fail_closed",
+        "replayed_status_operator_settable: false",
+        "manual_correction_requires_governed_reference_and_sha256: true",
+        "manual_correction_replay_requires_exact_approved_provenance: true",
+        "replay_success_deletes_original_evidence: false",
+    ):
+        assert token in state
+
+    for token in (
+        "Original evidence is not an editable staging table",
+        "Do not manually `UPDATE` quarantine payloads",
+        "Do not manually",
+        "correction_payload_sha256",
+        "`REPLAYED` is **not** an operator-set review state",
+        "Physical deletion is a retention/governance operation",
+    ):
+        assert token in operations
 
 
 def test_operations_and_repair_docs_keep_canonical_ownership_separate():

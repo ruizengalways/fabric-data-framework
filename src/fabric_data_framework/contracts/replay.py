@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from fabric_data_framework.contracts.base import FrozenModel
 
@@ -31,13 +31,40 @@ class QuarantineBatchEvidence(FrozenModel):
 
 
 class QuarantineReplayPayload(FrozenModel):
-    """Payload materialized by a governed quarantine data-store adapter."""
+    """Payload materialized by a governed quarantine data-store adapter.
+
+    ``source_reference`` always identifies the immutable original quarantine payload.
+    When replay uses an approved manual correction, the correction identity/reference/
+    hash trio additionally binds the supplied corrected rows to Control Plane approval.
+    """
 
     quarantine_id: UUID
     dataset_id: str = Field(min_length=1)
     source_reference: str = Field(min_length=1)
     rows: tuple[dict[str, Any], ...]
     payload_version: str | None = None
+    correction_id: UUID | None = None
+    correction_reference: str | None = None
+    correction_payload_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+
+    @model_validator(mode="after")
+    def validate_correction_identity(self) -> "QuarantineReplayPayload":
+        values = (
+            self.correction_id,
+            self.correction_reference,
+            self.correction_payload_sha256,
+        )
+        if any(value is not None for value in values) and not all(
+            value is not None for value in values
+        ):
+            raise ValueError(
+                "manual-correction replay requires correction_id, correction_reference, "
+                "and correction_payload_sha256 together"
+            )
+        return self
 
 
 class QuarantineReplayPlan(FrozenModel):

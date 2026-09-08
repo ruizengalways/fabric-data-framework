@@ -40,7 +40,7 @@ def test_sqlite_reference_can_pass_full_deterministic_conformance_without_becomi
     )
 
     assert report.observed_dialect == "sqlite"
-    assert report.schema_version == CONTROL_PLANE_SCHEMA_VERSION == 5
+    assert report.schema_version == CONTROL_PLANE_SCHEMA_VERSION == 6
     assert report.automated_checks_passed is True
     assert report.conformance_passed is True
     assert report.reference_certified is True
