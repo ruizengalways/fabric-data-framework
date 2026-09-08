@@ -7,13 +7,13 @@ Use this file to locate the canonical module before changing framework behavior.
 ```text
 src/fabric_data_framework/
   contracts/       provider-neutral immutable runtime/semantic contracts
-  metadata/        DatasetConfig + capability metadata
+  metadata/        DatasetConfig + capability metadata and resolution
   capture/         source/capture semantics and onboarding/bootstrap
   apply/           target apply semantics
   data_plane/      Bronze/staging contracts
   quality/         DQ/reconciliation/schema/temporal quality
-  orchestration/   planning/dispatch/failure isolation
-  execution/       execution plans/backends/Pipeline child
+  orchestration/   dataset dependency planning, ready waves, parent dispatch/failure isolation
+  execution/       execution backends, Pipeline child, bounded execution helpers
   adapters/        Fabric/provider transports and auth
   control_plane/   relational operational state/schema/certification
   recovery/        retry/replay/rebuild/impact/cutover/target-commit recovery
@@ -23,6 +23,16 @@ src/fabric_data_framework/
   extensions/      bounded extension registry/contracts
   cli/             presentation/composition leaf
 ```
+
+Current execution-plan ownership is intentionally called out because it is mixed today:
+
+```text
+src/fabric_data_framework/contracts/execution_plan.py
+  immutable: ExecutionKind / ExecutionRole / ExecutionUnit / ExecutionPlan
+  compiler:  compile_execution_plan(...) / build_default_execution_plan(...)
+```
+
+That file is therefore the current source of truth for both the immutable plan contract and plan compilation. The compiler placement is a known architecture-separation issue and should be changed only by an explicit hard-cut refactor that updates every import/test/doc in the same change; this map must describe the code that exists, not the desired future layout.
 
 Core dependency direction:
 
@@ -37,7 +47,7 @@ source/business semantics
 
 Provider mechanics must not become semantic truth.
 
-## Semantic owners
+## Semantic and planning owners
 
 | Area | Canonical owner |
 |---|---|
@@ -48,9 +58,36 @@ Provider mechanics must not become semantic truth.
 | FULL/WATERMARK/CDC bootstrap | capture bootstrap modules |
 | APPEND/REPLACE/UPSERT/SCD1/SCD2/SNAPSHOT_DIFF | `apply/` |
 | DQ/quarantine/reconciliation | `quality/` |
-| Execution-group planning/dependencies | orchestration/contracts |
+| Immutable execution-plan contracts | `contracts/execution_plan.py` |
+| Execution-plan compilation (current location) | `contracts/execution_plan.py` |
+| Dataset dependency graph / ready-wave planning | `orchestration/planner.py` |
+| Parent dispatch and failure isolation | `orchestration/dispatcher.py` |
+| In-process/Fabric backend execution | `execution/backends/` |
+| Remote Pipeline child contract/runtime | `execution/pipeline_child.py` |
 
 Capture and apply stay orthogonal. SCD2 never upgrades source fidelity.
+
+## APPEND/change-log execution owners
+
+For an application change-log/audit table using `WATERMARK + bounded LOOKBACK -> APPEND`, read the concrete runtime path in this order:
+
+```text
+capture/watermark.py
+-> execution/append.py
+-> apply/append.py
+-> quality/append.py
+```
+
+Ownership remains distinct:
+
+```text
+capture/watermark.py  source window/overlap semantics
+execution/append.py   capture-neutral APPEND batch coordination
+apply/append.py       append identity, idempotent replay, conflict fail-closed rules
+quality/append.py     APPEND reconciliation
+```
+
+Entity key, event identity, and incremental cursor are separate concepts. The framework may collapse exact replay under `append_identity`; reuse of the same identity with different business payload fails closed.
 
 ## Recovery/rebuild owners
 
@@ -100,6 +137,8 @@ first untrustworthy root
 ```
 
 All three rebuild scopes are scopes of `RunMode.FULL_REBUILD`; they are not separate run modes. Permanent business-data purge is deliberately outside framework automation.
+
+The canonical operator manual for data correctness repair/rebuild/v1-v2 cutover is `docs/REPAIR_AND_REBUILD.md`. `docs/OPERATIONS.md` owns transient runtime recovery and contains only the decision/redirect boundary for `FULL_REBUILD`.
 
 ## Fabric/provider owners
 
