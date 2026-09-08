@@ -26,6 +26,7 @@ from fabric_data_framework.contracts.quarantine import (
     QuarantineScope,
 )
 from fabric_data_framework.contracts.reconciliation import (
+    ReconciliationObservation,
     ReconciliationResult,
     ReconciliationStatus,
 )
@@ -121,8 +122,6 @@ def _record_row_quarantine(
         )
         return
 
-    # Backward-compatible reference-only mode. It deliberately does not claim durable
-    # full-row detail; each row retains the best source sequence reference available.
     for item in quarantined:
         repository.record_quarantine(
             QuarantineBatch(
@@ -177,23 +176,10 @@ def execute_watermark_scd2(
     run_mode: RunMode = RunMode.NORMAL,
     effective_config_hash: str | None = None,
     quarantine_store: QuarantinePayloadWriter | None = None,
+    reconciliation_observations: Sequence[ReconciliationObservation] = (),
     force_reconciliation_failure: bool = False,
 ) -> DatasetExecutionResult:
-    """Execute the first reference strategy combination atomically in memory.
-
-    Proposed SCD2 target rows are calculated before reconciliation, but target and
-    watermark commits occur only after the required gates pass. Data-quality behavior
-    comes from ``config.quality``:
-
-    - DQ disabled: validation rules are skipped and all captured rows continue.
-    - DQ enabled + quarantine enabled: bad rows are isolated; valid rows continue.
-      FULL detail requires a governed data-plane payload writer and Control Plane keeps
-      only summary/reference evidence.
-    - DQ enabled + quarantine disabled: any invalid row fails this dataset and blocks
-      target/state commit, while the parent dispatcher can still run sibling datasets.
-    - Quarantine thresholds: invalid rows are still durably quarantined, but exceeding
-      the configured absolute or fractional budget fails the dataset before state commit.
-    """
+    """Execute the reference WATERMARK -> SCD2 path with fail-closed semantic gates."""
 
     config = repository.get_dataset(dataset_id)
     if config.load.capture_strategy is not CaptureStrategy.WATERMARK:
@@ -340,26 +326,30 @@ def execute_watermark_scd2(
     reconciliation = reconcile_scd2_batch(
         dataset_run_id=dataset_run_id,
         dataset_id=dataset_id,
-        policy_name=config.reconciliation.policy_name,
+        policy=config.reconciliation,
         accounting=accounting,
         proposed_rows=proposed.rows,
         business_key=config.load.business_key,
+        observations=reconciliation_observations,
         force_fail=force_reconciliation_failure,
     )
     repository.record_reconciliation(reconciliation)
+    reconciliation_passed = reconciliation.status is not ReconciliationStatus.FAIL
+    reconciliation_blocked = (
+        reconciliation.blocks_state_advance and not reconciliation_passed
+    )
     _record_step(
         repository,
         dataset_run_id=dataset_run_id,
         step_name="RECONCILE",
-        status=(
-            StepStatus.SUCCEEDED
-            if reconciliation.status is ReconciliationStatus.PASS
-            else StepStatus.FAILED
-        ),
+        status=StepStatus.FAILED if reconciliation_blocked else StepStatus.SUCCEEDED,
+        details={
+            "reconciliation_status": reconciliation.status.value,
+            "blocks_state_advance": reconciliation.blocks_state_advance,
+        },
     )
 
-    reconciliation_passed = reconciliation.status is ReconciliationStatus.PASS
-    passed = reconciliation_passed and not hard_dq_failure
+    passed = not hard_dq_failure and not reconciliation_blocked
     gate = StateCommitGate(
         target_committed=passed,
         reconciliation_required=config.reconciliation.required_for_state_commit,
@@ -403,7 +393,7 @@ def execute_watermark_scd2(
             f"{len(validation.quarantined)} quarantined row(s) exceeded configured DQ budget: "
             + ", ".join(threshold_breaches)
         )
-    elif not reconciliation_passed:
+    elif reconciliation_blocked:
         error_code = "RECONCILIATION_FAILED"
         error_message = "required reconciliation gate failed"
     else:
