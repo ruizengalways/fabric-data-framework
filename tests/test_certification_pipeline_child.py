@@ -272,8 +272,8 @@ def test_scd1_uses_committed_checkpoint_for_ordering_and_advances_only_after_app
         {"id": 2, "value": "added"},
     ]
     assert _checkpoint(engine, config.dataset_id) == "2026-08-31T00:00:00Z"
-    assert outcome.mutations.inserted == 1
-    assert outcome.mutations.updated == 1
+    assert repository.dataset_runs[-1].mutations.inserted == 1
+    assert repository.dataset_runs[-1].mutations.updated == 1
     assert len(repository.reconciliation_results) == 1
     assert repository.reconciliation_results[0].status.value == "PASS"
 
