@@ -211,7 +211,10 @@ def test_manual_correction_is_atomic_governed_reference_and_never_mutates_origin
     assert case.correction_id == correction.correction_id
 
     stored_correction = read_quarantine_manual_correction(ENGINE, correction.correction_id)
-    assert stored_correction == correction
+    assert stored_correction.model_dump(exclude={"created_at"}) == correction.model_dump(
+        exclude={"created_at"}
+    )
+    assert stored_correction.created_at.replace(tzinfo=timezone.utc) == correction.created_at
 
     stored_original = read_quarantine_batches(ENGINE, (batch.quarantine_id,))[0]
     assert stored_original.source_reference == batch.source_reference
