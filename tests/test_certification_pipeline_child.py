@@ -160,11 +160,12 @@ def test_full_replace_uses_real_reconciliation_before_publication():
     assert outcome.dataset_run_id == request.framework_dataset_run_id
     assert outcome.status is DatasetStatus.SUCCEEDED
     assert _rows(engine, "cert_full_target") == [
-        {"id": 2, "value": "added"},
         {"id": 1, "value": "new"},
+        {"id": 2, "value": "added"},
     ]
     assert _checkpoint(engine, config.dataset_id) == "published"
-    assert len(repository.reconciliations) == 1
+    assert len(repository.reconciliation_results) == 1
+    assert repository.reconciliation_results[0].status.value == "PASS"
     assert len(repository.dataset_runs) == 1
 
 
@@ -195,6 +196,7 @@ def test_retryable_failure_keeps_state_unchanged_then_exact_retry_publishes_once
     assert first.error_code == "CERTIFICATION_RETRYABLE_FAILURE"
     assert _rows(engine, "cert_retry_target") == [{"id": 1, "value": "old"}]
     assert _checkpoint(engine, config.dataset_id) == "baseline"
+    assert repository.reconciliation_results == []
 
     with engine.begin() as connection:
         connection.execute(
@@ -215,6 +217,7 @@ def test_retryable_failure_keeps_state_unchanged_then_exact_retry_publishes_once
     assert second.dataset_run_id == second_request.framework_dataset_run_id
     assert _rows(engine, "cert_retry_target") == [{"id": 1, "value": "new"}]
     assert _checkpoint(engine, config.dataset_id) == "published"
+    assert len(repository.reconciliation_results) == 1
     assert len(repository.dataset_runs) == 2
 
 
@@ -238,8 +241,8 @@ def test_reconciliation_failure_records_failure_and_never_publishes_candidate():
     assert outcome.error_code == "RECONCILIATION_FAILED"
     assert _rows(engine, "cert_recon_target") == [{"id": 1, "value": "old"}]
     assert _checkpoint(engine, config.dataset_id) == "baseline"
-    assert len(repository.reconciliations) == 1
-    assert repository.reconciliations[0].status.value == "FAIL"
+    assert len(repository.reconciliation_results) == 1
+    assert repository.reconciliation_results[0].status.value == "FAIL"
 
 
 def test_scd1_uses_committed_checkpoint_for_ordering_and_advances_only_after_apply():
@@ -261,16 +264,18 @@ def test_scd1_uses_committed_checkpoint_for_ordering_and_advances_only_after_app
         )
         connection.execute(text("INSERT INTO dbo.cert_scd1_target VALUES (1, 'old')"))
 
-    _, _, outcome = _execute(config, engine)
+    repository, _, outcome = _execute(config, engine)
 
     assert outcome.status is DatasetStatus.SUCCEEDED
     assert _rows(engine, "cert_scd1_target") == [
-        {"id": 2, "value": "added"},
         {"id": 1, "value": "new"},
+        {"id": 2, "value": "added"},
     ]
     assert _checkpoint(engine, config.dataset_id) == "2026-08-31T00:00:00Z"
     assert outcome.mutations.inserted == 1
     assert outcome.mutations.updated == 1
+    assert len(repository.reconciliation_results) == 1
+    assert repository.reconciliation_results[0].status.value == "PASS"
 
 
 def test_scd2_publishes_current_and_history_only_after_invariant_reconciliation():
@@ -297,17 +302,17 @@ def test_scd2_publishes_current_and_history_only_after_invariant_reconciliation(
 
     assert outcome.status is DatasetStatus.SUCCEEDED
     assert _rows(engine, "cert_scd2_current") == [
-        {"id": 2, "value": "added"},
         {"id": 1, "value": "new"},
+        {"id": 2, "value": "added"},
     ]
     assert _rows(engine, "cert_scd2_history", "id, value, is_current") == [
-        {"id": 2, "value": "added", "is_current": 1},
         {"id": 1, "value": "new", "is_current": 1},
         {"id": 1, "value": "old", "is_current": 0},
+        {"id": 2, "value": "added", "is_current": 1},
     ]
     assert _checkpoint(engine, config.dataset_id) == "2026-08-31T00:00:00Z"
-    assert len(repository.reconciliations) == 1
-    assert repository.reconciliations[0].status.value == "PASS"
+    assert len(repository.reconciliation_results) == 1
+    assert repository.reconciliation_results[0].status.value == "PASS"
 
 
 def test_unknown_control_mode_fails_before_any_certification_state_mutation():
@@ -341,3 +346,4 @@ def test_unknown_control_mode_fails_before_any_certification_state_mutation():
     assert _rows(engine, "cert_full_target") == [{"id": 1, "value": "old"}]
     assert _checkpoint(engine, config.dataset_id) == "baseline"
     assert repository.dataset_runs == []
+    assert repository.reconciliation_results == []
