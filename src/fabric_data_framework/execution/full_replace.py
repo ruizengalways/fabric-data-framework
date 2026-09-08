@@ -33,6 +33,7 @@ from fabric_data_framework.contracts.quarantine import (
     QuarantineScope,
 )
 from fabric_data_framework.contracts.reconciliation import (
+    ReconciliationObservation,
     ReconciliationResult,
     ReconciliationStatus,
 )
@@ -122,6 +123,7 @@ def execute_full_replace(
     dataset_run_id: UUID | None = None,
     run_mode: RunMode = RunMode.NORMAL,
     effective_config_hash: str | None = None,
+    reconciliation_observations: Sequence[ReconciliationObservation] = (),
     force_reconciliation_failure: bool = False,
 ) -> FullReplaceExecutionResult:
     """Execute a guarded FULL -> REPLACE without mutating target before gates pass."""
@@ -289,22 +291,26 @@ def execute_full_replace(
     reconciliation = reconcile_full_replace(
         dataset_run_id=dataset_run_id,
         dataset_id=dataset_id,
-        policy_name=config.reconciliation.policy_name,
+        policy=config.reconciliation,
         accounting=accounting,
         candidate_row_count=replace_plan.candidate_count,
         evidence=snapshot_evidence,
+        observations=reconciliation_observations,
         force_fail=force_reconciliation_failure,
     )
     repository.record_reconciliation(reconciliation)
-    passed = reconciliation.status is ReconciliationStatus.PASS
+    blocked = (
+        reconciliation.blocks_state_advance
+        and reconciliation.status is ReconciliationStatus.FAIL
+    )
     _record_step(
         repository,
         dataset_run_id=dataset_run_id,
         step_name="RECONCILE",
-        status=StepStatus.SUCCEEDED if passed else StepStatus.FAILED,
+        status=StepStatus.FAILED if blocked else StepStatus.SUCCEEDED,
     )
 
-    if not passed:
+    if blocked:
         _record_failure(
             repository,
             dataset_run_id=dataset_run_id,
