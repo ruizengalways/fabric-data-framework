@@ -55,6 +55,9 @@ repository_boundaries:
     owns:
       - DatasetConfig
       - project_mappings_and_rules
+      - project_reconciliation_configuration
+      - provider_reconciliation_observation_adapters
+      - project_business_reconciliation_controls
       - execution_groups
       - environment_bindings
       - project_deployment_content
@@ -140,6 +143,38 @@ runtime_recovery:
   automatic_business_data_purge_supported: false
   purge_policy: manual_operator_governance_only
 
+reconciliation:
+  declarative_policy_engine_status: implementation_complete_pending_exact_head_pr_ci_and_merge
+  pr: 133
+  provider_completion_is_reconciliation_authority: false
+  provider_role: collect_typed_scalar_or_partitioned_observations
+  framework_role: validate_evidence_and_evaluate_policy
+  portable_check_kinds:
+    - ROW_COUNT_MATCH
+    - UNIQUE_KEY
+    - NULL_RATE
+    - AGGREGATE_MATCH
+    - CHECKSUM_MATCH
+    - CUSTOM
+  row_accounting_default_enabled: true
+  absolute_tolerance_supported: true
+  relative_tolerance_supported: true
+  partition_scoped_checks_supported: true
+  severities:
+    - ERROR
+    - WARNING
+  warning_blocks_publication: false
+  missing_unknown_duplicate_or_malformed_observation: fail_closed
+  required_for_state_commit_false_semantics: observability_only
+  strategy_specific_invariants_replaced_by_declarative_checks: false
+  integrated_strategy_paths:
+    - FULL_REPLACE
+    - APPEND
+    - WATERMARK_SCD2
+    - SNAPSHOT_DIFF
+  complete_policy_materialized_to_control_plane_definition: true
+  control_plane_schema_bump_required: false
+
 certification:
   source_tests: required
   exact_wheel_build: required
@@ -171,7 +206,9 @@ external_execution_boundary:
   do_not_guess_or_reuse_unverified_resource_ids: true
 
 next_boundary:
-  - obtain successful current-main framework-ci and installed-wheel-acceptance after the packaged quarantine-governance changes
+  - require exact-head framework-ci and installed-wheel-acceptance PASS for PR 133
+  - merge PR 133 only after both exact-head gates are green
+  - obtain successful post-merge current-main framework-ci and installed-wheel-acceptance
   - select and retain the new exact current-main wheel artifact and independently verify its framework_artifact_sha256
   - record that new exact candidate provenance before any 0.4 release claim
   - resolve and live-verify the approved isolated DEV Fabric workspace/lakehouse anchor
@@ -209,7 +246,7 @@ framework-ci               34216247521  PASS
 installed-wheel-acceptance 34216247544  PASS
 ```
 
-That artifact is now **historical provenance, not the current-source candidate**. The current source contains packaged runtime and Control Plane schema changes for governed quarantine review/manual remediation, so the old wheel cannot represent the current source. No current-source candidate wheel has yet been selected from post-change `main` CI.
+That artifact is now **historical provenance, not the current-source candidate**. Main already contains packaged quarantine-governance runtime/schema changes, and PR #133 adds further packaged reconciliation runtime changes. The quarantine-only candidate-selection PR #132 was therefore closed without merge. No existing wheel may be treated as the candidate for the source that will exist after PR #133.
 
 Therefore:
 
@@ -218,7 +255,7 @@ exact_current_candidate_selected = false
 current_source_requires_new_exact_artifact_before_release_claim = true
 ```
 
-Do not silently reuse the previous wheel SHA, and do not fabricate a replacement SHA from source or a PR build. The next exact candidate must come from the successful current-`main` candidate build path and then pass the existing installed-wheel and Fabric evidence lifecycle.
+Do not silently reuse the previous wheel SHA, and do not fabricate a replacement SHA from source or a PR build. The next exact candidate must come from successful post-merge current-`main` CI and then pass the installed-wheel and Fabric evidence lifecycle.
 
 Framework certification remains fully framework-owned. Once a new current-source candidate is selected, its complete candidate/evidence identity remains exactly:
 
@@ -231,6 +268,45 @@ integration_inputs_hash
 No customer/domain release identity participates in framework candidate certification, and the framework release workflows do not depend on `fabric-customer` to produce certification inputs.
 
 `fabric-customer` remains useful as an independent realistic source simulator. When an implementation compares framework versions against the same scenario, record the same verified `workload_digest`; that identity is independent from the framework wheel SHA.
+
+## Declarative reconciliation
+
+PR #133 productizes reconciliation as a source-controlled framework policy rather than a post-run dashboard or provider status check.
+
+```text
+provider / SQL / Spark / project adapter
+  -> collect typed scalar or partitioned ReconciliationObservation values
+  -> framework validates observation identity
+  -> compose strategy-specific invariant metrics
+  -> evaluate configured tolerance/severity
+  -> PASS / WARN / FAIL
+  -> apply required_for_state_commit authority at publication/state gate
+```
+
+Portable check kinds are `ROW_COUNT_MATCH`, `UNIQUE_KEY`, `NULL_RATE`, `AGGREGATE_MATCH`, `CHECKSUM_MATCH`, and `CUSTOM`. Numeric count/aggregate checks support absolute and relative tolerance. Partitioned checks require exact partition-key identity and reject duplicate partitions. Missing configured evidence, unknown check IDs, duplicate unpartitioned observations, malformed numeric evidence, and other structurally invalid observations fail closed.
+
+`WARNING` failures produce `WARN` and do not block publication. `ERROR` failures produce `FAIL`. When `required_for_state_commit=true` (the default), FAIL blocks publication/state advance; when explicitly false, reconciliation remains durable observability evidence but does not own state-gate authority. Independent DQ/apply/target/rebuild gates remain authoritative.
+
+Declarative checks do not replace strategy-specific correctness. FULL snapshot completeness/candidate accounting, APPEND identity/accounting, SCD2 one-current-row, and SNAPSHOT_DIFF structural metrics remain composed base invariants.
+
+The complete policy participates in DatasetConfig/config identity and is materialized into the existing Control Plane `reconciliation_policy.definition` JSON column. Control Plane schema remains v6.
+
+Primary files:
+
+```text
+src/fabric_data_framework/contracts/reconciliation.py
+src/fabric_data_framework/metadata/config.py
+src/fabric_data_framework/quality/reconciliation_engine.py
+src/fabric_data_framework/quality/reconciliation.py
+src/fabric_data_framework/quality/full_refresh.py
+src/fabric_data_framework/quality/append.py
+src/fabric_data_framework/quality/snapshot_diff.py
+tests/test_reconciliation_engine.py
+tests/test_reconciliation_execution_gate.py
+tests/test_reconciliation_metadata.py
+```
+
+Canonical guide: `docs/RECONCILIATION.md`.
 
 ## Quarantine governance
 
@@ -258,11 +334,7 @@ src/fabric_data_framework/recovery/replay.py
 tests/test_quarantine_governance.py
 ```
 
-Canonical operational procedure:
-
-```text
-docs/OPERATIONS.md
-```
+Canonical operational procedure: `docs/OPERATIONS.md`.
 
 ## Rebuild scope
 
@@ -329,21 +401,7 @@ src/fabric_data_framework/recovery/target_cutover.py
 tests/test_target_version_cutover.py
 ```
 
-Canonical repair documentation:
-
-```text
-docs/REPAIR_AND_REBUILD.md
-```
-
-Use that document first for questions such as:
-
-```text
-Gold logic is wrong: what do I rebuild?
-Silver has a new requirement: should I create v2?
-Bronze is wrong: which Silver/Gold descendants are contaminated?
-Does Gold need v2 when Silver changes?
-How do UAT approval, PROD cutover and rollback work?
-```
+Canonical repair documentation: `docs/REPAIR_AND_REBUILD.md`.
 
 ## Purge boundary
 
@@ -359,7 +417,7 @@ Quarantine review follows the same governance principle: `RESOLVED` or `REPLAYED
 
 ## Real Fabric boundary
 
-Do not upgrade local or CI proof into a Fabric claim. There is currently **no exact current-source candidate selected** after the packaged quarantine-governance changes, and no current-source real Fabric evidence has been retained.
+Do not upgrade local or CI proof into a Fabric claim. There is currently **no exact current-source candidate selected**, and no current-source real Fabric evidence has been retained after the packaged quarantine/reconciliation changes.
 
 ```text
 source/contract proof        != real Fabric proof
@@ -368,7 +426,7 @@ provider Completed           != framework semantic PASS
 historical selected wheel    != current-source candidate
 ```
 
-Until a new exact current-main wheel is selected, installed/attested, bound to framework-owned integration inputs, and the required bounded/authorized stages actually execute in isolated DEV Fabric with retained identity-bound evidence, the status remains:
+Until a new exact post-merge current-main wheel is selected, installed/attested, bound to framework-owned integration inputs, and the required bounded/authorized stages actually execute in isolated DEV Fabric with retained identity-bound evidence, the status remains:
 
 ```text
 FABRIC CERTIFICATION REQUIRED
@@ -376,7 +434,7 @@ FABRIC CERTIFICATION REQUIRED
 
 ## Release boundary
 
-`0.4.0` is not frozen and not release-authorized. The previous selected executable wheel has been superseded for current-source purposes by packaged runtime/schema changes. A new exact current-main candidate must be selected before release certification can continue.
+`0.4.0` is not frozen and not release-authorized. The previous selected executable wheel and the later quarantine-only candidate are both superseded for current-source purposes by packaged runtime changes. A new exact post-reconciliation current-main candidate must be selected before release certification can continue.
 
 Any packaged-code change invalidates the selected executable candidate and requires a new exact wheel. Docs/test-only state bookkeeping may advance `main` without changing selected candidate bytes; release governance always remains bound to exact selected candidate source/artifact identity.
 
