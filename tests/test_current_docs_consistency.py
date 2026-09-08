@@ -32,6 +32,9 @@ _REPO_PATH_REFERENCE = re.compile(
     r")"
 )
 _PLACEHOLDER_CHARS = frozenset("<>{}*")
+_CONCRETE_FILE_SUFFIXES = frozenset(
+    {".json", ".md", ".py", ".sh", ".toml", ".txt", ".yaml", ".yml"}
+)
 
 
 def _read(relative: str) -> str:
@@ -39,11 +42,13 @@ def _read(relative: str) -> str:
 
 
 def _concrete_repo_path_references():
-    """Yield explicit repository paths from docs, excluding intentional templates.
+    """Yield explicit repository paths from docs, excluding prose and templates.
 
-    This deliberately validates only unambiguous repo-root path prefixes. It does
-    not try to interpret ordinary prose, package import paths, URLs, shell paths,
-    or placeholders such as release/<version>/readiness-spec.json.
+    The guard intentionally handles only unambiguous repo-root references. A token
+    must start with a guarded root and either name a directory (trailing slash) or
+    a known repository file type. This rejects false positives such as
+    ``release/Fabric`` or ``tests/docs`` while still catching a misspelled concrete
+    file such as ``tests/test_orchestration_dispatcher.py``.
     """
 
     for doc_path in sorted(DOCS.rglob("*.md")):
@@ -51,6 +56,8 @@ def _concrete_repo_path_references():
         for match in _REPO_PATH_REFERENCE.finditer(text):
             reference = match.group("path").rstrip(".,;:)]")
             if _PLACEHOLDER_CHARS.intersection(reference):
+                continue
+            if not reference.endswith("/") and Path(reference).suffix not in _CONCRETE_FILE_SUFFIXES:
                 continue
             yield doc_path.relative_to(ROOT).as_posix(), reference
 
