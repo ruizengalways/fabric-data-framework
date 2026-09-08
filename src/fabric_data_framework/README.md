@@ -12,7 +12,9 @@ For a full end-to-end reading path — `DatasetConfig -> ExecutionPlan -> orches
 | source/capture semantics | `capture/` |
 | APPEND/change-log execution | `capture/watermark.py` -> `execution/append.py` -> `apply/append.py` -> `quality/append.py` |
 | Bronze/Silver apply semantics | `apply/`, `execution/` |
-| execution plan / orchestration | `contracts/execution_plan.py`, `orchestration/planner.py`, `orchestration/dispatcher.py` |
+| execution-plan contract | `contracts/execution_plan.py` |
+| execution-plan compilation | `execution/plan_compiler.py`, `metadata/capabilities.py` |
+| orchestration | `orchestration/planner.py`, `orchestration/dispatcher.py` |
 | Fabric / CDC provider adapters | `adapters/` |
 | quality/schema ordering rules | `quality/`, `contracts/schema.py` |
 | control-plane state/runtime repository | `control_plane/` |
@@ -23,6 +25,30 @@ For a full end-to-end reading path — `DatasetConfig -> ExecutionPlan -> orches
 | approved integration evidence | `evidence/` |
 | release/deployment materialization | `deployment/delivery.py`, `deployment/contracts.py` |
 | command line interface | `cli/` |
+
+## Execution-plan ownership
+
+The plan value and the plan compiler are intentionally separate:
+
+```text
+contracts/execution_plan.py
+  ExecutionKind
+  ExecutionRole
+  ExecutionUnit
+  ExecutionPlan
+        |
+        ^ immutable output only
+        |
+execution/plan_compiler.py
+  compile_execution_plan(...)
+  build_default_execution_plan(...)
+        ^
+        |
+metadata/capabilities.py
+  capture/apply capability resolution
+```
+
+`contracts/execution_plan.py` does not re-export compiler functions. Code that transports, validates, or persists an `ExecutionPlan` can depend on the immutable contract without importing engine/capability-resolution logic. Code that constructs a plan imports `execution.plan_compiler` explicitly.
 
 ## APPEND/change-log trace
 
@@ -90,7 +116,7 @@ semantic contracts
             |
             v
 planning + runtime + orchestration
-  execution-plan compilation / dispatcher / backends / control plane / recovery
+  execution/plan_compiler.py / dispatcher / backends / control plane / recovery
             |
             v
 provider adapters
@@ -108,16 +134,13 @@ CLI presentation
 The arrows indicate allowed consumption direction at a high level. In particular:
 
 ```text
+execution plan compiler -> immutable execution-plan contract + metadata capabilities
 CLI -> evidence/core
 evidence -> semantic/runtime/provider/recovery core
 core -X-> CLI
 ```
 
 `evidence/` proves existing contracts; it must not become a second semantic truth.
-
-## Current execution-plan ownership
-
-`contracts/execution_plan.py` currently contains both immutable plan contracts and the compiler functions. That is current code fact, not a recommendation. The compiler/contract separation is intentionally assessed as a separate architecture change so this map does not pretend a future folder already exists.
 
 ## `evidence/` reading order
 

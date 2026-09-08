@@ -13,7 +13,7 @@ src/fabric_data_framework/
   data_plane/      Bronze/staging contracts
   quality/         DQ/reconciliation/schema/temporal quality
   orchestration/   dataset dependency planning, ready waves, parent dispatch/failure isolation
-  execution/       execution backends, Pipeline child, bounded execution helpers
+  execution/       plan compilation, execution backends, Pipeline child, bounded helpers
   adapters/        Fabric/provider transports and auth
   control_plane/   relational operational state/schema/certification
   recovery/        retry/replay/rebuild/impact/cutover/target-commit recovery
@@ -24,15 +24,18 @@ src/fabric_data_framework/
   cli/             presentation/composition leaf
 ```
 
-Current execution-plan ownership is intentionally called out because it is mixed today:
+Execution-plan ownership is deliberately split by responsibility:
 
 ```text
 src/fabric_data_framework/contracts/execution_plan.py
   immutable: ExecutionKind / ExecutionRole / ExecutionUnit / ExecutionPlan
-  compiler:  compile_execution_plan(...) / build_default_execution_plan(...)
+
+src/fabric_data_framework/execution/plan_compiler.py
+  planning: compile_execution_plan(...) / build_default_execution_plan(...)
+  resolves capability/engine choices into immutable ExecutionPlan values
 ```
 
-That file is therefore the current source of truth for both the immutable plan contract and plan compilation. The compiler placement is a known architecture-separation issue and should be changed only by an explicit hard-cut refactor that updates every import/test/doc in the same change; this map must describe the code that exists, not the desired future layout.
+There is no compatibility re-export from the contract module. Callers that need compilation import the execution-layer compiler explicitly; callers that only transport or validate plan values depend only on the immutable contract.
 
 Core dependency direction:
 
@@ -40,6 +43,7 @@ Core dependency direction:
 source/business semantics
 -> DatasetConfig / semantic selection
 -> capability resolution
+-> execution plan compiler
 -> immutable ExecutionPlan
 -> provider/framework execution
 -> durable evidence/recovery
@@ -59,7 +63,7 @@ Provider mechanics must not become semantic truth.
 | APPEND/REPLACE/UPSERT/SCD1/SCD2/SNAPSHOT_DIFF | `apply/` |
 | DQ/quarantine/reconciliation | `quality/` |
 | Immutable execution-plan contracts | `contracts/execution_plan.py` |
-| Execution-plan compilation (current location) | `contracts/execution_plan.py` |
+| Execution-plan compilation | `execution/plan_compiler.py` |
 | Dataset dependency graph / ready-wave planning | `orchestration/planner.py` |
 | Parent dispatch and failure isolation | `orchestration/dispatcher.py` |
 | In-process/Fabric backend execution | `execution/backends/` |

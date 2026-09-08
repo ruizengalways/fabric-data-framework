@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+import fabric_data_framework.contracts.execution_plan as execution_plan_contracts
 from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
@@ -22,8 +23,8 @@ from fabric_data_framework.contracts.execution_plan import (
     ExecutionPlan,
     ExecutionRole,
     ExecutionUnit,
-    build_default_execution_plan,
 )
+from fabric_data_framework.execution.plan_compiler import build_default_execution_plan
 
 
 def _config() -> DatasetConfig:
@@ -51,6 +52,17 @@ def _config() -> DatasetConfig:
             required_for_state_commit=True,
         ),
     )
+
+
+def test_execution_plan_contract_module_is_immutable_contract_only():
+    assert execution_plan_contracts.__all__ == [
+        "ExecutionKind",
+        "ExecutionPlan",
+        "ExecutionRole",
+        "ExecutionUnit",
+    ]
+    assert not hasattr(execution_plan_contracts, "compile_execution_plan")
+    assert not hasattr(execution_plan_contracts, "build_default_execution_plan")
 
 
 def test_default_execution_plan_preserves_semantics_and_runtime_policy():

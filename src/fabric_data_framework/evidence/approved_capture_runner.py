@@ -46,12 +46,8 @@ from fabric_data_framework.metadata.config import (
 )
 from fabric_data_framework.contracts.base import FrozenModel
 from ..contracts.capture_receipt import CaptureReceipt
-from ..contracts.execution_plan import (
-    ExecutionKind,
-    ExecutionRole,
-    ExecutionUnit,
-    compile_execution_plan,
-)
+from ..contracts.execution_plan import ExecutionKind, ExecutionRole, ExecutionUnit
+from ..execution.plan_compiler import compile_execution_plan
 from ..deployment.delivery import config_bundle_hash
 from ..deployment.contracts import ReleaseManifest
 from ..extensions import ExtensionKind, ExtensionRegistry

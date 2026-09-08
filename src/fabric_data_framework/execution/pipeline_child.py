@@ -23,7 +23,7 @@ from fabric_data_framework.contracts.audit import DatasetRunAudit, MutationCount
 from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.contracts.dispatch import DatasetDispatchOutcome
 from fabric_data_framework.control_plane.repository import ControlPlaneRepository
-from fabric_data_framework.contracts.execution_plan import compile_execution_plan
+from fabric_data_framework.execution.plan_compiler import compile_execution_plan
 from fabric_data_framework.metadata.config import (
     DatasetConfig,
     DatasetStatus,

@@ -32,10 +32,8 @@ from fabric_data_framework.metadata.config import (
     resolve_effective_config,
 )
 from fabric_data_framework.contracts.capture_receipt import CaptureReceipt
-from fabric_data_framework.contracts.execution_plan import (
-    ExecutionKind,
-    compile_execution_plan,
-)
+from fabric_data_framework.contracts.execution_plan import ExecutionKind
+from fabric_data_framework.execution.plan_compiler import compile_execution_plan
 from fabric_data_framework.control_plane.certification import (
     CertificationCheckStatus,
     ControlPlaneCertificationCheck,

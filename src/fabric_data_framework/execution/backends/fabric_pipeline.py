@@ -21,12 +21,12 @@ from ...adapters.fabric.pipeline import (
 from ...adapters.fabric.rest import FabricJobInstance, FabricJobStatus, FabricRestError
 from fabric_data_framework.metadata.config import DatasetStatus, EffectiveDatasetConfig, RunMode
 from ...contracts.dispatch import DatasetDispatchOutcome
-from ...contracts.execution_plan import compile_execution_plan
 from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
     StepRunAudit,
     StepStatus,
 )
+from ..plan_compiler import compile_execution_plan
 from ...control_plane.repository import ControlPlaneRepository
 from ...evidence.safety import assert_safe_retained_text
 

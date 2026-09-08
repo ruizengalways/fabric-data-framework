@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 from fabric_data_framework.certification.pipeline_child import (
     CertificationPipelineChildExecutor,
 )
-from fabric_data_framework.contracts.execution_plan import compile_execution_plan
+from fabric_data_framework.execution.plan_compiler import compile_execution_plan
 from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 from fabric_data_framework.execution.pipeline_child import (
     FabricPipelineChildRequest,

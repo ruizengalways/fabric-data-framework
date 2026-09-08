@@ -3,7 +3,6 @@ from uuid import uuid4
 import pytest
 
 from fabric_data_framework.contracts.audit import MutationCounts, RowAccounting
-from fabric_data_framework.contracts.execution_plan import compile_execution_plan
 from fabric_data_framework.control_plane.repository import InMemoryControlPlane
 from fabric_data_framework.execution.pipeline_child import (
     FabricPipelineChildRequest,
@@ -11,6 +10,7 @@ from fabric_data_framework.execution.pipeline_child import (
     execute_pipeline_child,
     pipeline_child_request_from_parameters,
 )
+from fabric_data_framework.execution.plan_compiler import compile_execution_plan
 from fabric_data_framework.metadata.config import (
     DatasetConfig,
     DatasetStatus,
