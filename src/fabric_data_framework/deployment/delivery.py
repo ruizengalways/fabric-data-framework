@@ -369,7 +369,7 @@ def materialize_semantic_metadata(
                 "dataset_id": config.dataset_id,
                 "policy_name": config.reconciliation.policy_name,
                 "required_for_state_commit": config.reconciliation.required_for_state_commit,
-                "definition": None,
+                "definition": config.reconciliation.model_dump(mode="json"),
                 "created_at": now,
                 "updated_at": None,
             }
