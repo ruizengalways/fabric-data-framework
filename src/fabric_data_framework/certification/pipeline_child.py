@@ -41,6 +41,7 @@ from fabric_data_framework.execution.pipeline_child import (
 from fabric_data_framework.metadata.config import ApplyStrategy, DatasetConfig, DatasetStatus
 from fabric_data_framework.quality.full_refresh import reconcile_full_replace
 from fabric_data_framework.quality.reconciliation import reconcile_scd2_batch
+from fabric_data_framework.quality.reconciliation_engine import evaluate_reconciliation_policy
 
 
 _SUCCESS = "SUCCESS"
@@ -187,6 +188,10 @@ def _retryable_failure() -> FabricPipelineChildResult:
     )
 
 
+def _reconciliation_blocked(result: ReconciliationResult) -> bool:
+    return result.blocks_state_advance and result.status is ReconciliationStatus.FAIL
+
+
 def _record_current_state_reconciliation(
     *,
     repository: ControlPlaneRepository,
@@ -196,18 +201,12 @@ def _record_current_state_reconciliation(
     target_rows: list[Mapping[str, Any]],
 ) -> ReconciliationResult:
     keys = [row.get("id") for row in target_rows]
-    result = ReconciliationResult(
+    result = evaluate_reconciliation_policy(
         dataset_run_id=request.framework_dataset_run_id,
         dataset_id=request.dataset_id,
-        policy_name=config.reconciliation.policy_name,
-        status=ReconciliationStatus.PASS,
-        metrics=(
-            ReconciliationMetric(
-                name="source_accounting",
-                expected=accounting.rows_read,
-                actual=accounting.rows_accepted,
-                passed=accounting.rows_read == accounting.rows_accepted,
-            ),
+        policy=config.reconciliation,
+        accounting=accounting,
+        base_metrics=(
             ReconciliationMetric(
                 name="unique_current_key",
                 expected="true",
@@ -215,7 +214,6 @@ def _record_current_state_reconciliation(
                 passed=len(keys) == len(set(keys)),
             ),
         ),
-        blocks_state_advance=True,
     )
     repository.record_reconciliation(result)
     return result
@@ -243,14 +241,14 @@ def _execute_replace(
     reconciliation = reconcile_full_replace(
         dataset_run_id=request.framework_dataset_run_id,
         dataset_id=request.dataset_id,
-        policy_name=config.reconciliation.policy_name,
+        policy=config.reconciliation,
         accounting=accounting,
         candidate_row_count=plan.candidate_count,
         evidence=evidence,
         force_fail=force_reconciliation_failure,
     )
     repository.record_reconciliation(reconciliation)
-    if reconciliation.status is not ReconciliationStatus.PASS:
+    if _reconciliation_blocked(reconciliation):
         return FabricPipelineChildResult(
             status=DatasetStatus.FAILED,
             row_accounting=accounting,
@@ -310,13 +308,20 @@ def _execute_scd1(
     accounting = _accounting(len(source))
     current = _select_rows(connection, tables.target, ("id", "value"))
     if not source:
-        _record_current_state_reconciliation(
+        reconciliation = _record_current_state_reconciliation(
             repository=repository,
             request=request,
             config=config,
             accounting=accounting,
             target_rows=current,
         )
+        if _reconciliation_blocked(reconciliation):
+            return FabricPipelineChildResult(
+                status=DatasetStatus.FAILED,
+                row_accounting=accounting,
+                error_code=_RECONCILIATION_FAILURE,
+                retryable=False,
+            )
         return FabricPipelineChildResult(status=DatasetStatus.SUCCEEDED, row_accounting=accounting)
 
     enriched_current = [
@@ -340,7 +345,7 @@ def _execute_scd1(
         accounting=accounting,
         target_rows=target_rows,
     )
-    if reconciliation.status is not ReconciliationStatus.PASS:
+    if _reconciliation_blocked(reconciliation):
         return FabricPipelineChildResult(
             status=DatasetStatus.FAILED,
             row_accounting=accounting,
@@ -413,13 +418,13 @@ def _execute_scd2(
     reconciliation = reconcile_scd2_batch(
         dataset_run_id=request.framework_dataset_run_id,
         dataset_id=request.dataset_id,
-        policy_name=config.reconciliation.policy_name,
+        policy=config.reconciliation,
         accounting=accounting,
         proposed_rows=applied.rows,
         business_key=config.load.business_key,
     )
     repository.record_reconciliation(reconciliation)
-    if reconciliation.status is not ReconciliationStatus.PASS:
+    if _reconciliation_blocked(reconciliation):
         return FabricPipelineChildResult(
             status=DatasetStatus.FAILED,
             row_accounting=accounting,

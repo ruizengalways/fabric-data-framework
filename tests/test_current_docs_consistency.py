@@ -14,6 +14,7 @@ CANONICAL_DOCS = (
     "GETTING_STARTED.md",
     "IMPLEMENTATION_PROJECT.md",
     "DATA_PATTERNS.md",
+    "RECONCILIATION.md",
     "OPERATIONS.md",
     "REPAIR_AND_REBUILD.md",
     "TESTING_AND_CERTIFICATION.md",
@@ -78,6 +79,7 @@ def test_docs_index_is_navigation_not_a_second_architecture_doc():
         "GETTING_STARTED.md",
         "IMPLEMENTATION_PROJECT.md",
         "DATA_PATTERNS.md",
+        "RECONCILIATION.md",
         "OPERATIONS.md",
         "REPAIR_AND_REBUILD.md",
         "TESTING_AND_CERTIFICATION.md",
@@ -125,6 +127,36 @@ def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
         "stop on any real FAIL",
     ):
         assert token in state
+
+
+def test_reconciliation_docs_lock_declarative_engine_and_ownership():
+    reconciliation = _read("RECONCILIATION.md")
+    capabilities = _read("internal/CAPABILITIES.md")
+    implementation_map = _read("internal/IMPLEMENTATION_MAP.md")
+    index = _read("README.md")
+
+    for token in (
+        "ROW_COUNT_MATCH",
+        "UNIQUE_KEY",
+        "NULL_RATE",
+        "AGGREGATE_MATCH",
+        "CHECKSUM_MATCH",
+        "CUSTOM",
+        "absolute_tolerance",
+        "relative_tolerance",
+        "partition_by",
+        "ReconciliationObservation",
+        "required_for_state_commit = false",
+        "provider `Completed`",
+        "Strategy-specific invariants remain mandatory",
+    ):
+        assert token in reconciliation
+
+    assert "RECONCILIATION.md" in index
+    assert "Declarative reconciliation" in capabilities
+    assert "quality/reconciliation_engine.py" in implementation_map
+    assert "provider/project adapter" in implementation_map
+    assert "WARNING is non-blocking" in implementation_map
 
 
 def test_quarantine_governance_is_documented_as_immutable_and_fail_closed():

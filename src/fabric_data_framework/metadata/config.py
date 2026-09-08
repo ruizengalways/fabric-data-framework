@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 from pydantic import Field, model_validator
 
 from ..contracts.base import FrozenModel as _FrozenModel
+from ..contracts.reconciliation import ReconciliationSeverity
 from ..contracts.schema import SchemaContract
 
 
@@ -240,9 +241,135 @@ class DataQualityPolicy(_FrozenModel):
     max_quarantine_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
+class ReconciliationCheckKind(str, Enum):
+    """Portable declarative checks evaluated from provider-produced observations."""
+
+    ROW_COUNT_MATCH = "ROW_COUNT_MATCH"
+    UNIQUE_KEY = "UNIQUE_KEY"
+    NULL_RATE = "NULL_RATE"
+    AGGREGATE_MATCH = "AGGREGATE_MATCH"
+    CHECKSUM_MATCH = "CHECKSUM_MATCH"
+    CUSTOM = "CUSTOM"
+
+
+class ReconciliationAggregate(str, Enum):
+    SUM = "SUM"
+    MIN = "MIN"
+    MAX = "MAX"
+
+
+_RECONCILIATION_EXTENSION_PATTERN = r"^[a-z][a-z0-9_.-]*$"
+
+
+class ReconciliationCheck(_FrozenModel):
+    """One source-controlled reconciliation check.
+
+    Provider adapters are responsible only for collecting the requested scalar
+    observation. The framework owns tolerance, warning/failure semantics, and state
+    gating. ``partition_by`` asks the provider to return one observation per partition
+    so a whole-table aggregate cannot hide a local mismatch.
+    """
+
+    check_id: str = Field(min_length=1, pattern=r"^[a-z][a-z0-9_.-]*$")
+    kind: ReconciliationCheckKind
+    severity: ReconciliationSeverity = ReconciliationSeverity.ERROR
+    partition_by: tuple[str, ...] = ()
+    columns: tuple[str, ...] = ()
+    column: str | None = Field(default=None, min_length=1)
+    aggregate: ReconciliationAggregate | None = None
+    absolute_tolerance: float = Field(default=0.0, ge=0.0)
+    relative_tolerance: float = Field(default=0.0, ge=0.0)
+    max_count: int | None = Field(default=None, ge=0)
+    max_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
+    extension: str | None = Field(default=None, pattern=_RECONCILIATION_EXTENSION_PATTERN)
+
+    @model_validator(mode="after")
+    def validate_check(self) -> "ReconciliationCheck":
+        if len(set(self.partition_by)) != len(self.partition_by):
+            raise ValueError("reconciliation partition_by columns must be unique")
+        if len(set(self.columns)) != len(self.columns):
+            raise ValueError("reconciliation check columns must be unique")
+
+        if self.kind is ReconciliationCheckKind.ROW_COUNT_MATCH:
+            if any(
+                value is not None
+                for value in (self.column, self.aggregate, self.max_count, self.max_fraction, self.extension)
+            ) or self.columns:
+                raise ValueError("ROW_COUNT_MATCH accepts only partition/tolerance settings")
+            return self
+
+        if self.kind is ReconciliationCheckKind.UNIQUE_KEY:
+            if not self.columns or self.max_count is None:
+                raise ValueError("UNIQUE_KEY requires columns and max_count")
+            if any(
+                value is not None
+                for value in (self.column, self.aggregate, self.max_fraction, self.extension)
+            ) or self.absolute_tolerance or self.relative_tolerance:
+                raise ValueError("UNIQUE_KEY accepts columns/max_count/partition settings only")
+            return self
+
+        if self.kind is ReconciliationCheckKind.NULL_RATE:
+            if self.column is None or self.max_fraction is None:
+                raise ValueError("NULL_RATE requires column and max_fraction")
+            if self.columns or any(
+                value is not None
+                for value in (self.aggregate, self.max_count, self.extension)
+            ) or self.absolute_tolerance or self.relative_tolerance:
+                raise ValueError("NULL_RATE accepts column/max_fraction/partition settings only")
+            return self
+
+        if self.kind is ReconciliationCheckKind.AGGREGATE_MATCH:
+            if self.column is None or self.aggregate is None:
+                raise ValueError("AGGREGATE_MATCH requires column and aggregate")
+            if self.columns or any(
+                value is not None for value in (self.max_count, self.max_fraction, self.extension)
+            ):
+                raise ValueError("AGGREGATE_MATCH does not accept key/threshold/extension settings")
+            return self
+
+        if self.kind is ReconciliationCheckKind.CHECKSUM_MATCH:
+            if not self.columns:
+                raise ValueError("CHECKSUM_MATCH requires columns")
+            if any(
+                value is not None
+                for value in (self.column, self.aggregate, self.max_count, self.max_fraction, self.extension)
+            ) or self.absolute_tolerance or self.relative_tolerance:
+                raise ValueError("CHECKSUM_MATCH accepts columns/partition settings only")
+            return self
+
+        if self.kind is ReconciliationCheckKind.CUSTOM:
+            if self.extension is None:
+                raise ValueError("CUSTOM reconciliation check requires extension")
+            if self.columns or any(
+                value is not None
+                for value in (self.column, self.aggregate, self.max_count, self.max_fraction)
+            ) or self.absolute_tolerance or self.relative_tolerance:
+                raise ValueError("CUSTOM reconciliation check delegates typed observation semantics")
+            return self
+
+        raise ValueError(f"unsupported reconciliation check kind: {self.kind}")
+
+
 class ReconciliationPolicy(_FrozenModel):
+    """Source-controlled reconciliation semantics for one dataset.
+
+    Row accounting is enabled by default. Strategy-specific invariants remain owned by
+    their apply paths (for example SCD2 one-current-row and APPEND identity accounting),
+    while ``checks`` adds scalable provider-pushdown comparisons such as partitioned
+    counts, uniqueness, null-rate, aggregates, checksums, and bounded custom controls.
+    """
+
     policy_name: str = Field(min_length=1)
     required_for_state_commit: bool = True
+    include_row_accounting: bool = True
+    checks: tuple[ReconciliationCheck, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_checks(self) -> "ReconciliationPolicy":
+        check_ids = [check.check_id for check in self.checks]
+        if len(set(check_ids)) != len(check_ids):
+            raise ValueError("reconciliation check_id values must be unique")
+        return self
 
 
 class ExecutionPolicy(_FrozenModel):

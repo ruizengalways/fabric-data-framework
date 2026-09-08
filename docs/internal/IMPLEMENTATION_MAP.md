@@ -61,7 +61,11 @@ Provider mechanics must not become semantic truth.
 | Capability resolution | `metadata/capabilities.py` |
 | FULL/WATERMARK/CDC bootstrap | capture bootstrap modules |
 | APPEND/REPLACE/UPSERT/SCD1/SCD2/SNAPSHOT_DIFF | `apply/` |
-| DQ/quarantine/reconciliation | `quality/` |
+| DQ/quarantine | `quality/rules.py` + quarantine modules |
+| Reconciliation policy/check definitions | `metadata/config.py` |
+| Reconciliation observation/result contracts | `contracts/reconciliation.py` |
+| Declarative reconciliation evaluation | `quality/reconciliation_engine.py` |
+| Strategy-specific reconciliation composition | `quality/reconciliation.py`, `quality/full_refresh.py`, `quality/append.py`, `quality/snapshot_diff.py` |
 | Immutable execution-plan contracts | `contracts/execution_plan.py` |
 | Execution-plan compilation | `execution/plan_compiler.py` |
 | Dataset dependency graph / ready-wave planning | `orchestration/planner.py` |
@@ -70,6 +74,82 @@ Provider mechanics must not become semantic truth.
 | Remote Pipeline child contract/runtime | `execution/pipeline_child.py` |
 
 Capture and apply stay orthogonal. SCD2 never upgrades source fidelity.
+
+## Reconciliation ownership and call flow
+
+Reconciliation is intentionally split into collection, evaluation, and execution-gate layers:
+
+```text
+DatasetConfig.reconciliation
+  metadata/config.py
+        |
+        v
+provider/project adapter
+  collects bounded scalar/partition observations
+        |
+        v
+ReconciliationObservation
+  contracts/reconciliation.py
+        |
+        +-----------------------------+
+        | strategy base metrics       |
+        | FULL / APPEND / SCD2 /      |
+        | SNAPSHOT_DIFF invariants     |
+        +-----------------------------+
+        |
+        v
+quality/reconciliation_engine.py
+  validates evidence identity
+  applies tolerance
+  classifies ERROR/WARNING
+  produces PASS/WARN/FAIL
+        |
+        v
+execution/*
+  decides publish/state behavior using
+  required_for_state_commit + independent gates
+        |
+        v
+Control Plane ReconciliationResult
+```
+
+Portable check kinds are:
+
+```text
+ROW_COUNT_MATCH
+UNIQUE_KEY
+NULL_RATE
+AGGREGATE_MATCH
+CHECKSUM_MATCH
+CUSTOM
+```
+
+Ownership boundaries:
+
+```text
+metadata/config.py
+  source-controlled check semantics, partitioning, tolerance and severity
+
+contracts/reconciliation.py
+  provider-neutral observation/metric/result values
+
+quality/reconciliation_engine.py
+  central framework authority for validation + evaluation
+
+provider/project adapters
+  observation collection only; provider Completed is never semantic PASS
+
+execution paths
+  publication/state gating; WARNING is non-blocking and
+  required_for_state_commit=false makes reconciliation observability-only
+
+deployment/delivery.py
+  persists complete policy definition into existing reconciliation_policy.definition
+```
+
+Do not move generic tolerance or PASS/WARN/FAIL logic into SQL/Spark/Fabric adapters. Do not replace strategy-specific invariants with generic count/aggregate checks.
+
+Canonical user guidance: `docs/RECONCILIATION.md`.
 
 ## APPEND/change-log execution owners
 
@@ -80,15 +160,17 @@ capture/watermark.py
 -> execution/append.py
 -> apply/append.py
 -> quality/append.py
+-> quality/reconciliation_engine.py
 ```
 
 Ownership remains distinct:
 
 ```text
-capture/watermark.py  source window/overlap semantics
-execution/append.py   capture-neutral APPEND batch coordination
-apply/append.py       append identity, idempotent replay, conflict fail-closed rules
-quality/append.py     APPEND reconciliation
+capture/watermark.py          source window/overlap semantics
+execution/append.py           capture-neutral APPEND batch coordination
+apply/append.py               append identity, idempotent replay, conflict fail-closed rules
+quality/append.py             APPEND strategy-specific reconciliation metrics
+quality/reconciliation_engine.py declarative policy composition
 ```
 
 Entity key, event identity, and incremental cursor are separate concepts. The framework may collapse exact replay under `append_identity`; reuse of the same identity with different business payload fails closed.
@@ -155,6 +237,7 @@ The canonical operator manual for data correctness repair/rebuild/v1-v2 cutover 
 | Fabric SQL auth | `adapters/fabric/sql_auth.py` | token/runtime credential boundary |
 | Warehouse same-transaction marker | `recovery/fabric_warehouse.py` | target mutation + marker commit together |
 | Exact-session absence/recovery | `recovery/fabric_warehouse_session_absence.py` | Admin path separately authorized |
+| Reconciliation observation query/collection | implementation/provider adapter | collect evidence only; framework owns policy evaluation |
 
 ## Certification owners
 
@@ -263,7 +346,8 @@ framework source/version provenance
 | Project scaffold/static validation | `deployment/project.py` |
 | Semantic onboarding | `capture/onboarding.py` |
 | Capability validation | `metadata/capabilities.py` |
-| Project-specific DatasetConfig/mappings/bindings | implementation/domain repo |
+| Project-specific DatasetConfig/mappings/DQ/reconciliation/bindings | implementation/domain repo |
+| Provider reconciliation observation adapters + CUSTOM business controls | implementation/domain repo |
 | Physical v1/v2 target names and provider-specific logical-binding adapter | implementation/domain repo |
 | UAT/business validation and approval reference | implementation/domain governance |
 | Old target-version deletion after rollback window | manual operator/governance process |
@@ -286,6 +370,7 @@ docs/ARCHITECTURE.md                 durable architecture
 docs/GETTING_STARTED.md              setup/consumption
 docs/IMPLEMENTATION_PROJECT.md       real consumer project runbook
 docs/DATA_PATTERNS.md                source/capture/apply decisions
+docs/RECONCILIATION.md               reconciliation policy/observation/gate semantics
 docs/OPERATIONS.md                   transient runtime operations/recovery
 docs/REPAIR_AND_REBUILD.md           data correctness repair/rebuild/v1-v2 cutover
 docs/CODE_READING_GUIDE.md           end-to-end source reading order/call graph

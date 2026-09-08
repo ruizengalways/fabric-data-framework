@@ -1,6 +1,6 @@
 # fabric-data-framework
 
-Reusable Microsoft Fabric data engineering framework for source capture, Bronze/Silver processing, data quality, orchestration, recovery, evidence, and package certification.
+Reusable Microsoft Fabric data engineering framework for source capture, Bronze/Silver processing, data quality, reconciliation, orchestration, recovery, evidence, and package certification.
 
 The framework keeps **data semantics** separate from **Fabric execution mechanics**. A project describes what the source delivers and what the target must preserve; the framework validates those semantics, builds an execution plan, runs through approved Fabric adapters, and records durable evidence/recovery state.
 
@@ -18,7 +18,8 @@ fabric-data-framework
   reusable framework + package lifecycle + framework certification
 
 implementation/domain repo
-  project DatasetConfig + mappings + DQ policy + environment bindings + deployment content
+  project DatasetConfig + mappings + DQ/reconciliation policy + environment bindings + deployment content
+  project-specific provider observation adapters / business controls when required
   may depend on an approved framework wheel
 ```
 
@@ -80,6 +81,7 @@ Start at [`docs/README.md`](docs/README.md).
 - [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — local development, wheel build, Fabric consumption.
 - [`docs/IMPLEMENTATION_PROJECT.md`](docs/IMPLEMENTATION_PROJECT.md) — bootstrap a real framework-consuming domain repo.
 - [`docs/DATA_PATTERNS.md`](docs/DATA_PATTERNS.md) — choose FULL, watermark/lookback, CDC, APPEND, Bronze, SCD1/SCD2, and delete semantics.
+- [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — configure reconciliation checks, tolerance, partitioning, WARN/FAIL semantics, provider observations, and state-gate authority.
 - [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — transient runtime failure isolation, retry, replay, backfill, unknown commit, and dependency recovery.
 - [`docs/REPAIR_AND_REBUILD.md`](docs/REPAIR_AND_REBUILD.md) — data-correctness repair, FULL_REBUILD scope, contaminated dependency impact, v1/v2 cutover, UAT, rollback, and retention.
 - [`docs/TESTING_AND_CERTIFICATION.md`](docs/TESTING_AND_CERTIFICATION.md) — source tests through exact-wheel real Fabric certification.
