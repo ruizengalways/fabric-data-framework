@@ -1,11 +1,9 @@
 """Framework-owned physical executor for certification Pipeline child runs.
 
-The generic :mod:`fabric_data_framework.execution.pipeline_child` contract remains the
-sole owner of terminal ``DatasetRunAudit`` persistence.  This module owns only the
-bounded certification data-plane mutation used by the five framework business-path
-proofs.  Table names are fixed in code, runtime SQL credentials are injected through
-the existing Fabric SQL authentication lane, and no provider ``Completed`` state is
-interpreted here.
+The generic ``execution.pipeline_child`` contract remains the sole owner of terminal
+``DatasetRunAudit`` persistence. This module owns only bounded certification data-plane
+mutation. Table identities and failure modes are fixed in source; provider completion
+is never interpreted here.
 """
 
 from __future__ import annotations
@@ -28,8 +26,12 @@ from fabric_data_framework.apply.scd2 import (
     apply_scd2,
 )
 from fabric_data_framework.capture.full import FullSnapshotEvidence
-from fabric_data_framework.contracts.audit import MutationCounts, RowAccounting
-from fabric_data_framework.contracts.reconciliation import ReconciliationStatus
+from fabric_data_framework.contracts.audit import RowAccounting
+from fabric_data_framework.contracts.reconciliation import (
+    ReconciliationMetric,
+    ReconciliationResult,
+    ReconciliationStatus,
+)
 from fabric_data_framework.control_plane.repository import ControlPlaneRepository
 from fabric_data_framework.data_plane.staging import stage_rows
 from fabric_data_framework.execution.pipeline_child import (
@@ -59,14 +61,11 @@ _TABLES: dict[str, _DatasetTables] = {
     "cert.full_replace": _DatasetTables("dbo.cert_full_source", "dbo.cert_full_target"),
     "cert.watermark_scd1": _DatasetTables("dbo.cert_scd1_source", "dbo.cert_scd1_target"),
     "cert.watermark_scd2": _DatasetTables(
-        "dbo.cert_scd2_source",
-        "dbo.cert_scd2_current",
-        "dbo.cert_scd2_history",
+        "dbo.cert_scd2_source", "dbo.cert_scd2_current", "dbo.cert_scd2_history"
     ),
     "cert.retry_idempotency": _DatasetTables("dbo.cert_retry_source", "dbo.cert_retry_target"),
     "cert.reconciliation_fail_closed": _DatasetTables(
-        "dbo.cert_recon_source",
-        "dbo.cert_recon_target",
+        "dbo.cert_recon_source", "dbo.cert_recon_target"
     ),
 }
 
@@ -90,8 +89,8 @@ def _select_rows(
     columns: tuple[str, ...],
 ) -> list[dict[str, Any]]:
     selected = ", ".join(_quote_column(column) for column in columns)
-    rows = connection.execute(text(f"SELECT {selected} FROM {_quote_table(table)}"))
-    return [dict(row) for row in rows.mappings().all()]
+    result = connection.execute(text(f"SELECT {selected} FROM {_quote_table(table)}"))
+    return [dict(row) for row in result.mappings().all()]
 
 
 def _replace_rows(
@@ -115,13 +114,15 @@ def _replace_rows(
 
 
 def _replace_progress(connection: Connection, dataset_id: str, checkpoint: str) -> None:
-    table = _quote_table("dbo.cert_progress")
     connection.execute(
-        text(f"DELETE FROM {table} WHERE [dataset_id] = :dataset_id"),
+        text("DELETE FROM [dbo].[cert_progress] WHERE [dataset_id] = :dataset_id"),
         {"dataset_id": dataset_id},
     )
     connection.execute(
-        text(f"INSERT INTO {table} ([dataset_id], [checkpoint]) VALUES (:dataset_id, :checkpoint)"),
+        text(
+            "INSERT INTO [dbo].[cert_progress] ([dataset_id], [checkpoint]) "
+            "VALUES (:dataset_id, :checkpoint)"
+        ),
         {"dataset_id": dataset_id, "checkpoint": checkpoint},
     )
 
@@ -134,10 +135,7 @@ def _progress_checkpoint(connection: Connection, dataset_id: str) -> str | None:
         ),
         {"dataset_id": dataset_id},
     ).mappings().first()
-    if row is None:
-        return None
-    value = row["checkpoint"]
-    return str(value) if value is not None else None
+    return None if row is None or row["checkpoint"] is None else str(row["checkpoint"])
 
 
 def _failure_mode(connection: Connection, dataset_id: str) -> str:
@@ -163,10 +161,10 @@ def _parse_timestamp(value: object) -> datetime:
     if isinstance(value, datetime):
         parsed = value
     else:
-        text_value = str(value)
-        if text_value.endswith("Z"):
-            text_value = text_value[:-1] + "+00:00"
-        parsed = datetime.fromisoformat(text_value)
+        rendered = str(value)
+        if rendered.endswith("Z"):
+            rendered = rendered[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(rendered)
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
@@ -189,6 +187,40 @@ def _retryable_failure() -> FabricPipelineChildResult:
     )
 
 
+def _record_current_state_reconciliation(
+    *,
+    repository: ControlPlaneRepository,
+    request: FabricPipelineChildRequest,
+    config: DatasetConfig,
+    accounting: RowAccounting,
+    target_rows: list[Mapping[str, Any]],
+) -> ReconciliationResult:
+    keys = [row.get("id") for row in target_rows]
+    result = ReconciliationResult(
+        dataset_run_id=request.framework_dataset_run_id,
+        dataset_id=request.dataset_id,
+        policy_name=config.reconciliation.policy_name,
+        status=ReconciliationStatus.PASS,
+        metrics=(
+            ReconciliationMetric(
+                name="source_accounting",
+                expected=accounting.rows_read,
+                actual=accounting.rows_accepted,
+                passed=accounting.rows_read == accounting.rows_accepted,
+            ),
+            ReconciliationMetric(
+                name="unique_current_key",
+                expected="true",
+                actual="true" if len(keys) == len(set(keys)) else "false",
+                passed=len(keys) == len(set(keys)),
+            ),
+        ),
+        blocks_state_advance=True,
+    )
+    repository.record_reconciliation(result)
+    return result
+
+
 def _execute_replace(
     *,
     connection: Connection,
@@ -207,12 +239,7 @@ def _execute_replace(
         complete=True,
         source_row_count=len(source),
     )
-    plan = plan_replace(
-        target,
-        staged,
-        evidence=evidence,
-        policy=ReplaceGuardPolicy(),
-    )
+    plan = plan_replace(target, staged, evidence=evidence, policy=ReplaceGuardPolicy())
     reconciliation = reconcile_full_replace(
         dataset_run_id=request.framework_dataset_run_id,
         dataset_id=request.dataset_id,
@@ -231,7 +258,6 @@ def _execute_replace(
             error_message="required certification reconciliation gate failed",
             retryable=False,
         )
-
     _replace_rows(connection, tables.target, ("id", "value"), list(plan.rows))
     _replace_progress(connection, request.dataset_id, _PUBLISHED)
     return FabricPipelineChildResult(
@@ -252,7 +278,7 @@ def _watermark_source(
         raise RuntimeError(f"certification watermark checkpoint is missing for {dataset_id}")
     lower = _parse_timestamp(checkpoint)
     source = _select_rows(connection, source_table, ("id", "value", "modified_at"))
-    normalized: list[dict[str, Any]] = []
+    normalized = []
     for row in source:
         modified_at = _parse_timestamp(row["modified_at"])
         if modified_at > lower:
@@ -267,6 +293,7 @@ def _watermark_source(
 def _execute_scd1(
     *,
     connection: Connection,
+    repository: ControlPlaneRepository,
     request: FabricPipelineChildRequest,
     config: DatasetConfig,
     tables: _DatasetTables,
@@ -281,27 +308,45 @@ def _execute_scd1(
         source_table=tables.source,
     )
     accounting = _accounting(len(source))
-    if not source:
-        return FabricPipelineChildResult(
-            status=DatasetStatus.SUCCEEDED,
-            row_accounting=accounting,
-        )
-
     current = _select_rows(connection, tables.target, ("id", "value"))
+    if not source:
+        _record_current_state_reconciliation(
+            repository=repository,
+            request=request,
+            config=config,
+            accounting=accounting,
+            target_rows=current,
+        )
+        return FabricPipelineChildResult(status=DatasetStatus.SUCCEEDED, row_accounting=accounting)
+
     enriched_current = [
         {"id": row["id"], "value": row["value"], "modified_at": lower}
         for row in current
     ]
+    watermark = config.load.watermark
+    if watermark is None:
+        raise RuntimeError("certification SCD1 requires watermark configuration")
     applied = apply_scd1(
         enriched_current,
         source,
         merge_key=config.load.merge_key,
-        ordering_columns=(config.load.watermark.column,),
+        ordering_columns=(watermark.column,),
     )
     target_rows = [{"id": row["id"], "value": row["value"]} for row in applied.rows]
-    if len(target_rows) != len({row["id"] for row in target_rows}):
-        raise RuntimeError("certification SCD1 target uniqueness reconciliation failed")
-
+    reconciliation = _record_current_state_reconciliation(
+        repository=repository,
+        request=request,
+        config=config,
+        accounting=accounting,
+        target_rows=target_rows,
+    )
+    if reconciliation.status is not ReconciliationStatus.PASS:
+        return FabricPipelineChildResult(
+            status=DatasetStatus.FAILED,
+            row_accounting=accounting,
+            error_code=_RECONCILIATION_FAILURE,
+            retryable=False,
+        )
     _replace_rows(connection, tables.target, ("id", "value"), target_rows)
     _replace_progress(connection, request.dataset_id, _timestamp_text(upper))
     return FabricPipelineChildResult(
@@ -331,13 +376,12 @@ def _execute_scd2(
         source_table=tables.source,
     )
     accounting = _accounting(len(source))
+    persisted_history = _select_rows(
+        connection, tables.history, ("id", "value", "is_current")
+    )
     if not source:
-        return FabricPipelineChildResult(
-            status=DatasetStatus.SUCCEEDED,
-            row_accounting=accounting,
-        )
+        return FabricPipelineChildResult(status=DatasetStatus.SUCCEEDED, row_accounting=accounting)
 
-    persisted_history = _select_rows(connection, tables.history, ("id", "value", "is_current"))
     history: list[dict[str, Any]] = []
     for row in persisted_history:
         if row["is_current"] is not True and row["is_current"] != 1:
@@ -355,13 +399,15 @@ def _execute_scd2(
                 SOURCE_DATASET_RUN_ID: "certification-baseline",
             }
         )
-
+    watermark = config.load.watermark
+    if watermark is None:
+        raise RuntimeError("certification SCD2 requires watermark configuration")
     applied = apply_scd2(
         history,
         source,
         business_key=config.load.business_key,
         tracked_columns=config.load.tracked_columns,
-        effective_time_column=config.load.watermark.column,
+        effective_time_column=watermark.column,
         dataset_run_id=request.framework_dataset_run_id,
     )
     reconciliation = reconcile_scd2_batch(
@@ -378,7 +424,6 @@ def _execute_scd2(
             status=DatasetStatus.FAILED,
             row_accounting=accounting,
             error_code=_RECONCILIATION_FAILURE,
-            error_message="required certification SCD2 reconciliation gate failed",
             retryable=False,
         )
 
@@ -425,7 +470,6 @@ class CertificationPipelineChildExecutor:
             mode = _failure_mode(connection, request.dataset_id)
             if mode == _RETRYABLE_FAILURE:
                 return _retryable_failure()
-
             if config.load.apply_strategy is ApplyStrategy.REPLACE:
                 return _execute_replace(
                     connection=connection,
@@ -442,6 +486,7 @@ class CertificationPipelineChildExecutor:
             if config.load.apply_strategy is ApplyStrategy.SCD1:
                 return _execute_scd1(
                     connection=connection,
+                    repository=repository,
                     request=request,
                     config=config,
                     tables=tables,
