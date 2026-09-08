@@ -1,8 +1,9 @@
-"""Provider-neutral dataset execution-plan contracts.
+"""Stable provider-neutral dataset execution-plan contracts.
 
 An ExecutionPlan separates semantic requirements from physical Fabric/native/custom
 execution. One physical unit may own multiple semantic roles; activity count is not
-equivalent to framework step count.
+equivalent to framework step count. Compiler/capability resolution belongs to the
+execution layer and must not be defined here.
 """
 
 from __future__ import annotations
@@ -11,16 +12,14 @@ from enum import Enum
 
 from pydantic import Field, model_validator
 
+from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
-    EffectiveDatasetConfig,
     ExecutionEngine,
     RunMode,
     canonical_hash,
 )
-from fabric_data_framework.contracts.base import FrozenModel
-from ..metadata.capabilities import CapabilityRegistry, DEFAULT_CAPABILITY_REGISTRY
 
 
 class ExecutionKind(str, Enum):
@@ -104,200 +103,4 @@ class ExecutionPlan(FrozenModel):
         return canonical_hash(self.model_dump(mode="json"))
 
 
-_ENGINE_TO_KIND = {
-    ExecutionEngine.FABRIC_COPY_JOB: ExecutionKind.FABRIC_COPY_JOB,
-    ExecutionEngine.FABRIC_COPY_ACTIVITY: ExecutionKind.FABRIC_COPY_ACTIVITY,
-    ExecutionEngine.DATAFLOW_GEN2: ExecutionKind.DATAFLOW_GEN2,
-    ExecutionEngine.SPARK: ExecutionKind.SPARK_JOB_DEFINITION,
-    ExecutionEngine.FABRIC_MIRRORING: ExecutionKind.FABRIC_MIRRORING,
-    ExecutionEngine.EXTERNAL_CDC: ExecutionKind.EXTERNAL_CDC,
-    ExecutionEngine.SQL: ExecutionKind.SQL_SCRIPT,
-    ExecutionEngine.CUSTOM: ExecutionKind.CUSTOM,
-}
-
-
-def _unit(
-    *,
-    unit_id: str,
-    roles: tuple[ExecutionRole, ...],
-    execution_kind: ExecutionKind,
-    retry_count: int,
-    timeout_seconds: int,
-    reconciliation_gate: bool = False,
-    state_commit_boundary: bool = False,
-) -> ExecutionUnit:
-    return ExecutionUnit(
-        unit_id=unit_id,
-        roles=roles,
-        execution_kind=execution_kind,
-        retry_count=retry_count,
-        timeout_seconds=timeout_seconds,
-        reconciliation_gate=reconciliation_gate,
-        state_commit_boundary=state_commit_boundary,
-    )
-
-
-def compile_execution_plan(
-    effective: EffectiveDatasetConfig,
-    *,
-    run_mode: RunMode,
-    capability_registry: CapabilityRegistry = DEFAULT_CAPABILITY_REGISTRY,
-) -> ExecutionPlan:
-    """Compile effective metadata into a conservative provider-neutral plan.
-
-    Capture/movement and final-target apply are independent physical decisions.
-    Native capture therefore never implies native apply. Framework normalization,
-    validation, reconciliation and state ownership remain explicit around any
-    delegated apply stage.
-    """
-
-    config = effective.config
-    capture_engine = capability_registry.validate_capture(config)
-    apply_engine = capability_registry.validate_apply(config)
-    required_bindings = tuple(
-        binding for binding in (config.source.connection_ref,) if binding is not None
-    )
-    retry_count = config.orchestration.retry_count
-    timeout_seconds = config.orchestration.timeout_seconds
-    reconciliation_gate = config.reconciliation.required_for_state_commit
-    capture_kind = _ENGINE_TO_KIND[capture_engine]
-    apply_kind = _ENGINE_TO_KIND[apply_engine]
-
-    if capture_engine is ExecutionEngine.SPARK and apply_engine is ExecutionEngine.SPARK:
-        units = (
-            _unit(
-                unit_id="dataset_execute",
-                roles=(
-                    ExecutionRole.EXTRACT,
-                    ExecutionRole.STAGE,
-                    ExecutionRole.NORMALIZE,
-                    ExecutionRole.VALIDATE,
-                    ExecutionRole.APPLY,
-                    ExecutionRole.RECONCILE,
-                    ExecutionRole.COMMIT_STATE,
-                ),
-                execution_kind=ExecutionKind.SPARK_JOB_DEFINITION,
-                retry_count=retry_count,
-                timeout_seconds=timeout_seconds,
-                reconciliation_gate=reconciliation_gate,
-                state_commit_boundary=True,
-            ),
-        )
-    elif apply_engine is ExecutionEngine.SPARK:
-        units = (
-            _unit(
-                unit_id="capture",
-                roles=(ExecutionRole.EXTRACT, ExecutionRole.STAGE),
-                execution_kind=capture_kind,
-                retry_count=retry_count,
-                timeout_seconds=timeout_seconds,
-            ),
-            _unit(
-                unit_id="framework_process",
-                roles=(
-                    ExecutionRole.NORMALIZE,
-                    ExecutionRole.VALIDATE,
-                    ExecutionRole.APPLY,
-                    ExecutionRole.RECONCILE,
-                    ExecutionRole.COMMIT_STATE,
-                ),
-                execution_kind=ExecutionKind.SPARK_JOB_DEFINITION,
-                retry_count=retry_count,
-                timeout_seconds=timeout_seconds,
-                reconciliation_gate=reconciliation_gate,
-                state_commit_boundary=True,
-            ),
-        )
-    else:
-        units = (
-            _unit(
-                unit_id="capture",
-                roles=(ExecutionRole.EXTRACT, ExecutionRole.STAGE),
-                execution_kind=capture_kind,
-                retry_count=retry_count,
-                timeout_seconds=timeout_seconds,
-            ),
-            _unit(
-                unit_id="framework_prepare",
-                roles=(ExecutionRole.NORMALIZE, ExecutionRole.VALIDATE),
-                execution_kind=ExecutionKind.SPARK_JOB_DEFINITION,
-                retry_count=retry_count,
-                timeout_seconds=timeout_seconds,
-            ),
-            _unit(
-                unit_id="apply",
-                roles=(ExecutionRole.APPLY, ExecutionRole.PUBLISH),
-                execution_kind=apply_kind,
-                retry_count=retry_count,
-                timeout_seconds=timeout_seconds,
-            ),
-            _unit(
-                unit_id="framework_finalize",
-                roles=(ExecutionRole.RECONCILE, ExecutionRole.COMMIT_STATE),
-                execution_kind=ExecutionKind.SPARK_JOB_DEFINITION,
-                retry_count=retry_count,
-                timeout_seconds=timeout_seconds,
-                reconciliation_gate=reconciliation_gate,
-                state_commit_boundary=True,
-            ),
-        )
-
-    return ExecutionPlan(
-        dataset_id=config.dataset_id,
-        run_mode=run_mode,
-        capture_strategy=config.load.capture_strategy,
-        apply_strategy=config.load.apply_strategy,
-        capture_engine=capture_engine,
-        apply_engine=apply_engine,
-        capture_capability_profile=config.execution.capability_profile,
-        apply_capability_profile=config.execution.apply_capability_profile,
-        effective_config_hash=effective.effective_config_hash,
-        units=units,
-        required_bindings=required_bindings,
-    )
-
-
-def build_default_execution_plan(
-    effective: EffectiveDatasetConfig,
-    *,
-    run_mode: RunMode,
-    execution_kind: ExecutionKind = ExecutionKind.IN_PROCESS,
-) -> ExecutionPlan:
-    """Backward-compatible in-process plan used by deterministic reference tests."""
-
-    config = effective.config
-    required_bindings = tuple(
-        binding for binding in (config.source.connection_ref,) if binding is not None
-    )
-    capture_engine = (
-        config.execution.engine
-        if config.execution.engine is not ExecutionEngine.AUTO
-        else ExecutionEngine.SPARK
-    )
-    apply_engine = (
-        config.execution.apply_engine
-        if config.execution.apply_engine is not ExecutionEngine.AUTO
-        else ExecutionEngine.SPARK
-    )
-    return ExecutionPlan(
-        dataset_id=config.dataset_id,
-        run_mode=run_mode,
-        capture_strategy=config.load.capture_strategy,
-        apply_strategy=config.load.apply_strategy,
-        capture_engine=capture_engine,
-        apply_engine=apply_engine,
-        capture_capability_profile=config.execution.capability_profile,
-        apply_capability_profile=config.execution.apply_capability_profile,
-        effective_config_hash=effective.effective_config_hash,
-        units=(
-            ExecutionUnit(
-                unit_id="dataset_execute",
-                execution_kind=execution_kind,
-                retry_count=config.orchestration.retry_count,
-                timeout_seconds=config.orchestration.timeout_seconds,
-                reconciliation_gate=config.reconciliation.required_for_state_commit,
-                state_commit_boundary=True,
-            ),
-        ),
-        required_bindings=required_bindings,
-    )
+__all__ = ["ExecutionKind", "ExecutionPlan", "ExecutionRole", "ExecutionUnit"]
