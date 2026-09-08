@@ -33,6 +33,7 @@ Never infer `FABRIC PROVEN` from a local/CI result.
 | Framework integration-input/candidate evidence production | `fabric-data-framework` |
 | Deterministic production-like source workload + expected truth | `fabric-customer` |
 | Project DatasetConfig/mappings/bindings | implementation/domain repo |
+| Physical v1/v2 target names + environment-specific logical-binding adapter | implementation/domain repo |
 | Capacity/workspace/permission infrastructure | `fabric-infra` / enterprise platform |
 | Irreversible business-data purge | manual operator/governance process |
 
@@ -59,6 +60,9 @@ fabric-data-framework -X-> fabric-customer
 | DQ/quarantine/reconciliation fail-closed | `quality/` + runtime | IMPLEMENTED |
 | Retry/replay/backfill/unknown-commit recovery | `recovery/` | IMPLEMENTED |
 | FULL_REBUILD scopes: TARGET_ONLY / CAPTURE_AND_TARGET / AUTHORITATIVE_RESET | `contracts/rebuild.py` + `recovery/rebuild.py` | IMPLEMENTED; source contract tests required; live project physical rebuild remains environment-specific |
+| Dependency-aware contaminated-subgraph planning | `contracts/rebuild_impact.py` + `recovery/rebuild_impact.py` | IMPLEMENTED; computes roots + downstream descendants + rebuild waves and excludes unrelated branches |
+| Versioned target + blue/green logical cutover contract | `contracts/target_version.py` + `recovery/target_cutover.py` | IMPLEMENTED; requires candidate build + reconciliation + consumer/UAT validation + matching approval reference |
+| Old-version retention for rollback | target cutover contract | IMPLEMENTED semantic rule; physical retention is project-owned |
 | Automated permanent business-data purge | outside framework | intentionally NOT IMPLEMENTED; manual governance boundary |
 | Parent Pipeline dependency/fail-at-end behavior | orchestration/execution | IMPLEMENTED |
 | Project init/validation/execution-group policy | deployment/CLI | IMPLEMENTED |
@@ -109,6 +113,8 @@ No customer/domain release identity participates in framework candidate certific
 | Mixed FULL/WATERMARK/CDC + SCD1/SCD2 in one domain repo | DatasetConfig/project contract | supported model |
 | Project mappings/DQ/bindings/deploy content | implementation/domain repo | project-owned |
 | Rebuild physical mutation callback for the approved scope | implementation/domain repo | project-owned physical adapter; framework enforces scope/state gates |
+| Physical target version materialization and logical-binding switch | implementation/domain repo | project-owned adapter; framework enforces candidate/cutover identity and gates |
+| UAT/business validation evidence + approval reference | implementation/domain governance | project-owned evidence consumed by cutover gate |
 | Real source connectivity/end-to-end result | implementation + environment | requires environment execution |
 
 Static project validation does not prove Fabric connectivity or target commit.
@@ -136,6 +142,7 @@ For framework-version regression, compare against the same verified `workload_di
 | Fabric SQL Database Control Plane | control-plane | reference/source conformance; live Fabric proof required |
 | Warehouse target mutation + marker | recovery/approved runner | source-tested contract; live Fabric proof required |
 | Ambiguous-COMMIT recovery/session absence | recovery | source-tested contract; live fault evidence required |
+| Logical target binding/view/alias implementation for a real project | implementation adapter | provider/environment-specific; live validation required |
 
 ## Release readiness
 
