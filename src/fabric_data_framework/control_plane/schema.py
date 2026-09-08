@@ -21,13 +21,14 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 
 
-CONTROL_PLANE_SCHEMA_VERSION = 5
+CONTROL_PLANE_SCHEMA_VERSION = 6
 CONTROL_PLANE_MIGRATIONS = (
     (1, "phase1_initial_control_plane_schema"),
     (2, "execution_policy_ordering_capture_receipt_recovery_and_cdc"),
     (3, "append_identity_semantics"),
     (4, "durable_target_operation_journal"),
     (5, "pipeline_aggregate_failure_audit"),
+    (6, "quarantine_review_and_manual_correction_governance"),
 )
 
 NAMING_CONVENTION = {
@@ -332,6 +333,41 @@ quarantine_batch = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
+quarantine_manual_correction = Table(
+    "quarantine_manual_correction",
+    metadata,
+    Column("correction_id", String(36), primary_key=True),
+    Column("quarantine_id", String(36), ForeignKey("quarantine_batch.quarantine_id"), nullable=False),
+    Column("dataset_id", String(255), nullable=False),
+    Column("original_source_reference", String(1024), nullable=False),
+    Column("correction_reference", String(2048), nullable=False),
+    Column("correction_payload_sha256", String(64), nullable=False),
+    Column("corrected_by", String(255), nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("ticket_reference", String(1024), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+quarantine_review_event = Table(
+    "quarantine_review_event",
+    metadata,
+    Column("event_id", String(36), primary_key=True),
+    Column("quarantine_id", String(36), ForeignKey("quarantine_batch.quarantine_id"), nullable=False),
+    Column("dataset_id", String(255), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("resolution", String(64), nullable=True),
+    Column("actor", String(255), nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("ticket_reference", String(1024), nullable=True),
+    Column(
+        "correction_id",
+        String(36),
+        ForeignKey("quarantine_manual_correction.correction_id"),
+        nullable=True,
+    ),
+    Column("occurred_at", DateTime(timezone=True), nullable=False),
+)
+
 schema_change = Table(
     "schema_change",
     metadata,
@@ -472,6 +508,8 @@ ENVIRONMENT_LOCAL_STATE_TABLES = frozenset(
         "step_run",
         "reconciliation_result",
         "quarantine_batch",
+        "quarantine_manual_correction",
+        "quarantine_review_event",
         "schema_change",
         "reprocess_request",
         "target_operation",
@@ -565,6 +603,8 @@ __all__ = [
     "execution_policy",
     "metadata",
     "ordering_policy",
+    "quarantine_manual_correction",
+    "quarantine_review_event",
     "reprocess_request",
     "table_names",
     "target_operation",
