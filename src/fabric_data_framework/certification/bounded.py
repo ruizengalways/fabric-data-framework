@@ -34,6 +34,7 @@ from fabric_data_framework.deployment.candidate_artifact import (
     load_candidate_artifact_manifest,
     sha256_file,
 )
+from fabric_data_framework.metadata.config import ReconciliationPolicy
 from fabric_data_framework.quality.reconciliation import reconcile_scd2_batch
 
 from .models import (
@@ -204,7 +205,7 @@ def _reconciliation_probe() -> str:
     reconciliation = reconcile_scd2_batch(
         dataset_run_id=uuid4(),
         dataset_id="bounded-cert.scd2",
-        policy_name="bounded-certification",
+        policy=ReconciliationPolicy(policy_name="bounded-certification"),
         accounting=RowAccounting(rows_read=1, rows_accepted=1),
         proposed_rows=state.rows,
         business_key=("customer_id",),
