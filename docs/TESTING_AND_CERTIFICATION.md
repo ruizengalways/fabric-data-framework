@@ -52,7 +52,7 @@ If installed package bytes differ from the candidate wheel, certification stops 
 
 ## 5. Real Fabric certification root
 
-Use a dedicated DEV certification environment and an attached Lakehouse.
+Use a dedicated DEV certification workspace and an attached certification Lakehouse.
 
 Conventional layout:
 
@@ -60,11 +60,11 @@ Conventional layout:
 /lakehouse/default/Files/framework_cert/
   CANDIDATE.json
   exactly one fabric_data_framework-*.whl
-  integration-inputs/        # optional framework-owned exact bundle
+  integration-inputs/        # framework-owned exact bundle when live checks are enabled
   certification-output/      # generated evidence
 ```
 
-Install the exact wheel in the Fabric Environment, Publish, and restart the runtime if required.
+The workspace, capacity, Lakehouse and SQL endpoints are environment/infra prerequisites. Framework certification owns its certification Environment, Spark Job Definition, Copy Job and Data Pipeline; it does not create enterprise capacity, networking or production data stores.
 
 ## 6. Minimal installed-wheel Fabric entry point
 
@@ -100,89 +100,110 @@ Installed semantic preflight additionally covers framework-owned metadata/config
 
 These checks require actual Fabric execution before they can be marked Fabric-proven.
 
-## 8. Discover and review DEV Fabric item bindings
+## 8. Bootstrap framework-owned DEV Fabric assets
 
-Environment-dependent certification needs exact physical IDs for one approved workspace and four readable/executable Fabric items:
+Do not hand-build the certification Pipeline, Copy Job or Spark Job Definition in the Fabric UI. The exact candidate wheel owns deterministic definitions for four named items:
 
 ```text
-workspace_id
-item_read_id
-pipeline_item_id     type=DataPipeline
-copy_job_id          type=CopyJob
-spark_job_id         type=SparkJobDefinition
+fabric-framework-certification-env       type=Environment
+fabric-framework-certification-job       type=SparkJobDefinition
+fabric-framework-certification-copy      type=CopyJob
+fabric-framework-certification-pipeline  type=DataPipeline
 ```
 
-Do not use example UUIDs and do not infer an ID from a display name manually. The framework provides a read-only discovery API that calls the Fabric Core List Items endpoint, follows pagination, requires an exact case-sensitive display-name and type match, and fails closed on zero or multiple matches. It never creates, updates, deletes or runs an item.
+The bootstrap sequence is intentionally ordered:
 
-Inside a Fabric notebook, use a runtime token provider without retaining the token in the output:
-
-```python
-import notebookutils
-
-from fabric_data_framework.certification import (
-    discover_certification_bindings_from_names,
-)
-
-bindings = discover_certification_bindings_from_names(
-    token_provider=lambda: notebookutils.credentials.getToken("pbi"),
-    workspace_id="<dedicated-dev-certification-workspace-uuid>",
-    item_read_name="<exact-readable-item-name>",
-    item_read_type="Lakehouse",
-    pipeline_name="<exact-certification-pipeline-name>",
-    copy_job_name="<exact-certification-copy-job-name>",
-    spark_job_name="<exact-certification-spark-job-name>",
-)
-
-print(bindings.model_dump_json(indent=2))
-print(bindings.workflow_dispatch_inputs())
+```text
+exact candidate wheel
+-> Environment definition contains exact wheel bytes
+-> publish Environment using stable beta=false API
+-> Spark Job Definition V2 binds Environment + certification Lakehouse
+-> Copy Job binds cert_copy_source -> cert_copy_landing in the same Lakehouse
+-> Data Pipeline invokes the same SJD and forwards the seven framework child parameters
+-> getDefinition read-back verifies every framework-owned part
 ```
 
-For a local/jumpbox CLI, place the token only in an environment variable; never pass a bearer token on the command line:
+A provider-generated `.platform` part is ignored during semantic comparison. Missing, duplicated, unsupported or changed framework-owned parts fail closed.
+
+Mutation is never implicit. Put the Fabric bearer token only in a runtime environment variable and explicitly authorize item mutation:
 
 ```bash
 export FABRIC_ACCESS_TOKEN='<ephemeral-token>'
 
-fabric-framework discover-certification-bindings \
-  --workspace-id '<workspace-uuid>' \
-  --item-read-name '<exact-readable-item-name>' \
-  --item-read-type Lakehouse \
-  --pipeline-name '<exact-pipeline-name>' \
-  --copy-job-name '<exact-copy-job-name>' \
-  --spark-job-name '<exact-spark-job-name>' \
-  --output integration-bindings.json
+fabric-framework bootstrap-certification-assets \
+  --workspace-id '<dedicated-dev-workspace-uuid>' \
+  --lakehouse-id '<certification-lakehouse-uuid>' \
+  --candidate-manifest 'dist/CANDIDATE.json' \
+  --candidate-wheel 'dist/fabric_data_framework-0.4.0-py3-none-any.whl' \
+  --control-plane-sql-server '<control-plane-sql-host>' \
+  --control-plane-sql-database '<control-plane-database>' \
+  --warehouse-sql-server '<warehouse-sql-host>' \
+  --warehouse-sql-database '<warehouse-database>' \
+  --certification-root '/lakehouse/default/Files/framework_cert' \
+  --allow-item-mutation \
+  --output fabric-certification-assets.json
 ```
 
-Review `integration-bindings.json` against the dedicated DEV workspace before using its five UUID fields as inputs to `.github/workflows/candidate-integration-inputs.yml`. The discovery output is non-secret metadata, but it is still environment-specific configuration and should be reviewed like any other physical binding.
+Without `--allow-item-mutation`, the same command is read-back-only: every exact named item must already exist and its definition must match.
 
-Discovery proves only that the principal can enumerate an exact item identity. It does **not** prove execution permission, item correctness, Control Plane availability, Warehouse access, business-path readiness or certification PASS.
-
-## 9. Framework-owned integration inputs
-
-Environment-dependent Control Plane, Pipeline, Copy, Spark, Warehouse and business-path checks use an exact framework-owned integration bundle.
-
-The certification runtime resolves by default:
+The output is credential-free and retains exact item IDs, actions, definition hashes and candidate wheel SHA256. It deliberately reports:
 
 ```text
-framework_cert/integration-inputs/
+definition_read_back_status=DEFINITION_READ_BACK_VERIFIED
+pipeline_parameter_contract_status=PROVIDER_VALIDATION_REQUIRED
 ```
 
-or an explicit:
+`DEFINITION_READ_BACK_VERIFIED` is not Fabric certification PASS. Microsoft Fabric supports runtime Pipeline parameters and Spark Job Definition activity command-line arguments, but the public DataPipeline item-definition schema does not currently list the top-level `parameters` member. A real DEV create/read-back/run must therefore prove this provider contract before the Pipeline path can contribute PASS evidence.
 
-```python
-integration_inputs_root="..."
+### Environment library boundary
+
+Normal connected DEV workspaces may resolve the framework wheel dependencies during Environment publishing. A workspace with outbound access protection cannot reach public PyPI/Conda repositories.
+
+For such a workspace, download an explicitly reviewed dependency wheel bundle in a compatible Linux/Fabric-runtime environment and pass every additional wheel explicitly:
+
+```bash
+fabric-framework bootstrap-certification-assets \
+  ... \
+  --dependency-wheel wheels/pydantic-....whl \
+  --dependency-wheel wheels/sqlalchemy-....whl \
+  --allow-item-mutation
 ```
 
-The bundle carries non-secret configuration/recipes and must bind to the exact framework candidate. Framework certification identity is intentionally two-dimensional:
+The bootstrap never snapshots arbitrary package versions from the machine running the CLI. Exact dependency bytes must be supplied intentionally when the Fabric workspace cannot resolve them.
+
+## 9. Use bootstrap identities to build integration inputs
+
+Environment-dependent certification binds one approved workspace and four readable/executable Fabric identities:
+
+```text
+workspace_id
+item_read_id          # the certification Lakehouse is a valid read-only Core item smoke target
+pipeline_item_id      # fabric-framework-certification-pipeline
+copy_job_id           # fabric-framework-certification-copy
+spark_job_id          # fabric-framework-certification-job
+```
+
+Read the three created executable item IDs from `fabric-certification-assets.json`; use the known certification Lakehouse ID as `item_read_id`.
+
+Then build the exact framework-owned integration input bundle with those physical IDs. The bundle is credential-free and binds:
 
 ```text
 framework_artifact_sha256
-  exact candidate framework wheel bytes
+  exact candidate wheel bytes
 
 integration_inputs_hash
-  exact framework-owned integration configuration/recipe bundle
+  exact framework-owned certification project + environment + physical non-secret bindings
 ```
 
+The current builder entry point is `certification/build_integration_inputs.py`, and the GitHub workflow is `.github/workflows/candidate-integration-inputs.yml`.
+
 A customer/domain release identity does not participate in framework candidate certification.
+
+### Optional read-only binding audit
+
+`fabric-framework discover-certification-bindings` remains available when an operator wants an independent read-only name-to-ID audit. It follows Fabric Core List Items pagination, requires exact case-sensitive name/type matches and fails closed on zero or multiple matches. It does not create, update, delete or run items.
+
+Discovery is an audit tool, not a prerequisite for first-time bootstrap.
 
 ## 10. Runtime-only values and secrets
 
@@ -197,6 +218,8 @@ WAREHOUSE_DATABASE_URL
 WAREHOUSE_ADMIN_DATABASE_URL
 ```
 
+The framework also supports the `fabric-user` SQL lane inside Fabric Spark runtime. In that lane only SQL server/database identities are retained; a fresh Microsoft Entra SQL token is acquired through Fabric runtime credentials when a connection opens.
+
 Do not commit or retain:
 
 ```text
@@ -207,13 +230,19 @@ signed URLs
 connection strings containing credentials
 ```
 
-The one-call runtime mirrors only declared values into process environment for the duration of certification and restores previous process values afterward.
-
 For Fabric-native SQL user authentication details, see [`reference/FABRIC_SQL_AUTH.md`](reference/FABRIC_SQL_AUTH.md).
 
 ## 11. Live mutation authorization
 
-Normal environment-dependent live execution is explicit:
+Asset bootstrap authorization and certification execution authorization are separate.
+
+Asset creation/update/publish requires:
+
+```text
+--allow-item-mutation
+```
+
+Environment-dependent certification execution requires:
 
 ```python
 report = certify_installed(
@@ -264,6 +293,8 @@ representative business paths:
 ```
 
 The framework reuses approved runners. It does not maintain a second implementation solely for certification.
+
+The framework-owned Pipeline child persists the durable framework outcome through the generic seven-parameter child contract. A semantic framework `FAILED` result may coexist with provider `Completed`; this is intentional for retry and reconciliation-fail-closed proof.
 
 ## 13. Provider completion is not enough
 
@@ -320,10 +351,12 @@ Real Fabric should prove boundaries CI cannot truthfully emulate:
 
 ```text
 actual installed candidate bytes in Fabric
+real Environment publish/dependency resolution
 real Lakehouse Delta behavior
 real Fabric identity/REST authorization
-real SQL Control Plane transaction/CAS behavior
+real DataPipeline parameter/provider contract
 real Pipeline/Copy/Spark execution
+real SQL Control Plane transaction/CAS behavior
 real Warehouse commit/recovery behavior
 ```
 
