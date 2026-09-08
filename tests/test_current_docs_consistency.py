@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -24,9 +25,34 @@ CANONICAL_DOCS = (
     "internal/IMPLEMENTATION_MAP.md",
 )
 
+_REPO_PATH_REFERENCE = re.compile(
+    r"(?P<path>"
+    r"(?:src|tests|certification|release)/[A-Za-z0-9_.\-/<>{}*]+"
+    r"|\.github/[A-Za-z0-9_.\-/<>{}*]+"
+    r")"
+)
+_PLACEHOLDER_CHARS = frozenset("<>{}*")
+
 
 def _read(relative: str) -> str:
     return (DOCS / relative).read_text(encoding="utf-8")
+
+
+def _concrete_repo_path_references():
+    """Yield explicit repository paths from docs, excluding intentional templates.
+
+    This deliberately validates only unambiguous repo-root path prefixes. It does
+    not try to interpret ordinary prose, package import paths, URLs, shell paths,
+    or placeholders such as release/<version>/readiness-spec.json.
+    """
+
+    for doc_path in sorted(DOCS.rglob("*.md")):
+        text = doc_path.read_text(encoding="utf-8")
+        for match in _REPO_PATH_REFERENCE.finditer(text):
+            reference = match.group("path").rstrip(".,;:)]")
+            if _PLACEHOLDER_CHARS.intersection(reference):
+                continue
+            yield doc_path.relative_to(ROOT).as_posix(), reference
 
 
 def test_documentation_has_one_canonical_topic_tree():
@@ -57,6 +83,12 @@ def test_docs_index_is_navigation_not_a_second_architecture_doc():
     assert "Do not create a new top-level document" in index
 
 
+def test_root_readme_surfaces_code_reading_and_repair_runbooks():
+    root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "docs/CODE_READING_GUIDE.md" in root_readme
+    assert "docs/REPAIR_AND_REBUILD.md" in root_readme
+
+
 def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
     state = STATE.read_text(encoding="utf-8")
     for token in (
@@ -77,7 +109,7 @@ def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
         assert token in state
 
 
-def test_state_and_repair_docs_lock_rebuild_and_version_cutover_contracts():
+def test_operations_and_repair_docs_keep_canonical_ownership_separate():
     state = STATE.read_text(encoding="utf-8")
     operations = _read("OPERATIONS.md")
     repair = _read("REPAIR_AND_REBUILD.md")
@@ -107,6 +139,13 @@ def test_state_and_repair_docs_lock_rebuild_and_version_cutover_contracts():
     assert "manual_operator_governance_only" in state
     assert "The old v1 is deliberately not deleted" in repair
     assert "dependency-aware impact planner" in repair
+
+    assert "transient runtime operations" in operations
+    assert "REPAIR_AND_REBUILD.md" in operations
+    assert "### 10.1 `TARGET_ONLY`" not in operations
+    assert "### 10.2 `CAPTURE_AND_TARGET`" not in operations
+    assert "### 10.3 `AUTHORITATIVE_RESET`" not in operations
+    assert "data correctness repair/rebuild/v1-v2 cutover" in implementation_map
 
 
 def test_current_docs_lock_framework_owned_candidate_identity():
@@ -162,3 +201,12 @@ def test_supported_manual_certification_implementation_is_not_deleted_with_docs(
     assert (ROOT / ".github/workflows/candidate-admin-certification.yml").is_file()
     assert (ROOT / "src/fabric_data_framework/evidence/manual_certification.py").is_file()
     assert (ROOT / "tests/test_manual_certification.py").is_file()
+
+
+def test_documented_concrete_repo_paths_exist():
+    missing = sorted(
+        f"{source}: {reference}"
+        for source, reference in _concrete_repo_path_references()
+        if not (ROOT / reference).exists()
+    )
+    assert not missing, "documentation references missing repository paths:\n" + "\n".join(missing)
