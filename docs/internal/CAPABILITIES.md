@@ -34,6 +34,7 @@ Never infer `FABRIC PROVEN` from a local/CI result.
 | Deterministic production-like source workload + expected truth | `fabric-customer` |
 | Project DatasetConfig/mappings/bindings | implementation/domain repo |
 | Capacity/workspace/permission infrastructure | `fabric-infra` / enterprise platform |
+| Irreversible business-data purge | manual operator/governance process |
 
 Dependency invariant:
 
@@ -57,6 +58,8 @@ fabric-data-framework -X-> fabric-customer
 | CaptureReceipt/progress authority | `contracts/` | IMPLEMENTED |
 | DQ/quarantine/reconciliation fail-closed | `quality/` + runtime | IMPLEMENTED |
 | Retry/replay/backfill/unknown-commit recovery | `recovery/` | IMPLEMENTED |
+| FULL_REBUILD scopes: TARGET_ONLY / CAPTURE_AND_TARGET / AUTHORITATIVE_RESET | `contracts/rebuild.py` + `recovery/rebuild.py` | IMPLEMENTED; source contract tests required; live project physical rebuild remains environment-specific |
+| Automated permanent business-data purge | outside framework | intentionally NOT IMPLEMENTED; manual governance boundary |
 | Parent Pipeline dependency/fail-at-end behavior | orchestration/execution | IMPLEMENTED |
 | Project init/validation/execution-group policy | deployment/CLI | IMPLEMENTED |
 
@@ -105,6 +108,7 @@ No customer/domain release identity participates in framework candidate certific
 | `project-init` / `project-validate` | framework CLI/deployment | static validation |
 | Mixed FULL/WATERMARK/CDC + SCD1/SCD2 in one domain repo | DatasetConfig/project contract | supported model |
 | Project mappings/DQ/bindings/deploy content | implementation/domain repo | project-owned |
+| Rebuild physical mutation callback for the approved scope | implementation/domain repo | project-owned physical adapter; framework enforces scope/state gates |
 | Real source connectivity/end-to-end result | implementation + environment | requires environment execution |
 
 Static project validation does not prove Fabric connectivity or target commit.
