@@ -11,7 +11,8 @@ This directory intentionally has a small number of canonical documents. A fact s
 | Start developing or consume the wheel in Fabric | [`GETTING_STARTED.md`](GETTING_STARTED.md) |
 | Create a real project such as `fabric-health` | [`IMPLEMENTATION_PROJECT.md`](IMPLEMENTATION_PROJECT.md) |
 | Onboard a new table/source and choose the right semantics | [`DATA_PATTERNS.md`](DATA_PATTERNS.md) |
-| Recover a failed business Pipeline safely | [`OPERATIONS.md`](OPERATIONS.md) |
+| Recover a transient/operational Pipeline failure safely | [`OPERATIONS.md`](OPERATIONS.md) |
+| Fix bad Bronze/Silver/Gold data, rebuild affected descendants, or deploy v2 safely | [`REPAIR_AND_REBUILD.md`](REPAIR_AND_REBUILD.md) |
 | Test/certify exact framework wheel bytes | [`TESTING_AND_CERTIFICATION.md`](TESTING_AND_CERTIFICATION.md) |
 | Build/freeze/promote a framework release candidate | [`RELEASE.md`](RELEASE.md) |
 | Look up Fabric SQL auth or Pipeline child details | [`reference/`](reference/) |
@@ -36,7 +37,10 @@ DATA_PATTERNS.md
   source/capture/Bronze/apply decision rules only
 
 OPERATIONS.md
-  normal runtime operations and recovery only
+  transient runtime operations, failure isolation, retry/replay/backfill only
+
+REPAIR_AND_REBUILD.md
+  data-correctness repair, dependency impact, rebuild scope, v1/v2 cutover and rollback only
 
 TESTING_AND_CERTIFICATION.md
   test/certification execution and evidence semantics only
@@ -51,7 +55,7 @@ internal/
   current state, capability matrix, module ownership
 ```
 
-Do not create a new top-level document when an existing canonical topic can absorb the information. Git history is the historical record; current docs do not maintain PR timelines or superseded candidate walkthroughs.
+Do not create a new top-level document when an existing canonical topic can absorb the information. `REPAIR_AND_REBUILD.md` is the dedicated exception for data-correctness incidents because that lifecycle spans dependency impact, rebuild and consumer cutover and should not be mixed into transient runtime operations. Git history is the historical record; current docs do not maintain PR timelines or superseded candidate walkthroughs.
 
 ## Truth order
 

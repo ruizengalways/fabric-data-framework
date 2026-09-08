@@ -27,6 +27,9 @@ execution groups / dependencies
 environment bindings
 project Fabric item/deployment definitions
 project-specific bounded adapters
+physical v1/v2 target names
+provider-specific stable logical-target binding adapter
+UAT/business validation evidence and approval references
 ```
 
 ## 2. Where the CLI runs
@@ -199,3 +202,27 @@ one source API payload translation
 one table exception
 business-specific SQL/mapping
 ```
+
+## 11. Versioned data-product changes
+
+When a material Silver/Gold logic change needs UAT and rollback safety, the implementation repo should materialize an explicit candidate physical target beside the active target.
+
+```text
+logical silver.customer
+        |
+        +--> customer_v1   active
+        +--> customer_v2   candidate
+```
+
+Use framework contracts:
+
+```text
+contracts/target_version.py
+recovery/target_cutover.py
+```
+
+The project owns how the stable logical object is implemented in that environment: view, alias, semantic binding or another bounded adapter. The framework requires candidate build, reconciliation, consumer/UAT validation and matching approval before the logical binding can move.
+
+Do not delete v1 during cutover. Retain it for rollback and remove it manually later if governance approves.
+
+For the full bad-Bronze/bad-Silver/bad-Gold repair workflow, impact planning and v1/v2 examples, read [`REPAIR_AND_REBUILD.md`](REPAIR_AND_REBUILD.md).

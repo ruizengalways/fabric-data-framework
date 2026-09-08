@@ -14,6 +14,7 @@ CANONICAL_DOCS = (
     "IMPLEMENTATION_PROJECT.md",
     "DATA_PATTERNS.md",
     "OPERATIONS.md",
+    "REPAIR_AND_REBUILD.md",
     "TESTING_AND_CERTIFICATION.md",
     "RELEASE.md",
     "reference/FABRIC_SQL_AUTH.md",
@@ -45,6 +46,7 @@ def test_docs_index_is_navigation_not_a_second_architecture_doc():
         "IMPLEMENTATION_PROJECT.md",
         "DATA_PATTERNS.md",
         "OPERATIONS.md",
+        "REPAIR_AND_REBUILD.md",
         "TESTING_AND_CERTIFICATION.md",
         "RELEASE.md",
         "internal/STATE.md",
@@ -75,9 +77,10 @@ def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
         assert token in state
 
 
-def test_state_and_operations_lock_rebuild_scope_contract():
+def test_state_and_repair_docs_lock_rebuild_and_version_cutover_contracts():
     state = STATE.read_text(encoding="utf-8")
     operations = _read("OPERATIONS.md")
+    repair = _read("REPAIR_AND_REBUILD.md")
     implementation_map = _read("internal/IMPLEMENTATION_MAP.md")
 
     for token in (
@@ -87,12 +90,23 @@ def test_state_and_operations_lock_rebuild_scope_contract():
     ):
         assert token in state
         assert token in operations
+        assert token in repair
         assert token in implementation_map
+
+    for token in (
+        "RepairIssueOrigin",
+        "RebuildImpactPlan",
+        "TargetVersionSpec",
+        "TargetCutoverRequest",
+        "TargetCutoverGate",
+    ):
+        assert token in repair
 
     assert "requested_scope_must_equal_completed_scope: true" in state
     assert "automatic_business_data_purge_supported: false" in state
     assert "manual_operator_governance_only" in state
-    assert "Rebuild is not purge" in operations
+    assert "The old v1 is deliberately not deleted" in repair
+    assert "dependency-aware impact planner" in repair
 
 
 def test_current_docs_lock_framework_owned_candidate_identity():

@@ -46,6 +46,9 @@ repository_boundaries:
       - environment_bindings
       - project_deployment_content
       - implementation_adapters
+      - physical_target_version_names
+      - provider_specific_logical_target_binding
+      - UAT_business_validation_and_approval
   infrastructure:
     owns:
       - Fabric_capacity
@@ -65,9 +68,7 @@ enterprise_topology:
 runtime_recovery:
   rebuild_scope_contract_status: merged_on_main
   rebuild_scope_runtime_merge_sha: 40034aae983c6437cd6c1fbf77217ab8efbc919a
-  rebuild_scope_pr_head_ci_sha: f53e1d0364fcf3427d45fb90d2df0712e21e685f
-  rebuild_scope_pr_ci_status: passed
-  rebuild_scope_main_ci_status: passed
+  repair_impact_and_cutover_contract_status: feature_branch_pending_ci_merge
   run_modes:
     - RETRY
     - BACKFILL
@@ -77,6 +78,24 @@ runtime_recovery:
     - TARGET_ONLY
     - CAPTURE_AND_TARGET
     - AUTHORITATIVE_RESET
+  repair_issue_origins:
+    TARGET_LOGIC: TARGET_ONLY
+    CAPTURE_DATA: CAPTURE_AND_TARGET
+    CAPTURE_SEMANTICS: AUTHORITATIVE_RESET
+  dependency_impact_rule: root_plus_downstream_descendants_only
+  unrelated_branches_rebuilt: false
+  downstream_default_rebuild_scope: TARGET_ONLY
+  disabled_contaminated_datasets_reported: true
+  target_version_cutover:
+    stable_logical_object: required
+    explicit_physical_version: required
+    candidate_built_gate: required
+    reconciliation_gate: required
+    consumer_uat_validation_gate: required
+    approval_reference_match: required
+    optimistic_generation_check: required
+    same_request_idempotent: true
+    old_version_auto_delete: false
   target_only_capture_state_change_allowed: false
   capture_and_target_progress_kind_change_allowed: false
   authoritative_reset_progress_kind_change_allowed: true
@@ -107,7 +126,10 @@ fabric_proof:
   status_label: FABRIC_CERTIFICATION_REQUIRED
 
 next_boundary:
-  - build and retain a new exact main wheel for current executable source
+  - finish exact-head source/contract CI for repair impact and blue-green target cutover
+  - merge only after framework-ci and installed-wheel-acceptance pass
+  - update this state checkpoint to merged main truth
+  - build and retain a new exact main wheel because packaged runtime code changed
   - record framework_artifact_sha256 and integration_inputs_hash for that new source
   - install the exact wheel in isolated DEV Fabric
   - run certify_installed bounded first
@@ -130,16 +152,14 @@ No customer/domain release identity participates in framework candidate certific
 
 `fabric-customer` remains useful as an independent realistic source simulator. When an implementation compares framework versions against the same scenario, record the same verified `workload_digest`; that identity is independent from the framework wheel SHA.
 
-## Rebuild scope hard cut
+## Rebuild scope
 
-The rebuild-scope contract is now on `main` via runtime merge `40034aae983c6437cd6c1fbf77217ab8efbc919a`. PR-head source/contract CI and post-merge main CI both passed. This is packaged `0.4.0` development source and therefore requires a new exact candidate wheel before any current-source release claim.
-
-`FULL_REBUILD` is one run mode with three explicit scopes. The scope is carried in the typed `FullRebuildRequestSpec` stored in `ReprocessRequest.range_json`.
+`FULL_REBUILD` remains one run mode with three explicit scopes:
 
 ```text
 TARGET_ONLY
   trusted retained capture/Bronze remains authoritative
-  rebuild downstream target/Silver only
+  rebuild downstream target only
   capture/runtime state replacement must remain exactly unchanged
 
 CAPTURE_AND_TARGET
@@ -153,46 +173,55 @@ AUTHORITATIVE_RESET
   RebuildProgressKind may change (NONE/WATERMARK/CDC/EXTERNAL)
 ```
 
-All scopes require:
+All scopes require exact requested/completed scope agreement plus target commit and required reconciliation before state cutover.
+
+## Data-correctness repair and downstream impact
+
+The new repair planning model classifies the first untrustworthy point:
 
 ```text
-authoritative_reset=true
-requested rebuild_scope == physical completed_scope
-authoritative reconstruction evidence
-target committed
-required reconciliation passed
+TARGET_LOGIC      -> root TARGET_ONLY
+CAPTURE_DATA      -> root CAPTURE_AND_TARGET
+CAPTURE_SEMANTICS -> root AUTHORITATIVE_RESET
 ```
 
-Only after those gates pass may the rebuild marker/runtime state advance. `rebuild_request_id` remains stable across retry attempts and is the idempotency identity; `dataset_run_id` remains attempt-specific audit evidence.
+`build_rebuild_impact_plan(...)` computes the exact root + downstream descendant subgraph from DatasetConfig dependencies, produces topological rebuild waves, excludes unrelated branches, and reports disabled-but-contaminated datasets. Root scope cannot be narrowed below the issue-origin requirement. Downstream descendants default to `TARGET_ONLY` and may be explicitly widened when retained facts are insufficient.
 
-Primary implementation files:
+Primary files:
 
 ```text
-src/fabric_data_framework/contracts/rebuild.py
-src/fabric_data_framework/contracts/recovery.py
-src/fabric_data_framework/recovery/rebuild.py
+src/fabric_data_framework/contracts/rebuild_impact.py
+src/fabric_data_framework/recovery/rebuild_impact.py
+tests/test_rebuild_impact.py
 ```
 
-Primary tests:
+## Versioned target / blue-green cutover
+
+Material data-logic changes may build a physical candidate beside the active version:
 
 ```text
-tests/test_full_rebuild.py
-tests/test_recovery.py
+logical customer
+  -> customer_v1 active
+  -> customer_v2 candidate
 ```
 
-Canonical operator documentation:
+`TargetVersionSpec` identifies the candidate. `TargetCutoverRequest` + `TargetCutoverGate` require candidate build, reconciliation, consumer/UAT validation and a matching approval reference. `execute_target_cutover(...)` uses an optimistic active-generation check and stable cutover request identity. Successful repeat of the same request is idempotent; stale requests fail closed.
+
+The framework changes the logical binding only. It never automatically deletes the previous physical version. The implementation repo owns real physical naming and the provider-specific binding adapter; manual old-version cleanup remains governance-owned.
+
+Primary files:
 
 ```text
-docs/OPERATIONS.md
+src/fabric_data_framework/contracts/target_version.py
+src/fabric_data_framework/recovery/target_cutover.py
+tests/test_target_version_cutover.py
 ```
 
-The previous single-key FULL_REBUILD payload:
+Canonical repair documentation:
 
 ```text
-{"authoritative_reset": true}
+docs/REPAIR_AND_REBUILD.md
 ```
-
-is no longer sufficient for creating a new request. A new request must include an explicit `rebuild_scope`.
 
 ## Purge boundary
 
@@ -200,10 +229,9 @@ The framework deliberately does not automate irreversible business-data purge. D
 
 ```text
 rebuild != purge
+cutover != delete old version
 FULL_REBUILD != automatic DROP/DELETE lifecycle
 ```
-
-Do not add automatic purge to normal framework execution merely for symmetry with rebuild.
 
 ## Real Fabric boundary
 
@@ -223,7 +251,7 @@ FABRIC CERTIFICATION REQUIRED
 
 ## Release boundary
 
-`0.4.0` is not frozen and not release-authorized. Any exact wheel previously built from older executable source may still be useful as historical/test evidence for those bytes, but it does not certify the current executable source after code changes.
+`0.4.0` is not frozen and not release-authorized. Any exact wheel previously built from older executable source may still be useful as historical/test evidence for those bytes, but it does not certify the current executable source after packaged-code changes.
 
 Release promotion must use the exact already-built/certified wheel bytes; no release-time wheel rebuild.
 
