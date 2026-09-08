@@ -1,5 +1,5 @@
 {
-  "scenario_hash": "49981d851186ec43db86781564d9525218bff252f0e95349646a0ac79166b0b8",
+  "scenario_hash": "a80f5fc7e00f76c857135ab43a4824d5acf8606763b33486959d2f6ac9766dbd",
   "driver_extension": "cert.business-path-driver",
   "extension_artifact_name": "fabric_data_framework-0.4.0-py3-none-any.whl",
   "driver_config_artifact_name": "retry-idempotency.driver.json",
