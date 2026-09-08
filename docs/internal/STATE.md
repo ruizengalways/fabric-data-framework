@@ -68,7 +68,13 @@ enterprise_topology:
 runtime_recovery:
   rebuild_scope_contract_status: merged_on_main
   rebuild_scope_runtime_merge_sha: 40034aae983c6437cd6c1fbf77217ab8efbc919a
-  repair_impact_and_cutover_contract_status: feature_branch_pending_ci_merge
+  repair_impact_and_cutover_contract_status: merged_on_main
+  repair_impact_and_cutover_runtime_merge_sha: 962a37923d7c74e901d2ff89941a165f6d0d8eb2
+  repair_impact_and_cutover_pr_head_sha: 6f0a9fb2cc1bec0ef33d4add9fc3702824e5c989
+  repair_impact_and_cutover_pr_ci_status: passed
+  repair_impact_and_cutover_main_ci_status: passed
+  repair_impact_and_cutover_main_framework_ci_run: 34191016408
+  repair_impact_and_cutover_main_installed_wheel_run: 34191016381
   run_modes:
     - RETRY
     - BACKFILL
@@ -126,10 +132,7 @@ fabric_proof:
   status_label: FABRIC_CERTIFICATION_REQUIRED
 
 next_boundary:
-  - finish exact-head source/contract CI for repair impact and blue-green target cutover
-  - merge only after framework-ci and installed-wheel-acceptance pass
-  - update this state checkpoint to merged main truth
-  - build and retain a new exact main wheel because packaged runtime code changed
+  - build and retain a new exact main wheel for current executable source
   - record framework_artifact_sha256 and integration_inputs_hash for that new source
   - install the exact wheel in isolated DEV Fabric
   - run certify_installed bounded first
@@ -177,7 +180,7 @@ All scopes require exact requested/completed scope agreement plus target commit 
 
 ## Data-correctness repair and downstream impact
 
-The new repair planning model classifies the first untrustworthy point:
+The repair planning model is on `main` via merge `962a37923d7c74e901d2ff89941a165f6d0d8eb2`. Exact-head PR CI and post-merge main CI passed. It classifies the first untrustworthy point:
 
 ```text
 TARGET_LOGIC      -> root TARGET_ONLY
@@ -221,6 +224,16 @@ Canonical repair documentation:
 
 ```text
 docs/REPAIR_AND_REBUILD.md
+```
+
+Use that document first for questions such as:
+
+```text
+Gold logic is wrong: what do I rebuild?
+Silver has a new requirement: should I create v2?
+Bronze is wrong: which Silver/Gold descendants are contaminated?
+Does Gold need v2 when Silver changes?
+How do UAT approval, PROD cutover and rollback work?
 ```
 
 ## Purge boundary
