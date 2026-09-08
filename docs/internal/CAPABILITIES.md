@@ -76,7 +76,7 @@ Semantic support does not imply every physical provider has retained live Fabric
 |---|---|---|
 | Build exact wheel + `CANDIDATE.json`/checksum provenance | CI/deployment | IMPLEMENTED |
 | Clean interpreter wheel install | installed-wheel workflow | IMPLEMENTED |
-| Installed package payload vs wheel bytes | `certification/installed.py` | INSTALLED-WHEEL gate |
+| Installed package payload vs wheel bytes | `src/fabric_data_framework/certification/installed.py` | INSTALLED-WHEEL gate |
 | Installed metadata/watermark/CDC semantic smoke | certification | INSTALLED-WHEEL gate |
 | Lakehouse Delta bounded certification | certification bounded suite | FABRIC proof required per exact candidate |
 | FULL/SCD1/SCD2/retry/reconciliation bounded checks | certification bounded suite | FABRIC proof required per exact candidate |
@@ -99,7 +99,7 @@ integration_inputs_hash
 | Approved integration run planning | `evidence/integration_runner.py` | validates identity, bindings, prerequisites, authorizations |
 | Strict staged merge/rerun | evidence merge/rerun modules | contradictory evidence is not silently overwritten |
 | Pipeline/Copy/Spark/Warehouse runners | approved runner modules | provider result must converge with framework semantic evidence |
-| Retained secret scan | `evidence/safety.py` | fail closed before retaining sensitive text |
+| Retained secret scan | `evidence/safety.py` | fail closed before retention |
 | Candidate readiness/proof merge | release-readiness modules | exact identities must agree |
 | Candidate certification aggregation | `evidence/candidate_certification.py` | aggregation only; no provider execution |
 
