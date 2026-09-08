@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationError, model_validator
 
 from fabric_data_framework.metadata.config import RunMode
 from fabric_data_framework.contracts.base import FrozenModel
@@ -68,7 +68,7 @@ class ReprocessRequest(FrozenModel):
         if self.run_mode is RunMode.FULL_REBUILD:
             try:
                 FullRebuildRequestSpec.model_validate(self.range_json or {})
-            except Exception as exc:
+            except ValidationError as exc:
                 raise ValueError(
                     "FULL_REBUILD request requires range_json with exact "
                     "rebuild_scope and authoritative_reset=true"
