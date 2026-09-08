@@ -16,7 +16,7 @@ src/fabric_data_framework/
   execution/       execution plans/backends/Pipeline child
   adapters/        Fabric/provider transports and auth
   control_plane/   relational operational state/schema/certification
-  recovery/        retry/replay/rebuild/target-commit/ambiguous-outcome recovery
+  recovery/        retry/replay/rebuild/impact/cutover/target-commit recovery
   evidence/        integration/business-path/readiness evidence
   certification/   installed-wheel/bounded/unified framework certification
   deployment/      project scaffold, delivery provenance, candidate artifact
@@ -59,6 +59,10 @@ Capture and apply stay orthogonal. SCD2 never upgrades source fidelity.
 | Reprocess request/run-mode contract | `contracts/recovery.py` | non-normal work must be explicit/audited |
 | Rebuild scope + post-rebuild state contract | `contracts/rebuild.py` | `TARGET_ONLY`, `CAPTURE_AND_TARGET`, `AUTHORITATIVE_RESET` |
 | FULL_REBUILD coordinator | `recovery/rebuild.py` | requested scope must equal completed scope before state cutover |
+| Issue origin + immutable impact plan | `contracts/rebuild_impact.py` | first bad point determines minimum root scope |
+| Dependency-aware impact planner | `recovery/rebuild_impact.py` | only root + downstream descendants; unrelated branches excluded |
+| Versioned physical target/cutover contracts | `contracts/target_version.py` | stable logical object + explicit physical version + validation/approval gate |
+| Blue/green logical-binding cutover coordinator | `recovery/target_cutover.py` | optimistic generation check; no automatic old-version deletion |
 | Retry/unknown outcome runtime | `recovery/runtime.py` | no blind retry after ambiguous commit |
 | Quarantine replay | `recovery/replay.py` | retained immutable payload only |
 | Warehouse same-transaction marker | `recovery/fabric_warehouse.py` | target mutation + marker commit together |
@@ -82,7 +86,20 @@ AUTHORITATIVE_RESET
   -> RebuildProgressKind may change
 ```
 
-All three are scopes of `RunMode.FULL_REBUILD`; they are not separate run modes. Permanent business-data purge is deliberately outside framework automation.
+Impact/cutover invariant:
+
+```text
+first untrustworthy root
+-> compute only downstream contaminated subgraph
+-> rebuild in dependency waves
+-> build v2 candidate beside active v1 when blue/green is required
+-> reconciliation + consumer/UAT validation + approval
+-> switch stable logical binding
+-> retain v1 for rollback
+-> manual cleanup only
+```
+
+All three rebuild scopes are scopes of `RunMode.FULL_REBUILD`; they are not separate run modes. Permanent business-data purge is deliberately outside framework automation.
 
 ## Fabric/provider owners
 
@@ -204,6 +221,9 @@ framework source/version provenance
 | Semantic onboarding | `capture/onboarding.py` |
 | Capability validation | `metadata/capabilities.py` |
 | Project-specific DatasetConfig/mappings/bindings | implementation/domain repo |
+| Physical v1/v2 target names and provider-specific logical-binding adapter | implementation/domain repo |
+| UAT/business validation and approval reference | implementation/domain governance |
+| Old target-version deletion after rollback window | manual operator/governance process |
 
 `project-init` never guesses source semantics or creates Fabric resources. `project-validate` is static and never upgrades itself to live evidence.
 
@@ -223,7 +243,8 @@ docs/ARCHITECTURE.md                 durable architecture
 docs/GETTING_STARTED.md              setup/consumption
 docs/IMPLEMENTATION_PROJECT.md       real consumer project runbook
 docs/DATA_PATTERNS.md                source/capture/apply decisions
-docs/OPERATIONS.md                   runtime operations/recovery
+docs/OPERATIONS.md                   transient runtime operations/recovery
+docs/REPAIR_AND_REBUILD.md           data correctness repair/rebuild/v1-v2 cutover
 docs/CODE_READING_GUIDE.md           end-to-end source reading order/call graph
 docs/TESTING_AND_CERTIFICATION.md    certification lifecycle
 docs/RELEASE.md                      release lifecycle
