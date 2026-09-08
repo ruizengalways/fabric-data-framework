@@ -33,6 +33,7 @@ Never infer `FABRIC PROVEN` from a local/CI result.
 | Framework integration-input/candidate evidence production | `fabric-data-framework` |
 | Deterministic production-like source workload + expected truth | `fabric-customer` |
 | Project DatasetConfig/mappings/bindings | implementation/domain repo |
+| Project reconciliation configuration/business controls/provider observation adapters | implementation/domain repo |
 | Physical v1/v2 target names + environment-specific logical-binding adapter | implementation/domain repo |
 | Capacity/workspace/permission infrastructure | `fabric-infra` / enterprise platform |
 | Irreversible business-data purge | manual operator/governance process |
@@ -58,7 +59,9 @@ fabric-data-framework -X-> fabric-customer
 | CDC ordering/dedupe/checkpoint | capture/adapters | IMPLEMENTED; provider live proof separate |
 | Watermark ordering/lookback/bootstrap contracts | capture | IMPLEMENTED; provider live proof separate |
 | CaptureReceipt/progress authority | `contracts/` | IMPLEMENTED |
-| DQ/quarantine/reconciliation fail-closed | `quality/` + runtime | IMPLEMENTED |
+| DQ/quarantine fail-closed | `quality/` + runtime | IMPLEMENTED |
+| Declarative reconciliation checks/tolerance/partition/WARN-FAIL/state-gate composition | `metadata/config.py` + `contracts/reconciliation.py` + `quality/reconciliation_engine.py` | IMPLEMENTED on reconciliation feature branch; source tests included; provider live observation proof separate |
+| Strategy-specific reconciliation invariants for FULL/APPEND/SCD2/SNAPSHOT_DIFF | `quality/` | IMPLEMENTED; composed with declarative policy rather than replaced |
 | Retry/replay/backfill/unknown-commit recovery | `recovery/` | IMPLEMENTED |
 | FULL_REBUILD scopes: TARGET_ONLY / CAPTURE_AND_TARGET / AUTHORITATIVE_RESET | `contracts/rebuild.py` + `recovery/rebuild.py` | IMPLEMENTED; source contract tests required; live project physical rebuild remains environment-specific |
 | Dependency-aware contaminated-subgraph planning | `contracts/rebuild_impact.py` + `recovery/rebuild_impact.py` | IMPLEMENTED; computes roots + downstream descendants + rebuild waves and excludes unrelated branches |
@@ -69,6 +72,35 @@ fabric-data-framework -X-> fabric-customer
 | Project init/validation/execution-group policy | deployment/CLI | IMPLEMENTED |
 
 Semantic support does not imply every physical provider has retained live Fabric proof.
+
+## Reconciliation capability
+
+Framework-owned portable checks:
+
+```text
+ROW_COUNT_MATCH
+UNIQUE_KEY
+NULL_RATE
+AGGREGATE_MATCH (SUM / MIN / MAX)
+CHECKSUM_MATCH
+CUSTOM extension decision
+```
+
+Additional semantics:
+
+```text
+row accounting enabled by default
+absolute + relative numeric tolerance
+partition-scoped observations
+ERROR vs WARNING severity
+missing/unknown/duplicate/malformed evidence fails closed
+provider collects observations; framework owns evaluation authority
+WARNING -> WARN and non-blocking
+ERROR -> FAIL
+required_for_state_commit=false -> observability-only reconciliation authority
+```
+
+The complete released policy is part of DatasetConfig/config identity and is materialized into the existing Control Plane `reconciliation_policy.definition` JSON column. No schema-version bump is required for the declarative engine.
 
 ## Package/certification capability
 
@@ -112,13 +144,14 @@ No customer/domain release identity participates in framework candidate certific
 | Project scaffold | framework deployment/project | static source-controlled scaffold |
 | `project-init` / `project-validate` | framework CLI/deployment | static validation |
 | Mixed FULL/WATERMARK/CDC capture + APPEND/SCD1/SCD2 apply patterns in one domain repo | DatasetConfig/project contract | supported model |
-| Project mappings/DQ/bindings/deploy content | implementation/domain repo | project-owned |
+| Project mappings/DQ/reconciliation/bindings/deploy content | implementation/domain repo | project-owned |
+| Reconciliation observation collection adapters and business `CUSTOM` controls | implementation/domain repo | project-owned; framework validates/evaluates typed observations |
 | Rebuild physical mutation callback for the approved scope | implementation/domain repo | project-owned physical adapter; framework enforces scope/state gates |
 | Physical target version materialization and logical-binding switch | implementation/domain repo | project-owned adapter; framework enforces candidate/cutover identity and gates |
 | UAT/business validation evidence + approval reference | implementation/domain governance | project-owned evidence consumed by cutover gate |
 | Real source connectivity/end-to-end result | implementation + environment | requires environment execution |
 
-Static project validation does not prove Fabric connectivity or target commit.
+Static project validation does not prove Fabric connectivity, reconciliation observation correctness, or target commit.
 
 ## Independent customer simulator
 
@@ -143,6 +176,7 @@ For framework-version regression, compare against the same verified `workload_di
 | Fabric SQL Database Control Plane | control-plane | reference/source conformance; live Fabric proof required |
 | Warehouse target mutation + marker | recovery/approved runner | source-tested contract; live Fabric proof required |
 | Ambiguous-COMMIT recovery/session absence | recovery | source-tested contract; live fault evidence required |
+| Provider-side reconciliation observation queries | implementation/provider adapters | framework contract implemented; exact live query/evidence correctness requires environment proof |
 | Logical target binding/view/alias implementation for a real project | implementation adapter | provider/environment-specific; live validation required |
 
 ## Release readiness
