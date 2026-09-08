@@ -16,7 +16,7 @@ src/fabric_data_framework/
   execution/       execution plans/backends/Pipeline child
   adapters/        Fabric/provider transports and auth
   control_plane/   relational operational state/schema/certification
-  recovery/        retry/replay/target-commit/ambiguous-outcome recovery
+  recovery/        retry/replay/rebuild/target-commit/ambiguous-outcome recovery
   evidence/        integration/business-path/readiness evidence
   certification/   installed-wheel/bounded/unified framework certification
   deployment/      project scaffold, delivery provenance, candidate artifact
@@ -51,6 +51,38 @@ Provider mechanics must not become semantic truth.
 | Execution-group planning/dependencies | orchestration/contracts |
 
 Capture and apply stay orthogonal. SCD2 never upgrades source fidelity.
+
+## Recovery/rebuild owners
+
+| Area | Canonical owner | Important boundary |
+|---|---|---|
+| Reprocess request/run-mode contract | `contracts/recovery.py` | non-normal work must be explicit/audited |
+| Rebuild scope + post-rebuild state contract | `contracts/rebuild.py` | `TARGET_ONLY`, `CAPTURE_AND_TARGET`, `AUTHORITATIVE_RESET` |
+| FULL_REBUILD coordinator | `recovery/rebuild.py` | requested scope must equal completed scope before state cutover |
+| Retry/unknown outcome runtime | `recovery/runtime.py` | no blind retry after ambiguous commit |
+| Quarantine replay | `recovery/replay.py` | retained immutable payload only |
+| Warehouse same-transaction marker | `recovery/fabric_warehouse.py` | target mutation + marker commit together |
+| Exact-session absence/recovery | `recovery/fabric_warehouse_session_absence.py` | Admin path separately authorized |
+
+Rebuild scope invariant:
+
+```text
+TARGET_ONLY
+  -> retained capture/Bronze is authoritative
+  -> capture/runtime state replacement must be unchanged
+
+CAPTURE_AND_TARGET
+  -> rebuild capture/Bronze + target
+  -> checkpoint/boundary may change
+  -> RebuildProgressKind may not change
+
+AUTHORITATIVE_RESET
+  -> widest reset
+  -> explicit post-rebuild state required
+  -> RebuildProgressKind may change
+```
+
+All three are scopes of `RunMode.FULL_REBUILD`; they are not separate run modes. Permanent business-data purge is deliberately outside framework automation.
 
 ## Fabric/provider owners
 
@@ -192,6 +224,7 @@ docs/GETTING_STARTED.md              setup/consumption
 docs/IMPLEMENTATION_PROJECT.md       real consumer project runbook
 docs/DATA_PATTERNS.md                source/capture/apply decisions
 docs/OPERATIONS.md                   runtime operations/recovery
+docs/CODE_READING_GUIDE.md           end-to-end source reading order/call graph
 docs/TESTING_AND_CERTIFICATION.md    certification lifecycle
 docs/RELEASE.md                      release lifecycle
 docs/reference/                      narrow technical contracts
