@@ -10,26 +10,37 @@ release:
   public_release: v0.3.0
   source_version: 0.4.0-development-unreleased
   candidate_status: not_frozen
-  exact_candidate_source_selected: false
+  exact_candidate_source_selected: true
   release_allowed: false
   real_fabric_status: FABRIC_CERTIFICATION_REQUIRED
 
 candidate_identity:
-  current_source_candidate_git_sha: not_selected
-  current_source_framework_artifact_sha256: not_selected
-  integration_inputs_hash: not_constructed_for_current_source
-  integration_inputs_status: blocked_pending_new_exact_current_source_artifact_then_approved_live_DEV_bindings
-  current_source_requires_new_exact_artifact_before_release_claim: true
+  current_source_candidate_git_sha: 1c04216812dd438af58ffda73b22f6ff4d96459b
+  current_source_framework_artifact_sha256: 704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587
+  integration_inputs_hash: not_yet_constructed
+  integration_inputs_status: blocked_pending_approved_live_DEV_bindings
+  current_source_requires_new_exact_artifact_before_release_claim: false
   candidate_bytes_must_not_change: true
-  previous_selected_candidate:
-    candidate_git_sha: 81f4d5f93983e8288246f5b1521f763091880297
-    candidate_main_framework_ci_run: 34216247521
-    candidate_main_installed_wheel_run: 34216247544
-    candidate_wheel_artifact_id: 10051879910
-    candidate_wheel_artifact_name: framework-wheel-81f4d5f93983e8288246f5b1521f763091880297
+  selected_candidate:
+    candidate_git_sha: 1c04216812dd438af58ffda73b22f6ff4d96459b
+    candidate_main_framework_ci_run: 34232496900
+    candidate_main_installed_wheel_run: 34232496960
+    candidate_wheel_artifact_id: 10058373727
+    candidate_wheel_artifact_name: framework-wheel-1c04216812dd438af58ffda73b22f6ff4d96459b
     candidate_wheel_filename: fabric_data_framework-0.4.0-py3-none-any.whl
+    framework_artifact_sha256: 704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587
+    wheel_sha_verified_against_candidate_json: true
+    wheel_sha_verified_against_sha256sums: true
+    wheel_sha_independently_rehashed: true
+    status: selected_not_frozen
+  historical_candidate:
+    candidate_git_sha: 81f4d5f93983e8288246f5b1521f763091880297
     framework_artifact_sha256: 845f68d938a39ada944a1a71513b4f46b3a68416a5b53d60dbd10c2f6f95327c
     status: superseded_for_current_source_by_packaged_runtime_changes
+  quarantine_only_candidate_pr:
+    pr: 132
+    source_git_sha: 685a5eb1cc8018cd0918186debbe110c2f91a7f0
+    status: closed_without_merge_superseded_by_reconciliation_runtime
 
 repository_boundaries:
   framework:
@@ -87,17 +98,13 @@ runtime_recovery:
   rebuild_scope_runtime_merge_sha: 40034aae983c6437cd6c1fbf77217ab8efbc919a
   repair_impact_and_cutover_contract_status: merged_on_main
   repair_impact_and_cutover_runtime_merge_sha: 962a37923d7c74e901d2ff89941a165f6d0d8eb2
-  repair_impact_and_cutover_pr_head_sha: 6f0a9fb2cc1bec0ef33d4add9fc3702824e5c989
-  repair_impact_and_cutover_pr_ci_status: passed
-  repair_impact_and_cutover_main_ci_status: passed
-  repair_impact_and_cutover_main_framework_ci_run: 34191016408
-  repair_impact_and_cutover_main_installed_wheel_run: 34191016381
   run_modes:
     - RETRY
     - BACKFILL
     - REPLAY
     - FULL_REBUILD
   quarantine_governance:
+    merge_sha: 685a5eb1cc8018cd0918186debbe110c2f91a7f0
     original_quarantine_evidence_mutable: false
     bronze_manual_correction_allowed: false
     review_transitions_append_only: true
@@ -144,8 +151,16 @@ runtime_recovery:
   purge_policy: manual_operator_governance_only
 
 reconciliation:
-  declarative_policy_engine_status: implementation_complete_pending_exact_head_pr_ci_and_merge
+  declarative_policy_engine_status: merged_on_main
   pr: 133
+  pr_head_sha: 5caee889482944b6761c36c789d191e784a6a393
+  pr_framework_ci_run: 34232392803
+  pr_installed_wheel_run: 34232392715
+  merge_sha: 1c04216812dd438af58ffda73b22f6ff4d96459b
+  main_framework_ci_run: 34232496900
+  main_installed_wheel_run: 34232496960
+  pr_exact_head_ci_status: passed
+  main_post_merge_ci_status: passed
   provider_completion_is_reconciliation_authority: false
   provider_role: collect_typed_scalar_or_partitioned_observations
   framework_role: validate_evidence_and_evaluate_policy
@@ -188,8 +203,8 @@ certification:
     - integration_inputs_hash
 
 fabric_proof:
-  exact_current_candidate_selected: false
-  current_source_installed_wheel_acceptance: pending_new_exact_main_candidate
+  exact_current_candidate_selected: true
+  current_source_installed_wheel_acceptance: passed
   current_source_real_fabric_execution: not_run
   bounded_lakehouse_for_current_candidate: not_retained
   control_plane_for_current_candidate: not_retained
@@ -206,16 +221,12 @@ external_execution_boundary:
   do_not_guess_or_reuse_unverified_resource_ids: true
 
 next_boundary:
-  - require exact-head framework-ci and installed-wheel-acceptance PASS for PR 133
-  - merge PR 133 only after both exact-head gates are green
-  - obtain successful post-merge current-main framework-ci and installed-wheel-acceptance
-  - select and retain the new exact current-main wheel artifact and independently verify its framework_artifact_sha256
-  - record that new exact candidate provenance before any 0.4 release claim
-  - resolve and live-verify the approved isolated DEV Fabric workspace/lakehouse anchor
-  - bootstrap/read back framework-owned certification assets using the new exact selected wheel
+  - preserve selected candidate bytes at source 1c04216812dd438af58ffda73b22f6ff4d96459b and wheel SHA256 704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587
+  - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials
+  - bootstrap/read back framework-owned certification assets using the exact selected wheel
   - resolve exact item bindings by live Fabric item discovery
   - construct and retain framework-owned integration inputs
-  - record integration_inputs_hash for the new selected candidate
+  - record integration_inputs_hash without guessing or substituting another identity
   - install/attest the exact selected wheel in isolated DEV Fabric
   - run certify_installed bounded first
   - stop on any real FAIL
@@ -223,41 +234,39 @@ next_boundary:
   - retain exact identity-bound evidence
 ```
 
-## Current candidate interpretation
+## Selected exact current candidate
 
-The previously selected executable candidate came from successful `main` CI at:
+The reconciliation runtime is now merged on `main` at:
 
 ```text
-81f4d5f93983e8288246f5b1521f763091880297
+1c04216812dd438af58ffda73b22f6ff4d96459b
 ```
 
-with retained wheel:
+The exact post-merge main gates are:
 
 ```text
-fabric_data_framework-0.4.0-py3-none-any.whl
+framework-ci               34232496900  PASS
+installed-wheel-acceptance 34232496960  PASS
+```
+
+The retained framework-ci artifact is:
+
+```text
+artifact id    10058373727
+artifact name  framework-wheel-1c04216812dd438af58ffda73b22f6ff4d96459b
+wheel          fabric_data_framework-0.4.0-py3-none-any.whl
+```
+
+The **inner wheel bytes**, not the outer GitHub artifact ZIP, were independently SHA256-hashed after download. That digest exactly matches both `CANDIDATE.json` and `SHA256SUMS`:
+
+```text
 framework_artifact_sha256
-= 845f68d938a39ada944a1a71513b4f46b3a68416a5b53d60dbd10c2f6f95327c
+= 704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587
 ```
 
-and provenance:
+This selects the exact executable candidate source/artifact. It does **not** freeze 0.4, construct integration inputs, execute Microsoft Fabric, authorize release, or claim Fabric PASS.
 
-```text
-framework-ci               34216247521  PASS
-installed-wheel-acceptance 34216247544  PASS
-```
-
-That artifact is now **historical provenance, not the current-source candidate**. Main already contains packaged quarantine-governance runtime/schema changes, and PR #133 adds further packaged reconciliation runtime changes. The quarantine-only candidate-selection PR #132 was therefore closed without merge. No existing wheel may be treated as the candidate for the source that will exist after PR #133.
-
-Therefore:
-
-```text
-exact_current_candidate_selected = false
-current_source_requires_new_exact_artifact_before_release_claim = true
-```
-
-Do not silently reuse the previous wheel SHA, and do not fabricate a replacement SHA from source or a PR build. The next exact candidate must come from successful post-merge current-`main` CI and then pass the installed-wheel and Fabric evidence lifecycle.
-
-Framework certification remains fully framework-owned. Once a new current-source candidate is selected, its complete candidate/evidence identity remains exactly:
+Candidate/evidence identity remains exactly:
 
 ```text
 framework_artifact_sha256
@@ -265,13 +274,13 @@ framework_artifact_sha256
 integration_inputs_hash
 ```
 
-No customer/domain release identity participates in framework candidate certification, and the framework release workflows do not depend on `fabric-customer` to produce certification inputs.
+`integration_inputs_hash` is **not yet constructed** because the currently connected tooling does not expose an approved, live-verified isolated DEV workspace/Lakehouse/item binding and Fabric runtime credential set. Do not guess resource IDs, reuse stale fixture IDs, or substitute customer/domain identities.
 
-`fabric-customer` remains useful as an independent realistic source simulator. When an implementation compares framework versions against the same scenario, record the same verified `workload_digest`; that identity is independent from the framework wheel SHA.
+The previous `81f4d5...` wheel and the quarantine-only source `685a5eb...` remain historical provenance only. PR #132 was closed without merge because its candidate was superseded before selection by the reconciliation runtime change.
 
 ## Declarative reconciliation
 
-PR #133 productizes reconciliation as a source-controlled framework policy rather than a post-run dashboard or provider status check.
+PR #133 productized reconciliation as a source-controlled framework policy rather than a post-run dashboard or provider status check.
 
 ```text
 provider / SQL / Spark / project adapter
@@ -310,7 +319,7 @@ Canonical guide: `docs/RECONCILIATION.md`.
 
 ## Quarantine governance
 
-Quarantine is immutable evidence, not an editable staging area. The current source models human remediation as a separate governed lifecycle:
+Quarantine is immutable evidence, not an editable staging area. Human remediation is a separate governed lifecycle:
 
 ```text
 OPEN
@@ -320,113 +329,26 @@ OPEN
       -> WAIVED
 ```
 
-`REPLAYED` is deliberately excluded from operator review transitions. It is derived only when replay target mutation and required reconciliation pass and the original quarantine batch receives the semantic `replayed_by_dataset_run_id` correlation.
-
-Manual correction does not mutate Bronze or the original quarantine payload. It records a new governed correction reference plus exact SHA256, actor, reason and optional ticket. A `RESOLVED + MANUAL_CORRECTION` case can replay only when the payload provider supplies the exact approved correction identity/reference/hash. Original quarantine and correction evidence remain retained; physical deletion belongs to explicit retention/governance policy.
-
-Primary files:
-
-```text
-src/fabric_data_framework/contracts/quarantine.py
-src/fabric_data_framework/contracts/replay.py
-src/fabric_data_framework/control_plane/quarantine_governance.py
-src/fabric_data_framework/recovery/replay.py
-tests/test_quarantine_governance.py
-```
+`REPLAYED` is derived only after replay target mutation and required reconciliation pass. Manual correction writes a new governed correction reference plus exact SHA256 and never mutates Bronze/original quarantine. Original evidence is retained until explicit retention/governance cleanup.
 
 Canonical operational procedure: `docs/OPERATIONS.md`.
 
-## Rebuild scope
+## Rebuild / repair boundary
 
-`FULL_REBUILD` remains one run mode with three explicit scopes:
-
-```text
-TARGET_ONLY
-  trusted retained capture/Bronze remains authoritative
-  rebuild downstream target only
-  capture/runtime state replacement must remain exactly unchanged
-
-CAPTURE_AND_TARGET
-  reconstruct capture/Bronze and downstream target
-  checkpoint/boundary may change
-  RebuildProgressKind may not change
-
-AUTHORITATIVE_RESET
-  widest authoritative reconstruction
-  explicit post-rebuild state is required
-  RebuildProgressKind may change (NONE/WATERMARK/CDC/EXTERNAL)
-```
-
-All scopes require exact requested/completed scope agreement plus target commit and required reconciliation before state cutover.
-
-## Data-correctness repair and downstream impact
-
-The repair planning model is on `main` via merge `962a37923d7c74e901d2ff89941a165f6d0d8eb2`. Exact-head PR CI and post-merge main CI passed. It classifies the first untrustworthy point:
-
-```text
-TARGET_LOGIC      -> root TARGET_ONLY
-CAPTURE_DATA      -> root CAPTURE_AND_TARGET
-CAPTURE_SEMANTICS -> root AUTHORITATIVE_RESET
-```
-
-`build_rebuild_impact_plan(...)` computes the exact root + downstream descendant subgraph from DatasetConfig dependencies, produces topological rebuild waves, excludes unrelated branches, and reports disabled-but-contaminated datasets. Root scope cannot be narrowed below the issue-origin requirement. Downstream descendants default to `TARGET_ONLY` and may be explicitly widened when retained facts are insufficient.
-
-Primary files:
-
-```text
-src/fabric_data_framework/contracts/rebuild_impact.py
-src/fabric_data_framework/recovery/rebuild_impact.py
-tests/test_rebuild_impact.py
-```
-
-## Versioned target / blue-green cutover
-
-Material data-logic changes may build a physical candidate beside the active version:
-
-```text
-logical customer
-  -> customer_v1 active
-  -> customer_v2 candidate
-```
-
-`TargetVersionSpec` identifies the candidate. `TargetCutoverRequest` + `TargetCutoverGate` require candidate build, reconciliation, consumer/UAT validation and a matching approval reference. `execute_target_cutover(...)` uses an optimistic active-generation check and stable cutover request identity. Successful repeat of the same request is idempotent; stale requests fail closed.
-
-The framework changes the logical binding only. It never automatically deletes the previous physical version. The implementation repo owns real physical naming and the provider-specific binding adapter; manual old-version cleanup remains governance-owned.
-
-Primary files:
-
-```text
-src/fabric_data_framework/contracts/target_version.py
-src/fabric_data_framework/recovery/target_cutover.py
-tests/test_target_version_cutover.py
-```
-
-Canonical repair documentation: `docs/REPAIR_AND_REBUILD.md`.
-
-## Purge boundary
-
-The framework deliberately does not automate irreversible business-data purge. Dataset pause/stop remains metadata/override driven, but permanent hard deletion of Bronze/Silver/Gold or control-plane state is a manual, environment-specific operator/governance action.
-
-```text
-rebuild != purge
-cutover != delete old version
-FULL_REBUILD != automatic DROP/DELETE lifecycle
-```
-
-Quarantine review follows the same governance principle: `RESOLVED` or `REPLAYED` does not mean physical deletion. Retention policy owns eventual cleanup.
+`FULL_REBUILD` remains one run mode with `TARGET_ONLY`, `CAPTURE_AND_TARGET`, and `AUTHORITATIVE_RESET`. Rebuild/cutover never implies automatic purge or old-version deletion. See `docs/REPAIR_AND_REBUILD.md`.
 
 ## Real Fabric boundary
 
-Do not upgrade local or CI proof into a Fabric claim. There is currently **no exact current-source candidate selected**, and no current-source real Fabric evidence has been retained after the packaged quarantine/reconciliation changes.
+Do not upgrade source or installed-wheel proof into a Fabric claim:
 
 ```text
 source/contract proof        != real Fabric proof
 installed-wheel acceptance   != real Fabric proof
 provider Completed           != framework semantic PASS
-historical selected wheel    != current-source candidate
+selected exact wheel         != certified Fabric candidate evidence
 ```
 
-Until a new exact post-merge current-main wheel is selected, installed/attested, bound to framework-owned integration inputs, and the required bounded/authorized stages actually execute in isolated DEV Fabric with retained identity-bound evidence, the status remains:
+Until the selected wheel is bound to a real `integration_inputs_hash` and required authorized stages execute in isolated DEV Fabric with retained identity-bound evidence, status remains:
 
 ```text
 FABRIC CERTIFICATION REQUIRED
@@ -434,11 +356,9 @@ FABRIC CERTIFICATION REQUIRED
 
 ## Release boundary
 
-`0.4.0` is not frozen and not release-authorized. The previous selected executable wheel and the later quarantine-only candidate are both superseded for current-source purposes by packaged runtime changes. A new exact post-reconciliation current-main candidate must be selected before release certification can continue.
+`0.4.0` is not frozen and not release-authorized. The exact current candidate is selected, but release certification is blocked at the external live-Fabric binding/evidence boundary.
 
-Any packaged-code change invalidates the selected executable candidate and requires a new exact wheel. Docs/test-only state bookkeeping may advance `main` without changing selected candidate bytes; release governance always remains bound to exact selected candidate source/artifact identity.
-
-Release promotion must use the exact already-built/certified wheel bytes; no release-time wheel rebuild.
+Any future packaged-code change invalidates this executable candidate and requires a new exact main wheel. A docs/test-only bookkeeping merge does not change the selected wheel bytes. Release promotion must use the exact already-built/certified wheel bytes; no release-time rebuild.
 
 ## Documentation rule
 
