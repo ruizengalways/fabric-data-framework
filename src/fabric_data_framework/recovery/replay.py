@@ -1,8 +1,9 @@
 """Fail-closed quarantine replay coordination.
 
-Replay payload retrieval is delegated to a governed-store provider.  This module
-validates immutable quarantine evidence, executes one idempotent replay attempt and
-marks the original quarantine rows only after the target/reconciliation gate passes.
+Replay payload retrieval is delegated to a governed-store provider. This module
+validates immutable quarantine evidence, validates any approved manual-correction
+provenance, executes one idempotent replay attempt and marks the original quarantine
+rows only after the target/reconciliation gate passes.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from typing import Callable, Generic, TypeVar
 from uuid import UUID
 
 from fabric_data_framework.metadata.config import RunMode
+from ..contracts.quarantine import QuarantineResolution, QuarantineStatus
 from ..contracts.recovery import ReprocessRequest
 from ..contracts.replay import (
     QuarantineBatchEvidence,
@@ -25,6 +27,10 @@ from ..control_plane.io import (
     read_quarantine_batches,
     read_quarantine_batches_for_run,
 )
+from ..control_plane.quarantine_governance import (
+    get_quarantine_case,
+    read_quarantine_manual_correction,
+)
 from fabric_data_framework.contracts.runtime import StateCommitGate
 
 
@@ -36,7 +42,7 @@ class QuarantineReplayError(RuntimeError):
 
 
 class QuarantineReplayPayloadError(QuarantineReplayError):
-    """Retained payload does not match immutable control-plane evidence."""
+    """Retained payload does not match immutable/approved Control Plane evidence."""
 
 
 class QuarantineReplayGateError(QuarantineReplayError):
@@ -166,6 +172,51 @@ def _validate_payload(
         )
 
 
+def _validate_correction_provenance(
+    engine,
+    batch: QuarantineBatchEvidence,
+    payload: QuarantineReplayPayload,
+) -> None:
+    case = get_quarantine_case(engine, batch.quarantine_id)
+    if payload.correction_id is None:
+        if (
+            case.status is QuarantineStatus.RESOLVED
+            and case.resolution is QuarantineResolution.MANUAL_CORRECTION
+        ):
+            raise QuarantineReplayPayloadError(
+                f"quarantine {batch.quarantine_id} was resolved by manual correction; "
+                "replay payload must carry the approved correction identity/reference/hash"
+            )
+        return
+
+    if (
+        case.status is not QuarantineStatus.RESOLVED
+        or case.resolution is not QuarantineResolution.MANUAL_CORRECTION
+        or case.correction_id != payload.correction_id
+    ):
+        raise QuarantineReplayPayloadError(
+            f"quarantine {batch.quarantine_id} correction is not the approved resolved correction"
+        )
+
+    correction = read_quarantine_manual_correction(engine, payload.correction_id)
+    if correction.quarantine_id != batch.quarantine_id:
+        raise QuarantineReplayPayloadError("manual correction quarantine identity mismatch")
+    if correction.dataset_id != batch.dataset_id:
+        raise QuarantineReplayPayloadError("manual correction dataset identity mismatch")
+    if correction.original_source_reference != batch.source_reference:
+        raise QuarantineReplayPayloadError(
+            "manual correction original source reference does not match quarantine evidence"
+        )
+    if correction.correction_reference != payload.correction_reference:
+        raise QuarantineReplayPayloadError(
+            "manual correction payload reference does not match approved correction"
+        )
+    if correction.correction_payload_sha256 != payload.correction_payload_sha256:
+        raise QuarantineReplayPayloadError(
+            "manual correction payload hash does not match approved correction"
+        )
+
+
 def prepare_quarantine_replay(
     engine,
     *,
@@ -173,7 +224,7 @@ def prepare_quarantine_replay(
     replay_dataset_run_id: UUID,
     payload_provider: QuarantineReplayPayloadProvider,
 ) -> PreparedQuarantineReplay:
-    """Resolve immutable replay scope and verify retained payload before mutation."""
+    """Resolve immutable replay scope and verify retained/corrected payload before mutation."""
 
     if request.run_mode is not RunMode.REPLAY:
         raise QuarantineReplayError("quarantine replay requires a REPLAY ReprocessRequest")
@@ -203,6 +254,7 @@ def prepare_quarantine_replay(
     for batch in batches:
         payload = payload_provider.load_payload(batch)
         _validate_payload(batch, payload)
+        _validate_correction_provenance(engine, batch, payload)
         payloads.append(payload)
 
     return PreparedQuarantineReplay(
@@ -225,8 +277,9 @@ def execute_quarantine_replay(
     """Execute replay and correlate originals only after the semantic state gate.
 
     The caller should normally invoke this inside ``execute_with_retry`` using that
-    attempt's ``dataset_run_id``.  The strategy-specific callback owns idempotent target
-    apply/reconciliation.  Original quarantine evidence/payload is never deleted.
+    attempt's ``dataset_run_id``. The strategy-specific callback owns idempotent target
+    apply/reconciliation. Original quarantine evidence/payload and correction evidence
+    are never deleted.
     """
 
     prepared = prepare_quarantine_replay(
