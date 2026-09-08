@@ -18,11 +18,8 @@ from fabric_data_framework.metadata.config import (
     WatermarkConfig,
     resolve_effective_config,
 )
-from fabric_data_framework.contracts.execution_plan import (
-    ExecutionKind,
-    ExecutionRole,
-    compile_execution_plan,
-)
+from fabric_data_framework.contracts.execution_plan import ExecutionKind, ExecutionRole
+from fabric_data_framework.execution.plan_compiler import compile_execution_plan
 from fabric_data_framework.metadata import UnsupportedExecutionCombination
 from fabric_data_framework.metadata.capabilities import (
     DATAFLOW_GEN2_INCREMENTAL_BUCKET_PROFILE,
