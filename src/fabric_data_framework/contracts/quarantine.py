@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
@@ -82,12 +81,13 @@ class QuarantineManualCorrection(FrozenModel):
 
 
 class QuarantineReviewEvent(FrozenModel):
-    """Append-only review/resolution event for one quarantine case."""
+    """Append-only optimistic lifecycle transition for one quarantine case."""
 
     event_id: UUID = Field(default_factory=uuid4)
     quarantine_id: UUID
     dataset_id: str = Field(min_length=1)
-    status: QuarantineStatus
+    from_status: QuarantineStatus
+    to_status: QuarantineStatus
     resolution: QuarantineResolution | None = None
     actor: str = Field(min_length=1)
     reason: str = Field(min_length=1)
@@ -102,11 +102,13 @@ class QuarantineReviewEvent(FrozenModel):
             QuarantineStatus.REJECTED,
             QuarantineStatus.WAIVED,
         }
-        if self.status is QuarantineStatus.REPLAYED:
+        if self.from_status is QuarantineStatus.REPLAYED or self.to_status is QuarantineStatus.REPLAYED:
             raise ValueError("REPLAYED is derived from successful replay and cannot be a review event")
-        if self.status in terminal and self.resolution is None:
-            raise ValueError(f"{self.status.value} review event requires resolution")
-        if self.status not in terminal and self.resolution is not None:
+        if self.from_status is self.to_status:
+            raise ValueError("quarantine review transition must change status")
+        if self.to_status in terminal and self.resolution is None:
+            raise ValueError(f"{self.to_status.value} review event requires resolution")
+        if self.to_status not in terminal and self.resolution is not None:
             raise ValueError("non-terminal review event cannot declare resolution")
         if self.resolution is QuarantineResolution.MANUAL_CORRECTION:
             if self.correction_id is None:
