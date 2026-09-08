@@ -2,25 +2,29 @@
 
 from __future__ import annotations
 
+from typing import Sequence
 from uuid import UUID
 
 from ..capture.full import FullSnapshotEvidence
 from fabric_data_framework.contracts.audit import RowAccounting
 from fabric_data_framework.contracts.reconciliation import (
     ReconciliationMetric,
+    ReconciliationObservation,
     ReconciliationResult,
-    ReconciliationStatus,
 )
+from fabric_data_framework.metadata.config import ReconciliationPolicy
+from fabric_data_framework.quality.reconciliation_engine import evaluate_reconciliation_policy
 
 
 def reconcile_full_replace(
     *,
     dataset_run_id: UUID,
     dataset_id: str,
-    policy_name: str,
+    policy: ReconciliationPolicy,
     accounting: RowAccounting,
     candidate_row_count: int,
     evidence: FullSnapshotEvidence,
+    observations: Sequence[ReconciliationObservation] = (),
     force_fail: bool = False,
 ) -> ReconciliationResult:
     metrics = [
@@ -53,16 +57,14 @@ def reconcile_full_replace(
             )
         )
 
-    status = (
-        ReconciliationStatus.PASS
-        if all(metric.passed for metric in metrics)
-        else ReconciliationStatus.FAIL
-    )
-    return ReconciliationResult(
+    return evaluate_reconciliation_policy(
         dataset_run_id=dataset_run_id,
         dataset_id=dataset_id,
-        policy_name=policy_name,
-        status=status,
-        metrics=tuple(metrics),
-        blocks_state_advance=True,
+        policy=policy,
+        accounting=accounting,
+        observations=observations,
+        base_metrics=metrics,
     )
+
+
+__all__ = ["reconcile_full_replace"]
