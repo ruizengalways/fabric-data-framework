@@ -34,6 +34,8 @@ The smoke proves the active package payload matches the candidate wheel package 
 
 For a first-time dedicated DEV workspace, use `fabric-framework bootstrap-certification-assets`. It creates/updates the framework-owned Environment, Spark Job Definition, Copy Job and Data Pipeline only when `--allow-item-mutation` is explicit, publishes the Environment using the stable `beta=false` API, and verifies definitions by provider read-back. Without the mutation flag it is read-back-only.
 
-The bootstrap does not create capacity, workspace, networking, Lakehouse, Control Plane or Warehouse infrastructure. Those remain environment/infra prerequisites. `fabric-framework discover-certification-bindings` remains an optional read-only audit tool, not the first-time provisioning path.
+Use the returned executable item IDs together with the known certification Lakehouse ID (`item_read_id`) when building the exact integration-input bundle. No manual display-name-to-UUID transcription is required; `fabric-framework discover-certification-bindings` remains an optional independent read-only audit.
+
+The bootstrap does not create capacity, workspace, networking, Lakehouse, Control Plane or Warehouse infrastructure. Those remain environment/infra prerequisites.
 
 The complete bootstrap, binding, dependency-wheel, execution and evidence rules are documented once in `docs/TESTING_AND_CERTIFICATION.md`.
