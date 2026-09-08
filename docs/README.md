@@ -7,6 +7,7 @@ This directory intentionally has a small number of canonical documents. A fact s
 | Goal | Read |
 |---|---|
 | Understand the framework and repo boundaries | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| Read the source code in end-to-end execution order | [`CODE_READING_GUIDE.md`](CODE_READING_GUIDE.md) |
 | Start developing or consume the wheel in Fabric | [`GETTING_STARTED.md`](GETTING_STARTED.md) |
 | Create a real project such as `fabric-health` | [`IMPLEMENTATION_PROJECT.md`](IMPLEMENTATION_PROJECT.md) |
 | Onboard a new table/source and choose the right semantics | [`DATA_PATTERNS.md`](DATA_PATTERNS.md) |
@@ -21,6 +22,9 @@ This directory intentionally has a small number of canonical documents. A fact s
 ```text
 ARCHITECTURE.md
   architecture + ownership + topology + durable semantic model
+
+CODE_READING_GUIDE.md
+  source-code reading order + end-to-end runtime call flow only
 
 GETTING_STARTED.md
   installation/build/Fabric consumption only
