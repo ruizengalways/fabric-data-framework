@@ -53,6 +53,7 @@ fabric-data-framework -X-> fabric-customer
 | FULL / WATERMARK / CDC capture semantics | `capture/` | IMPLEMENTED + source contract |
 | Source-fidelity/history overclaim guard | `capture/onboarding.py` | IMPLEMENTED + source contract |
 | APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF | `apply/` | IMPLEMENTED + source contract |
+| APPEND stable identity / exact replay no-op / conflicting identity fail-closed | `execution/append.py` + `apply/append.py` + `quality/append.py` | IMPLEMENTED + source contract |
 | FULL incomplete-snapshot destructive guard | capture/apply | IMPLEMENTED; real Fabric proof tied to selected candidate |
 | CDC ordering/dedupe/checkpoint | capture/adapters | IMPLEMENTED; provider live proof separate |
 | Watermark ordering/lookback/bootstrap contracts | capture | IMPLEMENTED; provider live proof separate |
@@ -75,7 +76,7 @@ Semantic support does not imply every physical provider has retained live Fabric
 |---|---|---|
 | Build exact wheel + `CANDIDATE.json`/checksum provenance | CI/deployment | IMPLEMENTED |
 | Clean interpreter wheel install | installed-wheel workflow | IMPLEMENTED |
-| Installed package payload vs wheel bytes | `certification/installed.py` | INSTALLED-WHEEL gate |
+| Installed package payload vs wheel bytes | `src/fabric_data_framework/certification/installed.py` | INSTALLED-WHEEL gate |
 | Installed metadata/watermark/CDC semantic smoke | certification | INSTALLED-WHEEL gate |
 | Lakehouse Delta bounded certification | certification bounded suite | FABRIC proof required per exact candidate |
 | FULL/SCD1/SCD2/retry/reconciliation bounded checks | certification bounded suite | FABRIC proof required per exact candidate |
@@ -98,7 +99,7 @@ integration_inputs_hash
 | Approved integration run planning | `evidence/integration_runner.py` | validates identity, bindings, prerequisites, authorizations |
 | Strict staged merge/rerun | evidence merge/rerun modules | contradictory evidence is not silently overwritten |
 | Pipeline/Copy/Spark/Warehouse runners | approved runner modules | provider result must converge with framework semantic evidence |
-| Retained secret scan | `evidence/safety.py` | fail closed before retaining sensitive text |
+| Retained secret scan | `evidence/safety.py` | fail closed before retention |
 | Candidate readiness/proof merge | release-readiness modules | exact identities must agree |
 | Candidate certification aggregation | `evidence/candidate_certification.py` | aggregation only; no provider execution |
 
@@ -110,7 +111,7 @@ No customer/domain release identity participates in framework candidate certific
 |---|---|---|
 | Project scaffold | framework deployment/project | static source-controlled scaffold |
 | `project-init` / `project-validate` | framework CLI/deployment | static validation |
-| Mixed FULL/WATERMARK/CDC + SCD1/SCD2 in one domain repo | DatasetConfig/project contract | supported model |
+| Mixed FULL/WATERMARK/CDC capture + APPEND/SCD1/SCD2 apply patterns in one domain repo | DatasetConfig/project contract | supported model |
 | Project mappings/DQ/bindings/deploy content | implementation/domain repo | project-owned |
 | Rebuild physical mutation callback for the approved scope | implementation/domain repo | project-owned physical adapter; framework enforces scope/state gates |
 | Physical target version materialization and logical-binding switch | implementation/domain repo | project-owned adapter; framework enforces candidate/cutover identity and gates |

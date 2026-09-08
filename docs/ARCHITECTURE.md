@@ -55,6 +55,8 @@ implementation/domain repo
   execution groups/dependencies
   environment bindings and deployment content
   project-specific bounded adapters
+  physical v1/v2 target names and provider-specific logical binding
+  UAT/business validation and approval
   may depend on an approved/released framework wheel
 
 fabric-infra
@@ -116,6 +118,7 @@ Examples:
 ```text
 FULL snapshot          + REPLACE
 WATERMARK changes      + UPSERT / SCD1
+WATERMARK + LOOKBACK   + APPEND
 ordered CDC events     + SCD2
 business events        + APPEND
 FULL snapshots         + SNAPSHOT_DIFF
@@ -137,7 +140,9 @@ If the source provides one full snapshot per day, downstream history can truthfu
 
 If a provider collapses multiple changes into one net change, downstream SCD2 cannot recreate the missing intermediate states.
 
-This fidelity rule is enforced during semantic onboarding to prevent downstream overclaim.
+For append/audit histories, a missing database PK is not itself fatal; the important requirement is a defensible stable event identity. Exact replay under the same identity is a no-op, while the same identity with different business payload must fail closed. If two legitimate events are indistinguishable under every available source field, the framework cannot invent their distinctness.
+
+This fidelity rule is enforced during semantic onboarding and apply validation to prevent downstream overclaim.
 
 ## 6. Bronze meanings
 
@@ -153,7 +158,9 @@ Stores each complete snapshot. Appropriate when the source has no reliable chang
 
 ### Raw append / event Bronze
 
-Stores observations or ordered events. Appropriate for CDC, replay/audit, or history where source fidelity supports it.
+Stores observations or ordered events. Appropriate for CDC, application change logs, replay/audit, or history where source fidelity supports it.
+
+Bronze may legitimately retain repeated source observations caused by bounded lookback. Silver APPEND may deduplicate those observations under a declared stable `append_identity`.
 
 The correct choice follows source semantics; it is not selected merely because a downstream model is called SCD2.
 
@@ -187,7 +194,31 @@ UNRESOLVED    -> stop; no blind retry
 
 This boundary protects append, merge and SCD history from duplicate mutation.
 
-## 9. Enterprise Fabric topology
+## 9. Data repair and versioned cutover boundary
+
+Transient runtime recovery and data-correctness repair are intentionally separate operator lifecycles.
+
+```text
+RETRY / REPLAY / BACKFILL / unknown commit
+  -> transient operational recovery
+  -> docs/OPERATIONS.md
+
+FULL_REBUILD / contaminated descendants / v1-v2 / UAT / cutover / rollback
+  -> data-correctness repair
+  -> docs/REPAIR_AND_REBUILD.md
+```
+
+`FULL_REBUILD` has exactly three scopes:
+
+```text
+TARGET_ONLY
+CAPTURE_AND_TARGET
+AUTHORITATIVE_RESET
+```
+
+The requested scope must match the physical completed scope exactly. Target commit and required reconciliation must pass before runtime state cutover. The framework does not automate permanent business-data purge, and blue/green cutover never automatically deletes the old physical target version.
+
+## 10. Enterprise Fabric topology
 
 DEV, UAT and PROD use the same logical architecture. They differ in resource IDs, credentials, capacity, scale and data, not in fundamental framework storage roles.
 
@@ -248,7 +279,7 @@ large reconciliation/detail history
 
 Optional SQL-first analytical serving engine, commonly for facts, dimensions and dimensional Gold models. Medallion architecture does not require Warehouse.
 
-## 10. Promotion contract
+## 11. Promotion contract
 
 Promote definitions; do not promote runtime state.
 
@@ -276,20 +307,23 @@ physical Fabric item IDs
 business data
 ```
 
-## 11. When to change which repository
+## 12. When to change which repository
 
 Use this decision rule:
 
 - reusable data-engineering behavior used across domains -> `fabric-data-framework`;
 - realistic source behavior/scenario generation -> `fabric-customer`;
-- project table configs/mappings/DQ/environment deployment -> implementation/domain repo;
+- project table configs/mappings/DQ/environment deployment/physical target binding -> implementation/domain repo;
 - capacity/workspace/permissions -> `fabric-infra`.
 
 A project-specific field rename, table exception or business SQL fragment is not automatically a framework feature.
 
-## 12. Related docs
+## 13. Related docs
 
-- New source/table decisions: [`DATA_PATTERNS.md`](DATA_PATTERNS.md)
+- Source-level runtime reading order: [`CODE_READING_GUIDE.md`](CODE_READING_GUIDE.md)
+- New source/table decisions and APPEND identity: [`DATA_PATTERNS.md`](DATA_PATTERNS.md)
 - Real project repo: [`IMPLEMENTATION_PROJECT.md`](IMPLEMENTATION_PROJECT.md)
-- Runtime recovery: [`OPERATIONS.md`](OPERATIONS.md)
+- Transient runtime recovery: [`OPERATIONS.md`](OPERATIONS.md)
+- Data correctness repair, dependency impact, v1/v2 cutover and rollback: [`REPAIR_AND_REBUILD.md`](REPAIR_AND_REBUILD.md)
 - Exact-wheel certification: [`TESTING_AND_CERTIFICATION.md`](TESTING_AND_CERTIFICATION.md)
+- Candidate/release lifecycle: [`RELEASE.md`](RELEASE.md)

@@ -1,6 +1,8 @@
 # Operations and recovery
 
-This is the canonical runbook for **normal business Pipeline operations**. Framework release certification is a separate lifecycle; see [`TESTING_AND_CERTIFICATION.md`](TESTING_AND_CERTIFICATION.md).
+This is the canonical runbook for **transient runtime operations and recovery** in normal business Pipelines: failure isolation, RETRY, REPLAY, BACKFILL, unknown/ambiguous commit, dependency recovery, and operational incident handling.
+
+Data-correctness reconstruction is a separate lifecycle. For detailed `FULL_REBUILD` scopes, contaminated dependency impact, v1/v2 target versions, UAT, cutover, rollback, and old-version retention, use [`REPAIR_AND_REBUILD.md`](REPAIR_AND_REBUILD.md). Framework release certification is also separate; see [`TESTING_AND_CERTIFICATION.md`](TESTING_AND_CERTIFICATION.md).
 
 ## 1. Default parent Pipeline behavior
 
@@ -33,7 +35,7 @@ per-dataset overrides
 dependency graph
 ```
 
-Policy content must participate in project/release config identity. Runtime override is temporary operational control, not long-term configuration management.
+Policy content must participate in project/config identity. Runtime override is temporary operational control, not long-term configuration management.
 
 ## 3. Data quality and quarantine
 
@@ -88,25 +90,28 @@ target_operation / target_operation_event
 
 Fabric UI status alone is not enough. A provider `Completed` result without the expected durable framework outcome is not semantic success.
 
-## 5. Repair decision table
+## 5. Operational decision table
 
 | Situation | Automatic retry? | Correct response |
 |---|---:|---|
 | Explicit transient provider failure with `retryable=true` | bounded only | `RETRY` with backoff and attempt lineage |
-| `BLOCKED_DEPENDENCY` | no | recover upstream first, then affected dependency chain |
+| `BLOCKED_DEPENDENCY` | no | recover upstream first, then only affected dependency chain |
 | DQ failure / threshold exceeded | no | fix source/rule/config, then audited retry or replay |
 | Reconciliation failure | no | investigate source/target/mapping before reprocess |
 | Unknown/ambiguous target commit | never blind retry | reconcile target/marker first |
 | Config/binding/schema contract error | no | fix in Git, validate/deploy, then rerun |
 | Cancelled/unknown failure | no by default | prove partial-effect state first |
 | Bounded source gap | controlled | `BACKFILL` exact range |
-| Silver/target logic must be reconstructed from trusted retained capture | controlled | `FULL_REBUILD` + `TARGET_ONLY` |
-| Bronze/capture and Silver/target must both be reconstructed without changing progress kind | controlled | `FULL_REBUILD` + `CAPTURE_AND_TARGET` |
-| Capture semantics/progress kind itself is no longer trustworthy | controlled | `FULL_REBUILD` + `AUTHORITATIVE_RESET` |
+| Retained immutable payload needs reprocessing | controlled | `REPLAY` |
+| Trusted Bronze is correct but target logic/data is wrong | controlled | `FULL_REBUILD + TARGET_ONLY`; continue in `REPAIR_AND_REBUILD.md` |
+| Bronze/capture facts are wrong but progress kind is still valid | controlled | `FULL_REBUILD + CAPTURE_AND_TARGET`; continue in `REPAIR_AND_REBUILD.md` |
+| Capture semantics/progress model itself is untrustworthy | controlled | `FULL_REBUILD + AUTHORITATIVE_RESET`; continue in `REPAIR_AND_REBUILD.md` |
+
+Use the smallest safe operation. A failed nightly Pipeline is not by itself a reason to rebuild data.
 
 ## 6. RETRY
 
-Retry is for the same logical work when safety has already been established.
+Retry is for the same logical work when retry safety has already been established.
 
 Expected behavior:
 
@@ -121,7 +126,7 @@ explicit retryable failure
 
 Do not stack an unbounded Fabric-native retry around a separate framework retry loop.
 
-## 7. Unknown commit
+## 7. Unknown or ambiguous commit
 
 The dangerous case is:
 
@@ -130,7 +135,7 @@ server may have committed
 client timed out / connection dropped
 ```
 
-The framework uses target-operation identity, journal and target-side proof to classify:
+The framework uses target-operation identity, journal state, and target-side proof to classify:
 
 ```text
 COMMITTED
@@ -149,12 +154,14 @@ Stop condition:
 UNRESOLVED -> no automatic recovery
 ```
 
+A blind retry after ambiguous commit can duplicate APPEND rows or corrupt merge/history semantics.
+
 ## 8. REPLAY
 
-Use replay when retained payload can be reprocessed after fixing DQ/mapping/rule behavior.
+Use replay when retained immutable payload can be reprocessed after fixing DQ/mapping/rule behavior.
 
 ```text
-retain original quarantine evidence
+retain original quarantine/replay evidence
 -> fix source/rule/config in Git
 -> deploy validated change
 -> create audited REPLAY request
@@ -165,11 +172,11 @@ retain original quarantine evidence
 
 Replay success must not erase the original evidence.
 
-`REPLAY` is not the generic name for rebuilding all retained Bronze history. The current framework replay coordinator is intentionally scoped to retained, immutable replay payload evidence such as quarantine payloads. Use `FULL_REBUILD` with an explicit rebuild scope when the authoritative target itself must be reconstructed.
+`REPLAY` is not the generic name for rebuilding retained Bronze history. When authoritative target or capture data must be reconstructed, use `FULL_REBUILD` and follow [`REPAIR_AND_REBUILD.md`](REPAIR_AND_REBUILD.md).
 
 ## 9. BACKFILL
 
-Use backfill for a bounded gap such as a missed watermark interval or partition.
+Use backfill for a bounded known gap such as a missed watermark interval or partition.
 
 ```text
 run_mode = BACKFILL
@@ -177,188 +184,33 @@ lower    = explicit boundary
 upper    = explicit boundary
 ```
 
-Backfill still follows normal DQ, apply, reconciliation and idempotency contracts.
+Backfill still follows normal capture fidelity, DQ, apply, reconciliation, idempotency, and state-commit contracts.
 
 Do not use a full rebuild to repair a small bounded gap.
 
-## 10. FULL_REBUILD and rebuild scope
+## 10. FULL_REBUILD: decision and redirect
 
-`FULL_REBUILD` is the controlled reconstruction run mode. Every request must now declare one exact `RebuildScope`; the old payload containing only `authoritative_reset=true` is not accepted.
-
-All scopes still require explicit destructive/reconstruction authorization:
-
-```python
-ReprocessRequest(
-    dataset_id="crm.customer",
-    run_mode=RunMode.FULL_REBUILD,
-    reason="approved Silver history logic replacement",
-    requested_by="data-ops",
-    range_json={
-        "rebuild_scope": "TARGET_ONLY",
-        "authoritative_reset": True,
-    },
-)
-```
-
-`authoritative_reset=true` is the explicit authorization bit. `rebuild_scope` defines what the physical implementation is authorized to reconstruct.
-
-### 10.1 `TARGET_ONLY`
-
-Use when retained capture/Bronze facts remain authoritative and only downstream target/Silver logic must be rebuilt.
-
-Typical reasons:
-
-- SCD1/SCD2 logic changed;
-- tracked columns changed;
-- transformation/business rule changed;
-- target mapping was wrong but retained Bronze is still trustworthy.
-
-Expected physical shape:
-
-```text
-trusted retained Bronze
-        |
-        v
-new transform / DQ / apply
-        |
-        v
-rebuilt Silver/target
-        |
-        v
-reconciliation PASS
-```
-
-Framework rule:
+`FULL_REBUILD` is for data-correctness reconstruction, not ordinary transient recovery. The framework has exactly three scopes:
 
 ```text
 TARGET_ONLY
--> physical callback completed_scope must be TARGET_ONLY
--> target commit must be proven
--> required reconciliation must pass
--> capture/runtime state replacement must remain exactly unchanged
--> rebuild request identity is recorded for idempotency
-```
-
-Do not recapture source or move the watermark/CDC state in a `TARGET_ONLY` rebuild.
-
-### 10.2 `CAPTURE_AND_TARGET`
-
-Use when existing Bronze/capture facts are not authoritative enough, but the capture progress model itself remains the same.
-
-Typical reasons:
-
-- wrong capture filter/window produced bad Bronze;
-- Bronze normalization/dedup semantics were wrong;
-- source can be authoritatively recaptured;
-- watermark remains watermark, or CDC remains CDC, but the checkpoint/boundary must be replaced after reconstruction.
-
-Expected physical shape:
-
-```text
-authoritative source
-        |
-        v
-rebuild Bronze/capture
-        |
-        v
-rebuild Silver/target
-        |
-        v
-reconciliation PASS
-        |
-        v
-install new checkpoint/boundary of the SAME progress kind
-```
-
-Framework rule:
-
-```text
 CAPTURE_AND_TARGET
--> completed_scope must match exactly
--> explicit post-rebuild runtime state is required
--> checkpoint/boundary may change
--> progress kind may NOT change
+AUTHORITATIVE_RESET
 ```
 
-Example: `WATERMARK -> WATERMARK` with a new committed boundary is valid. `WATERMARK -> CDC` is not; use `AUTHORITATIVE_RESET` for that change.
-
-### 10.3 `AUTHORITATIVE_RESET`
-
-Use when capture semantics or progress ownership/kind itself is no longer trustworthy.
-
-Typical reasons:
-
-- moving from watermark capture to CDC;
-- replacing CDC/provider progress semantics;
-- target and capture state are both untrustworthy;
-- an authoritative snapshot/fence is available to establish a new generation.
-
-Expected physical shape:
+At the operational triage layer, select the first untrustworthy point and stop there:
 
 ```text
-authoritative source/snapshot/fence
-        |
-        v
-rebuild required data layers
-        |
-        v
-reconciliation PASS
-        |
-        v
-install explicit new runtime state
-        |
-        +--> WATERMARK
-        +--> CDC
-        +--> EXTERNAL
-        +--> NONE
+target logic/data only        -> TARGET_ONLY
+capture/Bronze facts          -> CAPTURE_AND_TARGET
+capture semantics/progress    -> AUTHORITATIVE_RESET
 ```
 
-This is the only scope that may deliberately change `RebuildProgressKind`.
+Do **not** execute a rebuild from this summary alone. The canonical procedure, scope/state gates, dependency-aware impact planning, v1/v2 strategy, UAT/cutover, rollback, and manual cleanup boundary live in [`REPAIR_AND_REBUILD.md`](REPAIR_AND_REBUILD.md).
 
-### 10.4 Common fail-closed guarantees
+`FULL_REBUILD` is not purge. Permanent hard deletion remains an explicit manual operator/governance action.
 
-For every scope:
-
-```text
-request scope
-    ==
-physical completed_scope
-```
-
-must hold. The physical rebuild callback cannot silently perform a wider or narrower reconstruction than the operator authorized.
-
-The coordinator also requires:
-
-```text
-authoritative_rebuild_completed = true
-AND target committed
-AND required reconciliation passed
-```
-
-before the runtime state/rebuild marker can advance.
-
-A red nightly Pipeline is not by itself a reason for `FULL_REBUILD`.
-
-## 11. Rebuild is not purge
-
-The framework coordinates reconstruction. It does **not** automate destructive business-data purge.
-
-If a dataset is no longer needed:
-
-```text
-temporary pause
--> RuntimeOverride enabled=false
-
-source-controlled stop
--> DatasetConfig enabled=false
-
-permanent hard deletion / purge
--> manual operator/governance process outside the framework
-```
-
-Do not add an automatic `DROP Bronze + DROP Silver + delete Control Plane state` path to normal framework execution. Human approval and environment-specific governance are preferable for irreversible purge.
-
-## 12. Dependency recovery
+## 11. Dependency recovery
 
 Example:
 
@@ -369,7 +221,7 @@ C orders     PASS (independent)
 parent       FAILED
 ```
 
-Recovery order:
+Operational recovery order:
 
 ```text
 recover A
@@ -377,7 +229,25 @@ recover A
 -> run B dependency chain
 ```
 
-Do not blindly rerun all independent successful datasets.
+Do not blindly rerun independent successful datasets.
+
+If the upstream problem is **data correctness** rather than a transient failure, switch to the dependency-aware repair process in [`REPAIR_AND_REBUILD.md`](REPAIR_AND_REBUILD.md); contaminated descendants and rebuild waves are a repair concern, not ordinary retry scheduling.
+
+## 12. Operator incident flow
+
+```text
+1. capture pipeline_run_id
+2. identify FAILED/BLOCKED dataset runs
+3. inspect first failing step + provider correlation
+4. classify transient / DQ / reconciliation / dependency / unknown commit / config / data correctness
+5. prove retry safety before RETRY
+6. fix the actual cause
+7. create audited RETRY / REPLAY / BACKFILL request when appropriate
+8. if data correctness is wrong, hand off to REPAIR_AND_REBUILD.md
+9. verify target + reconciliation + state/checkpoint
+10. verify affected downstream operational dependencies
+11. remove/commit any temporary runtime override
+```
 
 ## 13. Alerts
 
@@ -396,23 +266,7 @@ repeated failures for the same dataset
 
 Also trend quarantine rate by dataset/rule over time; a rising rate may matter before a single batch crosses a hard threshold.
 
-## 14. Operator incident flow
-
-```text
-1. capture pipeline_run_id
-2. identify FAILED/BLOCKED dataset runs
-3. inspect first failing step + provider correlation
-4. classify transient / DQ / reconciliation / dependency / unknown commit / config
-5. prove retry safety
-6. fix the actual cause
-7. create audited reprocess request when needed
-8. choose the smallest correct rebuild/reprocess scope
-9. verify target + reconciliation + state/checkpoint
-10. verify affected downstream dependencies
-11. remove/commit any temporary runtime override
-```
-
-## 15. Keep Fabric Pipelines thin
+## 14. Keep Fabric Pipelines thin
 
 Preferred shape:
 
@@ -425,6 +279,6 @@ select dataset work
 -> final parent status reflects aggregate result
 ```
 
-Do not duplicate watermark, retry, DQ, SCD and recovery logic across dozens of Notebook/Pipeline implementations.
+Do not duplicate watermark, retry, DQ, SCD, and recovery logic across dozens of Notebook/Pipeline implementations.
 
 For the exact reusable Pipeline child correlation contract, see [`reference/PIPELINE_CHILD_CONTRACT.md`](reference/PIPELINE_CHILD_CONTRACT.md).
