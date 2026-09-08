@@ -10,26 +10,26 @@ release:
   public_release: v0.3.0
   source_version: 0.4.0-development-unreleased
   candidate_status: not_frozen
-  exact_candidate_source_selected: false
+  exact_candidate_source_selected: true
   release_allowed: false
   real_fabric_status: FABRIC_CERTIFICATION_REQUIRED
 
 candidate_identity:
-  current_source_candidate_git_sha: not_selected
-  current_source_framework_artifact_sha256: not_selected
-  integration_inputs_hash: not_constructed_for_current_source
-  integration_inputs_status: blocked_pending_new_exact_current_source_artifact_then_approved_live_DEV_bindings
-  current_source_requires_new_exact_artifact_before_release_claim: true
+  candidate_git_sha: 685a5eb1cc8018cd0918186debbe110c2f91a7f0
+  candidate_main_framework_ci_run: 34226582756
+  candidate_main_installed_wheel_run: 34226582749
+  candidate_wheel_artifact_id: 10055953629
+  candidate_wheel_artifact_name: framework-wheel-685a5eb1cc8018cd0918186debbe110c2f91a7f0
+  candidate_wheel_filename: fabric_data_framework-0.4.0-py3-none-any.whl
+  framework_artifact_sha256: e2caa42d3256e09cc13d71278d259eb173d386aa94dca94b90e3f1db3b424a23
+  integration_inputs_hash: not_constructed_for_selected_candidate
+  integration_inputs_status: blocked_pending_approved_live_DEV_bindings
+  current_source_requires_new_exact_artifact_before_release_claim: false
   candidate_bytes_must_not_change: true
   previous_selected_candidate:
     candidate_git_sha: 81f4d5f93983e8288246f5b1521f763091880297
-    candidate_main_framework_ci_run: 34216247521
-    candidate_main_installed_wheel_run: 34216247544
-    candidate_wheel_artifact_id: 10051879910
-    candidate_wheel_artifact_name: framework-wheel-81f4d5f93983e8288246f5b1521f763091880297
-    candidate_wheel_filename: fabric_data_framework-0.4.0-py3-none-any.whl
     framework_artifact_sha256: 845f68d938a39ada944a1a71513b4f46b3a68416a5b53d60dbd10c2f6f95327c
-    status: superseded_for_current_source_by_packaged_runtime_changes
+    status: superseded_by_quarantine_governance_candidate
 
 repository_boundaries:
   framework:
@@ -153,9 +153,9 @@ certification:
     - integration_inputs_hash
 
 fabric_proof:
-  exact_current_candidate_selected: false
-  current_source_installed_wheel_acceptance: pending_new_exact_main_candidate
-  current_source_real_fabric_execution: not_run
+  exact_current_candidate_selected: true
+  selected_candidate_installed_wheel_acceptance: passed
+  selected_candidate_real_fabric_execution: not_run
   bounded_lakehouse_for_current_candidate: not_retained
   control_plane_for_current_candidate: not_retained
   pipeline_copy_spark_for_current_candidate: not_retained
@@ -171,14 +171,11 @@ external_execution_boundary:
   do_not_guess_or_reuse_unverified_resource_ids: true
 
 next_boundary:
-  - obtain successful current-main framework-ci and installed-wheel-acceptance after the packaged quarantine-governance changes
-  - select and retain the new exact current-main wheel artifact and independently verify its framework_artifact_sha256
-  - record that new exact candidate provenance before any 0.4 release claim
   - resolve and live-verify the approved isolated DEV Fabric workspace/lakehouse anchor
-  - bootstrap/read back framework-owned certification assets using the new exact selected wheel
+  - bootstrap/read back framework-owned certification assets using the exact selected wheel
   - resolve exact item bindings by live Fabric item discovery
   - construct and retain framework-owned integration inputs
-  - record integration_inputs_hash for the new selected candidate
+  - record integration_inputs_hash for the selected candidate
   - install/attest the exact selected wheel in isolated DEV Fabric
   - run certify_installed bounded first
   - stop on any real FAIL
@@ -188,39 +185,45 @@ next_boundary:
 
 ## Current candidate interpretation
 
-The previously selected executable candidate came from successful `main` CI at:
+A new exact executable candidate has been selected from successful `main` push CI after the governed quarantine review/manual-remediation runtime and Control Plane schema v6 changes:
 
 ```text
-81f4d5f93983e8288246f5b1521f763091880297
+candidate_git_sha
+= 685a5eb1cc8018cd0918186debbe110c2f91a7f0
 ```
 
-with retained wheel:
+The retained main CI artifact is:
 
 ```text
-fabric_data_framework-0.4.0-py3-none-any.whl
+artifact_id
+= 10055953629
+
+artifact_name
+= framework-wheel-685a5eb1cc8018cd0918186debbe110c2f91a7f0
+
+wheel
+= fabric_data_framework-0.4.0-py3-none-any.whl
+```
+
+The inner wheel bytes were independently rehashed and matched both `CANDIDATE.json` and `SHA256SUMS`:
+
+```text
 framework_artifact_sha256
-= 845f68d938a39ada944a1a71513b4f46b3a68416a5b53d60dbd10c2f6f95327c
+= e2caa42d3256e09cc13d71278d259eb173d386aa94dca94b90e3f1db3b424a23
 ```
 
-and provenance:
+The selected source/main CI provenance is:
 
 ```text
-framework-ci               34216247521  PASS
-installed-wheel-acceptance 34216247544  PASS
+framework-ci               34226582756  PASS
+installed-wheel-acceptance 34226582749  PASS
 ```
 
-That artifact is now **historical provenance, not the current-source candidate**. The current source contains packaged runtime and Control Plane schema changes for governed quarantine review/manual remediation, so the old wheel cannot represent the current source. No current-source candidate wheel has yet been selected from post-change `main` CI.
+The older candidate from `81f4d5f93983e8288246f5b1521f763091880297` is historical provenance only and must not be used as the current-source candidate.
 
-Therefore:
+This selection does **not** freeze or authorize `0.4.0`. The second candidate identity component, `integration_inputs_hash`, has not yet been constructed because the current connected tooling does not expose a live verified isolated DEV Fabric workspace/lakehouse anchor, item bindings, or Fabric runtime credentials. Those values must not be guessed or copied from stale evidence.
 
-```text
-exact_current_candidate_selected = false
-current_source_requires_new_exact_artifact_before_release_claim = true
-```
-
-Do not silently reuse the previous wheel SHA, and do not fabricate a replacement SHA from source or a PR build. The next exact candidate must come from the successful current-`main` candidate build path and then pass the existing installed-wheel and Fabric evidence lifecycle.
-
-Framework certification remains fully framework-owned. Once a new current-source candidate is selected, its complete candidate/evidence identity remains exactly:
+Framework certification remains fully framework-owned. The complete candidate/evidence identity is still exactly:
 
 ```text
 framework_artifact_sha256
@@ -234,7 +237,7 @@ No customer/domain release identity participates in framework candidate certific
 
 ## Quarantine governance
 
-Quarantine is immutable evidence, not an editable staging area. The current source models human remediation as a separate governed lifecycle:
+Quarantine is immutable evidence, not an editable staging area. Human remediation is a separate governed lifecycle:
 
 ```text
 OPEN
@@ -359,16 +362,15 @@ Quarantine review follows the same governance principle: `RESOLVED` or `REPLAYED
 
 ## Real Fabric boundary
 
-Do not upgrade local or CI proof into a Fabric claim. There is currently **no exact current-source candidate selected** after the packaged quarantine-governance changes, and no current-source real Fabric evidence has been retained.
+Do not upgrade local or CI proof into a Fabric claim. The exact current candidate is selected and its installed-wheel acceptance passed, but it has not executed in real Fabric and no current-candidate Fabric evidence has been retained.
 
 ```text
 source/contract proof        != real Fabric proof
 installed-wheel acceptance   != real Fabric proof
 provider Completed           != framework semantic PASS
-historical selected wheel    != current-source candidate
 ```
 
-Until a new exact current-main wheel is selected, installed/attested, bound to framework-owned integration inputs, and the required bounded/authorized stages actually execute in isolated DEV Fabric with retained identity-bound evidence, the status remains:
+Until the exact selected wheel is installed/attested and the required bounded/authorized stages actually execute in isolated DEV Fabric with retained identity-bound evidence, the status remains:
 
 ```text
 FABRIC CERTIFICATION REQUIRED
@@ -376,9 +378,9 @@ FABRIC CERTIFICATION REQUIRED
 
 ## Release boundary
 
-`0.4.0` is not frozen and not release-authorized. The previous selected executable wheel has been superseded for current-source purposes by packaged runtime/schema changes. A new exact current-main candidate must be selected before release certification can continue.
+`0.4.0` is not frozen and not release-authorized. An exact current executable wheel is selected, but the complete candidate identity is not yet closed because `integration_inputs_hash` is pending live verified DEV bindings.
 
-Any packaged-code change invalidates the selected executable candidate and requires a new exact wheel. Docs/test-only state bookkeeping may advance `main` without changing selected candidate bytes; release governance always remains bound to exact selected candidate source/artifact identity.
+Any packaged-code change invalidates this selected executable candidate and requires a new exact wheel. Docs/test-only state bookkeeping may advance `main` without changing selected candidate bytes; release governance remains bound to the exact selected candidate source/artifact identity.
 
 Release promotion must use the exact already-built/certified wheel bytes; no release-time wheel rebuild.
 
