@@ -1,9 +1,9 @@
 """Fail-closed FULL_REBUILD coordination.
 
 FULL_REBUILD is intentionally not implemented as "delete target + delete checkpoint".
-The rebuild callback receives a stable request identity for idempotent destructive work,
-and capture-aware runtime state is cut over only after the rebuilt target is committed
-and required reconciliation passes.
+The request declares an explicit rebuild scope, the physical callback must prove it
+completed exactly that scope, and capture-aware runtime state is cut over only after
+the rebuilt target is committed and required reconciliation passes.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from ..contracts.rebuild import (
     FullRebuildStateAdapter,
     FullRebuildStateReplacement,
     FullRebuildStateSnapshot,
+    RebuildScope,
 )
 from ..contracts.recovery import ReprocessRequest
 from fabric_data_framework.contracts.runtime import StateCommitGate
@@ -31,7 +32,7 @@ class FullRebuildError(RuntimeError):
 
 
 class FullRebuildGateError(FullRebuildError):
-    """Rebuild cannot cut over runtime state because target evidence is insufficient."""
+    """Rebuild cannot cut over because requested-scope or target evidence is insufficient."""
 
 
 class FullRebuildStateVersionConflict(FullRebuildError):
@@ -43,15 +44,17 @@ class FullRebuildContext:
     dataset_id: str
     rebuild_request_id: UUID
     dataset_run_id: UUID
+    rebuild_scope: RebuildScope
     before_state: FullRebuildStateSnapshot
 
 
 @dataclass(frozen=True)
 class FullRebuildMutationOutcome(Generic[T]):
     value: T
+    completed_scope: RebuildScope
     authoritative_rebuild_completed: bool
     gate: StateCommitGate
-    state_replacement: FullRebuildStateReplacement
+    state_replacement: FullRebuildStateReplacement | None
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,7 @@ class FullRebuildResult(Generic[T]):
     value: T | None
     rebuild_request_id: UUID
     dataset_run_id: UUID
+    rebuild_scope: RebuildScope
     state: FullRebuildStateSnapshot
     already_rebuilt: bool = False
 
@@ -100,7 +104,7 @@ class InMemoryFullRebuildStateAdapter:
         expected_version: int,
         rebuild_request_id: UUID,
         dataset_run_id: UUID,
-        replacement: FullRebuildStateReplacement,
+        replacement: FullRebuildStateReplacement | None,
     ) -> FullRebuildStateSnapshot:
         with self._lock:
             current = self._states.get(
@@ -131,12 +135,11 @@ def prepare_full_rebuild(
     dataset_run_id: UUID,
     state_adapter: FullRebuildStateAdapter,
 ) -> tuple[FullRebuildContext, bool]:
-    """Validate destructive intent and snapshot optimistic runtime-state version."""
+    """Validate destructive intent/scope and snapshot optimistic runtime-state version."""
 
     if request.run_mode is not RunMode.FULL_REBUILD:
         raise FullRebuildError("FULL_REBUILD execution requires a FULL_REBUILD request")
-    if (request.range_json or {}).get("authoritative_reset") is not True:
-        raise FullRebuildError("FULL_REBUILD requires explicit authoritative_reset=true")
+    spec = request.full_rebuild_spec
 
     before = state_adapter.read_state(request.dataset_id)
     already_rebuilt = before.last_rebuild_request_id == request.reprocess_request_id
@@ -145,10 +148,48 @@ def prepare_full_rebuild(
             dataset_id=request.dataset_id,
             rebuild_request_id=request.reprocess_request_id,
             dataset_run_id=dataset_run_id,
+            rebuild_scope=spec.rebuild_scope,
             before_state=before,
         ),
         already_rebuilt,
     )
+
+
+def _validate_scope_evidence(
+    context: FullRebuildContext,
+    outcome: FullRebuildMutationOutcome[object],
+) -> None:
+    if outcome.completed_scope is not context.rebuild_scope:
+        raise FullRebuildGateError(
+            "FULL_REBUILD completed scope does not match authorized request: "
+            f"requested={context.rebuild_scope.value}, "
+            f"completed={outcome.completed_scope.value}"
+        )
+
+    before = context.before_state.replacement
+    replacement = outcome.state_replacement
+
+    if context.rebuild_scope is RebuildScope.TARGET_ONLY:
+        if replacement != before:
+            raise FullRebuildGateError(
+                "TARGET_ONLY rebuild must preserve capture/runtime state exactly"
+            )
+        return
+
+    if replacement is None:
+        raise FullRebuildGateError(
+            f"{context.rebuild_scope.value} rebuild requires explicit post-rebuild state"
+        )
+
+    if (
+        context.rebuild_scope is RebuildScope.CAPTURE_AND_TARGET
+        and before is not None
+        and replacement.progress_kind is not before.progress_kind
+    ):
+        raise FullRebuildGateError(
+            "CAPTURE_AND_TARGET rebuild may replace checkpoint/boundary but cannot "
+            "change progress kind; use AUTHORITATIVE_RESET for that change"
+        )
 
 
 def execute_full_rebuild(
@@ -158,10 +199,10 @@ def execute_full_rebuild(
     state_adapter: FullRebuildStateAdapter,
     execute_rebuild: Callable[[FullRebuildContext], FullRebuildMutationOutcome[T]],
 ) -> FullRebuildResult[T]:
-    """Execute an authoritative rebuild then atomically cut over runtime state.
+    """Execute the authorized rebuild scope then atomically cut over runtime state.
 
     ``rebuild_request_id`` is stable across retry attempts and MUST be used by a
-    physical target adapter as its idempotency/rebuild identity. ``dataset_run_id`` is
+    physical adapter as its idempotency/rebuild identity. ``dataset_run_id`` is
     attempt-specific audit evidence only.
     """
 
@@ -175,6 +216,7 @@ def execute_full_rebuild(
             value=None,
             rebuild_request_id=context.rebuild_request_id,
             dataset_run_id=dataset_run_id,
+            rebuild_scope=context.rebuild_scope,
             state=context.before_state,
             already_rebuilt=True,
         )
@@ -182,13 +224,14 @@ def execute_full_rebuild(
     outcome = execute_rebuild(context)
     if not outcome.authoritative_rebuild_completed:
         raise FullRebuildGateError(
-            "FULL_REBUILD callback did not prove authoritative target reconstruction"
+            "FULL_REBUILD callback did not prove authoritative reconstruction"
         )
     if not outcome.gate.can_advance_state:
         raise FullRebuildGateError(
             "FULL_REBUILD runtime state cannot cut over before target commit and "
             "required reconciliation"
         )
+    _validate_scope_evidence(context, outcome)
 
     state = state_adapter.commit_rebuild_state(
         dataset_id=request.dataset_id,
@@ -201,6 +244,7 @@ def execute_full_rebuild(
         value=outcome.value,
         rebuild_request_id=request.reprocess_request_id,
         dataset_run_id=dataset_run_id,
+        rebuild_scope=context.rebuild_scope,
         state=state,
     )
 
