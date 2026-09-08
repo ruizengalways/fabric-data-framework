@@ -11,6 +11,7 @@ This directory intentionally has a small number of canonical documents. A fact s
 | Start developing or consume the wheel in Fabric | [`GETTING_STARTED.md`](GETTING_STARTED.md) |
 | Create a real project such as `fabric-health` | [`IMPLEMENTATION_PROJECT.md`](IMPLEMENTATION_PROJECT.md) |
 | Onboard a new table/source and choose the right semantics | [`DATA_PATTERNS.md`](DATA_PATTERNS.md) |
+| Configure source/target reconciliation, tolerances, warnings and state gates | [`RECONCILIATION.md`](RECONCILIATION.md) |
 | Recover a transient/operational Pipeline failure safely | [`OPERATIONS.md`](OPERATIONS.md) |
 | Fix bad Bronze/Silver/Gold data, rebuild affected descendants, or deploy v2 safely | [`REPAIR_AND_REBUILD.md`](REPAIR_AND_REBUILD.md) |
 | Test/certify exact framework wheel bytes | [`TESTING_AND_CERTIFICATION.md`](TESTING_AND_CERTIFICATION.md) |
@@ -36,6 +37,9 @@ IMPLEMENTATION_PROJECT.md
 DATA_PATTERNS.md
   source/capture/Bronze/apply decision rules only
 
+RECONCILIATION.md
+  reconciliation policy/check/tolerance/severity/observation/state-gate semantics
+
 OPERATIONS.md
   transient runtime operations, failure isolation, retry/replay/backfill only
 
@@ -55,7 +59,7 @@ internal/
   current state, capability matrix, module ownership
 ```
 
-Do not create a new top-level document when an existing canonical topic can absorb the information. `REPAIR_AND_REBUILD.md` is the dedicated exception for data-correctness incidents because that lifecycle spans dependency impact, rebuild and consumer cutover and should not be mixed into transient runtime operations. Git history is the historical record; current docs do not maintain PR timelines or superseded candidate walkthroughs.
+Do not create a new top-level document when an existing canonical topic can absorb the information. `RECONCILIATION.md` is a dedicated topic because reconciliation spans source-controlled DatasetConfig, provider observation collection, framework evaluation, runtime publication/state gates, and implementation-owned business controls; mixing that contract into source-pattern selection or transient recovery would create duplicate ownership. `REPAIR_AND_REBUILD.md` remains the dedicated exception for data-correctness incidents because that lifecycle spans dependency impact, rebuild and consumer cutover. Git history is the historical record; current docs do not maintain PR timelines or superseded candidate walkthroughs.
 
 ## Truth order
 
