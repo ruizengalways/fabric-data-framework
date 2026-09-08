@@ -1,40 +1,33 @@
-"""Reusable reconciliation gates for reference/integration executions."""
+"""Reusable SCD2 reconciliation gates."""
 
 from __future__ import annotations
 
 from typing import Mapping, Sequence
 from uuid import UUID
 
+from fabric_data_framework.apply.scd2 import assert_one_current_row
 from fabric_data_framework.contracts.audit import RowAccounting
 from fabric_data_framework.contracts.reconciliation import (
     ReconciliationMetric,
+    ReconciliationObservation,
     ReconciliationResult,
-    ReconciliationStatus,
 )
-from fabric_data_framework.apply.scd2 import assert_one_current_row
+from fabric_data_framework.metadata.config import ReconciliationPolicy
+from fabric_data_framework.quality.reconciliation_engine import evaluate_reconciliation_policy
 
 
 def reconcile_scd2_batch(
     *,
     dataset_run_id: UUID,
     dataset_id: str,
-    policy_name: str,
+    policy: ReconciliationPolicy,
     accounting: RowAccounting,
     proposed_rows: Sequence[Mapping],
     business_key: tuple[str, ...],
+    observations: Sequence[ReconciliationObservation] = (),
     force_fail: bool = False,
 ) -> ReconciliationResult:
-    metrics: list[ReconciliationMetric] = [
-        ReconciliationMetric(
-            name="source_accounting",
-            expected=accounting.rows_read,
-            actual=accounting.rows_accepted + accounting.rows_quarantined + accounting.rows_filtered,
-            passed=(
-                accounting.rows_read
-                == accounting.rows_accepted + accounting.rows_quarantined + accounting.rows_filtered
-            ),
-        )
-    ]
+    metrics: list[ReconciliationMetric] = []
 
     invariant_passed = True
     try:
@@ -60,12 +53,14 @@ def reconcile_scd2_batch(
             )
         )
 
-    passed = all(metric.passed for metric in metrics)
-    return ReconciliationResult(
+    return evaluate_reconciliation_policy(
         dataset_run_id=dataset_run_id,
         dataset_id=dataset_id,
-        policy_name=policy_name,
-        status=ReconciliationStatus.PASS if passed else ReconciliationStatus.FAIL,
-        metrics=tuple(metrics),
-        blocks_state_advance=True,
+        policy=policy,
+        accounting=accounting,
+        observations=observations,
+        base_metrics=metrics,
     )
+
+
+__all__ = ["reconcile_scd2_batch"]
