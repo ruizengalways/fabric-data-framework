@@ -105,17 +105,22 @@ def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
         "public_release: v0.3.0",
         "source_version: 0.4.0-development-unreleased",
         "candidate_status: not_frozen",
-        "exact_candidate_source_selected: false",
+        "exact_candidate_source_selected: true",
         "release_allowed: false",
-        "current_source_candidate_git_sha: not_selected",
-        "current_source_framework_artifact_sha256: not_selected",
-        "integration_inputs_hash: not_constructed_for_current_source",
-        "integration_inputs_status: blocked_pending_new_exact_current_source_artifact_then_approved_live_DEV_bindings",
-        "current_source_requires_new_exact_artifact_before_release_claim: true",
-        "candidate_git_sha: 81f4d5f93983e8288246f5b1521f763091880297",
-        "framework_artifact_sha256: 845f68d938a39ada944a1a71513b4f46b3a68416a5b53d60dbd10c2f6f95327c",
-        "status: superseded_for_current_source_by_packaged_runtime_changes",
-        "exact_current_candidate_selected: false",
+        "current_source_candidate_git_sha: 1c04216812dd438af58ffda73b22f6ff4d96459b",
+        "current_source_framework_artifact_sha256: 704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587",
+        "integration_inputs_hash: not_yet_constructed",
+        "integration_inputs_status: blocked_pending_approved_live_DEV_bindings",
+        "current_source_requires_new_exact_artifact_before_release_claim: false",
+        "candidate_main_framework_ci_run: 34232496900",
+        "candidate_main_installed_wheel_run: 34232496960",
+        "candidate_wheel_artifact_id: 10058373727",
+        "candidate_wheel_artifact_name: framework-wheel-1c04216812dd438af58ffda73b22f6ff4d96459b",
+        "framework_artifact_sha256: 704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587",
+        "wheel_sha_independently_rehashed: true",
+        "status: selected_not_frozen",
+        "exact_current_candidate_selected: true",
+        "current_source_installed_wheel_acceptance: passed",
         "current_source_real_fabric_execution: not_run",
         "canonical_control_plane_profile: fabric_sql_database_v1",
         "control_plane_schema_version: 6",
@@ -125,6 +130,23 @@ def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
         "release_authorized_by_certification_runner: false",
         "do_not_guess_or_reuse_unverified_resource_ids: true",
         "stop on any real FAIL",
+    ):
+        assert token in state
+
+
+def test_state_records_reconciliation_merge_and_exact_ci_provenance():
+    state = STATE.read_text(encoding="utf-8")
+    for token in (
+        "declarative_policy_engine_status: merged_on_main",
+        "pr: 133",
+        "pr_head_sha: 5caee889482944b6761c36c789d191e784a6a393",
+        "pr_framework_ci_run: 34232392803",
+        "pr_installed_wheel_run: 34232392715",
+        "merge_sha: 1c04216812dd438af58ffda73b22f6ff4d96459b",
+        "main_framework_ci_run: 34232496900",
+        "main_installed_wheel_run: 34232496960",
+        "pr_exact_head_ci_status: passed",
+        "main_post_merge_ci_status: passed",
     ):
         assert token in state
 
