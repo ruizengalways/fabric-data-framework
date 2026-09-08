@@ -60,8 +60,8 @@ fabric-data-framework -X-> fabric-customer
 | Watermark ordering/lookback/bootstrap contracts | capture | IMPLEMENTED; provider live proof separate |
 | CaptureReceipt/progress authority | `contracts/` | IMPLEMENTED |
 | DQ/quarantine fail-closed | `quality/` + runtime | IMPLEMENTED |
-| Declarative reconciliation checks/tolerance/partition/WARN-FAIL/state-gate composition | `metadata/config.py` + `contracts/reconciliation.py` + `quality/reconciliation_engine.py` | IMPLEMENTED on reconciliation feature branch; source tests included; provider live observation proof separate |
-| Strategy-specific reconciliation invariants for FULL/APPEND/SCD2/SNAPSHOT_DIFF | `quality/` | IMPLEMENTED; composed with declarative policy rather than replaced |
+| Declarative reconciliation checks/tolerance/partition/WARN-FAIL/state-gate composition | `metadata/config.py` + `contracts/reconciliation.py` + `quality/reconciliation_engine.py` | IMPLEMENTED + SOURCE PROVEN + INSTALLED-WHEEL PROVEN for selected exact candidate; provider live observation proof separate |
+| Strategy-specific reconciliation invariants for FULL/APPEND/SCD2/SNAPSHOT_DIFF | `quality/` | IMPLEMENTED + SOURCE PROVEN; composed with declarative policy rather than replaced |
 | Retry/replay/backfill/unknown-commit recovery | `recovery/` | IMPLEMENTED |
 | FULL_REBUILD scopes: TARGET_ONLY / CAPTURE_AND_TARGET / AUTHORITATIVE_RESET | `contracts/rebuild.py` + `recovery/rebuild.py` | IMPLEMENTED; source contract tests required; live project physical rebuild remains environment-specific |
 | Dependency-aware contaminated-subgraph planning | `contracts/rebuild_impact.py` + `recovery/rebuild_impact.py` | IMPLEMENTED; computes roots + downstream descendants + rebuild waves and excludes unrelated branches |
@@ -101,6 +101,8 @@ required_for_state_commit=false -> observability-only reconciliation authority
 ```
 
 The complete released policy is part of DatasetConfig/config identity and is materialized into the existing Control Plane `reconciliation_policy.definition` JSON column. No schema-version bump is required for the declarative engine.
+
+The selected exact source/wheel has passed post-merge source CI and installed-wheel acceptance. This proves the portable/package contract only; it does not prove real Fabric SQL/Spark observation collection or upgrade the capability to FABRIC PROVEN.
 
 ## Package/certification capability
 
