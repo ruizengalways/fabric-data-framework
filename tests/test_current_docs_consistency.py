@@ -28,7 +28,7 @@ CANONICAL_DOCS = (
 )
 
 _REPO_PATH_REFERENCE = re.compile(
-    r"(?P<path>"
+    r"(?<![A-Za-z0-9_./-])(?P<path>"
     r"(?:src|tests|certification|certification_harness|release)/[A-Za-z0-9_.\-/<>{}*]+"
     r"|\.github/[A-Za-z0-9_.\-/<>{}*]+"
     r")"
