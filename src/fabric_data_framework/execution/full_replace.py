@@ -37,7 +37,7 @@ from fabric_data_framework.contracts.reconciliation import (
     ReconciliationResult,
     ReconciliationStatus,
 )
-from ..quality.full_refresh import reconcile_full_replace
+from ..quality.reconciliation.full_replace import reconcile_full_replace
 from ..quality.rules import QuarantinedRecord, RowRule, validate_records
 from ..control_plane.repository import ControlPlaneRepository
 
