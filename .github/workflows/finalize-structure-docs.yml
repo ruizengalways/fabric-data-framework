@@ -1,0 +1,31 @@
+name: finalize-structure-docs
+
+on:
+  push:
+    branches:
+      - refactor/final-package-structure
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: ${{ !contains(github.event.head_commit.message, '[structure-docs-finalized]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: refactor/final-package-structure
+          fetch-depth: 0
+      - name: Finalize canonical paths and candidate state
+        run: |
+          python .github/finalize_structure_docs.py
+          if git diff --quiet; then
+            echo "No documentation finalization changes required"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md CONTRIBUTING.md docs tests/test_current_docs_consistency.py src/fabric_data_framework
+          git commit -m "Finalize package-structure docs and candidate state [structure-docs-finalized]"
+          git push origin HEAD:refactor/final-package-structure
