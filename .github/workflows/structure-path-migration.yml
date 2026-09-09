@@ -1,6 +1,9 @@
 name: structure-path-migration
 
 on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
   push:
     branches:
       - refactor/final-package-structure
@@ -10,7 +13,7 @@ permissions:
 
 jobs:
   migrate:
-    if: ${{ !contains(github.event.head_commit.message, '[structure-migration]') }}
+    if: ${{ (github.event_name == 'pull_request' && github.head_ref == 'refactor/final-package-structure') || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[structure-migration]')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -20,51 +23,56 @@ jobs:
       - name: Hard-cut moved paths and add package navigation
         shell: bash
         run: |
+          python .github/structure_path_migration.py
           python - <<'PY'
           from pathlib import Path
 
           replacements = [
-              ("fabric_data_framework.evidence.integration_evidence_merge", "fabric_data_framework.evidence.integration.merge"),
-              ("fabric_data_framework.evidence.integration_evidence_rerun", "fabric_data_framework.evidence.integration.rerun"),
-              ("fabric_data_framework.evidence.integration_evidence", "fabric_data_framework.evidence.integration.evidence"),
-              ("fabric_data_framework.evidence.integration_checks", "fabric_data_framework.evidence.integration.checks"),
-              ("fabric_data_framework.evidence.integration_runner", "fabric_data_framework.evidence.integration.runner"),
-              ("fabric_data_framework.evidence.approved_capture_runner", "fabric_data_framework.evidence.integration.approved.capture"),
-              ("fabric_data_framework.evidence.approved_control_plane_runner", "fabric_data_framework.evidence.integration.approved.control_plane"),
-              ("fabric_data_framework.evidence.approved_pipeline_runner", "fabric_data_framework.evidence.integration.approved.pipeline"),
-              ("fabric_data_framework.evidence.approved_warehouse_fault_runner", "fabric_data_framework.evidence.integration.approved.warehouse_fault"),
-              ("fabric_data_framework.evidence.approved_warehouse_runner", "fabric_data_framework.evidence.integration.approved.warehouse"),
-              ("fabric_data_framework.evidence.approved_business_path_runner", "fabric_data_framework.evidence.business_paths.approved_runner"),
-              ("fabric_data_framework.evidence.business_path_release_proof", "fabric_data_framework.evidence.business_paths.release_proof"),
-              ("fabric_data_framework.evidence.business_path_evidence", "fabric_data_framework.evidence.business_paths.evidence"),
-              ("fabric_data_framework.evidence.business_path_driver", "fabric_data_framework.evidence.business_paths.driver"),
-              ("fabric_data_framework.evidence.business_path_plan", "fabric_data_framework.evidence.business_paths.plan"),
-              ("fabric_data_framework.evidence.release_readiness_merge", "fabric_data_framework.evidence.release.merge"),
-              ("fabric_data_framework.evidence.release_readiness", "fabric_data_framework.evidence.release.readiness"),
-              ("fabric_data_framework.evidence.candidate_certification", "fabric_data_framework.evidence.release.candidate_certification"),
-              ("fabric_data_framework.certification.fabric_assets", "fabric_data_framework.certification.fabric.assets"),
-              ("fabric_data_framework.certification.fabric_job", "fabric_data_framework.certification.fabric.fabric_job"),
-              ("fabric_data_framework.certification.pipeline_child", "fabric_data_framework.certification.fabric.pipeline_child"),
-              ("fabric_data_framework.certification.bindings", "fabric_data_framework.certification.fabric.bindings"),
-              ("fabric_data_framework.quality.reconciliation_engine", "fabric_data_framework.quality.reconciliation.engine"),
-              ("fabric_data_framework.quality.full_refresh", "fabric_data_framework.quality.reconciliation.full_replace"),
-              ("fabric_data_framework.quality.append", "fabric_data_framework.quality.reconciliation.append"),
-              ("fabric_data_framework.quality.snapshot_diff", "fabric_data_framework.quality.reconciliation.snapshot_diff"),
-              ("fabric_data_framework.execution.dataset_runner", "fabric_data_framework.execution.watermark_scd2"),
-              ("certification/build_integration_inputs.py", "certification_harness/build_integration_inputs.py"),
-              ("certification/smoke_installed_wheel.py", "certification_harness/smoke_installed_wheel.py"),
-              ("certification/integration_project", "certification_harness/integration_project"),
+              ("from ..evidence.approved_capture_runner import", "from ..evidence.integration.approved.capture import"),
+              ("from ..evidence.approved_control_plane_runner import", "from ..evidence.integration.approved.control_plane import"),
+              ("from ..evidence.approved_pipeline_runner import", "from ..evidence.integration.approved.pipeline import"),
+              ("from ..evidence.approved_warehouse_fault_runner import", "from ..evidence.integration.approved.warehouse_fault import"),
+              ("from ..evidence.approved_warehouse_runner import", "from ..evidence.integration.approved.warehouse import"),
+              ("from ..evidence.integration_evidence_merge import", "from ..evidence.integration.merge import"),
+              ("from ..evidence.integration_evidence_rerun import", "from ..evidence.integration.rerun import"),
+              ("from ..evidence.integration_evidence import", "from ..evidence.integration.evidence import"),
+              ("from ..evidence.integration_checks import", "from ..evidence.integration.checks import"),
+              ("from ..evidence.integration_runner import", "from ..evidence.integration.runner import"),
+              ("from fabric_data_framework.certification import fabric_job", "from fabric_data_framework.certification.fabric import fabric_job"),
+              ("from fabric_data_framework.certification import pipeline_child", "from fabric_data_framework.certification.fabric import pipeline_child"),
+              ("src/fabric_data_framework/evidence/approved_capture_runner.py", "src/fabric_data_framework/evidence/integration/approved/capture.py"),
+              ("src/fabric_data_framework/evidence/approved_control_plane_runner.py", "src/fabric_data_framework/evidence/integration/approved/control_plane.py"),
+              ("src/fabric_data_framework/evidence/approved_pipeline_runner.py", "src/fabric_data_framework/evidence/integration/approved/pipeline.py"),
+              ("src/fabric_data_framework/evidence/approved_warehouse_fault_runner.py", "src/fabric_data_framework/evidence/integration/approved/warehouse_fault.py"),
+              ("src/fabric_data_framework/evidence/approved_warehouse_runner.py", "src/fabric_data_framework/evidence/integration/approved/warehouse.py"),
+              ("src/fabric_data_framework/evidence/approved_business_path_runner.py", "src/fabric_data_framework/evidence/business_paths/approved_runner.py"),
+              ("src/fabric_data_framework/evidence/business_path_driver.py", "src/fabric_data_framework/evidence/business_paths/driver.py"),
+              ("src/fabric_data_framework/evidence/business_path_evidence.py", "src/fabric_data_framework/evidence/business_paths/evidence.py"),
+              ("src/fabric_data_framework/evidence/business_path_plan.py", "src/fabric_data_framework/evidence/business_paths/plan.py"),
+              ("src/fabric_data_framework/evidence/business_path_release_proof.py", "src/fabric_data_framework/evidence/business_paths/release_proof.py"),
+              ("src/fabric_data_framework/evidence/integration_evidence.py", "src/fabric_data_framework/evidence/integration/evidence.py"),
+              ("src/fabric_data_framework/evidence/integration_checks.py", "src/fabric_data_framework/evidence/integration/checks.py"),
+              ("src/fabric_data_framework/evidence/integration_runner.py", "src/fabric_data_framework/evidence/integration/runner.py"),
+              ("src/fabric_data_framework/evidence/release_readiness.py", "src/fabric_data_framework/evidence/release/readiness.py"),
+              ("src/fabric_data_framework/evidence/candidate_certification.py", "src/fabric_data_framework/evidence/release/candidate_certification.py"),
+              ("src/fabric_data_framework/certification/fabric_assets.py", "src/fabric_data_framework/certification/fabric/assets.py"),
+              ("src/fabric_data_framework/certification/fabric_job.py", "src/fabric_data_framework/certification/fabric/fabric_job.py"),
+              ("src/fabric_data_framework/certification/pipeline_child.py", "src/fabric_data_framework/certification/fabric/pipeline_child.py"),
+              ("src/fabric_data_framework/certification/bindings.py", "src/fabric_data_framework/certification/fabric/bindings.py"),
+              ("src/fabric_data_framework/quality/reconciliation_engine.py", "src/fabric_data_framework/quality/reconciliation/engine.py"),
+              ("src/fabric_data_framework/quality/full_refresh.py", "src/fabric_data_framework/quality/reconciliation/full_replace.py"),
+              ("src/fabric_data_framework/quality/append.py", "src/fabric_data_framework/quality/reconciliation/append.py"),
+              ("src/fabric_data_framework/quality/snapshot_diff.py", "src/fabric_data_framework/quality/reconciliation/snapshot_diff.py"),
+              ("src/fabric_data_framework/execution/dataset_runner.py", "src/fabric_data_framework/execution/watermark_scd2.py"),
           ]
-
-          roots = [Path("src"), Path("tests"), Path("docs"), Path(".github"), Path("certification_harness"), Path("examples"), Path("release")]
+          roots = [Path("src"), Path("tests"), Path("docs"), Path("certification_harness"), Path("examples"), Path("release")]
           files = [Path("README.md"), Path("CONTRIBUTING.md"), Path("pyproject.toml")]
           extensions = {".py", ".md", ".yml", ".yaml", ".json", ".toml", ".txt"}
           for root in roots:
               if root.exists():
                   files.extend(p for p in root.rglob("*") if p.is_file() and p.suffix in extensions)
-          this_file = Path(".github/workflows/structure-path-migration.yml")
           for path in sorted(set(files)):
-              if path == this_file or not path.exists():
+              if not path.exists():
                   continue
               try:
                   text = path.read_text(encoding="utf-8")
@@ -75,37 +83,9 @@ jobs:
                   updated = updated.replace(old, new)
               if updated != text:
                   path.write_text(updated, encoding="utf-8")
-
-          readmes = {
-              "src/fabric_data_framework/capture/README.md": ("Capture", "Source-change semantics and capture planning.", "api.py, patterns.py, semantic_contracts.py", "Apply/target mutation semantics."),
-              "src/fabric_data_framework/apply/README.md": ("Apply", "Provider-neutral target-state mutation semantics.", "current_state.py, scd1.py, scd2.py, cdc.py", "Capture transport or orchestration."),
-              "src/fabric_data_framework/data_plane/README.md": ("Data Plane", "Source-faithful Bronze normalization and transient staging primitives.", "bronze.py, staging.py", "Durable control state or provider transport."),
-              "src/fabric_data_framework/metadata/README.md": ("Metadata", "Typed DatasetConfig and capability validation.", "config.py, capabilities.py", "Runtime side effects."),
-              "src/fabric_data_framework/quality/README.md": ("Quality", "Row quality, quarantine payload persistence, schema/temporal checks, and reconciliation.", "rules.py, quarantine_store.py, reconciliation/", "Business-specific cleansing logic."),
-              "src/fabric_data_framework/quality/reconciliation/README.md": ("Reconciliation", "Framework-owned semantic reconciliation policy evaluation and strategy checks.", "engine.py, append.py, full_replace.py, scd2.py, snapshot_diff.py", "Provider observations as semantic authority."),
-              "src/fabric_data_framework/orchestration/README.md": ("Orchestration", "Plan and dispatch dataset work without owning provider execution details.", "planner.py, dispatcher.py", "Capture/apply semantics or provider APIs."),
-              "src/fabric_data_framework/execution/README.md": ("Execution", "Reference dataset execution paths and backend dispatch contracts.", "watermark_scd2.py, append.py, full_replace.py, snapshot_diff.py, backends/", "Business-specific mappings."),
-              "src/fabric_data_framework/adapters/README.md": ("Adapters", "Provider/source-specific implementations behind framework-owned contracts.", "fabric/, cdc/", "Framework semantic decisions."),
-              "src/fabric_data_framework/recovery/README.md": ("Recovery", "Replay, rebuild, target probing, cutover, and unknown-outcome recovery.", "runtime.py, replay.py, rebuild.py, target_probe.py", "Ordinary happy-path execution."),
-              "src/fabric_data_framework/certification/README.md": ("Certification", "Framework-owned bounded, installed-wheel, semantic, and Fabric certification logic.", "bounded.py, installed.py, unified.py, fabric/", "Customer/domain certification identity."),
-              "src/fabric_data_framework/certification/fabric/README.md": ("Fabric Certification", "Microsoft Fabric-specific binding discovery, asset bootstrap, job and pipeline-child certification.", "bindings.py, assets.py, fabric_job.py, pipeline_child.py", "Provider-neutral certification semantics."),
-              "src/fabric_data_framework/evidence/integration/README.md": ("Integration Evidence", "Typed integration evidence, preflight, rerun/merge logic, and approved executors.", "evidence.py, runner.py, checks.py, approved/", "Release policy or business-path semantics."),
-              "src/fabric_data_framework/evidence/business_paths/README.md": ("Business Path Evidence", "Framework-owned business-path plans, drivers, retained evidence, and release proof composition.", "plan.py, driver.py, evidence.py, approved_runner.py", "Customer business identity."),
-              "src/fabric_data_framework/evidence/release/README.md": ("Release Evidence", "Candidate certification and release-readiness proof composition.", "candidate_certification.py, readiness.py, merge.py", "Artifact creation or Fabric execution."),
-              "src/fabric_data_framework/extensions/README.md": ("Extensions", "Explicit registered extension points for supported customization.", "registry.py", "Ad-hoc imports of framework internals."),
-          }
-          for path_str, (title, purpose, start, not_owns) in readmes.items():
-              path = Path(path_str)
-              if path.exists():
-                  continue
-              path.parent.mkdir(parents=True, exist_ok=True)
-              path.write_text(
-                  f"# {title}\n\n## Purpose\n\n{purpose}\n\n## Start here\n\n`{start}`\n\n## Does not own\n\n{not_owns}\n\n## Dependency rule\n\nKeep framework semantics provider-neutral; depend inward on contracts/metadata rather than on CLI or certification presentation layers. See [`docs/DEVELOPMENT_GUIDE.md`](../../../docs/DEVELOPMENT_GUIDE.md) for the repository-wide change workflow.\n",
-                  encoding="utf-8",
-              )
           PY
 
-          if git diff --quiet && git ls-files --others --exclude-standard | grep -q '^$'; then
+          if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
             echo "No migration changes required"
             exit 0
           fi
@@ -114,5 +94,3 @@ jobs:
           git add -A
           git commit -m "Apply hard-cut package path migration [structure-migration]"
           git push origin HEAD:refactor/final-package-structure
-
-# Existing-on-branch workflow: this comment intentionally triggers the one-shot migration.
