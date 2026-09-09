@@ -18,13 +18,13 @@ import json
 
 from pydantic import Field, model_validator
 
-from ..adapters.fabric.adapter import (
+from ....adapters.fabric.adapter import (
     CopyJobCaptureAdapter,
     FabricAdapterExecutionError,
     FabricCaptureExecutionResult,
     SparkJobCaptureAdapter,
 )
-from ..adapters.fabric.capture_transports import (
+from ....adapters.fabric.capture_transports import (
     FabricCaptureObservation,
     FabricCaptureObservationResolver,
     FabricCopyJobBinding,
@@ -33,8 +33,8 @@ from ..adapters.fabric.capture_transports import (
     FabricSparkJobDefinitionBinding,
     FabricSparkJobDefinitionCaptureTransport,
 )
-from ..adapters.fabric.contracts import FabricCaptureRequest, FabricNativeRunEvidence
-from ..adapters.fabric.rest import FabricJobInstance, FabricRestClient
+from ....adapters.fabric.contracts import FabricCaptureRequest, FabricNativeRunEvidence
+from ....adapters.fabric.rest import FabricJobInstance, FabricRestClient
 from fabric_data_framework.metadata.config import (
     CaptureStrategy,
     DatasetConfig,
@@ -45,15 +45,15 @@ from fabric_data_framework.metadata.config import (
     resolve_effective_config,
 )
 from fabric_data_framework.contracts.base import FrozenModel
-from ..contracts.capture_receipt import CaptureReceipt
-from ..contracts.execution_plan import ExecutionKind, ExecutionRole, ExecutionUnit
-from ..execution.plan_compiler import compile_execution_plan
-from ..deployment.delivery import config_bundle_hash
-from ..deployment.contracts import ReleaseManifest
-from ..extensions import ExtensionKind, ExtensionRegistry
+from ....contracts.capture_receipt import CaptureReceipt
+from ....contracts.execution_plan import ExecutionKind, ExecutionRole, ExecutionUnit
+from ....execution.plan_compiler import compile_execution_plan
+from ....deployment.delivery import config_bundle_hash
+from ....deployment.contracts import ReleaseManifest
+from ....extensions import ExtensionKind, ExtensionRegistry
 from fabric_data_framework.adapters.fabric.auth import EnvironmentAccessTokenProvider
-from .integration_checks import build_fabric_capture_check_result
-from .integration_evidence import (
+from ..checks import build_fabric_capture_check_result
+from ..evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceManifest,
@@ -62,13 +62,13 @@ from .integration_evidence import (
     run_integration_evidence,
     validate_integration_evidence_manifest,
 )
-from .integration_runner import (
+from ..runner import (
     ApprovedIntegrationRunPlan,
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
     build_approved_integration_run_plan,
 )
-from .safety import assert_safe_retained_text
+from ...safety import assert_safe_retained_text
 
 
 _EXTENSION_PATTERN = r"^[a-z][a-z0-9_.-]*$"

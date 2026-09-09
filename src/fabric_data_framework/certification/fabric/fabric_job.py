@@ -50,7 +50,7 @@ from fabric_data_framework.execution.pipeline_child import (
 from fabric_data_framework.metadata.config import DatasetStatus
 
 from .pipeline_child import CertificationPipelineChildExecutor
-from .simple import DEFAULT_CERTIFICATION_ROOT
+from ..simple import DEFAULT_CERTIFICATION_ROOT
 
 
 _DOMAIN = "framework-certification"

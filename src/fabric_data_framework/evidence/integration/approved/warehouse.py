@@ -33,13 +33,13 @@ from fabric_data_framework.metadata.config import (
     resolve_effective_config,
 )
 from fabric_data_framework.contracts.base import FrozenModel
-from ..contracts.recovery import UnknownOutcomeResolution
-from ..control_plane.certification import get_control_plane_backend_profile
-from ..deployment.delivery import config_bundle_hash
-from ..deployment.contracts import ReleaseManifest
-from ..extensions import ExtensionKind, ExtensionRegistry
-from .integration_checks import build_fabric_warehouse_commit_check_result
-from .integration_evidence import (
+from ....contracts.recovery import UnknownOutcomeResolution
+from ....control_plane.certification import get_control_plane_backend_profile
+from ....deployment.delivery import config_bundle_hash
+from ....deployment.contracts import ReleaseManifest
+from ....extensions import ExtensionKind, ExtensionRegistry
+from ..checks import build_fabric_warehouse_commit_check_result
+from ..evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceManifest,
@@ -48,12 +48,12 @@ from .integration_evidence import (
     run_integration_evidence,
     validate_integration_evidence_manifest,
 )
-from .integration_runner import (
+from ..runner import (
     ApprovedIntegrationRunPlan,
     ApprovedIntegrationRunnerConfig,
     build_approved_integration_run_plan,
 )
-from ..recovery.fabric_warehouse import (
+from ....recovery.fabric_warehouse import (
     FABRIC_WAREHOUSE_DEFAULT_MARKER_TABLE,
     FabricWarehouseAtomicMutationResult,
     FabricWarehouseMarkerStore,
@@ -61,13 +61,13 @@ from ..recovery.fabric_warehouse import (
     FabricWarehouseTargetCommitProbe,
     build_fabric_warehouse_operation_marker_table,
 )
-from ..recovery.target_probe import (
+from ....recovery.target_probe import (
     TargetCommitProbeRequest,
     probe_and_reconcile_target_operation,
 )
-from ..control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
-from .safety import assert_safe_retained_text
-from ..control_plane.target_operation_journal import (
+from ....control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
+from ...safety import assert_safe_retained_text
+from ....control_plane.target_operation_journal import (
     claim_target_operation,
     mark_target_operation_unknown,
     read_target_operation,

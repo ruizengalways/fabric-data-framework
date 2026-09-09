@@ -21,13 +21,13 @@ from uuid import UUID, uuid4
 from pydantic import Field, model_validator
 from sqlalchemy import Engine, create_engine
 
-from ..adapters.fabric.pipeline import (
+from ....adapters.fabric.pipeline import (
     FabricPipelineBinding,
     FabricPipelineInvocation,
     FabricPipelineTransport,
     FabricRestPipelineTransport,
 )
-from ..adapters.fabric.rest import FabricJobInstance, FabricJobStatus, FabricRestClient
+from ....adapters.fabric.rest import FabricJobInstance, FabricJobStatus, FabricRestClient
 from fabric_data_framework.metadata.config import (
     DatasetConfig,
     DatasetStatus,
@@ -35,13 +35,13 @@ from fabric_data_framework.metadata.config import (
     RunMode,
     resolve_effective_config,
 )
-from ..control_plane.certification import get_control_plane_backend_profile
-from ..deployment.delivery import config_bundle_hash
-from ..deployment.contracts import ReleaseManifest
+from ....control_plane.certification import get_control_plane_backend_profile
+from ....deployment.delivery import config_bundle_hash
+from ....deployment.contracts import ReleaseManifest
 from fabric_data_framework.adapters.fabric.auth import EnvironmentAccessTokenProvider
-from ..execution.backends.fabric_pipeline import FabricPipelineBackend
-from .integration_checks import build_fabric_pipeline_check_result
-from .integration_evidence import (
+from ....execution.backends.fabric_pipeline import FabricPipelineBackend
+from ..checks import build_fabric_pipeline_check_result
+from ..evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceManifest,
@@ -50,7 +50,7 @@ from .integration_evidence import (
     run_integration_evidence,
     validate_integration_evidence_manifest,
 )
-from .integration_runner import (
+from ..runner import (
     ApprovedIntegrationRunPlan,
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
@@ -59,8 +59,8 @@ from .integration_runner import (
 from fabric_data_framework.contracts.audit import PipelineRunAudit
 from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.contracts.dispatch import DatasetDispatchOutcome
-from ..control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
-from .safety import assert_safe_retained_text
+from ....control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
+from ...safety import assert_safe_retained_text
 
 
 EngineFactory = Callable[[str], Engine]
