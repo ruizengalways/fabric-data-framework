@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Sequence
 from uuid import UUID
 
-from ..capture.full import FullSnapshotEvidence
+from ...capture.full import FullSnapshotEvidence
 from fabric_data_framework.contracts.audit import RowAccounting
 from fabric_data_framework.contracts.reconciliation import (
     ReconciliationMetric,
@@ -13,7 +13,7 @@ from fabric_data_framework.contracts.reconciliation import (
     ReconciliationResult,
 )
 from fabric_data_framework.metadata.config import ReconciliationPolicy
-from fabric_data_framework.quality.reconciliation_engine import evaluate_reconciliation_policy
+from fabric_data_framework.quality.reconciliation.engine import evaluate_reconciliation_policy
 
 
 def reconcile_full_replace(
