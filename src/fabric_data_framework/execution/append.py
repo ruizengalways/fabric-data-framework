@@ -32,7 +32,7 @@ from fabric_data_framework.contracts.reconciliation import (
     ReconciliationResult,
     ReconciliationStatus,
 )
-from ..quality.append import reconcile_append
+from ..quality.reconciliation.append import reconcile_append
 from ..quality.rules import QuarantinedRecord, RowRule, validate_records
 from ..control_plane.repository import ControlPlaneRepository
 
