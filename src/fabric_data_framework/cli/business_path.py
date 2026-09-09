@@ -11,13 +11,13 @@ import os
 import sys
 
 from ..deployment.delivery import load_dataset_configs, load_release_manifest
-from ..evidence.approved_business_path_runner import (
+from ..evidence.business_paths.approved_runner import (
     execute_approved_business_path,
     write_approved_business_path_execution_report,
 )
-from ..evidence.business_path_driver import load_approved_business_path_driver_config
-from ..evidence.business_path_evidence import load_approved_business_path_scenario
-from ..evidence.business_path_release_proof import write_business_path_release_proof_bundle
+from ..evidence.business_paths.driver import load_approved_business_path_driver_config
+from ..evidence.business_paths.evidence import load_approved_business_path_scenario
+from ..evidence.business_paths.release_proof import write_business_path_release_proof_bundle
 from ..evidence.integration.evidence import (
     load_integration_evidence_manifest,
     load_integration_evidence_spec,
