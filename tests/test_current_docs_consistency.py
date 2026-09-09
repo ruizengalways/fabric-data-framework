@@ -11,6 +11,7 @@ CANONICAL_DOCS = (
     "README.md",
     "ARCHITECTURE.md",
     "CODE_READING_GUIDE.md",
+    "DEVELOPMENT_GUIDE.md",
     "GETTING_STARTED.md",
     "IMPLEMENTATION_PROJECT.md",
     "DATA_PATTERNS.md",
@@ -67,6 +68,7 @@ def test_documentation_has_one_canonical_topic_tree():
     for relative in CANONICAL_DOCS:
         assert (DOCS / relative).is_file(), relative
 
+    assert (ROOT / "CONTRIBUTING.md").is_file()
     assert not (DOCS / "human").exists()
     assert not (DOCS / "machine").exists()
 
@@ -76,6 +78,7 @@ def test_docs_index_is_navigation_not_a_second_architecture_doc():
     for relative in (
         "ARCHITECTURE.md",
         "CODE_READING_GUIDE.md",
+        "DEVELOPMENT_GUIDE.md",
         "GETTING_STARTED.md",
         "IMPLEMENTATION_PROJECT.md",
         "DATA_PATTERNS.md",
@@ -92,10 +95,36 @@ def test_docs_index_is_navigation_not_a_second_architecture_doc():
     assert "Do not create a new top-level document" in index
 
 
-def test_root_readme_surfaces_code_reading_and_repair_runbooks():
+def test_root_readme_surfaces_code_reading_development_and_repair_runbooks():
     root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "docs/CODE_READING_GUIDE.md" in root_readme
+    assert "docs/DEVELOPMENT_GUIDE.md" in root_readme
     assert "docs/REPAIR_AND_REBUILD.md" in root_readme
+    assert "CONTRIBUTING.md" in root_readme
+
+
+def test_development_guide_separates_reading_from_safe_modification():
+    development = _read("DEVELOPMENT_GUIDE.md")
+    contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+
+    for token in (
+        "Before coding: answer five questions",
+        "Decide which repository owns the change",
+        "Change-impact map",
+        "Fail-closed rules to preserve",
+        "Hard-cut policy",
+        "Testing matrix",
+        "Debug by identities, not by guesses",
+        "Candidate-impact classification",
+        "Exact PR-head CI is green before merge",
+        "provider Completed != framework semantic success",
+        "fabric-customer -X-> fabric-data-framework",
+    ):
+        assert token in development
+
+    assert "docs/CODE_READING_GUIDE.md" in contributing
+    assert "docs/DEVELOPMENT_GUIDE.md" in contributing
+    assert "compatibility shims" in contributing
 
 
 def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
