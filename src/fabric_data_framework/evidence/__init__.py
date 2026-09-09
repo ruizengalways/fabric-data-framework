@@ -1,11 +1,11 @@
-"""Integration-evidence contracts, preflight and explicitly approved run executors.
+"""Retained certification and integration evidence APIs.
 
-The reusable data semantics/runtime remain outside this package. ``evidence`` owns the
-retained evidence model and the environment-facing executors that prove those existing
-contracts without creating a second semantic truth.
+The reusable data semantics/runtime remain outside this package. ``evidence`` owns
+retained proof models and explicitly approved environment-facing executors; the
+subpackages group integration, business-path, and release evidence by bounded context.
 """
 
-from .integration_evidence import (
+from .integration.evidence import (
     INTEGRATION_EVIDENCE_SCHEMA_VERSION,
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
@@ -20,7 +20,7 @@ from .integration_evidence import (
     validate_integration_evidence_manifest,
     write_integration_evidence_manifest,
 )
-from .integration_runner import (
+from .integration.runner import (
     ApprovedIntegrationRunPlan,
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
