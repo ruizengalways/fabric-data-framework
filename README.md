@@ -44,6 +44,20 @@ fabric-framework project-validate ./fabric-health
 
 Stable Fabric environments should consume immutable wheel bytes through a published Fabric Environment rather than an editable checkout.
 
+## Maintainer path
+
+If you are joining the framework team or doing secondary development, use this order:
+
+```text
+ARCHITECTURE.md
+-> CODE_READING_GUIDE.md
+-> DEVELOPMENT_GUIDE.md
+-> focused owner-module tests
+-> CONTRIBUTING.md workflow
+```
+
+`CODE_READING_GUIDE.md` explains **how the current framework works**. `DEVELOPMENT_GUIDE.md` explains **how to change it safely** without breaking repository ownership, dependency direction, fail-closed semantics, durable identities, or candidate provenance.
+
 ## Certification boundary
 
 Source tests, installed-wheel acceptance, real Fabric certification, and release authorization are separate gates:
@@ -74,10 +88,11 @@ Real Fabric capabilities are never marked PASS from local CI alone.
 
 ## Documentation
 
-Start at [`docs/README.md`](docs/README.md).
+Start at [`docs/README.md`](docs/README.md). Framework contributors should also read [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — repo ownership, semantic model, Control Plane/Data Plane topology.
 - [`docs/CODE_READING_GUIDE.md`](docs/CODE_READING_GUIDE.md) — current end-to-end code reading order and runtime call flow.
+- [`docs/DEVELOPMENT_GUIDE.md`](docs/DEVELOPMENT_GUIDE.md) — safe framework modification, extension boundaries, change-impact map, testing, debugging and review checklist.
 - [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — local development, wheel build, Fabric consumption.
 - [`docs/IMPLEMENTATION_PROJECT.md`](docs/IMPLEMENTATION_PROJECT.md) — bootstrap a real framework-consuming domain repo.
 - [`docs/DATA_PATTERNS.md`](docs/DATA_PATTERNS.md) — choose FULL, watermark/lookback, CDC, APPEND, Bronze, SCD1/SCD2, and delete semantics.
