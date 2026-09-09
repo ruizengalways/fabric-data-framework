@@ -33,7 +33,10 @@ REPLACEMENTS = [
     ("certification/integration_project", "certification_harness/integration_project"),
 ]
 
-ROOTS = [Path("src"), Path("tests"), Path("docs"), Path(".github"), Path("certification_harness"), Path("examples"), Path("release")]
+# Workflows are intentionally excluded here. A workflow-run GITHUB_TOKEN cannot
+# update other workflow files without the separate workflows permission. Any
+# workflow path migrations are applied explicitly through the repository API.
+ROOTS = [Path("src"), Path("tests"), Path("docs"), Path("certification_harness"), Path("examples"), Path("release")]
 FILES = [Path("README.md"), Path("CONTRIBUTING.md"), Path("pyproject.toml")]
 EXTENSIONS = {".py", ".md", ".yml", ".yaml", ".json", ".toml", ".txt"}
 for root in ROOTS:
@@ -83,7 +86,6 @@ RELATIVE_REPLACEMENTS = {
         ("from .release_readiness import", "from .readiness import"),
     ],
     "src/fabric_data_framework/certification/fabric/assets.py": [
-        ("from .bindings import", "from .bindings import"),
         ("from .models import", "from ..models import"),
     ],
     "src/fabric_data_framework/certification/fabric/fabric_job.py": [
