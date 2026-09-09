@@ -27,7 +27,7 @@ jobs:
           .cert-venv/bin/python -m pip install dist/fabric_data_framework-*.whl
           .cert-venv/bin/python -m pip check
       - name: Attest active installed package bytes
-        run: .cert-venv/bin/python certification/smoke_installed_wheel.py --wheel dist/fabric_data_framework-*.whl
+        run: .cert-venv/bin/python certification_harness/smoke_installed_wheel.py --wheel dist/fabric_data_framework-*.whl
       - name: Prove source tree is not import path
         run: |
           .cert-venv/bin/python - <<'PY'
