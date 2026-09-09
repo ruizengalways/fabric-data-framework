@@ -114,3 +114,5 @@ jobs:
           git add -A
           git commit -m "Apply hard-cut package path migration [structure-migration]"
           git push origin HEAD:refactor/final-package-structure
+
+# Existing-on-branch workflow: this comment intentionally triggers the one-shot migration.
