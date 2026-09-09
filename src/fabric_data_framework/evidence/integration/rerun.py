@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceManifest,

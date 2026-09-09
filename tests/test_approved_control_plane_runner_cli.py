@@ -5,12 +5,12 @@ from pathlib import Path
 
 from fabric_data_framework.cli import main
 from fabric_data_framework.contracts.environment import EnvironmentName
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckSpec,
     IntegrationEvidenceSpec,
 )
-from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
+from fabric_data_framework.evidence.integration.runner import ApprovedIntegrationRunnerConfig
 
 
 FRAMEWORK_ARTIFACT_SHA256 = "a" * 64

@@ -16,7 +16,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationCheckKind,
     ReconciliationPolicy,
 )
-from fabric_data_framework.quality.reconciliation_engine import evaluate_reconciliation_policy
+from fabric_data_framework.quality.reconciliation.engine import evaluate_reconciliation_policy
 
 
 DATASET_ID = "orders.order"

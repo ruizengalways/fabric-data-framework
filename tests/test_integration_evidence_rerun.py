@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 
 from fabric_data_framework.contracts.environment import EnvironmentName
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -14,7 +14,7 @@ from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.evidence.integration_evidence_rerun import (
+from fabric_data_framework.evidence.integration.rerun import (
     prepare_explicit_pipeline_rerun_prerequisite,
 )
 

@@ -20,7 +20,7 @@ from ..adapters.fabric.rest import FabricJobInstance, FabricJobStatus, FabricRes
 from fabric_data_framework.metadata.config import ExecutionEngine
 from ..control_plane.certification import ControlPlaneCertificationReport
 from ..contracts.execution_plan import ExecutionKind
-from .integration_evidence import (
+from .evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceStatus,

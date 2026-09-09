@@ -246,7 +246,7 @@ def _spark_job_definition(
 ) -> FabricItemDefinition:
     del workspace_id
     main_py = (
-        "from fabric_data_framework.certification.fabric_job import main\n"
+        "from fabric_data_framework.certification.fabric.fabric_job import main\n"
         "raise SystemExit(main())\n"
     )
     config = {

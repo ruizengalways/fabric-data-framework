@@ -248,7 +248,7 @@ The canonical operator manual for data correctness repair/rebuild/v1-v2 cutover 
 | Lakehouse bounded Fabric checks | `src/fabric_data_framework/certification/bounded.py` |
 | Conventional one-call API | `src/fabric_data_framework/certification/simple.py` |
 | Unified environment-dependent orchestrator | `src/fabric_data_framework/certification/unified.py` |
-| Framework-owned reference integration fixtures/config | `certification/integration_project/` plus packaged certification resources |
+| Framework-owned reference integration fixtures/config | `certification_harness/integration_project/` plus packaged certification resources |
 
 `certify_installed()` is the preferred high-level boundary: attest installed bytes first, then execute semantic/Fabric certification.
 

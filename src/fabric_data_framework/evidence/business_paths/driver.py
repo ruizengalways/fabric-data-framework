@@ -17,7 +17,7 @@ from pydantic import Field, model_validator
 
 from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.deployment.contracts import ReleaseManifest
-from fabric_data_framework.evidence.business_path_evidence import BusinessPathGate
+from fabric_data_framework.evidence.business_paths.evidence import BusinessPathGate
 from fabric_data_framework.evidence.safety import assert_safe_retained_text
 from fabric_data_framework.metadata.config import canonical_hash
 

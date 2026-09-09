@@ -17,18 +17,18 @@ from pydantic import Field, model_validator
 from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.deployment.contracts import ReleaseManifest
 from fabric_data_framework.deployment.delivery import config_bundle_hash
-from fabric_data_framework.evidence.approved_pipeline_runner import (
+from fabric_data_framework.evidence.integration.approved.pipeline import (
     ApprovedPipelineEvidenceReport,
     execute_approved_pipeline,
 )
-from fabric_data_framework.evidence.business_path_driver import (
+from fabric_data_framework.evidence.business_paths.driver import (
     ApprovedBusinessPathDriverConfig,
     BusinessPathDriverPhase,
     BusinessPathDriverReceipt,
     BusinessPathDriverRequest,
     validate_driver_receipt,
 )
-from fabric_data_framework.evidence.business_path_evidence import (
+from fabric_data_framework.evidence.business_paths.evidence import (
     ApprovedBusinessPathScenario,
     BusinessPathGate,
     BusinessPathObservationPhase,
@@ -37,18 +37,18 @@ from fabric_data_framework.evidence.business_path_evidence import (
     BusinessPathStateObservation,
     evaluate_business_path_evidence,
 )
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceManifest,
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
     validate_integration_evidence_manifest,
 )
-from fabric_data_framework.evidence.integration_runner import (
+from fabric_data_framework.evidence.integration.runner import (
     ApprovedIntegrationRunnerConfig,
     build_approved_integration_run_plan,
 )
-from fabric_data_framework.evidence.release_readiness import ReleaseReadinessProofResult
+from fabric_data_framework.evidence.release.readiness import ReleaseReadinessProofResult
 from fabric_data_framework.evidence.safety import assert_safe_retained_text
 from fabric_data_framework.extensions import ExtensionKind, ExtensionRegistry
 from fabric_data_framework.metadata.config import DatasetConfig

@@ -9,7 +9,7 @@ from uuid import UUID
 import pytest
 
 from fabric_data_framework.adapters.fabric.rest import FabricRestError
-from fabric_data_framework.certification.fabric_assets import (
+from fabric_data_framework.certification.fabric.assets import (
     COPY_JOB_DISPLAY_NAME,
     DEFINITION_READ_BACK_STATUS,
     ENVIRONMENT_DISPLAY_NAME,
@@ -94,7 +94,7 @@ def test_sjd_v2_binds_exact_environment_lakehouse_and_framework_entrypoint(tmp_p
         item for item in plan.spark_job_definition.parts if item.path == "Main/main.py"
     )
     decoded = base64.b64decode(main.payload).decode("utf-8")
-    assert "fabric_data_framework.certification.fabric_job" in decoded
+    assert "fabric_data_framework.certification.fabric.fabric_job" in decoded
     assert "main()" in decoded
 
 

@@ -27,10 +27,10 @@ from pydantic import Field, model_validator
 from fabric_data_framework.adapters.fabric.rest import FabricJobStatus
 from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.deployment.contracts import ReleaseManifest
-from fabric_data_framework.evidence.approved_pipeline_runner import (
+from fabric_data_framework.evidence.integration.approved.pipeline import (
     ApprovedPipelineEvidenceReport,
 )
-from fabric_data_framework.evidence.release_readiness import (
+from fabric_data_framework.evidence.release.readiness import (
     ReleaseReadinessGateKind,
     ReleaseReadinessProofResult,
     ReleaseReadinessStatus,

@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 import pytest
 
 from fabric_data_framework.deployment.contracts import ReleaseBundleIdentity, ReleaseManifest
-from fabric_data_framework.evidence.business_path_evidence import BusinessPathGate
-from fabric_data_framework.evidence.business_path_plan import (
+from fabric_data_framework.evidence.business_paths.evidence import BusinessPathGate
+from fabric_data_framework.evidence.business_paths.plan import (
     ApprovedBusinessPathCertificationPlan,
     BusinessPathCertificationPlanEntry,
     load_approved_business_path_certification_plan,

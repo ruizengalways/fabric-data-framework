@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from fabric_data_framework.evidence.integration_runner import IntegrationCheckPhysicalBinding
+from fabric_data_framework.evidence.integration.runner import IntegrationCheckPhysicalBinding
 
 
 def test_pipeline_physical_binding_can_retain_customer_owned_dataset_id():

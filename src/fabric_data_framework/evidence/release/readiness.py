@@ -16,7 +16,7 @@ from typing import Mapping
 from pydantic import Field, field_validator, model_validator
 
 from fabric_data_framework.contracts.base import FrozenModel
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceManifest,
     IntegrationEvidenceStatus,
 )

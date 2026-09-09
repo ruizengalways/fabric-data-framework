@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from fabric_data_framework.evidence.release_readiness import (
+from fabric_data_framework.evidence.release.readiness import (
     ReleaseReadinessProofBundle,
     ReleaseReadinessProofResult,
     ReleaseReadinessSpec,

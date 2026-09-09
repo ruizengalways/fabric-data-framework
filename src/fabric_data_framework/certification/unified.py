@@ -29,45 +29,45 @@ from fabric_data_framework.deployment.delivery import (
     load_release_manifest,
     write_json_model,
 )
-from fabric_data_framework.evidence.approved_business_path_runner import (
+from fabric_data_framework.evidence.business_paths.approved_runner import (
     execute_approved_business_path,
     write_approved_business_path_execution_report,
 )
-from fabric_data_framework.evidence.approved_capture_runner import (
+from fabric_data_framework.evidence.integration.approved.capture import (
     execute_approved_capture,
     load_approved_capture_run_config,
 )
-from fabric_data_framework.evidence.approved_control_plane_runner import (
+from fabric_data_framework.evidence.integration.approved.control_plane import (
     execute_approved_control_plane_certification,
     write_control_plane_certification_report,
 )
-from fabric_data_framework.evidence.approved_pipeline_runner import execute_approved_pipeline
-from fabric_data_framework.evidence.approved_warehouse_fault_runner import (
+from fabric_data_framework.evidence.integration.approved.pipeline import execute_approved_pipeline
+from fabric_data_framework.evidence.integration.approved.warehouse_fault import (
     execute_approved_warehouse_fault_drill,
     load_approved_warehouse_fault_drill_config,
 )
-from fabric_data_framework.evidence.approved_warehouse_runner import (
+from fabric_data_framework.evidence.integration.approved.warehouse import (
     execute_approved_warehouse,
     load_approved_warehouse_run_config,
 )
-from fabric_data_framework.evidence.business_path_driver import (
+from fabric_data_framework.evidence.business_paths.driver import (
     load_approved_business_path_driver_config,
 )
-from fabric_data_framework.evidence.business_path_evidence import (
+from fabric_data_framework.evidence.business_paths.evidence import (
     load_approved_business_path_scenario,
 )
-from fabric_data_framework.evidence.business_path_plan import (
+from fabric_data_framework.evidence.business_paths.plan import (
     load_approved_business_path_certification_plan,
     resolve_business_path_plan_file,
 )
-from fabric_data_framework.evidence.business_path_release_proof import (
+from fabric_data_framework.evidence.business_paths.release_proof import (
     build_business_path_partial_proof_bundle,
 )
-from fabric_data_framework.evidence.candidate_certification import (
+from fabric_data_framework.evidence.release.candidate_certification import (
     materialize_candidate_integration_spec,
 )
-from fabric_data_framework.evidence.integration_checks import run_fabric_item_read_check
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.checks import run_fabric_item_read_check
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
@@ -75,18 +75,18 @@ from fabric_data_framework.evidence.integration_evidence import (
     validate_integration_evidence_manifest,
     write_integration_evidence_manifest,
 )
-from fabric_data_framework.evidence.integration_evidence_merge import (
+from fabric_data_framework.evidence.integration.merge import (
     merge_integration_evidence_manifests,
 )
-from fabric_data_framework.evidence.integration_evidence_rerun import (
+from fabric_data_framework.evidence.integration.rerun import (
     prepare_explicit_pipeline_rerun_prerequisite,
 )
-from fabric_data_framework.evidence.integration_runner import (
+from fabric_data_framework.evidence.integration.runner import (
     build_approved_integration_run_plan,
     load_approved_integration_runner_config,
 )
-from fabric_data_framework.evidence.release_readiness import ReleaseReadinessSpec
-from fabric_data_framework.evidence.release_readiness_merge import (
+from fabric_data_framework.evidence.release.readiness import ReleaseReadinessSpec
+from fabric_data_framework.evidence.release.merge import (
     merge_release_readiness_proof_bundles,
 )
 

@@ -39,9 +39,9 @@ from fabric_data_framework.execution.pipeline_child import (
     FabricPipelineChildResult,
 )
 from fabric_data_framework.metadata.config import ApplyStrategy, DatasetConfig, DatasetStatus
-from fabric_data_framework.quality.full_refresh import reconcile_full_replace
+from fabric_data_framework.quality.reconciliation.full_replace import reconcile_full_replace
 from fabric_data_framework.quality.reconciliation import reconcile_scd2_batch
-from fabric_data_framework.quality.reconciliation_engine import evaluate_reconciliation_policy
+from fabric_data_framework.quality.reconciliation.engine import evaluate_reconciliation_policy
 
 
 _SUCCESS = "SUCCESS"

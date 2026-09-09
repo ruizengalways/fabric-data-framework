@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from .integration_evidence import (
+from .evidence import (
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceManifest,
     IntegrationEvidenceSpec,

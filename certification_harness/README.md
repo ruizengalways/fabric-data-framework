@@ -26,7 +26,7 @@ Local installed-wheel smoke:
 python -m build --wheel
 python -m venv .cert-venv
 .cert-venv/bin/python -m pip install dist/fabric_data_framework-*.whl
-.cert-venv/bin/python certification/smoke_installed_wheel.py \
+.cert-venv/bin/python certification_harness/smoke_installed_wheel.py \
   --wheel dist/fabric_data_framework-*.whl
 ```
 

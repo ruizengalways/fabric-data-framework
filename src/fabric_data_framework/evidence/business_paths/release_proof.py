@@ -11,10 +11,10 @@ import json
 from pathlib import Path
 
 from fabric_data_framework.deployment.contracts import ReleaseManifest
-from fabric_data_framework.evidence.approved_business_path_runner import (
+from fabric_data_framework.evidence.business_paths.approved_runner import (
     ApprovedBusinessPathExecutionReport,
 )
-from fabric_data_framework.evidence.release_readiness import ReleaseReadinessProofBundle
+from fabric_data_framework.evidence.release.readiness import ReleaseReadinessProofBundle
 
 
 def build_business_path_partial_proof_bundle(

@@ -305,11 +305,11 @@ Primary files:
 ```text
 src/fabric_data_framework/contracts/reconciliation.py
 src/fabric_data_framework/metadata/config.py
-src/fabric_data_framework/quality/reconciliation_engine.py
+src/fabric_data_framework/quality/reconciliation/engine.py
 src/fabric_data_framework/quality/reconciliation.py
-src/fabric_data_framework/quality/full_refresh.py
-src/fabric_data_framework/quality/append.py
-src/fabric_data_framework/quality/snapshot_diff.py
+src/fabric_data_framework/quality/reconciliation/full_replace.py
+src/fabric_data_framework/quality/reconciliation/append.py
+src/fabric_data_framework/quality/reconciliation/snapshot_diff.py
 tests/test_reconciliation_engine.py
 tests/test_reconciliation_execution_gate.py
 tests/test_reconciliation_metadata.py

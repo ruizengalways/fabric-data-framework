@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import pytest
 
 from fabric_data_framework.deployment.contracts import ReleaseBundleIdentity, ReleaseManifest
-from fabric_data_framework.evidence.business_path_driver import (
+from fabric_data_framework.evidence.business_paths.driver import (
     ApprovedBusinessPathDriverConfig,
     BusinessPathDriverPhase,
     BusinessPathDriverReceipt,
@@ -14,7 +14,7 @@ from fabric_data_framework.evidence.business_path_driver import (
     load_approved_business_path_driver_config,
     validate_driver_receipt,
 )
-from fabric_data_framework.evidence.business_path_evidence import BusinessPathGate
+from fabric_data_framework.evidence.business_paths.evidence import BusinessPathGate
 
 
 NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)

@@ -61,9 +61,9 @@ Evidence may depend on core contracts. Core semantics must not be rewritten insi
 This folder is the only evidence import surface. Use canonical paths such as:
 
 ```python
-from fabric_data_framework.evidence.integration_evidence import IntegrationEvidenceSpec
-from fabric_data_framework.evidence.approved_capture_runner import execute_approved_capture
-from fabric_data_framework.evidence.business_path_release_proof import (
+from fabric_data_framework.evidence.integration.evidence import IntegrationEvidenceSpec
+from fabric_data_framework.evidence.integration.approved.capture import execute_approved_capture
+from fabric_data_framework.evidence.business_paths.release_proof import (
     build_business_path_partial_proof_bundle,
 )
 ```

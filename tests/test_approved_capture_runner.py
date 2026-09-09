@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from fabric_data_framework.adapters.fabric.capture_transports import FabricCaptureObservation
 from fabric_data_framework.adapters.fabric.rest import FabricJobInstance, FabricJobStatus
-from fabric_data_framework.evidence.approved_capture_runner import (
+from fabric_data_framework.evidence.integration.approved.capture import (
     ApprovedCaptureRunConfig,
     execute_approved_capture,
 )
@@ -31,7 +31,7 @@ from fabric_data_framework.metadata.config import (
 from fabric_data_framework.deployment.delivery import build_release_manifest
 from fabric_data_framework.extensions import ExtensionKind, ExtensionRegistry
 from fabric_data_framework.contracts.environment import EnvironmentName
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -39,7 +39,7 @@ from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.evidence.integration_runner import (
+from fabric_data_framework.evidence.integration.runner import (
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
 )

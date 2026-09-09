@@ -5,12 +5,12 @@ from __future__ import annotations
 import re
 
 from fabric_data_framework.contracts.environment import EnvironmentName
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceManifest,
     IntegrationEvidenceSpec,
     validate_integration_evidence_manifest,
 )
-from fabric_data_framework.evidence.release_readiness import (
+from fabric_data_framework.evidence.release.readiness import (
     ReleaseReadinessProofBundle,
     ReleaseReadinessReport,
     ReleaseReadinessSpec,

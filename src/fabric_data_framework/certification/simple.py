@@ -15,7 +15,7 @@ from fabric_data_framework.deployment.delivery import (
     load_release_manifest,
     materialize_semantic_metadata,
 )
-from fabric_data_framework.evidence.integration_runner import (
+from fabric_data_framework.evidence.integration.runner import (
     load_approved_integration_runner_config,
 )
 

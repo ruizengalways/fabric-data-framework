@@ -18,14 +18,14 @@ from ..evidence.approved_business_path_runner import (
 from ..evidence.business_path_driver import load_approved_business_path_driver_config
 from ..evidence.business_path_evidence import load_approved_business_path_scenario
 from ..evidence.business_path_release_proof import write_business_path_release_proof_bundle
-from ..evidence.integration_evidence import (
+from ..evidence.integration.evidence import (
     load_integration_evidence_manifest,
     load_integration_evidence_spec,
 )
-from ..evidence.integration_evidence_rerun import (
+from ..evidence.integration.rerun import (
     prepare_explicit_pipeline_rerun_prerequisite,
 )
-from ..evidence.integration_runner import load_approved_integration_runner_config
+from ..evidence.integration.runner import load_approved_integration_runner_config
 
 
 BUSINESS_PATH_COMMANDS = frozenset({"candidate-business-path-run"})

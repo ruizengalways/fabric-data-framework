@@ -28,24 +28,24 @@ from fabric_data_framework.deployment.delivery import (
     load_dataset_configs,
     write_json_model,
 )
-from fabric_data_framework.evidence.approved_capture_runner import load_approved_capture_run_config
-from fabric_data_framework.evidence.approved_warehouse_fault_runner import (
+from fabric_data_framework.evidence.integration.approved.capture import load_approved_capture_run_config
+from fabric_data_framework.evidence.integration.approved.warehouse_fault import (
     load_approved_warehouse_fault_drill_config,
 )
-from fabric_data_framework.evidence.approved_warehouse_runner import (
+from fabric_data_framework.evidence.integration.approved.warehouse import (
     load_approved_warehouse_run_config,
 )
-from fabric_data_framework.evidence.business_path_driver import (
+from fabric_data_framework.evidence.business_paths.driver import (
     load_approved_business_path_driver_config,
 )
-from fabric_data_framework.evidence.business_path_evidence import (
+from fabric_data_framework.evidence.business_paths.evidence import (
     load_approved_business_path_scenario,
 )
-from fabric_data_framework.evidence.business_path_plan import (
+from fabric_data_framework.evidence.business_paths.plan import (
     load_approved_business_path_certification_plan,
     resolve_business_path_plan_file,
 )
-from fabric_data_framework.evidence.integration_runner import (
+from fabric_data_framework.evidence.integration.runner import (
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
 )
@@ -62,7 +62,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--project-root",
         type=Path,
-        default=Path("certification/integration_project"),
+        default=Path("certification_harness/integration_project"),
     )
     parser.add_argument("--framework-wheel", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
