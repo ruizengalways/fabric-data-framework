@@ -1,13 +1,7 @@
 """Public certification API for real Microsoft Fabric environments."""
 
-from .bindings import (
-    CertificationBindingItem,
-    CertificationIntegrationBindings,
-    discover_certification_bindings,
-    discover_certification_bindings_from_names,
-)
 from .bounded import run_bounded_certification
-from .fabric_assets import (
+from .fabric.assets import (
     CertificationFabricAssetPlan,
     CertificationFabricBootstrapReport,
     FabricCertificationAssetClient,
@@ -15,6 +9,12 @@ from .fabric_assets import (
     FabricItemDefinition,
     assert_definition_read_back_matches,
     build_certification_fabric_asset_plan,
+)
+from .fabric.bindings import (
+    CertificationBindingItem,
+    CertificationIntegrationBindings,
+    discover_certification_bindings,
+    discover_certification_bindings_from_names,
 )
 from .installed import InstalledWheelAttestation, attest_installed_wheel, certify_installed
 from .models import (

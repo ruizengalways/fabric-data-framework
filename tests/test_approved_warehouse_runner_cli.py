@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import fabric_data_framework.cli as cli
 from fabric_data_framework.cli import approved as cli_approved
-from fabric_data_framework.evidence.approved_warehouse_runner import ApprovedWarehouseRunConfig
+from fabric_data_framework.evidence.integration.approved.warehouse import ApprovedWarehouseRunConfig
 from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
@@ -21,7 +21,7 @@ from fabric_data_framework.metadata.config import (
 )
 from fabric_data_framework.deployment.delivery import build_release_manifest
 from fabric_data_framework.contracts.environment import EnvironmentName
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -29,7 +29,7 @@ from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.evidence.integration_runner import ApprovedIntegrationRunnerConfig
+from fabric_data_framework.evidence.integration.runner import ApprovedIntegrationRunnerConfig
 
 
 EXTENSION_ARTIFACT = "fabric_data_framework-0.4.0-py3-none-any.whl"

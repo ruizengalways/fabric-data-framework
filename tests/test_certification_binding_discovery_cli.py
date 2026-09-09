@@ -4,7 +4,7 @@ import json
 from uuid import uuid4
 
 import fabric_data_framework.cli as cli
-from fabric_data_framework.certification.bindings import (
+from fabric_data_framework.certification.fabric.bindings import (
     CertificationBindingItem,
     CertificationIntegrationBindings,
 )

@@ -29,11 +29,11 @@ from fabric_data_framework.adapters.fabric.capture_transports import (
 from fabric_data_framework.adapters.fabric.contracts import FabricCaptureRequest
 from fabric_data_framework.adapters.fabric.rest import FabricJobInstance
 from fabric_data_framework.contracts.target_operation import TargetOperationIntent
-from fabric_data_framework.evidence.business_path_driver import (
+from fabric_data_framework.evidence.business_paths.driver import (
     BusinessPathDriverReceipt,
     BusinessPathDriverRequest,
 )
-from fabric_data_framework.evidence.business_path_evidence import (
+from fabric_data_framework.evidence.business_paths.evidence import (
     BusinessPathObservationRequest,
     BusinessPathStateObservation,
 )

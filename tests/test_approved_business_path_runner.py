@@ -5,25 +5,25 @@ from uuid import uuid4
 
 import pytest
 
-import fabric_data_framework.evidence.approved_business_path_runner as runner_module
+import fabric_data_framework.evidence.business_paths.approved_runner as runner_module
 from fabric_data_framework.adapters.fabric.rest import FabricJobStatus
 from fabric_data_framework.contracts.environment import EnvironmentName
 from fabric_data_framework.deployment.contracts import ReleaseBundleIdentity, ReleaseManifest
 from fabric_data_framework.deployment.delivery import config_bundle_hash
-from fabric_data_framework.evidence.approved_business_path_runner import execute_approved_business_path
-from fabric_data_framework.evidence.approved_pipeline_runner import ApprovedPipelineEvidenceReport
-from fabric_data_framework.evidence.business_path_driver import (
+from fabric_data_framework.evidence.business_paths.approved_runner import execute_approved_business_path
+from fabric_data_framework.evidence.integration.approved.pipeline import ApprovedPipelineEvidenceReport
+from fabric_data_framework.evidence.business_paths.driver import (
     ApprovedBusinessPathDriverConfig,
     BusinessPathDriverPhase,
     BusinessPathDriverReceipt,
 )
-from fabric_data_framework.evidence.business_path_evidence import (
+from fabric_data_framework.evidence.business_paths.evidence import (
     ApprovedBusinessPathScenario,
     BusinessPathGate,
     BusinessPathObservationPhase,
     BusinessPathStateObservation,
 )
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -31,7 +31,7 @@ from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.evidence.integration_runner import (
+from fabric_data_framework.evidence.integration.runner import (
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
 )

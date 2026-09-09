@@ -1,7 +1,6 @@
 """Dataset execution entrypoints and execution backends."""
 
 from .append import AppendExecutionResult, execute_append_batch
-from .dataset_runner import DatasetExecutionResult, execute_watermark_scd2
 from .full_replace import FullReplaceExecutionResult, execute_full_replace
 from .pipeline_child import (
     FabricPipelineChildExecutor,
@@ -12,6 +11,7 @@ from .pipeline_child import (
     validate_pipeline_child_request,
 )
 from .snapshot_diff import SnapshotDiffExecutionResult, execute_snapshot_diff
+from .watermark_scd2 import DatasetExecutionResult, execute_watermark_scd2
 
 __all__ = [
     "AppendExecutionResult",

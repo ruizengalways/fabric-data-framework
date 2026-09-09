@@ -232,7 +232,7 @@ There is intentionally no universal monolithic `source -> Bronze -> Silver -> ch
 For a bounded framework-owned reference composition, inspect:
 
 ```text
-src/fabric_data_framework/certification/pipeline_child.py
+src/fabric_data_framework/certification/fabric/pipeline_child.py
 ```
 
 That is certification/reference execution, not a universal domain implementation.
@@ -245,7 +245,7 @@ That is certification/reference execution, not a universal domain implementation
 src/fabric_data_framework/capture/full.py
 -> src/fabric_data_framework/data_plane/staging.py
 -> src/fabric_data_framework/apply/replace.py
--> src/fabric_data_framework/quality/full_refresh.py
+-> src/fabric_data_framework/quality/reconciliation/full_replace.py
 ```
 
 Safety order is candidate -> reconcile -> publish -> state cutover, never delete-first-and-hope.
@@ -267,7 +267,7 @@ SCD2 is a target representation, not a source capture strategy.
 src/fabric_data_framework/capture/watermark.py
 -> src/fabric_data_framework/execution/append.py
 -> src/fabric_data_framework/apply/append.py
--> src/fabric_data_framework/quality/append.py
+-> src/fabric_data_framework/quality/reconciliation/append.py
 ```
 
 Keep these separate:
@@ -382,8 +382,8 @@ Then read:
 ```text
 docs/RELEASE.md
 src/fabric_data_framework/deployment/candidate_artifact.py
-src/fabric_data_framework/evidence/release_readiness.py
-src/fabric_data_framework/evidence/candidate_certification.py
+src/fabric_data_framework/evidence/release/readiness.py
+src/fabric_data_framework/evidence/release/candidate_certification.py
 ```
 
 Framework candidate identity remains exactly:
@@ -429,7 +429,7 @@ APPEND:
 src/fabric_data_framework/capture/watermark.py
 src/fabric_data_framework/execution/append.py
 src/fabric_data_framework/apply/append.py
-src/fabric_data_framework/quality/append.py
+src/fabric_data_framework/quality/reconciliation/append.py
 ```
 
 Repair/cutover:

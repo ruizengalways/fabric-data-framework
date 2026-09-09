@@ -42,7 +42,7 @@ Use an interpreter that does not import the repository source tree:
 python -m venv .cert-venv
 .cert-venv/bin/python -m pip install dist/fabric_data_framework-*.whl
 .cert-venv/bin/python -m pip check
-.cert-venv/bin/python certification/smoke_installed_wheel.py \
+.cert-venv/bin/python certification_harness/smoke_installed_wheel.py \
   --wheel dist/fabric_data_framework-*.whl
 ```
 
@@ -195,7 +195,7 @@ integration_inputs_hash
   exact framework-owned certification project + environment + physical non-secret bindings
 ```
 
-The current builder entry point is `certification/build_integration_inputs.py`, and the GitHub workflow is `.github/workflows/candidate-integration-inputs.yml`.
+The current builder entry point is `certification_harness/build_integration_inputs.py`, and the GitHub workflow is `.github/workflows/candidate-integration-inputs.yml`.
 
 A customer/domain release identity does not participate in framework candidate certification.
 

@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from fabric_data_framework.adapters.fabric.items import FabricItem
-from fabric_data_framework.certification.bindings import discover_certification_bindings
+from fabric_data_framework.certification.fabric.bindings import discover_certification_bindings
 
 
 class _Catalog:

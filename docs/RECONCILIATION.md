@@ -488,15 +488,15 @@ src/fabric_data_framework/contracts/reconciliation.py
 src/fabric_data_framework/metadata/config.py
   ReconciliationPolicy / ReconciliationCheck / check kinds
 
-src/fabric_data_framework/quality/reconciliation_engine.py
+src/fabric_data_framework/quality/reconciliation/engine.py
   portable policy evaluation
 
-src/fabric_data_framework/quality/reconciliation.py
+src/fabric_data_framework/quality/reconciliation/scd2.py
   SCD2 base invariants + engine composition
 
-src/fabric_data_framework/quality/full_refresh.py
-src/fabric_data_framework/quality/append.py
-src/fabric_data_framework/quality/snapshot_diff.py
+src/fabric_data_framework/quality/reconciliation/full_replace.py
+src/fabric_data_framework/quality/reconciliation/append.py
+src/fabric_data_framework/quality/reconciliation/snapshot_diff.py
   strategy-specific base metrics + engine composition
 
 src/fabric_data_framework/execution/

@@ -10,7 +10,7 @@ For a full end-to-end reading path — `DatasetConfig -> ExecutionPlan -> orches
 |---|---|
 | dataset metadata and policy | `metadata/config.py`, `metadata/` |
 | source/capture semantics | `capture/` |
-| APPEND/change-log execution | `capture/watermark.py` -> `execution/append.py` -> `apply/append.py` -> `quality/append.py` |
+| APPEND/change-log execution | `capture/watermark.py` -> `execution/append.py` -> `apply/append.py` -> `quality/reconciliation/append.py` |
 | Bronze/Silver apply semantics | `apply/`, `execution/` |
 | execution-plan contract | `contracts/execution_plan.py` |
 | execution-plan compilation | `execution/plan_compiler.py`, `metadata/capabilities.py` |
@@ -67,7 +67,7 @@ apply/append.py
   append_identity dedup + idempotent replay + conflict fail-closed
         |
         v
-quality/append.py
+quality/reconciliation/append.py
   APPEND reconciliation
 ```
 

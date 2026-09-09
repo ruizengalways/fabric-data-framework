@@ -2,8 +2,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNNER = ROOT / "src/fabric_data_framework/evidence/approved_business_path_runner.py"
-PACKAGER = ROOT / "src/fabric_data_framework/evidence/business_path_release_proof.py"
+RUNNER = ROOT / "src/fabric_data_framework/evidence/business_paths/approved_runner.py"
+PACKAGER = ROOT / "src/fabric_data_framework/evidence/business_paths/release_proof.py"
 CLI = ROOT / "src/fabric_data_framework/cli/business_path.py"
 
 

@@ -9,7 +9,7 @@ import sys
 from uuid import UUID
 
 from fabric_data_framework.adapters.fabric.auth import EnvironmentAccessTokenProvider
-from fabric_data_framework.certification.fabric_assets import FabricCertificationAssetClient
+from fabric_data_framework.certification.fabric.assets import FabricCertificationAssetClient
 from fabric_data_framework.certification.simple import DEFAULT_CERTIFICATION_ROOT
 from fabric_data_framework.deployment.candidate_artifact import (
     load_candidate_artifact_manifest,

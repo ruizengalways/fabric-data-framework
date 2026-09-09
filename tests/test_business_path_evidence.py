@@ -9,8 +9,8 @@ import pytest
 
 from fabric_data_framework.adapters.fabric.rest import FabricJobStatus
 from fabric_data_framework.deployment.contracts import ReleaseBundleIdentity, ReleaseManifest
-from fabric_data_framework.evidence.approved_pipeline_runner import ApprovedPipelineEvidenceReport
-from fabric_data_framework.evidence.business_path_evidence import (
+from fabric_data_framework.evidence.integration.approved.pipeline import ApprovedPipelineEvidenceReport
+from fabric_data_framework.evidence.business_paths.evidence import (
     ApprovedBusinessPathScenario,
     BusinessPathGate,
     BusinessPathObservationPhase,
@@ -19,7 +19,7 @@ from fabric_data_framework.evidence.business_path_evidence import (
     evaluate_business_path_evidence,
     load_approved_business_path_scenario,
 )
-from fabric_data_framework.evidence.release_readiness import (
+from fabric_data_framework.evidence.release.readiness import (
     ReleaseReadinessGateKind,
     ReleaseReadinessStatus,
 )

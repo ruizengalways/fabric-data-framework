@@ -166,7 +166,7 @@ jobs:
           WHEEL="$(find candidate-dist -maxdepth 1 -name 'fabric_data_framework-*.whl' -type f -print -quit)"
           test -n "${WHEEL}"
           rm -rf retained
-          python certification/build_integration_inputs.py \
+          python certification_harness/build_integration_inputs.py \
             --framework-wheel "${WHEEL}" \
             --output retained/integration-inputs \
             --candidate-git-sha "${CANDIDATE_SHA}" \

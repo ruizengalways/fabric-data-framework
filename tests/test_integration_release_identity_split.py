@@ -3,14 +3,14 @@ from __future__ import annotations
 import pytest
 
 from fabric_data_framework.contracts.environment import EnvironmentName
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckSpec,
     IntegrationEvidenceSpec,
     run_integration_evidence,
     validate_integration_evidence_manifest,
 )
-from fabric_data_framework.evidence.integration_runner import (
+from fabric_data_framework.evidence.integration.runner import (
     ApprovedIntegrationRunnerConfig,
     build_approved_integration_run_plan,
 )

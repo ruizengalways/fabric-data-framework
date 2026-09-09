@@ -17,7 +17,7 @@ def test_workflow_builds_inputs_from_exact_framework_candidate():
     assert "candidate-integration-inputs must be dispatched at the exact candidate ref" in text
     assert "framework-wheel-${CANDIDATE_SHA}" in text
     assert "candidate_artifact.py verify" in text
-    assert "certification/build_integration_inputs.py" in text
+    assert "certification_harness/build_integration_inputs.py" in text
     assert "--framework-wheel" in text
 
 

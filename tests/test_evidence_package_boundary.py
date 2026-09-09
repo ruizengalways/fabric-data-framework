@@ -36,10 +36,10 @@ def test_root_evidence_legacy_import_does_not_resolve(module_name: str):
 def test_evidence_package_exposes_stable_contract_surface():
     evidence = importlib.import_module("fabric_data_framework.evidence")
     assert evidence.IntegrationEvidenceSpec.__module__ == (
-        "fabric_data_framework.evidence.integration_evidence"
+        "fabric_data_framework.evidence.integration.evidence"
     )
     assert evidence.ApprovedIntegrationRunnerConfig.__module__ == (
-        "fabric_data_framework.evidence.integration_runner"
+        "fabric_data_framework.evidence.integration.runner"
     )
 
 

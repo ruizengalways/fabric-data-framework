@@ -7,17 +7,17 @@ import json
 from pathlib import Path
 import sys
 
-from fabric_data_framework.evidence.candidate_certification import certify_release_candidate
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.release.candidate_certification import certify_release_candidate
+from fabric_data_framework.evidence.integration.evidence import (
     load_integration_evidence_manifest,
     load_integration_evidence_spec,
 )
-from fabric_data_framework.evidence.release_readiness import (
+from fabric_data_framework.evidence.release.readiness import (
     evaluate_release_readiness,
     load_release_readiness_proofs,
     load_release_readiness_spec,
 )
-from fabric_data_framework.evidence.release_readiness_merge import (
+from fabric_data_framework.evidence.release.merge import (
     merge_release_readiness_proof_bundles,
 )
 

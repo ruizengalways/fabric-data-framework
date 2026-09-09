@@ -5,7 +5,7 @@ import json
 import pytest
 
 from fabric_data_framework.cli.main import main
-from fabric_data_framework.evidence.release_readiness import (
+from fabric_data_framework.evidence.release.readiness import (
     ReleaseReadinessGateKind,
     ReleaseReadinessGateSpec,
     ReleaseReadinessProofBundle,
@@ -13,7 +13,7 @@ from fabric_data_framework.evidence.release_readiness import (
     ReleaseReadinessSpec,
     ReleaseReadinessStatus,
 )
-from fabric_data_framework.evidence.release_readiness_merge import (
+from fabric_data_framework.evidence.release.merge import (
     ReleaseReadinessProofMergeConflict,
     merge_release_readiness_proof_bundles,
 )

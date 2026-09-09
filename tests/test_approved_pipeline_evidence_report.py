@@ -11,8 +11,8 @@ from fabric_data_framework.contracts.audit import DatasetRunAudit
 from fabric_data_framework.contracts.environment import EnvironmentName
 from fabric_data_framework.control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
 from fabric_data_framework.deployment.delivery import build_release_manifest, materialize_semantic_metadata
-from fabric_data_framework.evidence.approved_pipeline_runner import execute_approved_pipeline
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.approved.pipeline import execute_approved_pipeline
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckKind,
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceCheckSpec,
@@ -20,7 +20,7 @@ from fabric_data_framework.evidence.integration_evidence import (
     IntegrationEvidenceSpec,
     IntegrationEvidenceStatus,
 )
-from fabric_data_framework.evidence.integration_runner import (
+from fabric_data_framework.evidence.integration.runner import (
     ApprovedIntegrationRunnerConfig,
     IntegrationCheckPhysicalBinding,
 )

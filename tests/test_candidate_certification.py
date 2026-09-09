@@ -6,17 +6,17 @@ from uuid import UUID
 
 import pytest
 
-from fabric_data_framework.evidence.candidate_certification import (
+from fabric_data_framework.evidence.release.candidate_certification import (
     certify_release_candidate,
     materialize_candidate_integration_spec,
 )
-from fabric_data_framework.evidence.integration_evidence import (
+from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckResult,
     IntegrationEvidenceManifest,
     IntegrationEvidenceStatus,
     load_integration_evidence_spec,
 )
-from fabric_data_framework.evidence.release_readiness import (
+from fabric_data_framework.evidence.release.readiness import (
     ReleaseReadinessGateKind,
     ReleaseReadinessProofBundle,
     ReleaseReadinessProofResult,

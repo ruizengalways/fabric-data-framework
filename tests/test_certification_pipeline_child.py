@@ -6,7 +6,7 @@ from uuid import uuid4
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.pool import StaticPool
 
-from fabric_data_framework.certification.pipeline_child import (
+from fabric_data_framework.certification.fabric.pipeline_child import (
     CertificationPipelineChildExecutor,
 )
 from fabric_data_framework.execution.plan_compiler import compile_execution_plan
@@ -24,7 +24,7 @@ from fabric_data_framework.metadata.config import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DATASETS = ROOT / "certification/integration_project/config/datasets"
+DATASETS = ROOT / "certification_harness/integration_project/config/datasets"
 
 
 def _config(name: str) -> DatasetConfig:

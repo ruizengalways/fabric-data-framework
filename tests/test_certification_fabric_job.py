@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from fabric_data_framework.certification import fabric_job
+from fabric_data_framework.certification.fabric import fabric_job
 from fabric_data_framework.metadata.config import DatasetStatus
 
 
