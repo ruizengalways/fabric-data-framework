@@ -38,6 +38,6 @@ mutates a live environment, persists secrets, or upgrades a source-controlled dr
 to a live Fabric evidence claim.
 
 `release-readiness` is also presentation only. Its reusable fail-closed aggregation
-lives in `evidence/release_readiness.py`. Generating a blocked report returns success by
+lives in `evidence/release/readiness.py`. Generating a blocked report returns success by
 default because report generation itself is valid; `--require-ready` turns the same
 report into a hard non-zero release gate when every required proof is expected to exist.

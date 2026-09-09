@@ -4,24 +4,24 @@ This file is the **single current-state recovery checkpoint** for `fabric-data-f
 
 ```yaml
 schema: fabric-data-framework-state-v5
-updated: 2026-09-08
+updated: 2026-09-09
 
 release:
   public_release: v0.3.0
   source_version: 0.4.0-development-unreleased
   candidate_status: not_frozen
-  exact_candidate_source_selected: true
+  exact_candidate_source_selected: false
   release_allowed: false
   real_fabric_status: FABRIC_CERTIFICATION_REQUIRED
 
 candidate_identity:
-  current_source_candidate_git_sha: 1c04216812dd438af58ffda73b22f6ff4d96459b
-  current_source_framework_artifact_sha256: 704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587
+  current_source_candidate_git_sha: not_selected_after_packaged_source_change
+  current_source_framework_artifact_sha256: not_selected_after_packaged_source_change
   integration_inputs_hash: not_yet_constructed
   integration_inputs_status: blocked_pending_approved_live_DEV_bindings
-  current_source_requires_new_exact_artifact_before_release_claim: false
+  current_source_requires_new_exact_artifact_before_release_claim: true
   candidate_bytes_must_not_change: true
-  selected_candidate:
+  previous_selected_candidate:
     candidate_git_sha: 1c04216812dd438af58ffda73b22f6ff4d96459b
     candidate_main_framework_ci_run: 34232496900
     candidate_main_installed_wheel_run: 34232496960
@@ -32,7 +32,7 @@ candidate_identity:
     wheel_sha_verified_against_candidate_json: true
     wheel_sha_verified_against_sha256sums: true
     wheel_sha_independently_rehashed: true
-    status: selected_not_frozen
+    status: superseded_by_package_structure_refactor
   historical_candidate:
     candidate_git_sha: 81f4d5f93983e8288246f5b1521f763091880297
     framework_artifact_sha256: 845f68d938a39ada944a1a71513b4f46b3a68416a5b53d60dbd10c2f6f95327c
@@ -203,8 +203,8 @@ certification:
     - integration_inputs_hash
 
 fabric_proof:
-  exact_current_candidate_selected: true
-  current_source_installed_wheel_acceptance: passed
+  exact_current_candidate_selected: false
+  current_source_installed_wheel_acceptance: pending_new_exact_main_candidate
   current_source_real_fabric_execution: not_run
   bounded_lakehouse_for_current_candidate: not_retained
   control_plane_for_current_candidate: not_retained
@@ -221,7 +221,8 @@ external_execution_boundary:
   do_not_guess_or_reuse_unverified_resource_ids: true
 
 next_boundary:
-  - preserve selected candidate bytes at source 1c04216812dd438af58ffda73b22f6ff4d96459b and wheel SHA256 704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587
+  - finish the package-structure refactor with exact-head CI and merge it to main
+  - select and independently verify a new exact post-merge main wheel before any Fabric certification claim
   - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials
   - bootstrap/read back framework-owned certification assets using the exact selected wheel
   - resolve exact item bindings by live Fabric item discovery
@@ -234,37 +235,11 @@ next_boundary:
   - retain exact identity-bound evidence
 ```
 
-## Selected exact current candidate
+## Previous exact candidate superseded by package refactor
 
-The reconciliation runtime is now merged on `main` at:
+The reconciliation runtime candidate at source `1c04216812dd438af58ffda73b22f6ff4d96459b` and inner wheel SHA256 `704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587` remains retained historical provenance. Its post-merge main gates were `framework-ci` run `34232496900` and `installed-wheel-acceptance` run `34232496960`, with framework wheel artifact id `10058373727`.
 
-```text
-1c04216812dd438af58ffda73b22f6ff4d96459b
-```
-
-The exact post-merge main gates are:
-
-```text
-framework-ci               34232496900  PASS
-installed-wheel-acceptance 34232496960  PASS
-```
-
-The retained framework-ci artifact is:
-
-```text
-artifact id    10058373727
-artifact name  framework-wheel-1c04216812dd438af58ffda73b22f6ff4d96459b
-wheel          fabric_data_framework-0.4.0-py3-none-any.whl
-```
-
-The **inner wheel bytes**, not the outer GitHub artifact ZIP, were independently SHA256-hashed after download. That digest exactly matches both `CANDIDATE.json` and `SHA256SUMS`:
-
-```text
-framework_artifact_sha256
-= 704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587
-```
-
-This selects the exact executable candidate source/artifact. It does **not** freeze 0.4, construct integration inputs, execute Microsoft Fabric, authorize release, or claim Fabric PASS.
+PR #136 changes packaged `src/` paths and therefore changes wheel bytes. The previous wheel is **not** the current executable candidate and must not be used for a new Fabric certification or release claim. A new exact candidate may be selected only from the successful post-merge `main` artifact after this refactor lands, using the inner `.whl` SHA256 verified against both `CANDIDATE.json` and `SHA256SUMS`.
 
 Candidate/evidence identity remains exactly:
 
@@ -274,9 +249,7 @@ framework_artifact_sha256
 integration_inputs_hash
 ```
 
-`integration_inputs_hash` is **not yet constructed** because the currently connected tooling does not expose an approved, live-verified isolated DEV workspace/Lakehouse/item binding and Fabric runtime credential set. Do not guess resource IDs, reuse stale fixture IDs, or substitute customer/domain identities.
-
-The previous `81f4d5...` wheel and the quarantine-only source `685a5eb...` remain historical provenance only. PR #132 was closed without merge because its candidate was superseded before selection by the reconciliation runtime change.
+`integration_inputs_hash` is still **not yet constructed** because the currently connected tooling does not expose an approved, live-verified isolated DEV workspace/Lakehouse/item binding and Fabric runtime credential set. Do not guess resource IDs, reuse stale fixture IDs, or substitute customer/domain identities.
 
 ## Declarative reconciliation
 
@@ -306,7 +279,7 @@ Primary files:
 src/fabric_data_framework/contracts/reconciliation.py
 src/fabric_data_framework/metadata/config.py
 src/fabric_data_framework/quality/reconciliation/engine.py
-src/fabric_data_framework/quality/reconciliation.py
+src/fabric_data_framework/quality/reconciliation/scd2.py
 src/fabric_data_framework/quality/reconciliation/full_replace.py
 src/fabric_data_framework/quality/reconciliation/append.py
 src/fabric_data_framework/quality/reconciliation/snapshot_diff.py
@@ -356,9 +329,9 @@ FABRIC CERTIFICATION REQUIRED
 
 ## Release boundary
 
-`0.4.0` is not frozen and not release-authorized. The exact current candidate is selected, but release certification is blocked at the external live-Fabric binding/evidence boundary.
+`0.4.0` is not frozen and not release-authorized. The package-structure refactor invalidates the previous executable candidate, so no exact current candidate is selected until a new successful post-merge `main` wheel is independently verified.
 
-Any future packaged-code change invalidates this executable candidate and requires a new exact main wheel. A docs/test-only bookkeeping merge does not change the selected wheel bytes. Release promotion must use the exact already-built/certified wheel bytes; no release-time rebuild.
+Any packaged-code change invalidates an executable candidate and requires a new exact main wheel. A docs/test-only bookkeeping merge after candidate selection does not change selected wheel bytes. Release promotion must use the exact already-built/certified wheel bytes; no release-time rebuild.
 
 ## Documentation rule
 

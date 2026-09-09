@@ -491,7 +491,7 @@ src/fabric_data_framework/metadata/config.py
 src/fabric_data_framework/quality/reconciliation/engine.py
   portable policy evaluation
 
-src/fabric_data_framework/quality/reconciliation.py
+src/fabric_data_framework/quality/reconciliation/scd2.py
   SCD2 base invariants + engine composition
 
 src/fabric_data_framework/quality/reconciliation/full_replace.py

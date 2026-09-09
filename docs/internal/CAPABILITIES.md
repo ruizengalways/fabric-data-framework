@@ -54,13 +54,13 @@ fabric-data-framework -X-> fabric-customer
 | FULL / WATERMARK / CDC capture semantics | `capture/` | IMPLEMENTED + source contract |
 | Source-fidelity/history overclaim guard | `capture/onboarding.py` | IMPLEMENTED + source contract |
 | APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF | `apply/` | IMPLEMENTED + source contract |
-| APPEND stable identity / exact replay no-op / conflicting identity fail-closed | `execution/append.py` + `apply/append.py` + `quality/append.py` | IMPLEMENTED + source contract |
+| APPEND stable identity / exact replay no-op / conflicting identity fail-closed | `execution/append.py` + `apply/append.py` + `quality/reconciliation/append.py` | IMPLEMENTED + source contract |
 | FULL incomplete-snapshot destructive guard | capture/apply | IMPLEMENTED; real Fabric proof tied to selected candidate |
 | CDC ordering/dedupe/checkpoint | capture/adapters | IMPLEMENTED; provider live proof separate |
 | Watermark ordering/lookback/bootstrap contracts | capture | IMPLEMENTED; provider live proof separate |
 | CaptureReceipt/progress authority | `contracts/` | IMPLEMENTED |
 | DQ/quarantine fail-closed | `quality/` + runtime | IMPLEMENTED |
-| Declarative reconciliation checks/tolerance/partition/WARN-FAIL/state-gate composition | `metadata/config.py` + `contracts/reconciliation.py` + `quality/reconciliation_engine.py` | IMPLEMENTED + SOURCE PROVEN + INSTALLED-WHEEL PROVEN for selected exact candidate; provider live observation proof separate |
+| Declarative reconciliation checks/tolerance/partition/WARN-FAIL/state-gate composition | `metadata/config.py` + `contracts/reconciliation.py` + `quality/reconciliation/engine.py` | IMPLEMENTED + SOURCE PROVEN + INSTALLED-WHEEL PROVEN for selected exact candidate; provider live observation proof separate |
 | Strategy-specific reconciliation invariants for FULL/APPEND/SCD2/SNAPSHOT_DIFF | `quality/` | IMPLEMENTED + SOURCE PROVEN; composed with declarative policy rather than replaced |
 | Retry/replay/backfill/unknown-commit recovery | `recovery/` | IMPLEMENTED |
 | FULL_REBUILD scopes: TARGET_ONLY / CAPTURE_AND_TARGET / AUTHORITATIVE_RESET | `contracts/rebuild.py` + `recovery/rebuild.py` | IMPLEMENTED; source contract tests required; live project physical rebuild remains environment-specific |
@@ -129,13 +129,13 @@ integration_inputs_hash
 
 | Capability | Owner | Boundary |
 |---|---|---|
-| Integration spec/result/manifest | `evidence/integration_evidence.py` | carries both identities |
-| Approved integration run planning | `evidence/integration_runner.py` | validates identity, bindings, prerequisites, authorizations |
+| Integration spec/result/manifest | `evidence/integration/evidence.py` | carries both identities |
+| Approved integration run planning | `evidence/integration/runner.py` | validates identity, bindings, prerequisites, authorizations |
 | Strict staged merge/rerun | evidence merge/rerun modules | contradictory evidence is not silently overwritten |
 | Pipeline/Copy/Spark/Warehouse runners | approved runner modules | provider result must converge with framework semantic evidence |
 | Retained secret scan | `evidence/safety.py` | fail closed before retention |
 | Candidate readiness/proof merge | release-readiness modules | exact identities must agree |
-| Candidate certification aggregation | `evidence/candidate_certification.py` | aggregation only; no provider execution |
+| Candidate certification aggregation | `evidence/release/candidate_certification.py` | aggregation only; no provider execution |
 
 No customer/domain release identity participates in framework candidate certification.
 

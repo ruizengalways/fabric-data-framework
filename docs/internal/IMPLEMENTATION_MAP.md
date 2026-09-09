@@ -64,8 +64,8 @@ Provider mechanics must not become semantic truth.
 | DQ/quarantine | `quality/rules.py` + quarantine modules |
 | Reconciliation policy/check definitions | `metadata/config.py` |
 | Reconciliation observation/result contracts | `contracts/reconciliation.py` |
-| Declarative reconciliation evaluation | `quality/reconciliation_engine.py` |
-| Strategy-specific reconciliation composition | `quality/reconciliation.py`, `quality/full_refresh.py`, `quality/append.py`, `quality/snapshot_diff.py` |
+| Declarative reconciliation evaluation | `quality/reconciliation/engine.py` |
+| Strategy-specific reconciliation composition | `quality/reconciliation/scd2.py`, `quality/reconciliation/full_replace.py`, `quality/reconciliation/append.py`, `quality/reconciliation/snapshot_diff.py` |
 | Immutable execution-plan contracts | `contracts/execution_plan.py` |
 | Execution-plan compilation | `execution/plan_compiler.py` |
 | Dataset dependency graph / ready-wave planning | `orchestration/planner.py` |
@@ -98,7 +98,7 @@ ReconciliationObservation
         +-----------------------------+
         |
         v
-quality/reconciliation_engine.py
+quality/reconciliation/engine.py
   validates evidence identity
   applies tolerance
   classifies ERROR/WARNING
@@ -133,7 +133,7 @@ metadata/config.py
 contracts/reconciliation.py
   provider-neutral observation/metric/result values
 
-quality/reconciliation_engine.py
+quality/reconciliation/engine.py
   central framework authority for validation + evaluation
 
 provider/project adapters
@@ -159,8 +159,8 @@ For an application change-log/audit table using `WATERMARK + bounded LOOKBACK ->
 capture/watermark.py
 -> execution/append.py
 -> apply/append.py
--> quality/append.py
--> quality/reconciliation_engine.py
+-> quality/reconciliation/append.py
+-> quality/reconciliation/engine.py
 ```
 
 Ownership remains distinct:
@@ -169,8 +169,8 @@ Ownership remains distinct:
 capture/watermark.py          source window/overlap semantics
 execution/append.py           capture-neutral APPEND batch coordination
 apply/append.py               append identity, idempotent replay, conflict fail-closed rules
-quality/append.py             APPEND strategy-specific reconciliation metrics
-quality/reconciliation_engine.py declarative policy composition
+quality/reconciliation/append.py             APPEND strategy-specific reconciliation metrics
+quality/reconciliation/engine.py declarative policy composition
 ```
 
 Entity key, event identity, and incremental cursor are separate concepts. The framework may collapse exact replay under `append_identity`; reuse of the same identity with different business payload fails closed.
@@ -256,16 +256,16 @@ The canonical operator manual for data correctness repair/rebuild/v1-v2 cutover 
 
 | Area | Canonical owner | Boundary |
 |---|---|---|
-| Spec/result/manifest/hash | `evidence/integration_evidence.py` | exact framework + integration-input identities |
-| Approved run planning/config | `evidence/integration_runner.py` | bindings, runtime names, authorization, identity |
-| Provider result projection | `evidence/integration_checks.py` | does not redefine semantic truth |
-| Strict merge | `evidence/integration_evidence_merge.py` | contradictory reruns do not use precedence shortcuts |
-| Explicit rerun projection | `evidence/integration_evidence_rerun.py` | fully bound source evidence required |
-| Control Plane runner | `evidence/approved_control_plane_runner.py` | real selected backend |
-| Pipeline runner | `evidence/approved_pipeline_runner.py` | native run + exact durable child outcome |
-| Copy/Spark runner | `evidence/approved_capture_runner.py` | native provider evidence + verified CaptureReceipt |
-| Warehouse runner | `evidence/approved_warehouse_runner.py` | mutation + marker proof |
-| Ambiguous-COMMIT runner | `evidence/approved_warehouse_fault_runner.py` | real fault/recovery evidence |
+| Spec/result/manifest/hash | `evidence/integration/evidence.py` | exact framework + integration-input identities |
+| Approved run planning/config | `evidence/integration/runner.py` | bindings, runtime names, authorization, identity |
+| Provider result projection | `evidence/integration/checks.py` | does not redefine semantic truth |
+| Strict merge | `evidence/integration/merge.py` | contradictory reruns do not use precedence shortcuts |
+| Explicit rerun projection | `evidence/integration/rerun.py` | fully bound source evidence required |
+| Control Plane runner | `evidence/integration/approved/control_plane.py` | real selected backend |
+| Pipeline runner | `evidence/integration/approved/pipeline.py` | native run + exact durable child outcome |
+| Copy/Spark runner | `evidence/integration/approved/capture.py` | native provider evidence + verified CaptureReceipt |
+| Warehouse runner | `evidence/integration/approved/warehouse.py` | mutation + marker proof |
+| Ambiguous-COMMIT runner | `evidence/integration/approved/warehouse_fault.py` | real fault/recovery evidence |
 | Secret scan | `evidence/safety.py` | fail closed before retention |
 
 Identity invariant:
@@ -290,11 +290,11 @@ No customer/domain release identity is part of framework candidate certification
 
 | Area | Canonical owner |
 |---|---|
-| Scenarios/observations/evaluator | `evidence/business_path_evidence.py` |
-| Driver recipe/request/receipt | `evidence/business_path_driver.py` |
-| Five-gate certification plan | `evidence/business_path_plan.py` |
-| Approved execution orchestration | `evidence/approved_business_path_runner.py` |
-| Candidate proof packaging | `evidence/business_path_release_proof.py` |
+| Scenarios/observations/evaluator | `evidence/business_paths/evidence.py` |
+| Driver recipe/request/receipt | `evidence/business_paths/driver.py` |
+| Five-gate certification plan | `evidence/business_paths/plan.py` |
+| Approved execution orchestration | `evidence/business_paths/approved_runner.py` |
+| Candidate proof packaging | `evidence/business_paths/release_proof.py` |
 
 Representative gates are:
 
@@ -312,10 +312,10 @@ Drivers/observers report execution facts; evaluator/readiness code owns PASS aut
 
 | Area | Canonical owner |
 |---|---|
-| Readiness spec/proof/result/report | `evidence/release_readiness.py` |
-| Strict proof merge | `evidence/release_readiness_merge.py` |
-| Business-path partial proof packaging | `evidence/business_path_release_proof.py` |
-| Candidate certification aggregation | `evidence/candidate_certification.py` |
+| Readiness spec/proof/result/report | `evidence/release/readiness.py` |
+| Strict proof merge | `evidence/release/merge.py` |
+| Business-path partial proof packaging | `evidence/business_paths/release_proof.py` |
+| Candidate certification aggregation | `evidence/release/candidate_certification.py` |
 | Candidate artifact identity | `deployment/candidate_artifact.py` |
 | Source-controlled policy | `release/<version>/readiness-spec.json` |
 | Candidate integration-input producer | `.github/workflows/candidate-integration-inputs.yml` |

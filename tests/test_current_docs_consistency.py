@@ -29,7 +29,7 @@ CANONICAL_DOCS = (
 
 _REPO_PATH_REFERENCE = re.compile(
     r"(?P<path>"
-    r"(?:src|tests|certification|release)/[A-Za-z0-9_.\-/<>{}*]+"
+    r"(?:src|tests|certification|certification_harness|release)/[A-Za-z0-9_.\-/<>{}*]+"
     r"|\.github/[A-Za-z0-9_.\-/<>{}*]+"
     r")"
 )
@@ -134,22 +134,22 @@ def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
         "public_release: v0.3.0",
         "source_version: 0.4.0-development-unreleased",
         "candidate_status: not_frozen",
-        "exact_candidate_source_selected: true",
+        "exact_candidate_source_selected: false",
         "release_allowed: false",
-        "current_source_candidate_git_sha: 1c04216812dd438af58ffda73b22f6ff4d96459b",
-        "current_source_framework_artifact_sha256: 704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587",
+        "current_source_candidate_git_sha: not_selected_after_packaged_source_change",
+        "current_source_framework_artifact_sha256: not_selected_after_packaged_source_change",
         "integration_inputs_hash: not_yet_constructed",
         "integration_inputs_status: blocked_pending_approved_live_DEV_bindings",
-        "current_source_requires_new_exact_artifact_before_release_claim: false",
+        "current_source_requires_new_exact_artifact_before_release_claim: true",
         "candidate_main_framework_ci_run: 34232496900",
         "candidate_main_installed_wheel_run: 34232496960",
         "candidate_wheel_artifact_id: 10058373727",
         "candidate_wheel_artifact_name: framework-wheel-1c04216812dd438af58ffda73b22f6ff4d96459b",
         "framework_artifact_sha256: 704989633b11ae110d0728dbc168cb85a994f7310aae13682ccd800a2a00b587",
         "wheel_sha_independently_rehashed: true",
-        "status: selected_not_frozen",
-        "exact_current_candidate_selected: true",
-        "current_source_installed_wheel_acceptance: passed",
+        "status: superseded_by_package_structure_refactor",
+        "exact_current_candidate_selected: false",
+        "current_source_installed_wheel_acceptance: pending_new_exact_main_candidate",
         "current_source_real_fabric_execution: not_run",
         "canonical_control_plane_profile: fabric_sql_database_v1",
         "control_plane_schema_version: 6",
@@ -205,7 +205,7 @@ def test_reconciliation_docs_lock_declarative_engine_and_ownership():
 
     assert "RECONCILIATION.md" in index
     assert "Declarative reconciliation" in capabilities
-    assert "quality/reconciliation_engine.py" in implementation_map
+    assert "quality/reconciliation/engine.py" in implementation_map
     assert "provider/project adapter" in implementation_map
     assert "WARNING is non-blocking" in implementation_map
 

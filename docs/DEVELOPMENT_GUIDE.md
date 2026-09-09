@@ -105,7 +105,7 @@ Use this table to identify the minimum mandatory review surface. "Review" means 
 | plan compilation | `execution/plan_compiler.py` | capability resolution, backends, remote child, plan-hash tests |
 | orchestration/dependency scheduling | `orchestration/` | dispatcher/backend contract, fail-at-end behavior, recovery/tests |
 | DQ/quarantine | `quality/` | execution gate, immutable evidence lifecycle, replay/recovery, operations docs |
-| reconciliation policy/result | `metadata/config.py`, `contracts/reconciliation.py`, `quality/reconciliation_engine.py` | strategy invariants, execution state gate, persistence, provider observation boundary |
+| reconciliation policy/result | `metadata/config.py`, `contracts/reconciliation.py`, `quality/reconciliation/engine.py` | strategy invariants, execution state gate, persistence, provider observation boundary |
 | Control Plane state/schema | `control_plane/` | migrations/schema version, repository CAS/transactions, recovery, certification |
 | unknown-commit behavior | target-operation contract + `recovery/` | journal, target probe, physical adapter, no-blind-retry tests |
 | rebuild/cutover | rebuild/target-version contracts + `recovery/` | impact planning, state cutover, UAT/approval gates, repair docs |
@@ -170,7 +170,7 @@ metadata/config.py
 contracts/reconciliation.py
   provider-neutral observation/metric/result values
 
-quality/reconciliation_engine.py
+quality/reconciliation/engine.py
   validation + tolerance + PASS/WARN/FAIL authority
 
 provider/project adapter
