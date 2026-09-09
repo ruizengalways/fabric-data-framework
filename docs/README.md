@@ -8,7 +8,8 @@ This directory intentionally has a small number of canonical documents. A fact s
 |---|---|
 | Understand the framework and repo boundaries | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | Read the source code in end-to-end execution order | [`CODE_READING_GUIDE.md`](CODE_READING_GUIDE.md) |
-| Start developing or consume the wheel in Fabric | [`GETTING_STARTED.md`](GETTING_STARTED.md) |
+| Modify or extend the reusable framework safely | [`DEVELOPMENT_GUIDE.md`](DEVELOPMENT_GUIDE.md) |
+| Start developing locally or consume the wheel in Fabric | [`GETTING_STARTED.md`](GETTING_STARTED.md) |
 | Create a real project such as `fabric-health` | [`IMPLEMENTATION_PROJECT.md`](IMPLEMENTATION_PROJECT.md) |
 | Onboard a new table/source and choose the right semantics | [`DATA_PATTERNS.md`](DATA_PATTERNS.md) |
 | Configure source/target reconciliation, tolerances, warnings and state gates | [`RECONCILIATION.md`](RECONCILIATION.md) |
@@ -19,6 +20,8 @@ This directory intentionally has a small number of canonical documents. A fact s
 | Look up Fabric SQL auth or Pipeline child details | [`reference/`](reference/) |
 | Resume framework engineering or inspect current evidence state | [`internal/STATE.md`](internal/STATE.md) |
 
+Repository contributors should also start at [`../CONTRIBUTING.md`](../CONTRIBUTING.md), which points to the reading/development rules without duplicating them.
+
 ## Canonical ownership
 
 ```text
@@ -27,6 +30,9 @@ ARCHITECTURE.md
 
 CODE_READING_GUIDE.md
   source-code reading order + end-to-end runtime call flow only
+
+DEVELOPMENT_GUIDE.md
+  safe framework modification, extension boundaries, change impact, testing/debugging/review workflow
 
 GETTING_STARTED.md
   installation/build/Fabric consumption only
@@ -59,7 +65,7 @@ internal/
   current state, capability matrix, module ownership
 ```
 
-Do not create a new top-level document when an existing canonical topic can absorb the information. `RECONCILIATION.md` is a dedicated topic because reconciliation spans source-controlled DatasetConfig, provider observation collection, framework evaluation, runtime publication/state gates, and implementation-owned business controls; mixing that contract into source-pattern selection or transient recovery would create duplicate ownership. `REPAIR_AND_REBUILD.md` remains the dedicated exception for data-correctness incidents because that lifecycle spans dependency impact, rebuild and consumer cutover. Git history is the historical record; current docs do not maintain PR timelines or superseded candidate walkthroughs.
+Do not create a new top-level document when an existing canonical topic can absorb the information. `DEVELOPMENT_GUIDE.md` is the dedicated maintainer-change guide because code modification spans repository ownership, dependency direction, change impact, testing, debugging, extension boundaries and candidate impact; those concerns should not turn the source-reading guide into a contributor manual. `RECONCILIATION.md` is a dedicated topic because reconciliation spans source-controlled DatasetConfig, provider observation collection, framework evaluation, runtime publication/state gates, and implementation-owned business controls; mixing that contract into source-pattern selection or transient recovery would create duplicate ownership. `REPAIR_AND_REBUILD.md` remains the dedicated exception for data-correctness incidents because that lifecycle spans dependency impact, rebuild and consumer cutover. Git history is the historical record; current docs do not maintain PR timelines or superseded candidate walkthroughs.
 
 ## Truth order
 

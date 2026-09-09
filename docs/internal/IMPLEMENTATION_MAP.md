@@ -374,6 +374,7 @@ docs/RECONCILIATION.md               reconciliation policy/observation/gate sema
 docs/OPERATIONS.md                   transient runtime operations/recovery
 docs/REPAIR_AND_REBUILD.md           data correctness repair/rebuild/v1-v2 cutover
 docs/CODE_READING_GUIDE.md           end-to-end source reading order/call graph
+docs/DEVELOPMENT_GUIDE.md            safe framework modification/extension/testing/debugging/review workflow
 docs/TESTING_AND_CERTIFICATION.md    certification lifecycle
 docs/RELEASE.md                      release lifecycle
 docs/reference/                      narrow technical contracts
