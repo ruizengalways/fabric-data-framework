@@ -245,13 +245,21 @@ class FabricRestClient:
         request = Request(self._url(path_or_url), data=data, headers=headers, method=method)
         try:
             response = self._opener(request, timeout=self._request_timeout_seconds)
-            status_value = getattr(response, "status", None)
-            status = int(status_value if status_value is not None else response.getcode())
-            response_headers = response.headers
-            raw = response.read()
+            try:
+                status_value = getattr(response, "status", None)
+                status = int(status_value if status_value is not None else response.getcode())
+                response_headers = response.headers
+                raw = response.read()
+            finally:
+                close = getattr(response, "close", None)
+                if callable(close):
+                    close()
         except HTTPError as exc:
-            raw = exc.read()
-            response_headers = exc.headers
+            try:
+                raw = exc.read()
+                response_headers = exc.headers
+            finally:
+                exc.close()
             payload_obj: object | None = None
             if raw:
                 try:

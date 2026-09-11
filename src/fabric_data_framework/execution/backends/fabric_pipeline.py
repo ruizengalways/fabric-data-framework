@@ -8,9 +8,11 @@ evidence fails closed.
 
 from __future__ import annotations
 
+from builtins import ExceptionGroup
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+import json
 from uuid import UUID, uuid4
 
 from ...adapters.fabric.pipeline import (
@@ -28,7 +30,11 @@ from fabric_data_framework.contracts.audit import (
 )
 from ..plan_compiler import compile_execution_plan
 from ...control_plane.repository import ControlPlaneRepository
-from ...evidence.safety import assert_safe_retained_text
+from ...evidence.safety import (
+    sanitize_audit_details,
+    sanitize_audit_text,
+    sanitize_audit_value,
+)
 
 
 FabricPipelineBindingResolver = Callable[[EffectiveDatasetConfig], FabricPipelineBinding]
@@ -54,14 +60,25 @@ _REMOTE_STEP_STATUS = {
 
 
 def _safe_provider_exception_message(exc: Exception) -> str:
-    """Preserve useful provider text unless it appears credential-bearing."""
-
-    rendered = f"{type(exc).__name__}: {exc}"
-    try:
-        assert_safe_retained_text(rendered, "Fabric Pipeline provider error")
-    except ValueError:
+    raw = f"{type(exc).__name__}: {exc}"
+    sanitized = sanitize_audit_text(raw)
+    if sanitized != raw:
         return f"{type(exc).__name__}: provider error detail redacted"
-    return rendered
+    return sanitized
+
+
+def _failure_reason_text(value: object | None) -> str:
+    sanitized = sanitize_audit_value(value)
+    try:
+        rendered = json.dumps(
+            sanitized,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+    except (TypeError, ValueError):
+        rendered = "provider failure detail unavailable"
+    return sanitize_audit_text(rendered)
 
 
 class FabricPipelineBackend:
@@ -91,6 +108,7 @@ class FabricPipelineBackend:
         error_message: str,
         retryable: bool | None,
     ) -> DatasetDispatchOutcome:
+        safe_message = sanitize_audit_text(error_message)
         repository.record_dataset_run(
             DatasetRunAudit(
                 dataset_run_id=dataset_run_id,
@@ -101,7 +119,7 @@ class FabricPipelineBackend:
                 status=status,
                 effective_config_hash=effective.effective_config_hash,
                 error_code=error_code,
-                error_message=error_message,
+                error_message=safe_message,
                 retryable=retryable,
             )
         )
@@ -110,7 +128,7 @@ class FabricPipelineBackend:
             status=status,
             retryable=retryable,
             error_code=error_code,
-            error_message=error_message,
+            error_message=safe_message,
         )
 
     @staticmethod
@@ -125,6 +143,22 @@ class FabricPipelineBackend:
         completed_at = evidence.end_time_utc or now
         if completed_at < started_at:
             completed_at = started_at
+        details = sanitize_audit_details(
+            {
+                "workspace_id": str(invocation.binding.workspace_id),
+                "pipeline_item_id": str(invocation.binding.pipeline_item_id),
+                "job_instance_id": str(evidence.job_instance_id),
+                "root_activity_id": (
+                    str(evidence.root_activity_id)
+                    if evidence.root_activity_id is not None
+                    else None
+                ),
+                "job_type": evidence.job_type,
+                "remote_status": evidence.status.value,
+                "failure_reason": sanitize_audit_value(evidence.failure_reason),
+                "execution_plan_hash": invocation.execution_plan.plan_hash,
+            }
+        )
         repository.record_step_run(
             StepRunAudit(
                 dataset_run_id=invocation.dataset_run_id,
@@ -132,20 +166,7 @@ class FabricPipelineBackend:
                 status=_REMOTE_STEP_STATUS.get(evidence.status, StepStatus.FAILED),
                 started_at=started_at,
                 completed_at=completed_at,
-                details={
-                    "workspace_id": str(invocation.binding.workspace_id),
-                    "pipeline_item_id": str(invocation.binding.pipeline_item_id),
-                    "job_instance_id": str(evidence.job_instance_id),
-                    "root_activity_id": (
-                        str(evidence.root_activity_id)
-                        if evidence.root_activity_id is not None
-                        else None
-                    ),
-                    "job_type": evidence.job_type,
-                    "remote_status": evidence.status.value,
-                    "failure_reason": evidence.failure_reason,
-                    "execution_plan_hash": invocation.execution_plan.plan_hash,
-                },
+                details=details,
             )
         )
 
@@ -161,8 +182,6 @@ class FabricPipelineBackend:
         error_message: str,
         retryable: bool | None,
     ) -> DatasetDispatchOutcome:
-        # dataset_run is the parent of step_run in the relational control plane. Record
-        # it first so a real SQL backend cannot fail on the provider-evidence FK.
         outcome = self._record_failure(
             repository,
             pipeline_run_id=invocation.pipeline_run_id,
@@ -186,6 +205,35 @@ class FabricPipelineBackend:
         run_mode: RunMode,
     ) -> DatasetDispatchOutcome:
         dataset_run_id = uuid4()
+        try:
+            execution_plan = compile_execution_plan(effective, run_mode=run_mode)
+        except Exception as exc:
+            return self._record_failure(
+                repository,
+                pipeline_run_id=pipeline_run_id,
+                dataset_run_id=dataset_run_id,
+                effective=effective,
+                run_mode=run_mode,
+                status=DatasetStatus.FAILED,
+                error_code="FABRIC_PIPELINE_PLAN_ERROR",
+                error_message=_safe_provider_exception_message(exc),
+                retryable=False,
+            )
+        try:
+            binding = self._binding_resolver(effective)
+        except Exception as exc:
+            return self._record_failure(
+                repository,
+                pipeline_run_id=pipeline_run_id,
+                dataset_run_id=dataset_run_id,
+                effective=effective,
+                run_mode=run_mode,
+                status=DatasetStatus.FAILED,
+                error_code="FABRIC_PIPELINE_BINDING_ERROR",
+                error_message=_safe_provider_exception_message(exc),
+                retryable=False,
+            )
+
         invocation = FabricPipelineInvocation(
             pipeline_run_id=pipeline_run_id,
             dataset_run_id=dataset_run_id,
@@ -193,8 +241,8 @@ class FabricPipelineBackend:
             run_mode=run_mode,
             attempt=1,
             effective_config_hash=effective.effective_config_hash,
-            execution_plan=compile_execution_plan(effective, run_mode=run_mode),
-            binding=self._binding_resolver(effective),
+            execution_plan=execution_plan,
+            binding=binding,
         )
         try:
             evidence = self._transport.invoke(invocation)
@@ -210,7 +258,7 @@ class FabricPipelineBackend:
                 error_message=_safe_provider_exception_message(exc),
                 retryable=exc.retriable,
             )
-        except Exception as exc:  # provider boundary; sibling datasets must continue
+        except Exception as exc:
             return self._record_failure(
                 repository,
                 pipeline_run_id=pipeline_run_id,
@@ -259,7 +307,7 @@ class FabricPipelineBackend:
                 error_message=(
                     f"Fabric job {evidence.job_instance_id} failed; "
                     f"root_activity_id={evidence.root_activity_id}; "
-                    f"failure_reason={evidence.failure_reason!r}"
+                    f"failure_reason={_failure_reason_text(evidence.failure_reason)}"
                 ),
                 retryable=None,
             )
@@ -278,9 +326,19 @@ class FabricPipelineBackend:
                 retryable=None,
             )
 
-        # A Completed Fabric job must have already persisted the exact framework
-        # dataset outcome. This read is the semantic handoff from remote orchestration.
-        outcome = self._outcome_reader(dataset_run_id)
+        try:
+            outcome = self._outcome_reader(dataset_run_id)
+        except Exception as exc:
+            return self._fail_with_remote_evidence(
+                repository,
+                invocation=invocation,
+                effective=effective,
+                evidence=evidence,
+                status=DatasetStatus.FAILED,
+                error_code="FABRIC_PIPELINE_OUTCOME_READ_ERROR",
+                error_message=_safe_provider_exception_message(exc),
+                retryable=None,
+            )
         if outcome is None:
             return self._fail_with_remote_evidence(
                 repository,
@@ -324,8 +382,6 @@ class FabricPipelineBackend:
                 retryable=None,
             )
 
-        # The remote child owns persistence of the successful DatasetRunAudit. The
-        # parent adds Fabric-native correlation only after that durable outcome exists.
         self._record_remote_evidence(repository, invocation=invocation, evidence=evidence)
         return outcome
 
@@ -344,7 +400,9 @@ class FabricPipelineBackend:
             return {}
         if max_concurrency <= 0:
             raise ValueError("max_concurrency must be positive")
+
         outcomes: dict[str, DatasetDispatchOutcome] = {}
+        worker_errors: list[Exception] = []
         with ThreadPoolExecutor(max_workers=max_concurrency) as pool:
             future_to_dataset = {
                 pool.submit(
@@ -358,7 +416,32 @@ class FabricPipelineBackend:
             }
             for future in as_completed(future_to_dataset):
                 dataset_id = future_to_dataset[future]
-                outcomes[dataset_id] = future.result()
+                try:
+                    outcomes[dataset_id] = future.result()
+                except Exception as exc:
+                    effective = effective_by_id[dataset_id]
+                    try:
+                        outcomes[dataset_id] = self._record_failure(
+                            repository,
+                            pipeline_run_id=pipeline_run_id,
+                            dataset_run_id=uuid4(),
+                            effective=effective,
+                            run_mode=run_mode,
+                            status=DatasetStatus.FAILED,
+                            error_code="FABRIC_PIPELINE_WORKER_EXCEPTION",
+                            error_message=_safe_provider_exception_message(exc),
+                            retryable=None,
+                        )
+                    except Exception as audit_exc:
+                        worker_errors.append(
+                            RuntimeError(
+                                "Fabric worker failed and its terminal dataset audit could not be recorded: "
+                                f"dataset_id={dataset_id}; worker={_safe_provider_exception_message(exc)}; "
+                                f"audit={_safe_provider_exception_message(audit_exc)}"
+                            )
+                        )
+        if worker_errors:
+            raise ExceptionGroup("Fabric ready-wave worker/audit failures", worker_errors)
         return outcomes
 
 

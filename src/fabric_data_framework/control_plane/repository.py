@@ -18,7 +18,12 @@ from fabric_data_framework.contracts.audit import (
 )
 from fabric_data_framework.contracts.quarantine import QuarantineBatch
 from fabric_data_framework.contracts.reconciliation import ReconciliationResult
-from fabric_data_framework.contracts.runtime import WatermarkPosition
+from fabric_data_framework.contracts.runtime import (
+    WatermarkConflictError,
+    WatermarkPosition,
+    WatermarkState,
+    compare_watermark_positions,
+)
 
 
 @runtime_checkable
@@ -27,7 +32,14 @@ class ControlPlaneRepository(Protocol):
     def get_dataset(self, dataset_id: str) -> DatasetConfig: ...
     def list_datasets(self) -> tuple[DatasetConfig, ...]: ...
     def get_watermark(self, dataset_id: str) -> WatermarkPosition | None: ...
-    def commit_watermark(self, dataset_id: str, position: WatermarkPosition) -> None: ...
+    def get_watermark_state(self, dataset_id: str) -> WatermarkState: ...
+    def commit_watermark(
+        self,
+        dataset_id: str,
+        position: WatermarkPosition,
+        *,
+        expected_version: int,
+    ) -> WatermarkState: ...
     def record_pipeline_run(self, audit: PipelineRunAudit) -> None: ...
     def record_dataset_run(self, audit: DatasetRunAudit) -> None: ...
     def get_dataset_outcome(self, dataset_run_id: UUID) -> DatasetDispatchOutcome | None: ...
@@ -50,7 +62,7 @@ class InMemoryControlPlane:
     def __init__(self) -> None:
         self._lock = RLock()
         self._datasets: dict[str, DatasetConfig] = {}
-        self._watermarks: dict[str, WatermarkPosition] = {}
+        self._watermarks: dict[str, WatermarkState] = {}
         self.pipeline_runs: list[PipelineRunAudit] = []
         self.dataset_runs: list[DatasetRunAudit] = []
         self.capture_receipts: list[CaptureReceipt] = []
@@ -75,16 +87,42 @@ class InMemoryControlPlane:
         with self._lock:
             return tuple(deepcopy(self._datasets[key]) for key in sorted(self._datasets))
 
-    def get_watermark(self, dataset_id: str) -> WatermarkPosition | None:
-        with self._lock:
-            position = self._watermarks.get(dataset_id)
-            return deepcopy(position)
-
-    def commit_watermark(self, dataset_id: str, position: WatermarkPosition) -> None:
+    def get_watermark_state(self, dataset_id: str) -> WatermarkState:
         with self._lock:
             if dataset_id not in self._datasets:
                 raise KeyError(f"dataset not deployed: {dataset_id}")
-            self._watermarks[dataset_id] = deepcopy(position)
+            return deepcopy(self._watermarks.get(dataset_id, WatermarkState()))
+
+    def get_watermark(self, dataset_id: str) -> WatermarkPosition | None:
+        return self.get_watermark_state(dataset_id).position
+
+    def commit_watermark(
+        self,
+        dataset_id: str,
+        position: WatermarkPosition,
+        *,
+        expected_version: int,
+    ) -> WatermarkState:
+        if position.value is None:
+            raise ValueError("committed watermark value cannot be null")
+        with self._lock:
+            if dataset_id not in self._datasets:
+                raise KeyError(f"dataset not deployed: {dataset_id}")
+            current = self._watermarks.get(dataset_id, WatermarkState())
+            if current.version != expected_version:
+                raise WatermarkConflictError(
+                    f"stale watermark writer for {dataset_id}: "
+                    f"expected_version={expected_version}, current_version={current.version}"
+                )
+            if current.position is not None:
+                ordering = compare_watermark_positions(position, current.position)
+                if ordering < 0:
+                    raise ValueError("committed watermark cannot move backwards")
+                if ordering == 0:
+                    return deepcopy(current)
+            updated = WatermarkState(position=deepcopy(position), version=current.version + 1)
+            self._watermarks[dataset_id] = updated
+            return deepcopy(updated)
 
     def record_pipeline_run(self, audit: PipelineRunAudit) -> None:
         with self._lock:

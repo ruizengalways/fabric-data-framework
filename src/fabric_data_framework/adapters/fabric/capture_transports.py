@@ -27,6 +27,7 @@ from .contracts import (
     FabricNativeRunStatus,
 )
 from .rest import FabricJobInstance, FabricJobStatus, FabricRestClient
+from ...evidence.safety import sanitize_audit_details, sanitize_audit_value
 
 
 def _utcnow() -> datetime:
@@ -117,17 +118,19 @@ def _provider_diagnostics(
     item_id: UUID,
     job: FabricJobInstance,
 ) -> dict[str, Any]:
-    return {
-        "workspace_id": str(workspace_id),
-        "item_id": str(item_id),
-        "job_instance_id": str(job.job_instance_id),
-        "root_activity_id": str(job.root_activity_id) if job.root_activity_id else None,
-        "job_type": job.job_type,
-        "remote_status": job.status.value,
-        "failure_reason": job.failure_reason,
-        "provider_start_time_present": job.start_time_utc is not None,
-        "provider_end_time_present": job.end_time_utc is not None,
-    }
+    return sanitize_audit_details(
+        {
+            "workspace_id": str(workspace_id),
+            "item_id": str(item_id),
+            "job_instance_id": str(job.job_instance_id),
+            "root_activity_id": str(job.root_activity_id) if job.root_activity_id else None,
+            "job_type": job.job_type,
+            "remote_status": job.status.value,
+            "failure_reason": sanitize_audit_value(job.failure_reason),
+            "provider_start_time_present": job.start_time_utc is not None,
+            "provider_end_time_present": job.end_time_utc is not None,
+        }
+    ) or {}
 
 
 def _failure_evidence(
@@ -204,7 +207,7 @@ def _success_evidence(
                 item_id=item_id,
                 job=job,
             ),
-            "observation": dict(observation.diagnostics),
+            "observation": sanitize_audit_details(observation.diagnostics) or {},
         },
     )
 

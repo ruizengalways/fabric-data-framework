@@ -475,3 +475,9 @@ fabric-framework capture-semantic-onboarding-validate --help
 ```
 
 Never lower the semantic description merely to make validation pass. The framework should expose overclaim, not hide it.
+
+## Runtime ordering invariants
+
+For `WATERMARK` capture, an overlap/lookback window may reread older rows for idempotent apply, but it never moves the durable composite checkpoint backwards. The checkpoint compares the watermark value first and the configured tie-breaker values second. Incompatible scalar domains, naive datetimes, non-finite numerics, bool-as-int ambiguity, or tie-breaker arity changes fail closed. Durable advancement uses an expected-version compare-and-set rather than an application-level read followed by an unconditional write.
+
+For CDC-to-SCD2, a DELETE closes the current history row and retains the source partition/position that performed the close. When no current row exists, that closed/tombstone position remains the ordering authority: stale or equal events cannot resurrect the entity; only a strictly newer source position may reinsert it. If retained history cannot prove ordering, a trusted lower checkpoint is required or apply refuses to continue.

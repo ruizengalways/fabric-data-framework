@@ -105,8 +105,8 @@ def test_driver_receipt_has_no_pass_field_and_must_match_exact_request():
     )
 
     validate_driver_receipt(request, receipt)
-    assert "status" not in receipt.model_fields
-    assert "passed" not in receipt.model_fields
+    assert "status" not in BusinessPathDriverReceipt.model_fields
+    assert "passed" not in BusinessPathDriverReceipt.model_fields
 
     for changed, message in (
         ({"gate_id": BusinessPathGate.FULL_REPLACE}, "gate mismatch"),

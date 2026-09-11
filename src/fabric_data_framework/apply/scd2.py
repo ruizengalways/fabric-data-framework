@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
-import hashlib
-import json
 from typing import Any, Mapping, Sequence
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
 from fabric_data_framework.contracts.audit import MutationCounts
+from .record_hash import hash_tracked_attributes
 
 
 VALID_FROM = "_framework_valid_from"
@@ -39,9 +38,7 @@ class SCD2ConflictError(ValueError):
 
 
 def _hash_attributes(row: Mapping[str, Any], tracked_columns: tuple[str, ...]) -> str:
-    payload = {column: row.get(column) for column in tracked_columns}
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return hash_tracked_attributes(row, tracked_columns)
 
 
 def _key(row: Mapping[str, Any], columns: tuple[str, ...]) -> tuple[Any, ...]:

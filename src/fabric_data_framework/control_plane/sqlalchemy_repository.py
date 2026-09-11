@@ -18,6 +18,7 @@ from typing import Iterable
 from uuid import UUID
 
 from sqlalchemy import Engine, select
+from sqlalchemy.exc import IntegrityError
 
 from fabric_data_framework.metadata.config import DatasetConfig, DatasetStatus
 from ..contracts.capture_receipt import CaptureReceipt
@@ -45,7 +46,18 @@ from fabric_data_framework.contracts.audit import (
 )
 from fabric_data_framework.contracts.quarantine import QuarantineBatch
 from fabric_data_framework.contracts.reconciliation import ReconciliationResult
-from fabric_data_framework.contracts.runtime import WatermarkPosition
+from fabric_data_framework.contracts.runtime import (
+    WatermarkConflictError,
+    WatermarkPosition,
+    WatermarkState,
+    compare_watermark_positions,
+)
+from fabric_data_framework.contracts.typed_values import (
+    TypedValueError,
+    decode_legacy_or_typed_scalar,
+    encode_typed_value,
+)
+from ..evidence.safety import sanitize_audit_details, sanitize_audit_text
 
 
 def _utcnow() -> datetime:
@@ -72,6 +84,34 @@ def _assert_semantic_identity(
         raise ValueError(
             f"{label} semantic identity cannot change: {', '.join(sorted(changed))}"
         )
+
+
+def _decode_watermark_tie_breaker(payload: object) -> tuple[str | int | float, ...]:
+    if payload is None:
+        return ()
+    raw_items = payload if isinstance(payload, (list, tuple)) else [payload]
+    decoded: list[str | int | float] = []
+    for item in raw_items:
+        value = decode_legacy_or_typed_scalar(item)
+        if type(value) is bool or type(value) not in {str, int, float}:
+            raise TypedValueError(
+                "persisted watermark tie-breaker contains an unsupported value type"
+            )
+        decoded.append(value)
+    return tuple(decoded)
+
+
+def _watermark_state_from_row(row: object | None) -> WatermarkState:
+    if row is None:
+        return WatermarkState()
+    mapping = dict(row)
+    try:
+        value = decode_legacy_or_typed_scalar(mapping["committed_value"])
+        tie_breaker = _decode_watermark_tie_breaker(mapping["committed_tie_breaker"])
+        position = WatermarkPosition(value=value, tie_breaker=tie_breaker)
+        return WatermarkState(position=position, version=int(mapping["version"]))
+    except (KeyError, TypeError, ValueError, TypedValueError) as exc:
+        raise RuntimeError("persisted watermark state is malformed or unsupported") from exc
 
 
 class SqlAlchemyControlPlaneRepository:
@@ -159,50 +199,89 @@ class SqlAlchemyControlPlaneRepository:
             ).scalars().all()
         return tuple(self.get_dataset(str(dataset_id)) for dataset_id in ids)
 
-    def get_watermark(self, dataset_id: str) -> WatermarkPosition | None:
+    def get_watermark_state(self, dataset_id: str) -> WatermarkState:
+        self._deployed_dataset_row(dataset_id)
         with self.engine.connect() as connection:
             row = connection.execute(
                 select(watermark).where(watermark.c.dataset_id == dataset_id)
             ).mappings().first()
-        if row is None:
-            return None
-        return WatermarkPosition(
-            value=row["committed_value"],
-            tie_breaker=tuple(row["committed_tie_breaker"] or ()),
-        )
+        return _watermark_state_from_row(row)
 
-    def commit_watermark(self, dataset_id: str, position: WatermarkPosition) -> None:
-        # Compatibility method for the older repository Protocol. Stateful execution
-        # should use the dedicated gated/CAS state primitives for commit decisions.
+    def get_watermark(self, dataset_id: str) -> WatermarkPosition | None:
+        return self.get_watermark_state(dataset_id).position
+
+    def commit_watermark(
+        self,
+        dataset_id: str,
+        position: WatermarkPosition,
+        *,
+        expected_version: int,
+    ) -> WatermarkState:
+        if position.value is None:
+            raise ValueError("committed watermark value cannot be null")
+        if expected_version < 0:
+            raise ValueError("expected watermark version cannot be negative")
         self._deployed_dataset_row(dataset_id)
         now = _utcnow()
-        with self.engine.begin() as connection:
-            existing = connection.execute(
-                select(watermark).where(watermark.c.dataset_id == dataset_id)
-            ).mappings().first()
-            if existing is None:
-                connection.execute(
-                    watermark.insert().values(
-                        dataset_id=dataset_id,
-                        committed_value=position.value,
-                        committed_tie_breaker=list(position.tie_breaker),
-                        committed_dataset_run_id=None,
-                        version=1,
-                        created_at=now,
-                        updated_at=None,
+        encoded_value = encode_typed_value(position.value)
+        encoded_tie_breaker = [encode_typed_value(item) for item in position.tie_breaker]
+
+        try:
+            with self.engine.begin() as connection:
+                existing = connection.execute(
+                    select(watermark).where(watermark.c.dataset_id == dataset_id)
+                ).mappings().first()
+                current = _watermark_state_from_row(existing)
+                if current.version != expected_version:
+                    raise WatermarkConflictError(
+                        f"stale watermark writer for {dataset_id}: "
+                        f"expected_version={expected_version}, current_version={current.version}"
+                    )
+                if current.position is not None:
+                    ordering = compare_watermark_positions(position, current.position)
+                    if ordering < 0:
+                        raise ValueError("committed watermark cannot move backwards")
+                    if ordering == 0:
+                        return current
+
+                next_state = WatermarkState(
+                    position=position,
+                    version=expected_version + 1,
+                )
+                if existing is None:
+                    connection.execute(
+                        watermark.insert().values(
+                            dataset_id=dataset_id,
+                            committed_value=encoded_value,
+                            committed_tie_breaker=encoded_tie_breaker,
+                            committed_dataset_run_id=None,
+                            version=next_state.version,
+                            created_at=now,
+                            updated_at=None,
+                        )
+                    )
+                    return next_state
+
+                result = connection.execute(
+                    watermark.update()
+                    .where(watermark.c.dataset_id == dataset_id)
+                    .where(watermark.c.version == expected_version)
+                    .values(
+                        committed_value=encoded_value,
+                        committed_tie_breaker=encoded_tie_breaker,
+                        version=next_state.version,
+                        updated_at=now,
                     )
                 )
-                return
-            connection.execute(
-                watermark.update()
-                .where(watermark.c.dataset_id == dataset_id)
-                .values(
-                    committed_value=position.value,
-                    committed_tie_breaker=list(position.tie_breaker),
-                    version=int(existing["version"]) + 1,
-                    updated_at=now,
-                )
-            )
+                if result.rowcount != 1:
+                    raise WatermarkConflictError(
+                        f"watermark compare-and-set lost a concurrent race for {dataset_id}"
+                    )
+                return next_state
+        except IntegrityError as exc:
+            raise WatermarkConflictError(
+                f"watermark compare-and-set lost a concurrent insert race for {dataset_id}"
+            ) from exc
 
     def record_pipeline_run(self, audit: PipelineRunAudit) -> None:
         key = str(audit.pipeline_run_id)
@@ -217,7 +296,11 @@ class SqlAlchemyControlPlaneRepository:
         mutable = {
             "status": audit.status.value,
             "error_code": audit.error_code,
-            "error_message": audit.error_message,
+            "error_message": (
+                sanitize_audit_text(audit.error_message)
+                if audit.error_message is not None
+                else None
+            ),
             "completed_at": audit.completed_at,
         }
         with self.engine.begin() as connection:
@@ -262,7 +345,11 @@ class SqlAlchemyControlPlaneRepository:
             "rows_updated": mutations.updated,
             "rows_deleted": mutations.deleted,
             "error_code": audit.error_code,
-            "error_message": audit.error_message,
+            "error_message": (
+                sanitize_audit_text(audit.error_message)
+                if audit.error_message is not None
+                else None
+            ),
             "retryable": audit.retryable,
             "completed_at": audit.completed_at,
         }
@@ -347,6 +434,7 @@ class SqlAlchemyControlPlaneRepository:
             "dataset_run_id": str(audit.dataset_run_id),
             "step_name": audit.step_name,
         }
+        safe_details = sanitize_audit_details(audit.details)
         with self.engine.begin() as connection:
             existing = connection.execute(
                 select(step_run).where(step_run.c.step_run_id == key)
@@ -359,7 +447,7 @@ class SqlAlchemyControlPlaneRepository:
                         status=audit.status.value,
                         started_at=audit.started_at,
                         completed_at=audit.completed_at,
-                        details=audit.details,
+                        details=safe_details,
                     )
                 )
                 return
@@ -370,7 +458,7 @@ class SqlAlchemyControlPlaneRepository:
                 .values(
                     status=audit.status.value,
                     completed_at=audit.completed_at,
-                    details=audit.details,
+                    details=safe_details,
                 )
             )
 
