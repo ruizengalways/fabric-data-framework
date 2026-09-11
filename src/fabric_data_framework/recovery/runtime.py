@@ -11,10 +11,7 @@ from uuid import UUID, uuid4
 
 from pydantic import Field
 
-from fabric_data_framework.metadata.config import (
-    DatasetStatus,
-    RunMode,
-)
+from fabric_data_framework.metadata.config import DatasetStatus, RunMode
 from fabric_data_framework.contracts.base import FrozenModel
 from ..contracts.recovery import (
     DatasetAttemptLineage,
@@ -23,6 +20,7 @@ from ..contracts.recovery import (
     UnknownOutcomeResolution,
 )
 from fabric_data_framework.contracts.audit import DatasetRunAudit
+from fabric_data_framework.evidence.safety import sanitize_audit_text
 
 
 T = TypeVar("T")
@@ -47,8 +45,6 @@ class RetryPolicy(FrozenModel):
     max_backoff_seconds: float = Field(default=60.0, ge=0)
 
     def delay_after_attempt(self, attempt: int) -> float:
-        """Delay before the next attempt after a failed 1-based attempt."""
-
         if attempt < 1:
             raise ValueError("attempt must be >= 1")
         delay = self.initial_backoff_seconds * (self.multiplier ** (attempt - 1))
@@ -85,6 +81,21 @@ class UnknownOutcomeUnresolvedError(RuntimeError):
     pass
 
 
+class UnknownOutcomeResolutionFailedError(RuntimeError):
+    """Resolver failed or returned an invalid result while target state was uncertain."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        unknown_outcome_error: UnknownCommitOutcomeError,
+        resolver_error: Exception,
+    ) -> None:
+        super().__init__(message)
+        self.unknown_outcome_error = unknown_outcome_error
+        self.resolver_error = resolver_error
+
+
 class RecoveryRepository(Protocol):
     def record_dataset_run(self, audit: DatasetRunAudit) -> None: ...
     def record_attempt_lineage(self, lineage: DatasetAttemptLineage) -> None: ...
@@ -115,28 +126,29 @@ class RecoveryRunResult(Generic[T]):
 def classify_failure(exc: Exception) -> FailureClassification:
     """Conservatively classify failures; unknown exceptions are not auto-retried."""
 
+    message = sanitize_audit_text(str(exc) or exc.__class__.__name__)
     if isinstance(exc, RetryableExecutionError):
         return FailureClassification(
             disposition=FailureDisposition.RETRYABLE,
             error_code=exc.error_code,
-            message=str(exc),
+            message=message,
         )
     if isinstance(exc, UnknownCommitOutcomeError):
         return FailureClassification(
             disposition=FailureDisposition.UNKNOWN_OUTCOME,
             error_code=exc.error_code,
-            message=str(exc),
+            message=message,
         )
     if isinstance(exc, PermanentExecutionError):
         return FailureClassification(
             disposition=FailureDisposition.NON_RETRYABLE,
             error_code=exc.error_code,
-            message=str(exc),
+            message=message,
         )
     return FailureClassification(
         disposition=FailureDisposition.NON_RETRYABLE,
         error_code="UNCLASSIFIED_FAILURE",
-        message=str(exc) or exc.__class__.__name__,
+        message=message,
     )
 
 
@@ -160,7 +172,7 @@ def _record_terminal_audit(
             status=status,
             effective_config_hash=effective_config_hash,
             error_code=error_code,
-            error_message=error_message,
+            error_message=(sanitize_audit_text(error_message) if error_message is not None else None),
             retryable=retryable,
         )
     )
@@ -178,6 +190,42 @@ def _update_reprocess_status(
     )
     repository.record_reprocess_request(updated)
     return updated
+
+
+def _handle_resolver_failure(
+    *,
+    repository: RecoveryRepository,
+    context: AttemptContext,
+    effective_config_hash: str,
+    active_request: ReprocessRequest | None,
+    unknown_error: UnknownCommitOutcomeError,
+    resolver_error: Exception,
+) -> None:
+    unknown_summary = sanitize_audit_text(
+        f"{type(unknown_error).__name__}: {unknown_error}"
+    )
+    resolver_summary = sanitize_audit_text(
+        f"{type(resolver_error).__name__}: {resolver_error}"
+    )
+    message = sanitize_audit_text(
+        f"unknown outcome could not be resolved; original={unknown_summary}; "
+        f"resolver={resolver_summary}"
+    )
+    _record_terminal_audit(
+        repository,
+        context=context,
+        effective_config_hash=effective_config_hash,
+        status=DatasetStatus.FAILED,
+        error_code="UNKNOWN_COMMIT_RESOLUTION_FAILED",
+        error_message=message,
+        retryable=False,
+    )
+    _update_reprocess_status(repository, active_request, ReprocessRequestStatus.FAILED)
+    raise UnknownOutcomeResolutionFailedError(
+        "unknown commit outcome resolver failed; refusing blind retry",
+        unknown_outcome_error=unknown_error,
+        resolver_error=resolver_error,
+    ) from resolver_error
 
 
 def execute_with_retry(
@@ -201,10 +249,9 @@ def execute_with_retry(
     """Execute bounded attempts while preserving immutable attempt lineage.
 
     Automatic retries are permitted only for explicitly retryable failures. An
-    uncertain target commit is reconciled before any retry. COMMITTED converges to
-    success, NOT_COMMITTED may retry, and UNRESOLVED stops to avoid duplicate writes.
-    Process-control exceptions such as KeyboardInterrupt/SystemExit are deliberately
-    not converted into dataset retry decisions.
+    uncertain target commit is reconciled before any retry. Only an explicit
+    ``NOT_COMMITTED`` resolution permits retry. Process-control exceptions such as
+    KeyboardInterrupt/SystemExit are deliberately not converted into retry decisions.
     """
 
     if initial_attempt < 1:
@@ -267,11 +314,12 @@ def execute_with_retry(
 
         try:
             value = execute_attempt(context)
-        except Exception as exc:  # executor boundary finalizes ordinary attempt failures
+        except Exception as exc:
             last_error = exc
             classification = classify_failure(exc)
 
             if classification.disposition is FailureDisposition.UNKNOWN_OUTCOME:
+                assert isinstance(exc, UnknownCommitOutcomeError)
                 if resolve_unknown_outcome is None:
                     _record_terminal_audit(
                         repository,
@@ -289,7 +337,32 @@ def execute_with_retry(
                         "unknown commit outcome requires reconciliation before retry"
                     ) from exc
 
-                resolution = resolve_unknown_outcome(context, exc)
+                try:
+                    resolution = resolve_unknown_outcome(context, exc)
+                except Exception as resolver_exc:
+                    _handle_resolver_failure(
+                        repository=repository,
+                        context=context,
+                        effective_config_hash=effective_config_hash,
+                        active_request=active_request,
+                        unknown_error=exc,
+                        resolver_error=resolver_exc,
+                    )
+                    raise AssertionError("unreachable")
+
+                if not isinstance(resolution, UnknownOutcomeResolution):
+                    _handle_resolver_failure(
+                        repository=repository,
+                        context=context,
+                        effective_config_hash=effective_config_hash,
+                        active_request=active_request,
+                        unknown_error=exc,
+                        resolver_error=TypeError(
+                            "unknown-outcome resolver returned an invalid resolution value"
+                        ),
+                    )
+                    raise AssertionError("unreachable")
+
                 if resolution is UnknownOutcomeResolution.COMMITTED:
                     _record_terminal_audit(
                         repository,
@@ -323,6 +396,16 @@ def execute_with_retry(
                     raise UnknownOutcomeUnresolvedError(
                         "target commit outcome remains unresolved; refusing blind retry"
                     ) from exc
+                if resolution is not UnknownOutcomeResolution.NOT_COMMITTED:
+                    _handle_resolver_failure(
+                        repository=repository,
+                        context=context,
+                        effective_config_hash=effective_config_hash,
+                        active_request=active_request,
+                        unknown_error=exc,
+                        resolver_error=ValueError("unsupported unknown-outcome resolution"),
+                    )
+                    raise AssertionError("unreachable")
 
                 classification = FailureClassification(
                     disposition=FailureDisposition.RETRYABLE,
@@ -391,6 +474,7 @@ __all__ = [
     "RetryPolicy",
     "RetryableExecutionError",
     "UnknownCommitOutcomeError",
+    "UnknownOutcomeResolutionFailedError",
     "UnknownOutcomeUnresolvedError",
     "classify_failure",
     "execute_with_retry",
