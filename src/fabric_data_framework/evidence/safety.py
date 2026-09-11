@@ -6,7 +6,7 @@ from datetime import date, datetime
 import json
 import math
 import re
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 from uuid import UUID
 
 
