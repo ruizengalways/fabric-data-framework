@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 from pydantic import Field, model_validator
 
 from ..contracts.base import FrozenModel as _FrozenModel
+from ..contracts.current_projection import CurrentProjectionConfig
 from ..contracts.reconciliation import ReconciliationSeverity
 from ..contracts.schema import SchemaContract
 
@@ -24,6 +25,7 @@ class CaptureStrategy(str, Enum):
     MIRROR = "MIRROR"
     STREAM = "STREAM"
     SNAPSHOT = "SNAPSHOT"
+    PROJECTION = "PROJECTION"
 
 
 class ApplyStrategy(str, Enum):
@@ -33,6 +35,7 @@ class ApplyStrategy(str, Enum):
     SCD1 = "SCD1"
     SCD2 = "SCD2"
     SNAPSHOT_DIFF = "SNAPSHOT_DIFF"
+    CURRENT_PROJECTION = "CURRENT_PROJECTION"
 
 
 class RunMode(str, Enum):
@@ -127,6 +130,7 @@ _STATEFUL_APPLY = {
     ApplyStrategy.SCD1,
     ApplyStrategy.SCD2,
     ApplyStrategy.SNAPSHOT_DIFF,
+    ApplyStrategy.CURRENT_PROJECTION,
 }
 
 
@@ -183,6 +187,21 @@ class LoadPolicy(_FrozenModel):
                 raise ValueError("SCD2 apply requires business_key")
             if self.merge_key != self.business_key:
                 raise ValueError("SCD2 merge_key must equal business_key")
+        if self.apply_strategy is ApplyStrategy.CURRENT_PROJECTION:
+            if self.capture_strategy is not CaptureStrategy.PROJECTION:
+                raise ValueError("CURRENT_PROJECTION requires PROJECTION capture")
+            if not self.business_key:
+                raise ValueError("CURRENT_PROJECTION requires business_key")
+            if self.merge_key != self.business_key:
+                raise ValueError("CURRENT_PROJECTION merge_key must equal business_key")
+            if self.tracked_columns:
+                raise ValueError("CURRENT_PROJECTION does not accept tracked_columns")
+            if self.ordering_columns:
+                raise ValueError("CURRENT_PROJECTION does not accept source ordering columns")
+            if self.delete_policy != "DERIVE_FROM_HISTORY":
+                raise ValueError("CURRENT_PROJECTION delete_policy must be DERIVE_FROM_HISTORY")
+        elif self.capture_strategy is CaptureStrategy.PROJECTION:
+            raise ValueError("PROJECTION capture is only valid for CURRENT_PROJECTION apply")
         if self.apply_strategy is ApplyStrategy.APPEND and not self.append_identity:
             raise ValueError("APPEND apply requires append_identity")
         return self
@@ -412,6 +431,7 @@ class DatasetConfig(_FrozenModel):
     quality: DataQualityPolicy
     reconciliation: ReconciliationPolicy
     schema_contract: SchemaContract | None = None
+    current_projection: CurrentProjectionConfig | None = None
     execution: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
     extensions: ExtensionConfig = Field(default_factory=ExtensionConfig)
     enabled: bool = True
@@ -428,6 +448,20 @@ class DatasetConfig(_FrozenModel):
             and not self.extensions.apply
         ):
             raise ValueError("CUSTOM apply execution requires extensions.apply")
+        if self.load.apply_strategy is ApplyStrategy.CURRENT_PROJECTION:
+            if self.current_projection is None:
+                raise ValueError("CURRENT_PROJECTION requires current_projection configuration")
+            if self.schema_contract is None:
+                raise ValueError("CURRENT_PROJECTION requires an explicit schema_contract")
+            history_id = self.current_projection.authoritative_history_dataset_id
+            if history_id not in self.orchestration.dependencies:
+                raise ValueError(
+                    "CURRENT_PROJECTION must depend on authoritative_history_dataset_id"
+                )
+        elif self.current_projection is not None:
+            raise ValueError(
+                "current_projection configuration is only valid for CURRENT_PROJECTION apply"
+            )
         return self
 
     @property

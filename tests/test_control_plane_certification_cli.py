@@ -29,7 +29,7 @@ def test_cli_certifies_sqlite_reference_after_explicit_migration(tmp_path: Path)
 
     report = json.loads(output.read_text(encoding="utf-8"))
     assert report["observed_dialect"] == "sqlite"
-    assert report["schema_version"] == CONTROL_PLANE_SCHEMA_VERSION == 6
+    assert report["schema_version"] == CONTROL_PLANE_SCHEMA_VERSION == 7
     assert report["reference_certified"] is True
     assert report["production_certified"] is False
 

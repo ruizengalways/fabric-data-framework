@@ -7,6 +7,7 @@ engine-resolution behavior.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.current_projection import CurrentProjectionMode
 from fabric_data_framework.contracts.execution_plan import (
     ExecutionKind,
     ExecutionPlan,
@@ -83,7 +84,42 @@ def compile_execution_plan(
     capture_kind = _ENGINE_TO_KIND[capture_engine]
     apply_kind = _ENGINE_TO_KIND[apply_engine]
 
-    if capture_engine is ExecutionEngine.SPARK and apply_engine is ExecutionEngine.SPARK:
+    if config.load.apply_strategy.value == "CURRENT_PROJECTION":
+        projection = config.current_projection
+        if projection is None:
+            raise ValueError("CURRENT_PROJECTION execution requires projection metadata")
+        if projection.mode in {CurrentProjectionMode.VIEW, CurrentProjectionMode.MATERIALIZED}:
+            units = (
+                _unit(
+                    unit_id="current_projection_publish",
+                    roles=(ExecutionRole.PREPARE, ExecutionRole.APPLY, ExecutionRole.PUBLISH, ExecutionRole.RECONCILE),
+                    execution_kind=ExecutionKind.SPARK_JOB_DEFINITION,
+                    retry_count=retry_count,
+                    timeout_seconds=timeout_seconds,
+                    reconciliation_gate=reconciliation_gate,
+                    state_commit_boundary=False,
+                ),
+            )
+        else:
+            units = (
+                _unit(
+                    unit_id="current_projection_incremental",
+                    roles=(
+                        ExecutionRole.EXTRACT,
+                        ExecutionRole.NORMALIZE,
+                        ExecutionRole.VALIDATE,
+                        ExecutionRole.APPLY,
+                        ExecutionRole.RECONCILE,
+                        ExecutionRole.COMMIT_STATE,
+                    ),
+                    execution_kind=ExecutionKind.SPARK_JOB_DEFINITION,
+                    retry_count=retry_count,
+                    timeout_seconds=timeout_seconds,
+                    reconciliation_gate=reconciliation_gate,
+                    state_commit_boundary=True,
+                ),
+            )
+    elif capture_engine is ExecutionEngine.SPARK and apply_engine is ExecutionEngine.SPARK:
         units = (
             _unit(
                 unit_id="dataset_execute",
@@ -199,6 +235,48 @@ def build_default_execution_plan(
         if config.execution.apply_engine is not ExecutionEngine.AUTO
         else ExecutionEngine.SPARK
     )
+    if config.load.apply_strategy.value == "CURRENT_PROJECTION":
+        projection = config.current_projection
+        if projection is None:
+            raise ValueError("CURRENT_PROJECTION execution requires projection metadata")
+        is_incremental = projection.mode is CurrentProjectionMode.DELTA_PROJECTION
+        units = (
+            ExecutionUnit(
+                unit_id=(
+                    "current_projection_incremental"
+                    if is_incremental
+                    else "current_projection_publish"
+                ),
+                roles=(
+                    (
+                        ExecutionRole.EXTRACT,
+                        ExecutionRole.NORMALIZE,
+                        ExecutionRole.VALIDATE,
+                        ExecutionRole.APPLY,
+                        ExecutionRole.RECONCILE,
+                        ExecutionRole.COMMIT_STATE,
+                    )
+                    if is_incremental
+                    else (ExecutionRole.PREPARE, ExecutionRole.APPLY, ExecutionRole.PUBLISH, ExecutionRole.RECONCILE)
+                ),
+                execution_kind=execution_kind,
+                retry_count=config.orchestration.retry_count,
+                timeout_seconds=config.orchestration.timeout_seconds,
+                reconciliation_gate=config.reconciliation.required_for_state_commit,
+                state_commit_boundary=is_incremental,
+            ),
+        )
+    else:
+        units = (
+            ExecutionUnit(
+                unit_id="dataset_execute",
+                execution_kind=execution_kind,
+                retry_count=config.orchestration.retry_count,
+                timeout_seconds=config.orchestration.timeout_seconds,
+                reconciliation_gate=config.reconciliation.required_for_state_commit,
+                state_commit_boundary=True,
+            ),
+        )
     return ExecutionPlan(
         dataset_id=config.dataset_id,
         run_mode=run_mode,
@@ -209,16 +287,7 @@ def build_default_execution_plan(
         capture_capability_profile=config.execution.capability_profile,
         apply_capability_profile=config.execution.apply_capability_profile,
         effective_config_hash=effective.effective_config_hash,
-        units=(
-            ExecutionUnit(
-                unit_id="dataset_execute",
-                execution_kind=execution_kind,
-                retry_count=config.orchestration.retry_count,
-                timeout_seconds=config.orchestration.timeout_seconds,
-                reconciliation_gate=config.reconciliation.required_for_state_commit,
-                state_commit_boundary=True,
-            ),
-        ),
+        units=units,
         required_bindings=required_bindings,
     )
 

@@ -97,6 +97,7 @@ Start at [`docs/README.md`](docs/README.md). Framework contributors should also 
 - [`docs/IMPLEMENTATION_PROJECT.md`](docs/IMPLEMENTATION_PROJECT.md) — bootstrap a real framework-consuming domain repo.
 - [`docs/DATA_PATTERNS.md`](docs/DATA_PATTERNS.md) — choose FULL, watermark/lookback, CDC, APPEND, Bronze, SCD1/SCD2, and delete semantics.
 - [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — configure reconciliation checks, tolerance, partitioning, WARN/FAIL semantics, provider observations, and state-gate authority.
+- [`docs/CURRENT_PROJECTIONS.md`](docs/CURRENT_PROJECTIONS.md) — derive stable current objects from authoritative SCD2 history using VIEW, materialized, or incremental Delta projection modes.
 - [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — transient runtime failure isolation, retry, replay, backfill, unknown commit, and dependency recovery.
 - [`docs/REPAIR_AND_REBUILD.md`](docs/REPAIR_AND_REBUILD.md) — data-correctness repair, FULL_REBUILD scope, contaminated dependency impact, v1/v2 cutover, UAT, rollback, and retention.
 - [`docs/TESTING_AND_CERTIFICATION.md`](docs/TESTING_AND_CERTIFICATION.md) — source tests through exact-wheel real Fabric certification.
