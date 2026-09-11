@@ -34,7 +34,12 @@ from ..quality.rules import QuarantinedRecord, RowRule, ValidationOutcome, valid
 from ..quality.quarantine_store import QuarantinePayloadWriter
 from fabric_data_framework.quality.reconciliation import reconcile_scd2_batch
 from ..control_plane.repository import ControlPlaneRepository
-from fabric_data_framework.contracts.runtime import StateCommitGate, WatermarkPosition, WatermarkTransition
+from fabric_data_framework.contracts.runtime import (
+    StateCommitGate,
+    WatermarkPosition,
+    WatermarkTransition,
+    compare_watermark_positions,
+)
 from fabric_data_framework.apply.scd2 import InMemorySCD2Target, SCD2ApplyResult, apply_scd2
 from fabric_data_framework.capture.watermark import WatermarkBatch, plan_watermark_batch
 
@@ -194,7 +199,8 @@ def execute_watermark_scd2(
     pipeline_run_id = pipeline_run_id or uuid4()
     dataset_run_id = dataset_run_id or uuid4()
     config_hash = effective_config_hash or config.config_hash
-    before = repository.get_watermark(dataset_id)
+    watermark_state = repository.get_watermark_state(dataset_id)
+    before = watermark_state.position
 
     capture: WatermarkBatch = plan_watermark_batch(source_rows, config.load.watermark, before)
     _record_step(
@@ -362,7 +368,13 @@ def execute_watermark_scd2(
         target.replace(proposed.rows)
         if capture.after is not None:
             WatermarkTransition(before=before, after=capture.after, gate=gate)
-            repository.commit_watermark(dataset_id, capture.after)
+            changed = before is None or compare_watermark_positions(capture.after, before) > 0
+            if changed:
+                repository.commit_watermark(
+                    dataset_id,
+                    capture.after,
+                    expected_version=watermark_state.version,
+                )
         status = DatasetStatus.SUCCEEDED
         _record_step(
             repository,
