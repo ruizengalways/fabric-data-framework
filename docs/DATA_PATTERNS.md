@@ -99,6 +99,12 @@ SCD2 is a target representation.
 It is not a source-history generator.
 ```
 
+SCD2 key contract:
+
+- `business_key` is the canonical entity identity used for current-row lookup, history grouping and the one-current-row invariant;
+- the shared `LoadPolicy.merge_key` field is retained for the current metadata shape, but for SCD2 it must be exactly equal to `business_key`;
+- divergent SCD2 `business_key` / `merge_key` values are rejected fail-closed rather than accepting a configuration whose `merge_key` would be operationally ignored.
+
 A daily snapshot can support snapshot-grain SCD2. It cannot prove unobserved intra-day transitions unless stronger source evidence exists.
 
 ## 6. Watermark safety
