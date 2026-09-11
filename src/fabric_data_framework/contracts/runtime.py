@@ -157,25 +157,32 @@ def _compare_scalar(left: Any, right: Any, *, field_name: str) -> int:
     if isinstance(left, datetime) or isinstance(right, datetime):
         if not isinstance(left, datetime) or not isinstance(right, datetime):
             raise TypeError(f"{field_name} types are not safely comparable")
-        left_value = left.astimezone(timezone.utc)
-        right_value = right.astimezone(timezone.utc)
-    elif type(left) in {int, float} and type(right) in {int, float}:
-        left_value = left
-        right_value = right
-    elif isinstance(left, str) and isinstance(right, str):
-        left_value = left
-        right_value = right
-    else:
-        raise TypeError(
-            f"{field_name} types are not safely comparable: "
-            f"{type(left).__name__} vs {type(right).__name__}"
-        )
+        normalized_left = left.astimezone(timezone.utc)
+        normalized_right = right.astimezone(timezone.utc)
+        if normalized_left < normalized_right:
+            return -1
+        if normalized_left > normalized_right:
+            return 1
+        return 0
 
-    if left_value < right_value:
-        return -1
-    if left_value > right_value:
-        return 1
-    return 0
+    if type(left) in {int, float} and type(right) in {int, float}:
+        if left < right:
+            return -1
+        if left > right:
+            return 1
+        return 0
+
+    if isinstance(left, str) and isinstance(right, str):
+        if left < right:
+            return -1
+        if left > right:
+            return 1
+        return 0
+
+    raise TypeError(
+        f"{field_name} types are not safely comparable: "
+        f"{type(left).__name__} vs {type(right).__name__}"
+    )
 
 
 def compare_watermark_positions(left: WatermarkPosition, right: WatermarkPosition) -> int:
