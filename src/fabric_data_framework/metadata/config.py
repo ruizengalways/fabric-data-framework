@@ -178,8 +178,11 @@ class LoadPolicy(_FrozenModel):
 
         if self.apply_strategy in _STATEFUL_APPLY and not self.merge_key:
             raise ValueError(f"{self.apply_strategy.value} apply requires merge_key")
-        if self.apply_strategy is ApplyStrategy.SCD2 and not self.business_key:
-            raise ValueError("SCD2 apply requires business_key")
+        if self.apply_strategy is ApplyStrategy.SCD2:
+            if not self.business_key:
+                raise ValueError("SCD2 apply requires business_key")
+            if self.merge_key != self.business_key:
+                raise ValueError("SCD2 merge_key must equal business_key")
         if self.apply_strategy is ApplyStrategy.APPEND and not self.append_identity:
             raise ValueError("APPEND apply requires append_identity")
         return self
