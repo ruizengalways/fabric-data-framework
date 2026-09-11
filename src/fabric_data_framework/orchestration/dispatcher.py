@@ -41,6 +41,7 @@ from .planner import (
     ready_dataset_ids,
 )
 from ..control_plane.repository import ControlPlaneRepository
+from ..evidence.safety import sanitize_audit_text
 
 
 _PIPELINE_ERROR_MESSAGE_LIMIT = 4096
@@ -48,6 +49,32 @@ _PIPELINE_ERROR_MESSAGE_LIMIT = 4096
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class PipelineDispatchIntegrityError(OrchestrationIntegrityError):
+    def __init__(self, message: str, *, error_code: str) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+
+
+class BackendReadyWaveError(RuntimeError):
+    def __init__(self, message: str, *, cause: Exception) -> None:
+        super().__init__(message)
+        self.error_code = "BACKEND_READY_WAVE_FAILED"
+        self.cause = cause
+
+
+class PipelineFinalizationError(RuntimeError):
+    """Execution failed and the terminal FAILED audit could not be persisted."""
+
+    def __init__(self, *, primary_error: Exception, finalization_error: Exception) -> None:
+        super().__init__(
+            "pipeline execution failed and terminal audit finalization also failed: "
+            f"execution={type(primary_error).__name__}; "
+            f"finalization={type(finalization_error).__name__}"
+        )
+        self.primary_error = primary_error
+        self.finalization_error = finalization_error
 
 
 class ReadyWaveBackend(Protocol):
@@ -100,6 +127,7 @@ def _record_blocked_dataset(
 ) -> DatasetDispatchOutcome:
     dataset_run_id = uuid4()
     detail = ",".join(blocking_dependencies)
+    message = sanitize_audit_text(f"blocked by dependencies: {detail}")
     repository.record_dataset_run(
         DatasetRunAudit(
             dataset_run_id=dataset_run_id,
@@ -110,7 +138,7 @@ def _record_blocked_dataset(
             status=DatasetStatus.BLOCKED,
             effective_config_hash=effective.effective_config_hash,
             error_code="BLOCKED_DEPENDENCY",
-            error_message=f"blocked by dependencies: {detail}",
+            error_message=message,
             retryable=False,
         )
     )
@@ -119,7 +147,7 @@ def _record_blocked_dataset(
         status=DatasetStatus.BLOCKED,
         retryable=False,
         error_code="BLOCKED_DEPENDENCY",
-        error_message=f"blocked by dependencies: {detail}",
+        error_message=message,
     )
 
 
@@ -155,10 +183,11 @@ def _pipeline_audit(
 
 
 def _bounded_message(value: str) -> str:
-    if len(value) <= _PIPELINE_ERROR_MESSAGE_LIMIT:
-        return value
+    sanitized = sanitize_audit_text(value, max_length=_PIPELINE_ERROR_MESSAGE_LIMIT)
+    if len(sanitized) <= _PIPELINE_ERROR_MESSAGE_LIMIT:
+        return sanitized
     suffix = "... [truncated]"
-    return value[: _PIPELINE_ERROR_MESSAGE_LIMIT - len(suffix)] + suffix
+    return sanitized[: _PIPELINE_ERROR_MESSAGE_LIMIT - len(suffix)] + suffix
 
 
 def _aggregate_outcome_error(
@@ -171,7 +200,9 @@ def _aggregate_outcome_error(
         if outcome is None or outcome.status is DatasetStatus.SUCCEEDED:
             continue
         error_code = outcome.error_code or outcome.status.value
-        error_message = outcome.error_message or "no dataset error detail"
+        error_message = sanitize_audit_text(
+            outcome.error_message or "no dataset error detail"
+        )
         failures.append(
             f"{dataset_id}[{outcome.status.value}/{error_code}]: {error_message}"
         )
@@ -210,6 +241,15 @@ def _record_failed_pipeline(
     )
 
 
+def _terminal_error_code(exc: Exception) -> str:
+    code = getattr(exc, "error_code", None)
+    if isinstance(code, str) and code:
+        return code
+    if isinstance(exc, OrchestrationIntegrityError):
+        return "ORCHESTRATION_INTEGRITY_ERROR"
+    return "PIPELINE_EXECUTION_EXCEPTION"
+
+
 def dispatch_datasets_with_backend(
     *,
     repository: ControlPlaneRepository,
@@ -230,15 +270,7 @@ def dispatch_datasets_with_backend(
     pipeline_run_id: UUID | None = None,
     as_of: datetime | None = None,
 ) -> PipelineDispatchResult:
-    """Plan once, isolate dataset faults, then aggregate the Pipeline after all work.
-
-    Dataset/provider exceptions are converted to terminal dataset outcomes by the
-    execution backend. Failed dependencies block only their dependents. Independent
-    siblings continue. An execution-group policy can set group-wide DQ/quarantine,
-    concurrency and failure defaults; audited RuntimeOverride values still have final
-    precedence. ``failure_policy`` is an explicit call-site override and otherwise the
-    source-controlled group policy (or FAIL_AT_END) is used.
-    """
+    """Plan once, isolate dataset faults, then aggregate the Pipeline after all work."""
 
     started_at = _utcnow()
     pipeline_run_id = pipeline_run_id or uuid4()
@@ -284,62 +316,106 @@ def dispatch_datasets_with_backend(
         )
     )
 
-    effective_by_id = dict(plan.effective_configs)
-    remaining = set(plan.selected_dataset_ids)
-    outcomes: dict[str, DatasetDispatchOutcome] = {}
+    try:
+        effective_by_id = dict(plan.effective_configs)
+        remaining = set(plan.selected_dataset_ids)
+        outcomes: dict[str, DatasetDispatchOutcome] = {}
 
-    while remaining:
-        newly_blocked: list[tuple[str, tuple[str, ...]]] = []
-        for dataset_id in sorted(remaining):
-            blockers = blocking_dependencies(plan, dataset_id, outcomes)
-            if blockers:
-                newly_blocked.append((dataset_id, blockers))
+        while remaining:
+            newly_blocked: list[tuple[str, tuple[str, ...]]] = []
+            for dataset_id in sorted(remaining):
+                blockers = blocking_dependencies(plan, dataset_id, outcomes)
+                if blockers:
+                    newly_blocked.append((dataset_id, blockers))
 
-        for dataset_id, blockers in newly_blocked:
-            outcomes[dataset_id] = _record_blocked_dataset(
-                repository,
-                pipeline_run_id=pipeline_run_id,
-                effective=plan.effective_for(dataset_id),
-                run_mode=run_mode,
-                blocking_dependencies=blockers,
-            )
-            remaining.remove(dataset_id)
-
-        ready = ready_dataset_ids(plan, remaining, outcomes)
-        if not ready:
-            if remaining:
-                message = "dispatcher made no progress; dependency graph is not schedulable"
-                _record_failed_pipeline(
+            for dataset_id, blockers in newly_blocked:
+                outcomes[dataset_id] = _record_blocked_dataset(
                     repository,
                     pipeline_run_id=pipeline_run_id,
-                    environment=environment,
-                    domain=domain,
+                    effective=plan.effective_for(dataset_id),
                     run_mode=run_mode,
-                    started_at=started_at,
-                    domain_git_sha=domain_git_sha,
-                    framework_version=framework_version,
-                    config_bundle_hash=config_bundle_hash,
-                    error_code="ORCHESTRATION_NO_PROGRESS",
-                    error_message=message,
+                    blocking_dependencies=blockers,
                 )
-                raise OrchestrationIntegrityError(message)
-            break
+                remaining.remove(dataset_id)
 
-        wave_outcomes = backend.execute_ready_wave(
-            repository=repository,
+            ready = ready_dataset_ids(plan, remaining, outcomes)
+            if not ready:
+                if remaining:
+                    raise PipelineDispatchIntegrityError(
+                        "dispatcher made no progress; dependency graph is not schedulable",
+                        error_code="ORCHESTRATION_NO_PROGRESS",
+                    )
+                break
+
+            try:
+                wave_outcomes = backend.execute_ready_wave(
+                    repository=repository,
+                    pipeline_run_id=pipeline_run_id,
+                    effective_by_id=effective_by_id,
+                    dataset_ids=ready,
+                    run_mode=run_mode,
+                    max_concurrency=plan.max_concurrency,
+                )
+            except Exception as exc:
+                raise BackendReadyWaveError(
+                    "ready-wave backend raised an ordinary exception",
+                    cause=exc,
+                ) from exc
+
+            unexpected = sorted(set(wave_outcomes) - set(ready))
+            missing = sorted(set(ready) - set(wave_outcomes))
+            if unexpected or missing:
+                raise PipelineDispatchIntegrityError(
+                    "execution backend returned an invalid ready-wave result: "
+                    f"missing={missing}, unexpected={unexpected}",
+                    error_code="INVALID_READY_WAVE_RESULT",
+                )
+            outcomes.update(wave_outcomes)
+            remaining.difference_update(wave_outcomes)
+
+        final_status = aggregate_pipeline_status(
+            plan,
+            outcomes,
+            failure_policy=failure_policy,
+            required_criticalities=required_criticalities,
+        )
+        final_error_code: str | None = None
+        final_error_message: str | None = None
+        if final_status is PipelineStatus.FAILED:
+            final_error_code = "DATASET_FAILURES_AT_END"
+            final_error_message = _aggregate_outcome_error(plan.selected_dataset_ids, outcomes)
+        elif final_status is PipelineStatus.PARTIAL_SUCCESS:
+            final_error_code = "DATASET_WARNINGS_AT_END"
+            final_error_message = _aggregate_outcome_error(plan.selected_dataset_ids, outcomes)
+
+        repository.record_pipeline_run(
+            _pipeline_audit(
+                pipeline_run_id=pipeline_run_id,
+                environment=environment,
+                domain=domain,
+                status=final_status,
+                run_mode=run_mode,
+                started_at=started_at,
+                completed_at=_utcnow(),
+                domain_git_sha=domain_git_sha,
+                framework_version=framework_version,
+                config_bundle_hash=config_bundle_hash,
+                error_code=final_error_code,
+                error_message=final_error_message,
+            )
+        )
+
+        return PipelineDispatchResult(
             pipeline_run_id=pipeline_run_id,
-            effective_by_id=effective_by_id,
-            dataset_ids=ready,
-            run_mode=run_mode,
+            status=final_status,
+            selected_dataset_ids=plan.selected_dataset_ids,
+            outcomes=tuple(
+                (dataset_id, outcomes[dataset_id]) for dataset_id in plan.selected_dataset_ids
+            ),
             max_concurrency=plan.max_concurrency,
         )
-        unexpected = sorted(set(wave_outcomes) - set(ready))
-        missing = sorted(set(ready) - set(wave_outcomes))
-        if unexpected or missing:
-            message = (
-                "execution backend returned an invalid ready-wave result: "
-                f"missing={missing}, unexpected={unexpected}"
-            )
+    except Exception as exc:
+        try:
             _record_failed_pipeline(
                 repository,
                 pipeline_run_id=pipeline_run_id,
@@ -350,54 +426,15 @@ def dispatch_datasets_with_backend(
                 domain_git_sha=domain_git_sha,
                 framework_version=framework_version,
                 config_bundle_hash=config_bundle_hash,
-                error_code="INVALID_READY_WAVE_RESULT",
-                error_message=message,
+                error_code=_terminal_error_code(exc),
+                error_message=f"{type(exc).__name__}: {exc}",
             )
-            raise OrchestrationIntegrityError(message)
-        outcomes.update(wave_outcomes)
-        remaining.difference_update(wave_outcomes)
-
-    final_status = aggregate_pipeline_status(
-        plan,
-        outcomes,
-        failure_policy=failure_policy,
-        required_criticalities=required_criticalities,
-    )
-    final_error_code: str | None = None
-    final_error_message: str | None = None
-    if final_status is PipelineStatus.FAILED:
-        final_error_code = "DATASET_FAILURES_AT_END"
-        final_error_message = _aggregate_outcome_error(plan.selected_dataset_ids, outcomes)
-    elif final_status is PipelineStatus.PARTIAL_SUCCESS:
-        final_error_code = "DATASET_WARNINGS_AT_END"
-        final_error_message = _aggregate_outcome_error(plan.selected_dataset_ids, outcomes)
-
-    repository.record_pipeline_run(
-        _pipeline_audit(
-            pipeline_run_id=pipeline_run_id,
-            environment=environment,
-            domain=domain,
-            status=final_status,
-            run_mode=run_mode,
-            started_at=started_at,
-            completed_at=_utcnow(),
-            domain_git_sha=domain_git_sha,
-            framework_version=framework_version,
-            config_bundle_hash=config_bundle_hash,
-            error_code=final_error_code,
-            error_message=final_error_message,
-        )
-    )
-
-    return PipelineDispatchResult(
-        pipeline_run_id=pipeline_run_id,
-        status=final_status,
-        selected_dataset_ids=plan.selected_dataset_ids,
-        outcomes=tuple(
-            (dataset_id, outcomes[dataset_id]) for dataset_id in plan.selected_dataset_ids
-        ),
-        max_concurrency=plan.max_concurrency,
-    )
+        except Exception as finalization_exc:
+            raise PipelineFinalizationError(
+                primary_error=exc,
+                finalization_error=finalization_exc,
+            ) from finalization_exc
+        raise
 
 
 def dispatch_datasets(
@@ -420,8 +457,6 @@ def dispatch_datasets(
     pipeline_run_id: UUID | None = None,
     as_of: datetime | None = None,
 ) -> PipelineDispatchResult:
-    """Backward-compatible in-process dispatcher with fail-at-end aggregation."""
-
     return dispatch_datasets_with_backend(
         repository=repository,
         backend=_InProcessBackend(executor_resolver),
@@ -444,14 +479,17 @@ def dispatch_datasets(
 
 
 __all__ = [
+    "BackendReadyWaveError",
     "DatasetDispatchOutcome",
     "DatasetDispatchRequest",
     "DatasetExecutor",
     "ExecutionGroupPolicy",
     "ExecutorResolver",
     "OrchestrationIntegrityError",
+    "PipelineDispatchIntegrityError",
     "PipelineDispatchResult",
     "PipelineFailurePolicy",
+    "PipelineFinalizationError",
     "ReadyWaveBackend",
     "dispatch_datasets",
     "dispatch_datasets_with_backend",
