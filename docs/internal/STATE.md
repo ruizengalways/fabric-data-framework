@@ -4,7 +4,7 @@ This file is the **single current-state recovery checkpoint** for `fabric-data-f
 
 ```yaml
 schema: fabric-data-framework-state-v5
-updated: 2026-09-09
+updated: 2026-09-11
 
 release:
   public_release: v0.3.0
@@ -330,9 +330,9 @@ FABRIC CERTIFICATION REQUIRED
 
 ## Release boundary
 
-`0.4.0` is not frozen and not release-authorized. The exact post-refactor executable candidate is selected, but release certification remains blocked at the external live-Fabric binding/evidence boundary.
+`0.4.0` is not frozen and not release-authorized. The previously selected post-refactor executable candidate is superseded by the packaged SCD2 key-contract repair, so there is currently no exact current-source candidate. After this repair reaches `main`, both post-merge gates must pass and the retained main wheel must be independently verified before a new candidate is recorded.
 
-Any packaged-code change invalidates this executable candidate and requires a new exact main wheel. A docs/test-only bookkeeping merge after candidate selection does not change selected wheel bytes. Release promotion must use the exact already-built/certified wheel bytes; no release-time rebuild.
+Any packaged-code change invalidates a selected executable candidate and requires a new exact main wheel. A docs/test-only bookkeeping merge after candidate selection does not change selected wheel bytes. Release promotion must use the exact already-built/certified wheel bytes; no release-time rebuild.
 
 ## Documentation rule
 
