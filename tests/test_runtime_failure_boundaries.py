@@ -77,7 +77,9 @@ def test_backend_exception_finalizes_running_pipeline_as_failed_and_redacts_mess
     assert audit.completed_at is not None
     assert audit.error_code == "BACKEND_READY_WAVE_FAILED"
     assert "backend-secret" not in (audit.error_message or "")
-    assert "[REDACTED]" in (audit.error_message or "")
+    assert audit.error_message == (
+        "BackendReadyWaveError: ready-wave backend raised an ordinary exception"
+    )
 
 
 class _FinalizationFailingRepository(InMemoryControlPlane):
