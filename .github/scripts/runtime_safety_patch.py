@@ -12,56 +12,63 @@ def replace_once(path: str, old: str, new: str) -> None:
     target.write_text(text.replace(old, new), encoding="utf-8")
 
 
+rest_path = "src/fabric_data_framework/adapters/fabric/rest.py"
+replace_once(
+    rest_path,
+    '''            response = self._opener(request, timeout=self._request_timeout_seconds)\n            status_value = getattr(response, "status", None)\n            status = int(status_value if status_value is not None else response.getcode())\n            response_headers = response.headers\n            raw = response.read()\n''',
+    '''            response = self._opener(request, timeout=self._request_timeout_seconds)\n            try:\n                status_value = getattr(response, "status", None)\n                status = int(status_value if status_value is not None else response.getcode())\n                response_headers = response.headers\n                raw = response.read()\n            finally:\n                close = getattr(response, "close", None)\n                if callable(close):\n                    close()\n''',
+)
+replace_once(
+    rest_path,
+    '''        except HTTPError as exc:\n            raw = exc.read()\n            response_headers = exc.headers\n            payload_obj: object | None = None\n''',
+    '''        except HTTPError as exc:\n            try:\n                raw = exc.read()\n                response_headers = exc.headers\n            finally:\n                exc.close()\n            payload_obj: object | None = None\n''',
+)
+
+capture_path = "src/fabric_data_framework/adapters/fabric/capture_transports.py"
+replace_once(
+    capture_path,
+    '''from .rest import FabricJobInstance, FabricJobStatus, FabricRestClient\n''',
+    '''from .rest import FabricJobInstance, FabricJobStatus, FabricRestClient\nfrom ...evidence.safety import sanitize_audit_details, sanitize_audit_value\n''',
+)
+replace_once(
+    capture_path,
+    '''    return {\n        "workspace_id": str(workspace_id),\n        "item_id": str(item_id),\n        "job_instance_id": str(job.job_instance_id),\n        "root_activity_id": str(job.root_activity_id) if job.root_activity_id else None,\n        "job_type": job.job_type,\n        "remote_status": job.status.value,\n        "failure_reason": job.failure_reason,\n        "provider_start_time_present": job.start_time_utc is not None,\n        "provider_end_time_present": job.end_time_utc is not None,\n    }\n''',
+    '''    return sanitize_audit_details(\n        {\n            "workspace_id": str(workspace_id),\n            "item_id": str(item_id),\n            "job_instance_id": str(job.job_instance_id),\n            "root_activity_id": str(job.root_activity_id) if job.root_activity_id else None,\n            "job_type": job.job_type,\n            "remote_status": job.status.value,\n            "failure_reason": sanitize_audit_value(job.failure_reason),\n            "provider_start_time_present": job.start_time_utc is not None,\n            "provider_end_time_present": job.end_time_utc is not None,\n        }\n    ) or {}\n''',
+)
+replace_once(
+    capture_path,
+    '''            "observation": dict(observation.diagnostics),\n''',
+    '''            "observation": sanitize_audit_details(observation.diagnostics) or {},\n''',
+)
+
 sql_path = "src/fabric_data_framework/control_plane/sqlalchemy_repository.py"
 replace_once(
     sql_path,
-    "from sqlalchemy import Engine, select\n",
-    "from sqlalchemy import Engine, select\nfrom sqlalchemy.exc import IntegrityError\n",
+    '''from fabric_data_framework.contracts.typed_values import (\n    TypedValueError,\n    decode_legacy_or_typed_scalar,\n    encode_typed_value,\n)\n''',
+    '''from fabric_data_framework.contracts.typed_values import (\n    TypedValueError,\n    decode_legacy_or_typed_scalar,\n    encode_typed_value,\n)\nfrom ..evidence.safety import sanitize_audit_details, sanitize_audit_text\n''',
 )
 replace_once(
     sql_path,
-    "from fabric_data_framework.contracts.runtime import WatermarkPosition\n",
-    "from fabric_data_framework.contracts.runtime import (\n"
-    "    WatermarkConflictError,\n"
-    "    WatermarkPosition,\n"
-    "    WatermarkState,\n"
-    "    compare_watermark_positions,\n"
-    ")\n"
-    "from fabric_data_framework.contracts.typed_values import (\n"
-    "    TypedValueError,\n"
-    "    decode_legacy_or_typed_scalar,\n"
-    "    encode_typed_value,\n"
-    ")\n",
+    '''            "error_message": audit.error_message,\n            "completed_at": audit.completed_at,\n''',
+    '''            "error_message": (\n                sanitize_audit_text(audit.error_message)\n                if audit.error_message is not None\n                else None\n            ),\n            "completed_at": audit.completed_at,\n''',
+)
+# dataset_run has a second error_message occurrence with retryable immediately after it.
+replace_once(
+    sql_path,
+    '''            "error_code": audit.error_code,\n            "error_message": audit.error_message,\n            "retryable": audit.retryable,\n''',
+    '''            "error_code": audit.error_code,\n            "error_message": (\n                sanitize_audit_text(audit.error_message)\n                if audit.error_message is not None\n                else None\n            ),\n            "retryable": audit.retryable,\n''',
 )
 replace_once(
     sql_path,
-    '''def _assert_semantic_identity(\n    existing: dict[str, object],\n    expected: dict[str, object],\n    *,\n    label: str,\n) -> None:\n    changed = [key for key, value in expected.items() if existing[key] != value]\n    if changed:\n        raise ValueError(\n            f"{label} semantic identity cannot change: {', '.join(sorted(changed))}"\n        )\n\n\n''',
-    '''def _assert_semantic_identity(\n    existing: dict[str, object],\n    expected: dict[str, object],\n    *,\n    label: str,\n) -> None:\n    changed = [key for key, value in expected.items() if existing[key] != value]\n    if changed:\n        raise ValueError(\n            f"{label} semantic identity cannot change: {', '.join(sorted(changed))}"\n        )\n\n\ndef _decode_watermark_tie_breaker(payload: object) -> tuple[str | int | float, ...]:\n    if payload is None:\n        return ()\n    raw_items = payload if isinstance(payload, (list, tuple)) else [payload]\n    decoded: list[str | int | float] = []\n    for item in raw_items:\n        value = decode_legacy_or_typed_scalar(item)\n        if type(value) is bool or type(value) not in {str, int, float}:\n            raise TypedValueError(\n                "persisted watermark tie-breaker contains an unsupported value type"\n            )\n        decoded.append(value)\n    return tuple(decoded)\n\n\ndef _watermark_state_from_row(row: object | None) -> WatermarkState:\n    if row is None:\n        return WatermarkState()\n    mapping = dict(row)\n    try:\n        value = decode_legacy_or_typed_scalar(mapping["committed_value"])\n        tie_breaker = _decode_watermark_tie_breaker(mapping["committed_tie_breaker"])\n        position = WatermarkPosition(value=value, tie_breaker=tie_breaker)\n        return WatermarkState(position=position, version=int(mapping["version"]))\n    except (KeyError, TypeError, ValueError, TypedValueError) as exc:\n        raise RuntimeError("persisted watermark state is malformed or unsupported") from exc\n\n\n''',
+    '''        semantic = {\n            "dataset_run_id": str(audit.dataset_run_id),\n            "step_name": audit.step_name,\n        }\n        with self.engine.begin() as connection:\n''',
+    '''        semantic = {\n            "dataset_run_id": str(audit.dataset_run_id),\n            "step_name": audit.step_name,\n        }\n        safe_details = sanitize_audit_details(audit.details)\n        with self.engine.begin() as connection:\n''',
 )
-old_watermark = '''    def get_watermark(self, dataset_id: str) -> WatermarkPosition | None:\n        with self.engine.connect() as connection:\n            row = connection.execute(\n                select(watermark).where(watermark.c.dataset_id == dataset_id)\n            ).mappings().first()\n        if row is None:\n            return None\n        return WatermarkPosition(\n            value=row["committed_value"],\n            tie_breaker=tuple(row["committed_tie_breaker"] or ()),\n        )\n\n    def commit_watermark(self, dataset_id: str, position: WatermarkPosition) -> None:\n        # Compatibility method for the older repository Protocol. Stateful execution\n        # should use the dedicated gated/CAS state primitives for commit decisions.\n        self._deployed_dataset_row(dataset_id)\n        now = _utcnow()\n        with self.engine.begin() as connection:\n            existing = connection.execute(\n                select(watermark).where(watermark.c.dataset_id == dataset_id)\n            ).mappings().first()\n            if existing is None:\n                connection.execute(\n                    watermark.insert().values(\n                        dataset_id=dataset_id,\n                        committed_value=position.value,\n                        committed_tie_breaker=list(position.tie_breaker),\n                        committed_dataset_run_id=None,\n                        version=1,\n                        created_at=now,\n                        updated_at=None,\n                    )\n                )\n                return\n            connection.execute(\n                watermark.update()\n                .where(watermark.c.dataset_id == dataset_id)\n                .values(\n                    committed_value=position.value,\n                    committed_tie_breaker=list(position.tie_breaker),\n                    version=int(existing["version"]) + 1,\n                    updated_at=now,\n                )\n            )\n\n'''
-new_watermark = '''    def get_watermark_state(self, dataset_id: str) -> WatermarkState:\n        self._deployed_dataset_row(dataset_id)\n        with self.engine.connect() as connection:\n            row = connection.execute(\n                select(watermark).where(watermark.c.dataset_id == dataset_id)\n            ).mappings().first()\n        return _watermark_state_from_row(row)\n\n    def get_watermark(self, dataset_id: str) -> WatermarkPosition | None:\n        return self.get_watermark_state(dataset_id).position\n\n    def commit_watermark(\n        self,\n        dataset_id: str,\n        position: WatermarkPosition,\n        *,\n        expected_version: int,\n    ) -> WatermarkState:\n        if position.value is None:\n            raise ValueError("committed watermark value cannot be null")\n        if expected_version < 0:\n            raise ValueError("expected watermark version cannot be negative")\n        self._deployed_dataset_row(dataset_id)\n        now = _utcnow()\n        encoded_value = encode_typed_value(position.value)\n        encoded_tie_breaker = [encode_typed_value(item) for item in position.tie_breaker]\n\n        try:\n            with self.engine.begin() as connection:\n                existing = connection.execute(\n                    select(watermark).where(watermark.c.dataset_id == dataset_id)\n                ).mappings().first()\n                current = _watermark_state_from_row(existing)\n                if current.version != expected_version:\n                    raise WatermarkConflictError(\n                        f"stale watermark writer for {dataset_id}: "\n                        f"expected_version={expected_version}, current_version={current.version}"\n                    )\n                if current.position is not None:\n                    ordering = compare_watermark_positions(position, current.position)\n                    if ordering < 0:\n                        raise ValueError("committed watermark cannot move backwards")\n                    if ordering == 0:\n                        return current\n\n                next_state = WatermarkState(\n                    position=position,\n                    version=expected_version + 1,\n                )\n                if existing is None:\n                    connection.execute(\n                        watermark.insert().values(\n                            dataset_id=dataset_id,\n                            committed_value=encoded_value,\n                            committed_tie_breaker=encoded_tie_breaker,\n                            committed_dataset_run_id=None,\n                            version=next_state.version,\n                            created_at=now,\n                            updated_at=None,\n                        )\n                    )\n                    return next_state\n\n                result = connection.execute(\n                    watermark.update()\n                    .where(watermark.c.dataset_id == dataset_id)\n                    .where(watermark.c.version == expected_version)\n                    .values(\n                        committed_value=encoded_value,\n                        committed_tie_breaker=encoded_tie_breaker,\n                        version=next_state.version,\n                        updated_at=now,\n                    )\n                )\n                if result.rowcount != 1:\n                    raise WatermarkConflictError(\n                        f"watermark compare-and-set lost a concurrent race for {dataset_id}"\n                    )\n                return next_state\n        except IntegrityError as exc:\n            raise WatermarkConflictError(\n                f"watermark compare-and-set lost a concurrent insert race for {dataset_id}"\n            ) from exc\n\n'''
-replace_once(sql_path, old_watermark, new_watermark)
+replace_once(sql_path, "                        details=audit.details,\n", "                        details=safe_details,\n")
+replace_once(sql_path, "                    details=audit.details,\n", "                    details=safe_details,\n")
 
-execution_path = "src/fabric_data_framework/execution/watermark_scd2.py"
+business_test = "tests/test_business_path_driver.py"
 replace_once(
-    execution_path,
-    "from fabric_data_framework.contracts.runtime import StateCommitGate, WatermarkPosition, WatermarkTransition\n",
-    "from fabric_data_framework.contracts.runtime import (\n"
-    "    StateCommitGate,\n"
-    "    WatermarkPosition,\n"
-    "    WatermarkTransition,\n"
-    "    compare_watermark_positions,\n"
-    ")\n",
-)
-replace_once(
-    execution_path,
-    "    before = repository.get_watermark(dataset_id)\n\n    capture: WatermarkBatch = plan_watermark_batch(source_rows, config.load.watermark, before)\n",
-    "    watermark_state = repository.get_watermark_state(dataset_id)\n"
-    "    before = watermark_state.position\n\n"
-    "    capture: WatermarkBatch = plan_watermark_batch(source_rows, config.load.watermark, before)\n",
-)
-replace_once(
-    execution_path,
-    '''        target.replace(proposed.rows)\n        if capture.after is not None:\n            WatermarkTransition(before=before, after=capture.after, gate=gate)\n            repository.commit_watermark(dataset_id, capture.after)\n        status = DatasetStatus.SUCCEEDED\n''',
-    '''        target.replace(proposed.rows)\n        if capture.after is not None:\n            WatermarkTransition(before=before, after=capture.after, gate=gate)\n            changed = before is None or compare_watermark_positions(capture.after, before) > 0\n            if changed:\n                repository.commit_watermark(\n                    dataset_id,\n                    capture.after,\n                    expected_version=watermark_state.version,\n                )\n        status = DatasetStatus.SUCCEEDED\n''',
+    business_test,
+    '''    assert "status" not in receipt.model_fields\n    assert "passed" not in receipt.model_fields\n''',
+    '''    assert "status" not in BusinessPathDriverReceipt.model_fields\n    assert "passed" not in BusinessPathDriverReceipt.model_fields\n''',
 )
