@@ -8,13 +8,14 @@ import json
 from pathlib import Path
 from typing import Iterable
 
-from sqlalchemy import Engine, and_, select, update
+from sqlalchemy import Engine, and_, delete, select, update
 
 from fabric_data_framework.metadata.config import DatasetConfig, canonical_hash
 from ..contracts.group_policy import ExecutionGroupPolicy
 from ..control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     apply_baseline_schema,
+    current_projection_policy,
     data_quality_policy,
     dataset,
     dataset_contract,
@@ -380,6 +381,31 @@ def materialize_semantic_metadata(
                 reconciliation_values,
                 {**reconciliation_values, **common_audit},
             )
+
+            if config.current_projection is None:
+                connection.execute(
+                    delete(current_projection_policy).where(
+                        current_projection_policy.c.dataset_id == config.dataset_id
+                    )
+                )
+            else:
+                projection_values = {
+                    "dataset_id": config.dataset_id,
+                    "authoritative_history_dataset_id": (
+                        config.current_projection.authoritative_history_dataset_id
+                    ),
+                    "mode": config.current_projection.mode.value,
+                    "definition": config.current_projection.model_dump(mode="json"),
+                    "created_at": now,
+                    "updated_at": None,
+                }
+                _upsert_definition(
+                    connection,
+                    current_projection_policy,
+                    {"dataset_id": config.dataset_id},
+                    projection_values,
+                    {**projection_values, **common_audit},
+                )
 
     return bundle_hash
 

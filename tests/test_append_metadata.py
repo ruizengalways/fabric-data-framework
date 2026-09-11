@@ -152,7 +152,7 @@ def test_control_plane_v3_migration_survives_later_additive_migrations():
         )
 
     assert current_schema_version(engine) == 2
-    assert apply_baseline_schema(engine) == CONTROL_PLANE_SCHEMA_VERSION == 6
+    assert apply_baseline_schema(engine) == CONTROL_PLANE_SCHEMA_VERSION == 7
 
     inspector = inspect(engine)
     columns = {column["name"] for column in inspector.get_columns("load_policy")}

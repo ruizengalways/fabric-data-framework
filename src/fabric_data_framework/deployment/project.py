@@ -13,6 +13,7 @@ from typing import Iterable, Mapping
 
 from pydantic import Field
 
+from fabric_data_framework.deployment.current_projection import validate_current_projection_bundle
 from fabric_data_framework.deployment.delivery import load_dataset_configs
 
 from ..capture.onboarding import (
@@ -330,6 +331,7 @@ def validate_customer_project(
     dataset_dir = project_root / layout.dataset_config_dir
     configs = load_dataset_configs(dataset_dir)
     _validate_dependency_graph(configs)
+    projection_warnings = validate_current_projection_bundle(configs)
 
     capture_engines: list[str] = []
     apply_engines: list[str] = []
@@ -351,18 +353,27 @@ def validate_customer_project(
     selections = load_semantic_capture_selections(selections_path)
     configs_by_id = {config.dataset_id: config for config in configs}
     selected_ids = {selection.dataset_id for selection in selections}
+    source_dataset_ids = {
+        config.dataset_id for config in configs if config.current_projection is None
+    }
     unknown = sorted(selected_ids - set(configs_by_id))
     if unknown:
         raise ValueError(
             "semantic selections reference unknown datasets: " + ", ".join(unknown)
         )
-    missing = sorted(set(configs_by_id) - selected_ids)
+    projection_selected = sorted(selected_ids - source_dataset_ids)
+    if projection_selected:
+        raise ValueError(
+            "current projection datasets derive capture semantics from authoritative history and "
+            "must not have source semantic selections: " + ", ".join(projection_selected)
+        )
+    missing = sorted(source_dataset_ids - selected_ids)
     if missing:
         raise ValueError(
-            "DatasetConfig values missing semantic capture selection: " + ", ".join(missing)
+            "source DatasetConfig values missing semantic capture selection: " + ", ".join(missing)
         )
 
-    warnings: list[str] = []
+    warnings: list[str] = list(projection_warnings)
     for selection in selections:
         report = validate_semantic_capture_selection(
             configs_by_id[selection.dataset_id], selection

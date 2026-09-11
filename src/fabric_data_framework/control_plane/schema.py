@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 
 
-CONTROL_PLANE_SCHEMA_VERSION = 6
+CONTROL_PLANE_SCHEMA_VERSION = 7
 CONTROL_PLANE_MIGRATIONS = (
     (1, "phase1_initial_control_plane_schema"),
     (2, "execution_policy_ordering_capture_receipt_recovery_and_cdc"),
@@ -29,6 +29,7 @@ CONTROL_PLANE_MIGRATIONS = (
     (4, "durable_target_operation_journal"),
     (5, "pipeline_aggregate_failure_audit"),
     (6, "quarantine_review_and_manual_correction_governance"),
+    (7, "current_projection_semantics"),
 )
 
 NAMING_CONVENTION = {
@@ -166,6 +167,16 @@ reconciliation_policy = Table(
     Column("policy_name", String(128), nullable=False),
     Column("required_for_state_commit", Boolean, nullable=False),
     Column("definition", JSON, nullable=True),
+    *_audit_columns(),
+)
+
+current_projection_policy = Table(
+    "current_projection_policy",
+    metadata,
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), primary_key=True),
+    Column("authoritative_history_dataset_id", String(255), nullable=False),
+    Column("mode", String(64), nullable=False),
+    Column("definition", JSON, nullable=False),
     *_audit_columns(),
 )
 
@@ -493,6 +504,7 @@ PROMOTABLE_DEFINITION_TABLES = frozenset(
         "orchestration_policy",
         "data_quality_policy",
         "reconciliation_policy",
+        "current_projection_policy",
     }
 )
 ENVIRONMENT_LOCAL_STATE_TABLES = frozenset(
@@ -601,6 +613,7 @@ __all__ = [
     "capture_receipt",
     "cdc_checkpoint",
     "current_schema_version",
+    "current_projection_policy",
     "dataset_attempt_lineage",
     "execution_policy",
     "metadata",

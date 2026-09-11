@@ -108,6 +108,7 @@ _DEFAULT_CAPABILITIES = (
                 CaptureStrategy.CDC,
                 CaptureStrategy.SNAPSHOT,
                 CaptureStrategy.STREAM,
+                CaptureStrategy.PROJECTION,
             }
         ),
         apply_strategies=_FRAMEWORK_APPLY_STRATEGIES,
