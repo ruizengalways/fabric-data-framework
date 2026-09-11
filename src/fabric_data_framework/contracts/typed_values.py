@@ -46,20 +46,22 @@ def encode_typed_value(value: Any) -> dict[str, Any]:
     if isinstance(value, str):
         return {TYPE_FIELD: "str", VALUE_FIELD: value}
     if isinstance(value, datetime):
-        normalized = _aware_datetime(value)
+        normalized_datetime = _aware_datetime(value)
         return {
             TYPE_FIELD: "datetime",
-            VALUE_FIELD: normalized.isoformat(timespec="microseconds").replace("+00:00", "Z"),
+            VALUE_FIELD: normalized_datetime.isoformat(timespec="microseconds").replace(
+                "+00:00", "Z"
+            ),
         }
     if isinstance(value, date):
         return {TYPE_FIELD: "date", VALUE_FIELD: value.isoformat()}
     if isinstance(value, Decimal):
         if not value.is_finite():
             raise TypedValueError("non-finite Decimal values are not supported")
-        normalized = value.normalize()
-        if normalized == 0:
-            normalized = Decimal(0)
-        return {TYPE_FIELD: "decimal", VALUE_FIELD: str(normalized)}
+        normalized_decimal = value.normalize()
+        if normalized_decimal == 0:
+            normalized_decimal = Decimal(0)
+        return {TYPE_FIELD: "decimal", VALUE_FIELD: str(normalized_decimal)}
     if isinstance(value, UUID):
         return {TYPE_FIELD: "uuid", VALUE_FIELD: str(value)}
     if isinstance(value, tuple):
@@ -77,10 +79,7 @@ def encode_typed_value(value: Any) -> dict[str, Any]:
             raise TypedValueError("mapping keys must be strings")
         return {
             TYPE_FIELD: "dict",
-            ITEMS_FIELD: [
-                [key, encode_typed_value(value[key])]
-                for key in sorted(value)
-            ],
+            ITEMS_FIELD: [[key, encode_typed_value(value[key])] for key in sorted(value)],
         }
     raise TypedValueError(f"unsupported typed value: {type(value).__name__}")
 
@@ -130,12 +129,12 @@ def decode_typed_value(payload: Any) -> Any:
         if not isinstance(value, str):
             raise TypedValueError("float typed value must contain a string")
         try:
-            parsed = float.fromhex(value)
+            parsed_float = float.fromhex(value)
         except ValueError as exc:
             raise TypedValueError("invalid encoded float value") from exc
-        if not math.isfinite(parsed):
+        if not math.isfinite(parsed_float):
             raise TypedValueError("non-finite encoded float value")
-        return parsed
+        return parsed_float
     if kind == "str":
         _require_exact_keys(payload, {TYPE_FIELD, VALUE_FIELD})
         value = payload[VALUE_FIELD]
@@ -149,10 +148,10 @@ def decode_typed_value(payload: Any) -> Any:
             raise TypedValueError("datetime typed value must contain a string")
         text = value[:-1] + "+00:00" if value.endswith("Z") else value
         try:
-            parsed = datetime.fromisoformat(text)
+            parsed_datetime = datetime.fromisoformat(text)
         except ValueError as exc:
             raise TypedValueError("invalid encoded datetime value") from exc
-        return _aware_datetime(parsed)
+        return _aware_datetime(parsed_datetime)
     if kind == "date":
         _require_exact_keys(payload, {TYPE_FIELD, VALUE_FIELD})
         value = payload[VALUE_FIELD]
@@ -168,12 +167,12 @@ def decode_typed_value(payload: Any) -> Any:
         if not isinstance(value, str):
             raise TypedValueError("decimal typed value must contain a string")
         try:
-            parsed = Decimal(value)
+            parsed_decimal = Decimal(value)
         except Exception as exc:
             raise TypedValueError("invalid encoded Decimal value") from exc
-        if not parsed.is_finite():
+        if not parsed_decimal.is_finite():
             raise TypedValueError("non-finite encoded Decimal value")
-        return parsed
+        return parsed_decimal
     if kind == "uuid":
         _require_exact_keys(payload, {TYPE_FIELD, VALUE_FIELD})
         value = payload[VALUE_FIELD]
