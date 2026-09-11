@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 import json
 import math
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 from uuid import UUID
 
 
