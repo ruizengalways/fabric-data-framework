@@ -57,6 +57,7 @@ from fabric_data_framework.contracts.typed_values import (
     decode_legacy_or_typed_scalar,
     encode_typed_value,
 )
+from ..evidence.safety import sanitize_audit_details, sanitize_audit_text
 
 
 def _utcnow() -> datetime:
@@ -295,7 +296,11 @@ class SqlAlchemyControlPlaneRepository:
         mutable = {
             "status": audit.status.value,
             "error_code": audit.error_code,
-            "error_message": audit.error_message,
+            "error_message": (
+                sanitize_audit_text(audit.error_message)
+                if audit.error_message is not None
+                else None
+            ),
             "completed_at": audit.completed_at,
         }
         with self.engine.begin() as connection:
@@ -340,7 +345,11 @@ class SqlAlchemyControlPlaneRepository:
             "rows_updated": mutations.updated,
             "rows_deleted": mutations.deleted,
             "error_code": audit.error_code,
-            "error_message": audit.error_message,
+            "error_message": (
+                sanitize_audit_text(audit.error_message)
+                if audit.error_message is not None
+                else None
+            ),
             "retryable": audit.retryable,
             "completed_at": audit.completed_at,
         }
@@ -425,6 +434,7 @@ class SqlAlchemyControlPlaneRepository:
             "dataset_run_id": str(audit.dataset_run_id),
             "step_name": audit.step_name,
         }
+        safe_details = sanitize_audit_details(audit.details)
         with self.engine.begin() as connection:
             existing = connection.execute(
                 select(step_run).where(step_run.c.step_run_id == key)
@@ -437,7 +447,7 @@ class SqlAlchemyControlPlaneRepository:
                         status=audit.status.value,
                         started_at=audit.started_at,
                         completed_at=audit.completed_at,
-                        details=audit.details,
+                        details=safe_details,
                     )
                 )
                 return
@@ -448,7 +458,7 @@ class SqlAlchemyControlPlaneRepository:
                 .values(
                     status=audit.status.value,
                     completed_at=audit.completed_at,
-                    details=audit.details,
+                    details=safe_details,
                 )
             )
 
