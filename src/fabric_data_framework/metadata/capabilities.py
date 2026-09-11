@@ -44,6 +44,7 @@ _FRAMEWORK_APPLY_STRATEGIES = frozenset(
         ApplyStrategy.SCD1,
         ApplyStrategy.SCD2,
         ApplyStrategy.SNAPSHOT_DIFF,
+        ApplyStrategy.CURRENT_PROJECTION,
     }
 )
 
