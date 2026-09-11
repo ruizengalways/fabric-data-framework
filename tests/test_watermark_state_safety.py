@@ -19,8 +19,11 @@ from fabric_data_framework.control_plane.sqlalchemy_repository import SqlAlchemy
 from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
+    DataQualityPolicy,
     DatasetConfig,
     LoadPolicy,
+    OrchestrationPolicy,
+    ReconciliationPolicy,
     SourceConfig,
     TargetConfig,
     WatermarkConfig,
@@ -49,6 +52,9 @@ def _config() -> DatasetConfig:
             tracked_columns=("email",),
             event_time_column="updated_at",
         ),
+        orchestration=OrchestrationPolicy(execution_group="daily"),
+        quality=DataQualityPolicy(policy_name="standard", quarantine_policy="reject"),
+        reconciliation=ReconciliationPolicy(policy_name="standard"),
     )
 
 
