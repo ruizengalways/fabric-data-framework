@@ -60,7 +60,11 @@ _REMOTE_STEP_STATUS = {
 
 
 def _safe_provider_exception_message(exc: Exception) -> str:
-    return sanitize_audit_text(f"{type(exc).__name__}: {exc}")
+    raw = f"{type(exc).__name__}: {exc}"
+    sanitized = sanitize_audit_text(raw)
+    if sanitized != raw:
+        return f"{type(exc).__name__}: provider error detail redacted"
+    return sanitized
 
 
 def _failure_reason_text(value: object | None) -> str:
