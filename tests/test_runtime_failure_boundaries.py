@@ -13,10 +13,13 @@ from fabric_data_framework.execution.backends.fabric_pipeline import FabricPipel
 from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
+    DataQualityPolicy,
     DatasetConfig,
     DatasetStatus,
     LoadPolicy,
+    OrchestrationPolicy,
     PipelineStatus,
+    ReconciliationPolicy,
     RunMode,
     SourceConfig,
     TargetConfig,
@@ -38,6 +41,9 @@ def _config(dataset_id: str = "crm.customer") -> DatasetConfig:
             capture_strategy=CaptureStrategy.FULL,
             apply_strategy=ApplyStrategy.REPLACE,
         ),
+        orchestration=OrchestrationPolicy(execution_group="daily"),
+        quality=DataQualityPolicy(policy_name="standard", quarantine_policy="reject"),
+        reconciliation=ReconciliationPolicy(policy_name="standard"),
     )
 
 
