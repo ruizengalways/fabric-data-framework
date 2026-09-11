@@ -10,17 +10,29 @@ release:
   public_release: v0.3.0
   source_version: 0.4.0-development-unreleased
   candidate_status: not_frozen
-  exact_candidate_source_selected: false
+  exact_candidate_source_selected: true
   release_allowed: false
   real_fabric_status: FABRIC_CERTIFICATION_REQUIRED
 
 candidate_identity:
-  current_source_candidate_git_sha: not_selected_after_scd2_key_contract_change
-  current_source_framework_artifact_sha256: not_selected_after_scd2_key_contract_change
+  current_source_candidate_git_sha: 81b574fb79bcc5e74cb9eee6d0644c6de8ef7ffd
+  current_source_framework_artifact_sha256: 5ee9a032d242f3a164ccfbfcfe5b646d91e6f35dbf603f21735b745dda6cead6
   integration_inputs_hash: not_yet_constructed
   integration_inputs_status: blocked_pending_approved_live_DEV_bindings
-  current_source_requires_new_exact_artifact_before_release_claim: true
-  candidate_bytes_must_not_change: false
+  current_source_requires_new_exact_artifact_before_release_claim: false
+  candidate_bytes_must_not_change: true
+  selected_candidate:
+    candidate_git_sha: 81b574fb79bcc5e74cb9eee6d0644c6de8ef7ffd
+    candidate_main_framework_ci_run: 34565985394
+    candidate_main_installed_wheel_run: 34565985349
+    candidate_wheel_artifact_id: 10186013452
+    candidate_wheel_artifact_name: framework-wheel-81b574fb79bcc5e74cb9eee6d0644c6de8ef7ffd
+    candidate_wheel_filename: fabric_data_framework-0.4.0-py3-none-any.whl
+    framework_artifact_sha256: 5ee9a032d242f3a164ccfbfcfe5b646d91e6f35dbf603f21735b745dda6cead6
+    wheel_sha_verified_against_candidate_json: true
+    wheel_sha_verified_against_sha256sums: true
+    wheel_sha_independently_rehashed: true
+    status: selected_not_frozen
   superseded_package_structure_candidate:
     candidate_git_sha: 8b118e9bf5c5132738eb1a486a6df3e6589cd16e
     candidate_main_framework_ci_run: 34347024953
@@ -207,8 +219,8 @@ certification:
     - integration_inputs_hash
 
 fabric_proof:
-  exact_current_candidate_selected: false
-  current_source_installed_wheel_acceptance: not_run_for_new_source
+  exact_current_candidate_selected: true
+  current_source_installed_wheel_acceptance: passed
   current_source_real_fabric_execution: not_run
   bounded_lakehouse_for_current_candidate: not_retained
   control_plane_for_current_candidate: not_retained
@@ -225,8 +237,6 @@ external_execution_boundary:
   do_not_guess_or_reuse_unverified_resource_ids: true
 
 next_boundary:
-  - after the SCD2 key-contract repair reaches main, select and independently verify the new exact main wheel
-  - record the new exact candidate provenance before any real Fabric certification
   - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials
   - bootstrap/read back framework-owned certification assets using the exact selected wheel
   - resolve exact item bindings by live Fabric item discovery
@@ -239,18 +249,41 @@ next_boundary:
   - retain exact identity-bound evidence
 ```
 
-## Current candidate state after the SCD2 key-contract repair
+## Selected exact current candidate after the SCD2 key-contract repair
 
-The previously selected package-structure candidate is now historical provenance only:
+The packaged SCD2 key-contract repair merged on `main` at:
 
 ```text
-source        8b118e9bf5c5132738eb1a486a6df3e6589cd16e
-wheel SHA256  7ae26c3bef5cc5e5310c59c8f7182402ed26247b23c04cff4189250d8507e9a2
+81b574fb79bcc5e74cb9eee6d0644c6de8ef7ffd
 ```
 
-The SCD2 metadata contract now fails closed when `merge_key` differs from `business_key`. Because this changes packaged source, no exact current-source candidate is selected until the repair is merged to `main`, both post-merge gates pass, and the retained main wheel is independently verified against `CANDIDATE.json` and `SHA256SUMS`. Real Fabric certification must not run against the superseded wheel.
+The exact post-merge main gates are:
 
-For SCD2, `business_key` is the canonical entity identity used by the reference and CDC history engines. The shared `merge_key` field remains required in the current metadata schema but must equal `business_key`; divergent values are invalid.
+```text
+framework-ci               34565985394  PASS
+installed-wheel-acceptance 34565985349  PASS
+```
+
+The retained framework-ci artifact is:
+
+```text
+artifact id    10186013452
+artifact name  framework-wheel-81b574fb79bcc5e74cb9eee6d0644c6de8ef7ffd
+wheel          fabric_data_framework-0.4.0-py3-none-any.whl
+```
+
+The **inner wheel bytes**, not the outer GitHub Actions artifact ZIP, were independently SHA256-hashed after download. That digest exactly matches both `CANDIDATE.json` and `SHA256SUMS`:
+
+```text
+framework_artifact_sha256
+= 5ee9a032d242f3a164ccfbfcfe5b646d91e6f35dbf603f21735b745dda6cead6
+```
+
+This selects the exact executable candidate after the SCD2 key-contract repair. It does **not** freeze 0.4, construct integration inputs, execute Microsoft Fabric, authorize release, or claim Fabric PASS. Candidate/evidence identity remains `framework_artifact_sha256 + integration_inputs_hash`; `integration_inputs_hash` is still not yet constructed.
+
+For SCD2, `business_key` remains the canonical entity identity. The shared `merge_key` field is still required by the current metadata shape but must equal `business_key`; divergent values fail closed during metadata validation.
+
+The previous package-structure candidate at `8b118e9bf5c5132738eb1a486a6df3e6589cd16e` / `7ae26c3bef5cc5e5310c59c8f7182402ed26247b23c04cff4189250d8507e9a2` is historical provenance only.
 
 ## Declarative reconciliation
 
@@ -330,7 +363,7 @@ FABRIC CERTIFICATION REQUIRED
 
 ## Release boundary
 
-`0.4.0` is not frozen and not release-authorized. The previously selected post-refactor executable candidate is superseded by the packaged SCD2 key-contract repair, so there is currently no exact current-source candidate. After this repair reaches `main`, both post-merge gates must pass and the retained main wheel must be independently verified before a new candidate is recorded.
+`0.4.0` is not frozen and not release-authorized. The exact current executable candidate after the SCD2 key-contract repair is selected and independently verified, but release certification remains blocked at the external live-Fabric binding/evidence boundary.
 
 Any packaged-code change invalidates a selected executable candidate and requires a new exact main wheel. A docs/test-only bookkeeping merge after candidate selection does not change selected wheel bytes. Release promotion must use the exact already-built/certified wheel bytes; no release-time rebuild.
 
