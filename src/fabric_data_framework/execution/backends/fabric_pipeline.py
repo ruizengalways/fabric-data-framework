@@ -8,6 +8,7 @@ evidence fails closed.
 
 from __future__ import annotations
 
+from builtins import ExceptionGroup
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
