@@ -17,6 +17,7 @@ from fabric_data_framework.metadata.config import (
     TargetConfig,
     WatermarkConfig,
 )
+from fabric_data_framework.contracts.typed_values import decode_typed_value
 from fabric_data_framework.execution import execute_watermark_scd2
 from fabric_data_framework.quality.rules import RowRule
 from fabric_data_framework.quality.quarantine_store import JsonFileQuarantineStore
@@ -96,10 +97,14 @@ def test_reference_executor_quarantines_row_with_durable_detail_and_commits_vali
     assert batch.source_reference is not None
     parsed = urlparse(batch.source_reference)
     payload = json.loads(Path(unquote(parsed.path)).read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 2
     assert payload["dataset_id"] == "crm.customer"
     assert payload["row_count"] == 1
-    assert payload["rows"][0]["data"]["customer_id"] == "C002"
-    assert payload["rows"][0]["data"]["email"] == "invalid"
+    assert len(payload["payload_sha256"]) == 64
+    decoded_data = decode_typed_value(payload["rows"][0]["data"])
+    assert decoded_data["customer_id"] == "C002"
+    assert decoded_data["email"] == "invalid"
+    assert decoded_data["modified_at"] == dt(11)
     assert payload["rows"][0]["data_quality_failures"] == [
         {"rule_code": "EMAIL_VALID", "rule_message": "email must contain @"}
     ]
