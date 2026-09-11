@@ -373,3 +373,15 @@ select dataset work
 Do not duplicate watermark, retry, DQ, SCD, quarantine governance, and recovery logic across dozens of Notebook/Pipeline implementations.
 
 For the exact reusable Pipeline child correlation contract, see [`reference/PIPELINE_CHILD_CONTRACT.md`](reference/PIPELINE_CHILD_CONTRACT.md).
+
+## Runtime safety and retained evidence
+
+Operational recovery must preserve the same fail-closed boundaries as normal execution:
+
+- Watermark commits are monotonic and use expected-version CAS. A stale concurrent writer fails instead of overwriting a newer checkpoint.
+- Ordinary pipeline/backend exceptions are terminalized as `FAILED` with `completed_at` whenever the Control Plane remains writable. If terminal audit persistence itself fails, both the original execution error and the finalization error are surfaced; a stored `RUNNING` row cannot be falsely claimed as finalized.
+- Unknown target-commit outcomes are never retried blindly. Resolver failure or an invalid resolver value records `UNKNOWN_COMMIT_RESOLUTION_FAILED`; only explicit `NOT_COMMITTED` may enter the retry path.
+- Provider error/failure payloads are recursively redacted and bounded before entering audit models or repositories. Secrets such as passwords, bearer tokens, authorization values, connection strings, and nested token/secret fields must not be retained.
+- Detailed quarantine replay payloads use typed schema v2, validate exact dataset/quarantine identity and a content SHA256, and publish with create-if-absent semantics. Unsupported business value types fail closed instead of being stringified.
+
+The filesystem atomicity tests are local/POSIX evidence only. OneLake/Lakehouse mount create-if-absent semantics remain part of real Fabric certification and must not be inferred from local tests.

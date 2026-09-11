@@ -186,3 +186,7 @@ For framework-version regression, compare against the same verified `workload_di
 Executable gate definitions live in `release/<version>/readiness-spec.json`, certification resources and workflow/code contracts. This Markdown does not duplicate the full gate matrix.
 
 Current high-level truth is always read from [`STATE.md`](STATE.md). Public `v0.3.0` remains the release truth until a later exact candidate is explicitly frozen, fully evidenced, authorized and published.
+
+## Runtime safety hardening
+
+Current source hardens monotonic watermark CAS, typed persisted watermark values, type-preserving SCD2 hashes, terminal pipeline/recovery failure boundaries, bounded credential redaction, CDC SCD2 tombstone ordering, and typed immutable quarantine replay payloads. These are source/runtime capabilities only until the post-hardening exact wheel is selected and real Fabric evidence is retained.

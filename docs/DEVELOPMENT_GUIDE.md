@@ -397,3 +397,9 @@ Session 4: only after runtime understanding
 ```
 
 New maintainers should not need to understand candidate SHA plumbing before they can read capture/apply/runtime code. Release internals come after the core runtime mental model.
+
+## Runtime-safety regression rule
+
+Changes to checkpoints, persisted state, hashing, audit evidence, retry/recovery, CDC ordering, or replay storage require failure-path regression tests, not only happy-path tests. Prefer a shared typed codec/redaction primitive over per-feature `default=str` or ad-hoc sanitization. Persisted state updates that can race must use an atomic provider-side predicate/CAS; an application-level read followed by an unconditional write is not sufficient proof.
+
+The CI baseline includes configured Ruff, focused MyPy and package-wide coverage in addition to the existing source and installed-wheel gates. A packaged runtime change always invalidates the previously selected exact candidate even when all source tests pass.

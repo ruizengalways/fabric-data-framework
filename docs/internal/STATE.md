@@ -10,18 +10,18 @@ release:
   public_release: v0.3.0
   source_version: 0.4.0-development-unreleased
   candidate_status: not_frozen
-  exact_candidate_source_selected: true
+  exact_candidate_source_selected: false
   release_allowed: false
   real_fabric_status: FABRIC_CERTIFICATION_REQUIRED
 
 candidate_identity:
-  current_source_candidate_git_sha: 81b574fb79bcc5e74cb9eee6d0644c6de8ef7ffd
-  current_source_framework_artifact_sha256: 5ee9a032d242f3a164ccfbfcfe5b646d91e6f35dbf603f21735b745dda6cead6
+  current_source_candidate_git_sha: not_selected_after_runtime_safety_hardening
+  current_source_framework_artifact_sha256: not_selected_after_runtime_safety_hardening
   integration_inputs_hash: not_yet_constructed
   integration_inputs_status: blocked_pending_approved_live_DEV_bindings
-  current_source_requires_new_exact_artifact_before_release_claim: false
-  candidate_bytes_must_not_change: true
-  selected_candidate:
+  current_source_requires_new_exact_artifact_before_release_claim: true
+  candidate_bytes_must_not_change: false
+  superseded_scd2_key_contract_candidate:
     candidate_git_sha: 81b574fb79bcc5e74cb9eee6d0644c6de8ef7ffd
     candidate_main_framework_ci_run: 34565985394
     candidate_main_installed_wheel_run: 34565985349
@@ -32,7 +32,7 @@ candidate_identity:
     wheel_sha_verified_against_candidate_json: true
     wheel_sha_verified_against_sha256sums: true
     wheel_sha_independently_rehashed: true
-    status: selected_not_frozen
+    status: superseded_by_runtime_safety_hardening
   superseded_package_structure_candidate:
     candidate_git_sha: 8b118e9bf5c5132738eb1a486a6df3e6589cd16e
     candidate_main_framework_ci_run: 34347024953
@@ -219,8 +219,8 @@ certification:
     - integration_inputs_hash
 
 fabric_proof:
-  exact_current_candidate_selected: true
-  current_source_installed_wheel_acceptance: passed
+  exact_current_candidate_selected: false
+  current_source_installed_wheel_acceptance: not_run_for_new_current_source
   current_source_real_fabric_execution: not_run
   bounded_lakehouse_for_current_candidate: not_retained
   control_plane_for_current_candidate: not_retained
@@ -237,6 +237,9 @@ external_execution_boundary:
   do_not_guess_or_reuse_unverified_resource_ids: true
 
 next_boundary:
+  - merge the runtime-safety hardening only after exact PR-head source and installed-wheel gates pass
+  - build and retain the exact post-merge main wheel; independently verify its inner SHA256
+  - record a new exact executable candidate before constructing live Fabric integration inputs
   - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials
   - bootstrap/read back framework-owned certification assets using the exact selected wheel
   - resolve exact item bindings by live Fabric item discovery
@@ -249,7 +252,7 @@ next_boundary:
   - retain exact identity-bound evidence
 ```
 
-## Selected exact current candidate after the SCD2 key-contract repair
+## Superseded SCD2 key-contract candidate
 
 The packaged SCD2 key-contract repair merged on `main` at:
 
@@ -279,7 +282,7 @@ framework_artifact_sha256
 = 5ee9a032d242f3a164ccfbfcfe5b646d91e6f35dbf603f21735b745dda6cead6
 ```
 
-This selects the exact executable candidate after the SCD2 key-contract repair. It does **not** freeze 0.4, construct integration inputs, execute Microsoft Fabric, authorize release, or claim Fabric PASS. Candidate/evidence identity remains `framework_artifact_sha256 + integration_inputs_hash`; `integration_inputs_hash` is still not yet constructed.
+This wheel was the exact executable candidate after the SCD2 key-contract repair, but the packaged runtime-safety hardening now supersedes it. It is historical provenance only and must not be used for the next Fabric certification. A new exact post-hardening main wheel must be selected after merge. Candidate/evidence identity remains `framework_artifact_sha256 + integration_inputs_hash`; `integration_inputs_hash` is still not yet constructed.
 
 For SCD2, `business_key` remains the canonical entity identity. The shared `merge_key` field is still required by the current metadata shape but must equal `business_key`; divergent values fail closed during metadata validation.
 
@@ -363,7 +366,7 @@ FABRIC CERTIFICATION REQUIRED
 
 ## Release boundary
 
-`0.4.0` is not frozen and not release-authorized. The exact current executable candidate after the SCD2 key-contract repair is selected and independently verified, but release certification remains blocked at the external live-Fabric binding/evidence boundary.
+`0.4.0` is not frozen and not release-authorized. Packaged runtime-safety changes supersede the previously selected executable candidate, so no exact current-source candidate is selected until the hardening reaches `main`, both post-merge gates pass, and the retained main wheel is independently verified.
 
 Any packaged-code change invalidates a selected executable candidate and requires a new exact main wheel. A docs/test-only bookkeeping merge after candidate selection does not change selected wheel bytes. Release promotion must use the exact already-built/certified wheel bytes; no release-time rebuild.
 
@@ -378,3 +381,21 @@ IMPLEMENTATION_MAP.md
 ```
 
 Do not add another state/evidence narrative document when code, executable schemas, one canonical topic doc, or one of these three internal files can own the information.
+
+## Runtime-safety hardening in progress
+
+The current packaged-source change set hardens the following fail-closed boundaries before real Fabric certification:
+
+```text
+watermark overlap -> reread allowed, checkpoint regression forbidden
+watermark commit  -> expected-version compare-and-set
+watermark JSON    -> typed/versioned value encoding
+SCD2 hashing      -> canonical type-preserving hash input
+pipeline failure  -> terminal FAILED audit for ordinary Exception paths when Control Plane is writable
+provider evidence -> recursive redaction and bounded retained payloads
+unknown outcome   -> only explicit NOT_COMMITTED may retry
+CDC SCD2 delete   -> closed source-position evidence prevents stale resurrection
+quarantine replay -> typed payload v2 + content hash + create-if-absent publication
+```
+
+Local/SQLite/POSIX tests can prove framework semantics but do not prove Microsoft Fabric, SQL Server, or OneLake filesystem behavior. Real Fabric status remains `FABRIC_CERTIFICATION_REQUIRED`.

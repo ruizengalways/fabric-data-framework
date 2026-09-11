@@ -382,3 +382,33 @@ docs/internal/STATE.md               exact current state
 docs/internal/CAPABILITIES.md        capability/evidence matrix
 docs/internal/IMPLEMENTATION_MAP.md  this module map
 ```
+
+## Runtime safety implementation map
+
+```text
+src/fabric_data_framework/contracts/typed_values.py
+  canonical typed codec / deterministic canonical bytes
+
+src/fabric_data_framework/contracts/runtime.py
+src/fabric_data_framework/capture/watermark.py
+src/fabric_data_framework/control_plane/repository.py
+src/fabric_data_framework/control_plane/sqlalchemy_repository.py
+src/fabric_data_framework/execution/watermark_scd2.py
+  composite watermark comparison, monotonic transition, expected-version CAS, typed persistence
+
+src/fabric_data_framework/apply/record_hash.py
+src/fabric_data_framework/apply/scd2.py
+src/fabric_data_framework/apply/cdc_scd2.py
+  typed change hashing and CDC tombstone/history ordering
+
+src/fabric_data_framework/evidence/safety.py
+src/fabric_data_framework/execution/backends/fabric_pipeline.py
+src/fabric_data_framework/orchestration/dispatcher.py
+  bounded recursive audit redaction and terminal ordinary-exception boundaries
+
+src/fabric_data_framework/recovery/runtime.py
+  unknown-commit resolver terminalization; only explicit NOT_COMMITTED permits retry
+
+src/fabric_data_framework/quality/quarantine_store.py
+  typed payload schema v2, identity/content-hash validation, create-if-absent publish
+```

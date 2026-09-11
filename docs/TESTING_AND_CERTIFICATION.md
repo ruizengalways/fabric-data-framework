@@ -381,3 +381,9 @@ The workload digest never replaces `framework_artifact_sha256`.
 ## 18. Release boundary
 
 Certification always remains separate from release authorization. Continue with [`RELEASE.md`](RELEASE.md) for candidate freeze, readiness and exact-byte promotion.
+
+## Source quality gates added before Fabric certification
+
+Repository CI now keeps the historical isolated Ruff baseline (`E4,E7,E9,F`) and also reads the committed Ruff configuration, runs focused MyPy checks across runtime contracts/repository/recovery state transitions, and enforces an initial whole-package pytest coverage floor without excluding core framework modules. Installed-wheel acceptance remains a separate gate.
+
+These source/SQLite/fault-injection checks prove framework behavior such as watermark CAS, typed value round trips, secret redaction, terminal audit handling, CDC tombstone ordering, and quarantine immutability. They do **not** upgrade the candidate to real Fabric proof. SQL Server concurrency semantics, Fabric REST behavior, and OneLake filesystem atomicity still require the exact selected wheel and retained live evidence.
