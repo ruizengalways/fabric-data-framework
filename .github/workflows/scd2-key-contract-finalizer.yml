@@ -1,0 +1,110 @@
+name: scd2-key-contract-finalizer
+
+on:
+  push:
+    branches: [fix/scd2-key-contract]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/scd2-key-contract
+      - name: Apply semantic contract repair
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+
+          # 1) Fail closed when SCD2's shared merge_key diverges from the
+          # canonical business entity identity actually used by both SCD2 engines.
+          config_path = root / 'src/fabric_data_framework/metadata/config.py'
+          text = config_path.read_text(encoding='utf-8')
+          old = '''        if self.apply_strategy in _STATEFUL_APPLY and not self.merge_key:\n            raise ValueError(f"{self.apply_strategy.value} apply requires merge_key")\n        if self.apply_strategy is ApplyStrategy.SCD2 and not self.business_key:\n            raise ValueError("SCD2 apply requires business_key")\n        if self.apply_strategy is ApplyStrategy.APPEND and not self.append_identity:\n'''
+          new = '''        if self.apply_strategy in _STATEFUL_APPLY and not self.merge_key:\n            raise ValueError(f"{self.apply_strategy.value} apply requires merge_key")\n        if self.apply_strategy is ApplyStrategy.SCD2:\n            if not self.business_key:\n                raise ValueError("SCD2 apply requires business_key")\n            if self.merge_key != self.business_key:\n                raise ValueError("SCD2 merge_key must equal business_key")\n        if self.apply_strategy is ApplyStrategy.APPEND and not self.append_identity:\n'''
+          assert old in text, 'LoadPolicy validator anchor changed'
+          config_path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          # 2) Focused regression tests for the contract mismatch that previously
+          # accepted a silently ignored SCD2 merge_key.
+          test_path = root / 'tests/test_scd2_key_contract.py'
+          test_path.write_text('''import pytest\nfrom pydantic import ValidationError\n\nfrom fabric_data_framework.metadata.config import ApplyStrategy, CaptureStrategy, LoadPolicy\n\n\ndef test_scd2_accepts_matching_business_and_merge_keys():\n    policy = LoadPolicy(\n        capture_strategy=CaptureStrategy.FULL,\n        apply_strategy=ApplyStrategy.SCD2,\n        business_key=("customer_id",),\n        merge_key=("customer_id",),\n        tracked_columns=("email",),\n    )\n\n    assert policy.business_key == ("customer_id",)\n    assert policy.merge_key == policy.business_key\n\n\ndef test_scd2_rejects_divergent_business_and_merge_keys():\n    with pytest.raises(ValidationError, match="SCD2 merge_key must equal business_key"):\n        LoadPolicy(\n            capture_strategy=CaptureStrategy.FULL,\n            apply_strategy=ApplyStrategy.SCD2,\n            business_key=("customer_id",),\n            merge_key=("email",),\n            tracked_columns=("email",),\n        )\n\n\ndef test_scd2_still_requires_both_declared_keys():\n    with pytest.raises(ValidationError, match="SCD2 apply requires merge_key"):\n        LoadPolicy(\n            capture_strategy=CaptureStrategy.FULL,\n            apply_strategy=ApplyStrategy.SCD2,\n            business_key=("customer_id",),\n            tracked_columns=("email",),\n        )\n\n    with pytest.raises(ValidationError, match="SCD2 apply requires business_key"):\n        LoadPolicy(\n            capture_strategy=CaptureStrategy.FULL,\n            apply_strategy=ApplyStrategy.SCD2,\n            merge_key=("customer_id",),\n            tracked_columns=("email",),\n        )\n''', encoding='utf-8')
+
+          # 3) Document the canonical SCD2 identity contract next to the pattern.
+          patterns_path = root / 'docs/DATA_PATTERNS.md'
+          text = patterns_path.read_text(encoding='utf-8')
+          anchor = '''Invariant:\n\n```text\nSCD2 is a target representation.\nIt is not a source-history generator.\n```\n\n'''
+          addition = '''Invariant:\n\n```text\nSCD2 is a target representation.\nIt is not a source-history generator.\n```\n\nSCD2 key contract:\n\n- `business_key` is the canonical entity identity used for current-row lookup, history grouping and the one-current-row invariant;\n- the shared `LoadPolicy.merge_key` field is retained for the current metadata shape, but for SCD2 it must be exactly equal to `business_key`;\n- divergent SCD2 `business_key` / `merge_key` values are rejected fail-closed rather than accepting a configuration whose `merge_key` would be operationally ignored.\n\n'''
+          assert anchor in text, 'DATA_PATTERNS SCD2 anchor changed'
+          patterns_path.write_text(text.replace(anchor, addition, 1), encoding='utf-8')
+
+          # 4) Packaged source changed, so invalidate the previously selected exact
+          # wheel until a new post-merge main artifact is independently verified.
+          state_path = root / 'docs/internal/STATE.md'
+          state = state_path.read_text(encoding='utf-8')
+          replacements = {
+              'exact_candidate_source_selected: true': 'exact_candidate_source_selected: false',
+              'current_source_candidate_git_sha: 8b118e9bf5c5132738eb1a486a6df3e6589cd16e': 'current_source_candidate_git_sha: not_selected_after_scd2_key_contract_change',
+              'current_source_framework_artifact_sha256: 7ae26c3bef5cc5e5310c59c8f7182402ed26247b23c04cff4189250d8507e9a2': 'current_source_framework_artifact_sha256: not_selected_after_scd2_key_contract_change',
+              'current_source_requires_new_exact_artifact_before_release_claim: false': 'current_source_requires_new_exact_artifact_before_release_claim: true',
+              'candidate_bytes_must_not_change: true': 'candidate_bytes_must_not_change: false',
+              '  selected_candidate:\n': '  superseded_package_structure_candidate:\n',
+              '    status: selected_not_frozen': '    status: superseded_by_scd2_key_contract_change',
+              '  exact_current_candidate_selected: true': '  exact_current_candidate_selected: false',
+              '  current_source_installed_wheel_acceptance: passed': '  current_source_installed_wheel_acceptance: not_run_for_new_source',
+          }
+          for old_value, new_value in replacements.items():
+              assert old_value in state, f'STATE anchor missing: {old_value}'
+              state = state.replace(old_value, new_value, 1)
+
+          candidate_block = re.compile(
+              r'## Selected exact current candidate\n.*?\n## Declarative reconciliation',
+              re.S,
+          )
+          replacement_block = '''## Current candidate state after the SCD2 key-contract repair\n\nThe previously selected package-structure candidate is now historical provenance only:\n\n```text\nsource        8b118e9bf5c5132738eb1a486a6df3e6589cd16e\nwheel SHA256  7ae26c3bef5cc5e5310c59c8f7182402ed26247b23c04cff4189250d8507e9a2\n```\n\nThe SCD2 metadata contract now fails closed when `merge_key` differs from `business_key`. Because this changes packaged source, no exact current-source candidate is selected until the repair is merged to `main`, both post-merge gates pass, and the retained main wheel is independently verified against `CANDIDATE.json` and `SHA256SUMS`. Real Fabric certification must not run against the superseded wheel.\n\nFor SCD2, `business_key` is the canonical entity identity used by the reference and CDC history engines. The shared `merge_key` field remains required in the current metadata schema but must equal `business_key`; divergent values are invalid.\n\n## Declarative reconciliation'''
+          state, count = candidate_block.subn(replacement_block, state, count=1)
+          assert count == 1, 'STATE selected-candidate narrative anchor changed'
+
+          old_next = '''next_boundary:\n  - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials\n  - bootstrap/read back framework-owned certification assets using the exact selected wheel\n  - resolve exact item bindings by live Fabric item discovery\n  - construct and retain framework-owned integration inputs\n  - record integration_inputs_hash without guessing or substituting another identity\n  - install/attest the exact selected wheel in isolated DEV Fabric\n  - run certify_installed bounded first\n  - stop on any real FAIL\n  - run only explicitly required and authorized integration stages\n  - retain exact identity-bound evidence\n'''
+          new_next = '''next_boundary:\n  - after the SCD2 key-contract repair reaches main, select and independently verify the new exact main wheel\n  - record the new exact candidate provenance before any real Fabric certification\n  - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials\n  - bootstrap/read back framework-owned certification assets using the exact selected wheel\n  - resolve exact item bindings by live Fabric item discovery\n  - construct and retain framework-owned integration inputs\n  - record integration_inputs_hash without guessing or substituting another identity\n  - install/attest the exact selected wheel in isolated DEV Fabric\n  - run certify_installed bounded first\n  - stop on any real FAIL\n  - run only explicitly required and authorized integration stages\n  - retain exact identity-bound evidence\n'''
+          assert old_next in state, 'STATE next_boundary anchor changed'
+          state = state.replace(old_next, new_next, 1)
+          state_path.write_text(state, encoding='utf-8')
+
+          # 5) Keep the current-doc consistency guard aligned with the deliberately
+          # invalidated candidate state. Historical artifact provenance remains asserted.
+          docs_test = root / 'tests/test_current_docs_consistency.py'
+          text = docs_test.read_text(encoding='utf-8')
+          test_replacements = {
+              '"exact_candidate_source_selected: true"': '"exact_candidate_source_selected: false"',
+              '"current_source_candidate_git_sha: 8b118e9bf5c5132738eb1a486a6df3e6589cd16e"': '"current_source_candidate_git_sha: not_selected_after_scd2_key_contract_change"',
+              '"current_source_framework_artifact_sha256: 7ae26c3bef5cc5e5310c59c8f7182402ed26247b23c04cff4189250d8507e9a2"': '"current_source_framework_artifact_sha256: not_selected_after_scd2_key_contract_change"',
+              '"current_source_requires_new_exact_artifact_before_release_claim: false"': '"current_source_requires_new_exact_artifact_before_release_claim: true"',
+              '"status: selected_not_frozen"': '"status: superseded_by_scd2_key_contract_change"',
+              '"exact_current_candidate_selected: true"': '"exact_current_candidate_selected: false"',
+              '"current_source_installed_wheel_acceptance: passed"': '"current_source_installed_wheel_acceptance: not_run_for_new_source"',
+          }
+          for old_value, new_value in test_replacements.items():
+              assert old_value in text, f'docs consistency anchor missing: {old_value}'
+              text = text.replace(old_value, new_value, 1)
+          docs_test.write_text(text, encoding='utf-8')
+          PY
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/fabric_data_framework/metadata/config.py \
+                  tests/test_scd2_key_contract.py \
+                  tests/test_current_docs_consistency.py \
+                  docs/DATA_PATTERNS.md \
+                  docs/internal/STATE.md
+          git commit -m "fix: fail closed on divergent SCD2 keys"
+          git push origin HEAD:fix/scd2-key-contract
