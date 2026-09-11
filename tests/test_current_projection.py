@@ -20,7 +20,6 @@ from fabric_data_framework.contracts.current_projection import (
     MaterializedCurrentImplementation,
     evaluate_current_projection_health,
 )
-from fabric_data_framework.contracts.runtime import StateCommitGate
 from fabric_data_framework.contracts.schema import LogicalType, SchemaContract, SchemaField
 from fabric_data_framework.control_plane.current_projection import read_current_projection_health
 from fabric_data_framework.control_plane.io import read_cdc_checkpoint
