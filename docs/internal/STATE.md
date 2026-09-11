@@ -4,24 +4,36 @@ This file is the **single current-state recovery checkpoint** for `fabric-data-f
 
 ```yaml
 schema: fabric-data-framework-state-v5
-updated: 2026-09-11
+updated: 2026-09-12
 
 release:
   public_release: v0.3.0
   source_version: 0.4.0-development-unreleased
   candidate_status: not_frozen
-  exact_candidate_source_selected: false
+  exact_candidate_source_selected: true
   release_allowed: false
   real_fabric_status: FABRIC_CERTIFICATION_REQUIRED
 
 candidate_identity:
-  current_source_candidate_git_sha: not_selected_after_current_projection_feature
-  current_source_framework_artifact_sha256: not_selected_after_current_projection_feature
+  current_source_candidate_git_sha: ec4b211f5d6545de646f0b0e217e31a403acaf19
+  current_source_framework_artifact_sha256: 74ba62380bf132ede70f77fb4b1c2410cab531bee2d1f00be27fd03821c91e64
   integration_inputs_hash: not_yet_constructed
   integration_inputs_status: blocked_pending_approved_live_DEV_bindings
-  current_source_requires_new_exact_artifact_before_release_claim: true
-  candidate_bytes_must_not_change: false
+  current_source_requires_new_exact_artifact_before_release_claim: false
+  candidate_bytes_must_not_change: true
   selected_candidate:
+    candidate_git_sha: ec4b211f5d6545de646f0b0e217e31a403acaf19
+    candidate_main_framework_ci_run: 34656625530
+    candidate_main_installed_wheel_run: 34656625496
+    candidate_wheel_artifact_id: 10285761216
+    candidate_wheel_artifact_name: framework-wheel-ec4b211f5d6545de646f0b0e217e31a403acaf19
+    candidate_wheel_filename: fabric_data_framework-0.4.0-py3-none-any.whl
+    framework_artifact_sha256: 74ba62380bf132ede70f77fb4b1c2410cab531bee2d1f00be27fd03821c91e64
+    wheel_sha_verified_against_candidate_json: true
+    wheel_sha_verified_against_sha256sums: true
+    wheel_sha_independently_rehashed: true
+    status: selected_not_frozen
+  superseded_runtime_safety_candidate:
     candidate_git_sha: b1b69c6ecd465b63c7e83d8405733a0c34962c8c
     candidate_main_framework_ci_run: 34595385389
     candidate_main_installed_wheel_run: 34595385353
@@ -231,8 +243,8 @@ certification:
     - integration_inputs_hash
 
 fabric_proof:
-  exact_current_candidate_selected: false
-  current_source_installed_wheel_acceptance: not_run_for_new_current_source
+  exact_current_candidate_selected: true
+  current_source_installed_wheel_acceptance: passed_main_run_34656625496
   current_source_real_fabric_execution: not_run
   bounded_lakehouse_for_current_candidate: not_retained
   control_plane_for_current_candidate: not_retained
@@ -249,9 +261,7 @@ external_execution_boundary:
   do_not_guess_or_reuse_unverified_resource_ids: true
 
 next_boundary:
-  - merge current/history projection semantics only after exact PR-head framework and installed-wheel gates pass
-  - build and retain the exact post-merge main wheel and independently verify its inner SHA256
-  - select the new exact executable candidate before any live Fabric certification
+  - keep the exact selected candidate bytes immutable while Fabric certification is pending
   - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials
   - bootstrap/read back framework-owned certification assets using the exact selected wheel
   - resolve exact item bindings by live Fabric item discovery
@@ -263,6 +273,38 @@ next_boundary:
   - run only explicitly required and authorized integration stages
   - retain exact identity-bound evidence
 ```
+
+## Selected current-projection candidate
+
+The current/history projection feature merged on `main` at:
+
+```text
+ec4b211f5d6545de646f0b0e217e31a403acaf19
+```
+
+The exact post-merge main gates are:
+
+```text
+framework-ci               34656625530  PASS
+installed-wheel-acceptance 34656625496  PASS
+```
+
+The retained framework-ci artifact is:
+
+```text
+artifact id    10285761216
+artifact name  framework-wheel-ec4b211f5d6545de646f0b0e217e31a403acaf19
+wheel          fabric_data_framework-0.4.0-py3-none-any.whl
+```
+
+The **inner wheel bytes**, not the outer GitHub Actions artifact ZIP, were independently SHA256-hashed after download. The digest exactly matches both `CANDIDATE.json` and `SHA256SUMS`:
+
+```text
+framework_artifact_sha256
+= 74ba62380bf132ede70f77fb4b1c2410cab531bee2d1f00be27fd03821c91e64
+```
+
+This exact executable candidate is **selected but not frozen**. It has not yet constructed `integration_inputs_hash`, executed Microsoft Fabric, authorized release, or claimed Fabric PASS. Candidate/evidence identity remains `framework_artifact_sha256 + integration_inputs_hash`; `integration_inputs_hash` is still not yet constructed. The selected wheel bytes must not change before identity-bound Fabric certification; any packaged runtime change requires a new exact candidate.
 
 ## Superseded runtime-safety candidate
 
