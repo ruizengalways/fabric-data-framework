@@ -175,32 +175,39 @@ def read_projection_transition_events(
             )
             .order_by(current_projection_transition_event.c.occurred_at)
         ).mappings().all()
-    return tuple(
-        CurrentProjectionTransitionEvent(
-            event_id=UUID(str(row["event_id"])),
-            transition_id=UUID(str(row["transition_id"])),
-            dataset_id=str(row["dataset_id"]),
-            from_mode=CurrentProjectionMode(str(row["from_mode"])),
-            to_mode=CurrentProjectionMode(str(row["to_mode"])),
-            status=ProjectionTransitionStatus(str(row["status"])),
-            actor=str(row["actor"]),
-            reason=str(row["reason"]),
-            ticket_reference=(
-                str(row["ticket_reference"])
-                if row["ticket_reference"] is not None
-                else None
-            ),
-            checkpoint_version_before=(
-                int(row["checkpoint_version_before"])
-                if row["checkpoint_version_before"] is not None
-                else None
-            ),
-            checkpoint_reset=bool(row["checkpoint_reset"]),
-            detail=str(row["detail"]) if row["detail"] is not None else None,
-            occurred_at=row["occurred_at"],
+    events = []
+    for row in rows:
+        occurred_at = row["occurred_at"]
+        if not isinstance(occurred_at, datetime):
+            raise RuntimeError("persisted projection transition timestamp is invalid")
+        if occurred_at.tzinfo is None or occurred_at.utcoffset() is None:
+            occurred_at = occurred_at.replace(tzinfo=timezone.utc)
+        events.append(
+            CurrentProjectionTransitionEvent(
+                event_id=UUID(str(row["event_id"])),
+                transition_id=UUID(str(row["transition_id"])),
+                dataset_id=str(row["dataset_id"]),
+                from_mode=CurrentProjectionMode(str(row["from_mode"])),
+                to_mode=CurrentProjectionMode(str(row["to_mode"])),
+                status=ProjectionTransitionStatus(str(row["status"])),
+                actor=str(row["actor"]),
+                reason=str(row["reason"]),
+                ticket_reference=(
+                    str(row["ticket_reference"])
+                    if row["ticket_reference"] is not None
+                    else None
+                ),
+                checkpoint_version_before=(
+                    int(row["checkpoint_version_before"])
+                    if row["checkpoint_version_before"] is not None
+                    else None
+                ),
+                checkpoint_reset=bool(row["checkpoint_reset"]),
+                detail=str(row["detail"]) if row["detail"] is not None else None,
+                occurred_at=occurred_at,
+            )
         )
-        for row in rows
-    )
+    return tuple(events)
 
 
 __all__ = [

@@ -92,6 +92,7 @@ class FabricSparkCurrentProjectionExecutor:
                 error_code=error_code,
                 error_message=safe_message,
                 retryable=retryable,
+                started_at=completed,
                 completed_at=completed,
             )
         )

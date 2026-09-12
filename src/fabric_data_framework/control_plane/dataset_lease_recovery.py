@@ -150,21 +150,31 @@ def read_dataset_lease_recovery_events(
             .where(dataset_lease_recovery_event.c.dataset_id == dataset_id)
             .order_by(dataset_lease_recovery_event.c.recovered_at)
         ).mappings().all()
-    return tuple(
-        DatasetLeaseRecoveryEvent(
-            event_id=UUID(str(row["event_id"])),
-            dataset_id=str(row["dataset_id"]),
-            lease_owner=str(row["lease_owner"]),
-            dataset_run_id=UUID(str(row["dataset_run_id"])),
-            lease_version=int(row["lease_version"]),
-            recovered_by=str(row["recovered_by"]),
-            reason=str(row["reason"]),
-            proof_reference=str(row["proof_reference"]),
-            review_deadline=row["review_deadline"],
-            recovered_at=row["recovered_at"],
+    events = []
+    for row in rows:
+        review_deadline = row["review_deadline"]
+        recovered_at = row["recovered_at"]
+        if not isinstance(review_deadline, datetime) or not isinstance(recovered_at, datetime):
+            raise RuntimeError("persisted dataset lease recovery timestamps are invalid")
+        if review_deadline.tzinfo is None or review_deadline.utcoffset() is None:
+            review_deadline = review_deadline.replace(tzinfo=timezone.utc)
+        if recovered_at.tzinfo is None or recovered_at.utcoffset() is None:
+            recovered_at = recovered_at.replace(tzinfo=timezone.utc)
+        events.append(
+            DatasetLeaseRecoveryEvent(
+                event_id=UUID(str(row["event_id"])),
+                dataset_id=str(row["dataset_id"]),
+                lease_owner=str(row["lease_owner"]),
+                dataset_run_id=UUID(str(row["dataset_run_id"])),
+                lease_version=int(row["lease_version"]),
+                recovered_by=str(row["recovered_by"]),
+                reason=str(row["reason"]),
+                proof_reference=str(row["proof_reference"]),
+                review_deadline=review_deadline,
+                recovered_at=recovered_at,
+            )
         )
-        for row in rows
-    )
+    return tuple(events)
 
 
 __all__ = [

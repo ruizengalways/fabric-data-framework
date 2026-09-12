@@ -206,12 +206,21 @@ class FabricSparkDeltaCurrentProjectionRuntime:
 
     def latest_history_version(self, table_reference: str) -> int:
         relation = quote_spark_relation(table_reference)
-        value = _first_scalar(
-            self.spark.sql(
-                f"SELECT version FROM (DESCRIBE HISTORY {relation}) ORDER BY version DESC LIMIT 1"
-            ),
-            label="Delta history version",
-        )
+        rows = self.spark.sql(f"DESCRIBE HISTORY {relation} LIMIT 1").collect()
+        if not rows:
+            raise CurrentProjectionExecutionError("Delta history returned no commits")
+        row = rows[0]
+        if hasattr(row, "asDict"):
+            value = row.asDict().get("version")
+        elif isinstance(row, dict):
+            value = row.get("version")
+        else:
+            try:
+                value = row[0]
+            except Exception as exc:  # pragma: no cover - provider row wrapper guard
+                raise CurrentProjectionExecutionError(
+                    "Delta history version could not be read"
+                ) from exc
         try:
             version = int(value)
         except (TypeError, ValueError) as exc:
@@ -483,18 +492,15 @@ class FabricSparkDeltaCurrentProjectionRuntime:
                 f"SELECT {_projected_select('t', projected_columns)} FROM {target_sql} t "
                 f"JOIN {_q(key_view)} k ON {_join('t', 'k', business_key)}"
             )
-            if _has_rows(
-                self.spark,
-                "SELECT 1 FROM (("
-                + actual_sql
-                + ") EXCEPT ALL ("
-                + expected_sql
-                + ")) UNION ALL (("
-                + expected_sql
-                + ") EXCEPT ALL ("
-                + actual_sql
-                + ")) LIMIT 1 /* fdf:verify */",
-            ):
+            extra_sql = (
+                "SELECT 1 FROM (" + actual_sql + " EXCEPT ALL " + expected_sql
+                + ") fdf_extra LIMIT 1 /* fdf:verify_extra */"
+            )
+            missing_sql = (
+                "SELECT 1 FROM (" + expected_sql + " EXCEPT ALL " + actual_sql
+                + ") fdf_missing LIMIT 1 /* fdf:verify_missing */"
+            )
+            if _has_rows(self.spark, extra_sql) or _has_rows(self.spark, missing_sql):
                 raise CurrentProjectionExecutionError(
                     "current projection target does not equal authoritative current history for affected keys"
                 )
