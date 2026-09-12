@@ -9,11 +9,13 @@ DELTA_PROJECTION mode owns an independent downstream checkpoint over history Del
 from __future__ import annotations
 
 from enum import Enum
+import hashlib
 from uuid import UUID
 
 from pydantic import Field, model_validator
 
 from .base import FrozenModel
+from .typed_values import canonical_typed_json_bytes
 
 
 class CurrentProjectionMode(str, Enum):
@@ -48,6 +50,11 @@ class CurrentProjectionConfig(FrozenModel):
 
     @model_validator(mode="after")
     def validate_projection(self) -> "CurrentProjectionConfig":
+        if self.history_current_flag_column != "_framework_is_current":
+            raise ValueError(
+                "current projections over framework SCD2 history must use "
+                "'_framework_is_current'"
+            )
         if (
             self.mode is not CurrentProjectionMode.MATERIALIZED
             and self.materialized_implementation
@@ -78,6 +85,33 @@ class CurrentProjectionHealth(FrozenModel):
     projection_lag: int = Field(ge=0)
     status: CurrentProjectionHealthStatus
     last_successful_projection_run_id: UUID | None = None
+
+
+def current_projection_checkpoint_partition(
+    *,
+    table_reference: str,
+    business_key: tuple[str, ...],
+    projected_columns: tuple[str, ...],
+    current_flag_column: str,
+) -> str:
+    """Bind Mode-3 runtime progress to the exact projection semantics it processed."""
+
+    if (
+        not table_reference
+        or not business_key
+        or not projected_columns
+        or not current_flag_column
+    ):
+        raise ValueError("current projection checkpoint identity inputs cannot be empty")
+    payload = {
+        "semantic_version": 1,
+        "table_reference": table_reference,
+        "business_key": business_key,
+        "projected_columns": projected_columns,
+        "current_flag_column": current_flag_column,
+    }
+    digest = hashlib.sha256(canonical_typed_json_bytes(payload)).hexdigest()
+    return f"current-projection:{digest}"
 
 
 def evaluate_current_projection_health(
@@ -114,6 +148,8 @@ def evaluate_current_projection_health(
             status = CurrentProjectionHealthStatus.HEALTHY
         elif lag_error_versions is not None and lag >= lag_error_versions:
             status = CurrentProjectionHealthStatus.STALE
+        elif lag < lag_warning_versions:
+            status = CurrentProjectionHealthStatus.HEALTHY
         else:
             status = CurrentProjectionHealthStatus.LAGGING
 
@@ -133,5 +169,6 @@ __all__ = [
     "CurrentProjectionHealthStatus",
     "CurrentProjectionMode",
     "MaterializedCurrentImplementation",
+    "current_projection_checkpoint_partition",
     "evaluate_current_projection_health",
 ]

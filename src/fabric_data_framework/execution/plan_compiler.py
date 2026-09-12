@@ -17,8 +17,10 @@ from fabric_data_framework.contracts.execution_plan import (
 from fabric_data_framework.metadata.capabilities import (
     DEFAULT_CAPABILITY_REGISTRY,
     CapabilityRegistry,
+    UnsupportedExecutionCombination,
 )
 from fabric_data_framework.metadata.config import (
+    ApplyStrategy,
     EffectiveDatasetConfig,
     ExecutionEngine,
     RunMode,
@@ -83,8 +85,9 @@ def compile_execution_plan(
     reconciliation_gate = config.reconciliation.required_for_state_commit
     capture_kind = _ENGINE_TO_KIND[capture_engine]
     apply_kind = _ENGINE_TO_KIND[apply_engine]
+    units: tuple[ExecutionUnit, ...]
 
-    if config.load.apply_strategy.value == "CURRENT_PROJECTION":
+    if config.load.apply_strategy is ApplyStrategy.CURRENT_PROJECTION:
         projection = config.current_projection
         if projection is None:
             raise ValueError("CURRENT_PROJECTION execution requires projection metadata")
@@ -93,7 +96,7 @@ def compile_execution_plan(
                 _unit(
                     unit_id="current_projection_publish",
                     roles=(ExecutionRole.PREPARE, ExecutionRole.APPLY, ExecutionRole.PUBLISH, ExecutionRole.RECONCILE),
-                    execution_kind=ExecutionKind.SPARK_JOB_DEFINITION,
+                    execution_kind=apply_kind,
                     retry_count=retry_count,
                     timeout_seconds=timeout_seconds,
                     reconciliation_gate=reconciliation_gate,
@@ -101,6 +104,11 @@ def compile_execution_plan(
                 ),
             )
         else:
+            if capture_engine is not apply_engine:
+                raise UnsupportedExecutionCombination(
+                    "DELTA_PROJECTION requires one engine to own the bounded history CDF "
+                    "read and current-target apply"
+                )
             units = (
                 _unit(
                     unit_id="current_projection_incremental",
@@ -112,7 +120,7 @@ def compile_execution_plan(
                         ExecutionRole.RECONCILE,
                         ExecutionRole.COMMIT_STATE,
                     ),
-                    execution_kind=ExecutionKind.SPARK_JOB_DEFINITION,
+                    execution_kind=capture_kind,
                     retry_count=retry_count,
                     timeout_seconds=timeout_seconds,
                     reconciliation_gate=reconciliation_gate,
@@ -235,7 +243,7 @@ def build_default_execution_plan(
         if config.execution.apply_engine is not ExecutionEngine.AUTO
         else ExecutionEngine.SPARK
     )
-    if config.load.apply_strategy.value == "CURRENT_PROJECTION":
+    if config.load.apply_strategy is ApplyStrategy.CURRENT_PROJECTION:
         projection = config.current_projection
         if projection is None:
             raise ValueError("CURRENT_PROJECTION execution requires projection metadata")

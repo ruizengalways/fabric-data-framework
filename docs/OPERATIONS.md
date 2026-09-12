@@ -180,6 +180,13 @@ Fabric UI status alone is not enough. A provider `Completed` result without the 
 
 Use the smallest safe operation. A failed nightly Pipeline is not by itself a reason to rebuild data.
 
+For a `DELTA_PROJECTION` dataset, inspect `dataset_lease` before retrying. The claim is
+durable mutual exclusion around target mutation plus checkpoint commit; `expires_at` is
+only a review deadline and never authorizes automatic takeover. If the claim remains
+after a process failure, stop and prove the old executor and any provider-side work
+cannot resume. The current package has no audited abandoned-lease removal command, so
+manual row deletion is not presented as a supported recovery procedure.
+
 ## 6. RETRY
 
 Retry is for the same logical work when retry safety has already been established.

@@ -6,4 +6,6 @@ def test_framework_owned_semantic_acceptance_is_self_contained():
         "metadata.config": "PASS",
         "incremental.watermark": "PASS",
         "cdc.normalization": "PASS",
+        "current_projection.derive": "PASS",
+        "reconciliation.finite": "PASS",
     }

@@ -133,6 +133,28 @@ history mutation is not itself a current-state mutation. CDF is used only to ide
 which business keys may have changed. The current value is re-read from authoritative
 history.
 
+The provider boundary must prove both of these facts for every incremental window:
+
+```text
+CDF evidence is complete through frozen upper version M
+history AS OF M is complete for every distinct affected business key
+```
+
+The executor rejects missing completeness attestations, history rows outside the
+affected-key scope, and CDF records newer than the frozen upper bound. The target read
+boundary is affected-key scoped; a physical adapter must perform that lookup and the
+distinct-key calculation in Spark/Delta rather than collect a large key set or history
+table into the framework process.
+
+### Bootstrap rule
+
+An absent projection checkpoint is not permission to start at the earliest retained CDF
+version. CDF may have been enabled after authoritative history already existed, so doing
+that would permanently omit unchanged keys. Mode 3 must first run an explicit full
+rebuild from a complete authoritative history snapshot at a frozen version. Only after
+the rebuilt target reconciles may the framework establish its first projection
+checkpoint.
+
 ### Exact-version rule
 
 The authoritative history read must be frozen at exactly the same Delta version as the
@@ -155,6 +177,13 @@ idempotent: current rows that already equal authoritative history produce no mut
 and deletes of already absent keys produce no mutation. Only after target mutation and
 required reconciliation pass may the independent projection checkpoint advance.
 
+The reference executor acquires the existing durable, environment-local `dataset_lease`
+before reading progress or mutating the projection. This prevents two cooperative
+writers from interleaving target mutation and checkpoint commit. A lease review deadline
+is **not** an automatic takeover time: if an executor disappears, the claim remains until
+an operator proves the old writer cannot resume and performs governed recovery. There is
+currently no packaged automatic abandoned-lease recovery operation.
+
 If current mutation fails, history remains authoritative and unchanged. The projection
 resumes from the last successfully committed history version.
 
@@ -171,8 +200,11 @@ history path. The projection does not reinterpret the original source tombstone.
 
 ### Checkpoint and lag
 
-Mode 3 reuses the existing environment-local `cdc_checkpoint` and `dataset_run` tables.
-No second projection-state subsystem is introduced.
+Mode 3 reuses the existing environment-local `cdc_checkpoint`, `dataset_run`, and
+`dataset_lease` tables. No second projection-state subsystem is introduced. The
+checkpoint partition includes a hash of the authoritative history relation, business
+key, projected columns, and current-flag column. A semantic change therefore fails
+closed instead of silently reusing progress from a different projection definition.
 
 ```text
 history_latest_delta_version           provider observation
@@ -200,8 +232,9 @@ lag                            3
 status                   LAGGING
 ```
 
-`UNINITIALIZED` means no projection checkpoint exists. An optional lag error threshold
-can classify larger lag as `STALE`.
+`UNINITIALIZED` means no projection checkpoint exists. Positive lag below
+`lag_warning_versions` remains `HEALTHY`; lag at or above that threshold is `LAGGING`.
+An optional `lag_error_versions` threshold classifies larger lag as `STALE`.
 
 ### CDF retention
 
@@ -209,7 +242,8 @@ The existing Delta CDF resume planner remains authoritative. If the next require
 history version has already fallen outside provider retention, execution raises a
 retention-gap error rather than silently starting at the earliest surviving version.
 Recovery then requires an explicit full rebuild of current state from authoritative
-history and a governed checkpoint reset/cutover procedure.
+history at a frozen retained version. The reference rebuild refuses to regress an
+existing checkpoint and advances state only after target mutation and reconciliation.
 
 ## Configuration shape
 
@@ -240,9 +274,20 @@ orchestration:
 Change `mode` to `MATERIALIZED` or `DELTA_PROJECTION` without changing the stable
 consumer object name.
 
+Changing the configured value is not by itself a safe physical migration. Entering or
+leaving `DELTA_PROJECTION` while a runtime checkpoint exists is blocked. Rebinding an
+existing Mode-3 checkpoint to changed key/schema/source semantics is also blocked. The
+repository does not yet package an audited checkpoint-reset and physical object
+transition coordinator, so such transitions remain an explicit implementation/release
+gap rather than an automatic destructive deployment action.
+
 A projection dataset requires an explicit schema contract. This is the consumer-facing
 column set copied/read from history and prevents SCD2 technical columns from becoming
 an accidental public API.
+
+Framework SCD2 owns the technical flag `_framework_is_current`; projection metadata
+cannot rename it independently. Supporting another history implementation would require
+an explicit shared history contract, not an unchecked column-name override.
 
 ## Rebuild and repair
 
@@ -272,3 +317,9 @@ retry behavior, checkpoint gating, and SQLite Control Plane persistence. They ca
 prove OneLake CDF retention, Delta time-travel behavior, MLV refresh selection, Spark
 MERGE behavior, or Fabric operational latency. Those remain real-Fabric certification
 requirements for any release that claims these physical modes.
+
+The current repository contains provider-neutral apply/execution contracts and an
+in-memory reference target. It does **not** yet contain a production Spark/Delta
+`CurrentProjectionTarget`, distributed affected-key/CDF reader, or backend dispatch
+wiring that invokes the Mode-3 executor. Therefore Mode 3 is not an end-to-end deployable
+Fabric capability in the current source, even if its local contract tests pass.

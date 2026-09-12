@@ -131,6 +131,56 @@ def test_materialization_is_idempotent_and_preserves_runtime_watermark(tmp_path:
     assert watermark_row["version"] == 1
 
 
+def test_materialization_disables_removed_domain_config_and_preserves_runtime_state(
+    tmp_path: Path,
+):
+    engine = create_engine(f"sqlite:///{tmp_path / 'control.db'}")
+    retained = config("crm.customer")
+    removed = config("crm.account")
+    materialize_semantic_metadata(
+        engine,
+        configs=(retained, removed),
+        domain="customer",
+        domain_git_sha="b" * 40,
+        framework_version="0.4.0",
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            watermark.insert().values(
+                dataset_id=removed.dataset_id,
+                committed_value="2026-08-28T00:00:00Z",
+                committed_tie_breaker="A100",
+                committed_dataset_run_id="run-removed",
+                version=1,
+                created_at=datetime.now(timezone.utc),
+                updated_at=None,
+            )
+        )
+
+    materialize_semantic_metadata(
+        engine,
+        configs=(retained,),
+        domain="customer",
+        domain_git_sha="c" * 40,
+        framework_version="0.4.0",
+    )
+
+    with engine.connect() as connection:
+        removed_row = connection.execute(
+            select(dataset).where(dataset.c.dataset_id == removed.dataset_id)
+        ).mappings().one()
+        retained_row = connection.execute(
+            select(dataset).where(dataset.c.dataset_id == retained.dataset_id)
+        ).mappings().one()
+        removed_watermark = connection.execute(
+            select(watermark).where(watermark.c.dataset_id == removed.dataset_id)
+        ).mappings().one()
+
+    assert removed_row["enabled_default"] is False
+    assert retained_row["enabled_default"] is True
+    assert removed_watermark["version"] == 1
+
+
 def test_deployment_history_is_environment_local_and_append_only(tmp_path: Path):
     engine = create_engine(f"sqlite:///{tmp_path / 'control.db'}")
     manifest = build_release_manifest(

@@ -12,6 +12,7 @@ from fabric_data_framework.contracts.current_projection import (
     MaterializedCurrentImplementation,
 )
 from fabric_data_framework.metadata.config import ApplyStrategy, DatasetConfig
+from fabric_data_framework.metadata.config import ExecutionEngine
 
 
 class CurrentProjectionDeploymentPlan(FrozenModel):
@@ -75,6 +76,12 @@ def compile_current_projection_deployment(
     projection = config.current_projection
     if projection is None or config.load.apply_strategy is not ApplyStrategy.CURRENT_PROJECTION:
         raise ValueError("dataset is not configured as CURRENT_PROJECTION")
+    if config.execution.engine not in {ExecutionEngine.AUTO, ExecutionEngine.SPARK} or (
+        config.execution.apply_engine not in {ExecutionEngine.AUTO, ExecutionEngine.SPARK}
+    ):
+        raise ValueError(
+            "Spark SQL current-projection deployment requires AUTO or SPARK capture/apply engines"
+        )
 
     source = _source_relation(config)
     target = _target_relation(config)
@@ -182,6 +189,10 @@ def validate_current_projection_bundle(
             raise ValueError(
                 f"current projection {config.dataset_id!r} authoritative dataset must use SCD2"
             )
+        if config.source.system != "framework_dataset":
+            raise ValueError(
+                f"current projection {config.dataset_id!r} source system must be 'framework_dataset'"
+            )
         if projection.authoritative_history_dataset_id not in config.orchestration.dependencies:
             raise ValueError(
                 f"current projection {config.dataset_id!r} must depend on its authoritative history dataset"
@@ -190,23 +201,39 @@ def validate_current_projection_bundle(
             raise ValueError(
                 f"current projection {config.dataset_id!r} business_key must equal authoritative history business_key"
             )
-        source_leaf = config.source.object.split(".")[-1]
-        history_leaf = history.target.object.split(".")[-1]
-        if source_leaf != history_leaf:
+        expected_source = f"{history.target.layer}.{history.target.object}"
+        if config.source.object != expected_source:
             raise ValueError(
-                f"current projection {config.dataset_id!r} source must reference authoritative history target {history.target.object!r}"
+                f"current projection {config.dataset_id!r} source must exactly reference "
+                f"authoritative history target {expected_source!r}"
             )
         if config.target.object == history.target.object and config.target.layer == history.target.layer:
             raise ValueError("current projection target must differ from authoritative history target")
 
-        if config.schema_contract is not None and history.schema_contract is not None:
-            history_fields = {field.name for field in history.schema_contract.fields}
-            projection_fields = {field.name for field in config.schema_contract.fields}
-            unknown = sorted(projection_fields - history_fields)
+        if history.schema_contract is None:
+            raise ValueError(
+                f"current projection {config.dataset_id!r} authoritative history "
+                "requires an explicit schema contract"
+            )
+        if config.schema_contract is not None:
+            history_fields = {field.name: field for field in history.schema_contract.fields}
+            projection_fields = {field.name: field for field in config.schema_contract.fields}
+            unknown = sorted(set(projection_fields) - set(history_fields))
             if unknown:
                 raise ValueError(
                     f"current projection {config.dataset_id!r} schema contains fields absent from history contract: "
                     + ", ".join(unknown)
+                )
+            incompatible = sorted(
+                name
+                for name, field in projection_fields.items()
+                if field != history_fields[name]
+            )
+            if incompatible:
+                raise ValueError(
+                    f"current projection {config.dataset_id!r} schema fields do not match "
+                    "authoritative history types/nullability: "
+                    + ", ".join(incompatible)
                 )
 
         try:

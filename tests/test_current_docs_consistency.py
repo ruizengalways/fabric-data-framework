@@ -135,28 +135,28 @@ def test_state_is_single_current_recovery_checkpoint_and_fail_closed():
         "fabric-data-framework-state-v5",
         "public_release: v0.3.0",
         "source_version: 0.4.0-development-unreleased",
-        "candidate_status: not_frozen",
-        "exact_candidate_source_selected: true",
+        "candidate_status: replacement_pending_post_merge",
+        "exact_candidate_source_selected: false",
         "release_allowed: false",
-        "current_source_candidate_git_sha: ec4b211f5d6545de646f0b0e217e31a403acaf19",
-        "current_source_framework_artifact_sha256: 74ba62380bf132ede70f77fb4b1c2410cab531bee2d1f00be27fd03821c91e64",
+        "current_source_candidate_git_sha: not_yet_selected_after_second_independent_review",
+        "current_source_framework_artifact_sha256: not_yet_built",
         "integration_inputs_hash: not_yet_constructed",
         "integration_inputs_status: blocked_pending_approved_live_DEV_bindings",
-        "current_source_requires_new_exact_artifact_before_release_claim: false",
+        "current_source_requires_new_exact_artifact_before_release_claim: true",
         "candidate_main_framework_ci_run: 34656625530",
         "candidate_main_installed_wheel_run: 34656625496",
         "candidate_wheel_artifact_id: 10285761216",
         "candidate_wheel_artifact_name: framework-wheel-ec4b211f5d6545de646f0b0e217e31a403acaf19",
         "framework_artifact_sha256: 74ba62380bf132ede70f77fb4b1c2410cab531bee2d1f00be27fd03821c91e64",
         "wheel_sha_independently_rehashed: true",
-        "status: selected_not_frozen",
+        "status: superseded_by_second_independent_review_hardening",
         "status: superseded_by_current_projection_feature",
         "status: superseded_by_runtime_safety_hardening",
         "candidate_git_sha: 8b118e9bf5c5132738eb1a486a6df3e6589cd16e",
         "framework_artifact_sha256: 7ae26c3bef5cc5e5310c59c8f7182402ed26247b23c04cff4189250d8507e9a2",
         "status: superseded_by_scd2_key_contract_change",
-        "exact_current_candidate_selected: true",
-        "current_source_installed_wheel_acceptance: passed_main_run_34656625496",
+        "exact_current_candidate_selected: false",
+        "current_source_installed_wheel_acceptance: not_run_for_replacement",
         "current_source_real_fabric_execution: not_run",
         "canonical_control_plane_profile: fabric_sql_database_v1",
         "control_plane_schema_version: 7",
@@ -215,6 +215,35 @@ def test_reconciliation_docs_lock_declarative_engine_and_ownership():
     assert "quality/reconciliation/engine.py" in implementation_map
     assert "provider/project adapter" in implementation_map
     assert "WARNING is non-blocking" in implementation_map
+
+
+def test_current_projection_docs_do_not_overclaim_physical_runtime():
+    current = _read("CURRENT_PROJECTIONS.md")
+    capabilities = _read("internal/CAPABILITIES.md")
+    implementation_map = _read("internal/IMPLEMENTATION_MAP.md")
+    operations = _read("OPERATIONS.md")
+    repair = _read("REPAIR_AND_REBUILD.md")
+
+    for token in (
+        "Bootstrap rule",
+        "CDF evidence is complete through frozen upper version M",
+        "dataset_lease",
+        "production Spark/Delta",
+        "not an end-to-end deployable",
+    ):
+        assert token in current
+    assert "NOT IMPLEMENTED in current source" in capabilities
+    assert "No production" in implementation_map
+    assert "never authorizes automatic takeover" in operations
+    assert "may not rewind" in repair
+
+
+def test_reconciliation_docs_reject_nonfinite_numeric_evidence():
+    reconciliation = _read("RECONCILIATION.md")
+    capabilities = _read("internal/CAPABILITIES.md")
+    assert "Tolerance and numeric evidence must be finite" in reconciliation
+    assert "NaN or infinite" in reconciliation
+    assert "all numeric tolerance and observation values must be finite" in capabilities
 
 
 def test_quarantine_governance_is_documented_as_immutable_and_fail_closed():
@@ -281,6 +310,8 @@ def test_operations_and_repair_docs_keep_canonical_ownership_separate():
     assert "### 10.2 `CAPTURE_AND_TARGET`" not in operations
     assert "### 10.3 `AUTHORITATIVE_RESET`" not in operations
     assert "data correctness repair/rebuild/v1-v2 cutover" in implementation_map
+    assert "consumes one complete domain snapshot" in implementation_map
+    assert "are disabled rather than deleted" in implementation_map
 
 
 def test_current_docs_lock_framework_owned_candidate_identity():

@@ -99,6 +99,12 @@ def test_pre_refactor_module_files_are_removed_not_shimmed() -> None:
     assert (ROOT / "certification_harness").is_dir()
 
 
+def test_capability_registry_has_no_ambiguous_compatibility_engine_alias() -> None:
+    from fabric_data_framework.metadata.capabilities import CapabilityRegistry
+
+    assert not hasattr(CapabilityRegistry, "resolve_engine")
+
+
 def test_stable_package_navigation_readmes_exist() -> None:
     for relative_path in NAVIGATION_READMES:
         assert (SRC / relative_path).is_file(), relative_path

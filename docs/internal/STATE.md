@@ -9,19 +9,19 @@ updated: 2026-09-12
 release:
   public_release: v0.3.0
   source_version: 0.4.0-development-unreleased
-  candidate_status: not_frozen
-  exact_candidate_source_selected: true
+  candidate_status: replacement_pending_post_merge
+  exact_candidate_source_selected: false
   release_allowed: false
   real_fabric_status: FABRIC_CERTIFICATION_REQUIRED
 
 candidate_identity:
-  current_source_candidate_git_sha: ec4b211f5d6545de646f0b0e217e31a403acaf19
-  current_source_framework_artifact_sha256: 74ba62380bf132ede70f77fb4b1c2410cab531bee2d1f00be27fd03821c91e64
+  current_source_candidate_git_sha: not_yet_selected_after_second_independent_review
+  current_source_framework_artifact_sha256: not_yet_built
   integration_inputs_hash: not_yet_constructed
   integration_inputs_status: blocked_pending_approved_live_DEV_bindings
-  current_source_requires_new_exact_artifact_before_release_claim: false
-  candidate_bytes_must_not_change: true
-  selected_candidate:
+  current_source_requires_new_exact_artifact_before_release_claim: true
+  candidate_bytes_must_not_change: false
+  superseded_current_projection_candidate:
     candidate_git_sha: ec4b211f5d6545de646f0b0e217e31a403acaf19
     candidate_main_framework_ci_run: 34656625530
     candidate_main_installed_wheel_run: 34656625496
@@ -32,7 +32,7 @@ candidate_identity:
     wheel_sha_verified_against_candidate_json: true
     wheel_sha_verified_against_sha256sums: true
     wheel_sha_independently_rehashed: true
-    status: selected_not_frozen
+    status: superseded_by_second_independent_review_hardening
   superseded_runtime_safety_candidate:
     candidate_git_sha: b1b69c6ecd465b63c7e83d8405733a0c34962c8c
     candidate_main_framework_ci_run: 34595385389
@@ -243,8 +243,8 @@ certification:
     - integration_inputs_hash
 
 fabric_proof:
-  exact_current_candidate_selected: true
-  current_source_installed_wheel_acceptance: passed_main_run_34656625496
+  exact_current_candidate_selected: false
+  current_source_installed_wheel_acceptance: not_run_for_replacement
   current_source_real_fabric_execution: not_run
   bounded_lakehouse_for_current_candidate: not_retained
   control_plane_for_current_candidate: not_retained
@@ -261,20 +261,21 @@ external_execution_boundary:
   do_not_guess_or_reuse_unverified_resource_ids: true
 
 next_boundary:
-  - keep the exact selected candidate bytes immutable while Fabric certification is pending
+  - merge second-independent-review runtime hardening only after exact PR-head CI passes
+  - build, install-test, independently hash, and select a new exact post-merge main wheel
   - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials
-  - bootstrap/read back framework-owned certification assets using the exact selected wheel
+  - bootstrap/read back framework-owned certification assets using the new exact selected wheel
   - resolve exact item bindings by live Fabric item discovery
   - construct and retain framework-owned integration inputs
   - record integration_inputs_hash without guessing or substituting another identity
-  - install/attest the exact selected wheel in isolated DEV Fabric
+  - install/attest the new exact selected wheel in isolated DEV Fabric
   - run certify_installed bounded first
   - stop on any real FAIL
   - run only explicitly required and authorized integration stages
   - retain exact identity-bound evidence
 ```
 
-## Selected current-projection candidate
+## Superseded current-projection candidate
 
 The current/history projection feature merged on `main` at:
 
@@ -304,7 +305,11 @@ framework_artifact_sha256
 = 74ba62380bf132ede70f77fb4b1c2410cab531bee2d1f00be27fd03821c91e64
 ```
 
-This exact executable candidate is **selected but not frozen**. It has not yet constructed `integration_inputs_hash`, executed Microsoft Fabric, authorized release, or claimed Fabric PASS. Candidate/evidence identity remains `framework_artifact_sha256 + integration_inputs_hash`; `integration_inputs_hash` is still not yet constructed. The selected wheel bytes must not change before identity-bound Fabric certification; any packaged runtime change requires a new exact candidate.
+This exact executable candidate was **selected but not frozen**. The second independent
+review found packaged runtime defects, so the candidate is superseded and must not be
+used for Fabric certification. It did not construct `integration_inputs_hash`, execute
+Microsoft Fabric, authorize release, or claim Fabric PASS. A new exact post-merge main
+wheel must be built, independently verified, and selected.
 
 ## Superseded runtime-safety candidate
 
@@ -394,7 +399,7 @@ Portable check kinds are `ROW_COUNT_MATCH`, `UNIQUE_KEY`, `NULL_RATE`, `AGGREGAT
 
 Declarative checks do not replace strategy-specific correctness. FULL snapshot completeness/candidate accounting, APPEND identity/accounting, SCD2 one-current-row, and SNAPSHOT_DIFF structural metrics remain composed base invariants.
 
-The complete policy participates in DatasetConfig/config identity and is materialized into the existing Control Plane `reconciliation_policy.definition` JSON column. Control Plane schema remains v6.
+The complete policy participates in DatasetConfig/config identity and is materialized into the existing Control Plane `reconciliation_policy.definition` JSON column. Reconciliation itself required no schema bump; the current aggregate Control Plane version is v7 after the later current-projection feature.
 
 Primary files:
 
@@ -444,7 +449,7 @@ provider Completed           != framework semantic PASS
 selected exact wheel         != certified Fabric candidate evidence
 ```
 
-Until the selected wheel is bound to a real `integration_inputs_hash` and required authorized stages execute in isolated DEV Fabric with retained identity-bound evidence, status remains:
+Until a new selected wheel is bound to a real `integration_inputs_hash` and required authorized stages execute in isolated DEV Fabric with retained identity-bound evidence, status remains:
 
 ```text
 FABRIC CERTIFICATION REQUIRED
@@ -452,7 +457,10 @@ FABRIC CERTIFICATION REQUIRED
 
 ## Release boundary
 
-`0.4.0` is not frozen and not release-authorized. The exact post-hardening executable candidate is selected and independently verified, but release certification remains blocked at the external live-Fabric binding/evidence boundary.
+`0.4.0` is not frozen and not release-authorized. The previous executable candidate is
+superseded by packaged runtime hardening; no replacement is selected yet. Even after a
+replacement is selected, release certification remains blocked on unresolved Mode-3
+physical runtime gaps and the external live-Fabric binding/evidence boundary.
 
 Any packaged-code change invalidates a selected executable candidate and requires a new exact main wheel. A docs/test-only bookkeeping merge after candidate selection does not change selected wheel bytes. Release promotion must use the exact already-built/certified wheel bytes; no release-time rebuild.
 

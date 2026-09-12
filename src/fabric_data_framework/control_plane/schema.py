@@ -614,6 +614,7 @@ __all__ = [
     "cdc_checkpoint",
     "current_schema_version",
     "current_projection_policy",
+    "dataset_lease",
     "dataset_attempt_lineage",
     "execution_policy",
     "metadata",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
+import math
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -23,6 +24,20 @@ def _utcnow() -> datetime:
 def _require_aware(value: datetime, field_name: str) -> None:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{field_name} must be timezone-aware")
+
+
+def _require_finite(value: ReconciliationValue | None, field_name: str) -> None:
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"{field_name} must be finite")
+
+
+def _require_finite_partition(
+    partition: dict[str, PartitionValue] | None,
+    field_name: str,
+) -> None:
+    for key, value in (partition or {}).items():
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError(f"{field_name}[{key!r}] must be finite")
 
 
 class ReconciliationStatus(str, Enum):
@@ -48,6 +63,9 @@ class ReconciliationMetric(FrozenModel):
 
     @model_validator(mode="after")
     def validate_severity(self) -> "ReconciliationMetric":
+        _require_finite(self.expected, "expected")
+        _require_finite(self.actual, "actual")
+        _require_finite_partition(self.partition, "partition")
         if self.severity is ReconciliationSeverity.WARNING and self.blocking:
             raise ValueError("WARNING reconciliation metric cannot block state advance")
         return self
@@ -67,6 +85,13 @@ class ReconciliationObservation(FrozenModel):
     passed: bool | None = None
     partition: dict[str, PartitionValue] | None = None
     details: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def validate_values(self) -> "ReconciliationObservation":
+        _require_finite(self.expected, "expected")
+        _require_finite(self.actual, "actual")
+        _require_finite_partition(self.partition, "partition")
+        return self
 
 
 class ReconciliationResult(FrozenModel):

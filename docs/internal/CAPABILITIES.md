@@ -54,13 +54,15 @@ fabric-data-framework -X-> fabric-customer
 | FULL / WATERMARK / CDC capture semantics | `capture/` | IMPLEMENTED + source contract |
 | Source-fidelity/history overclaim guard | `capture/onboarding.py` | IMPLEMENTED + source contract |
 | APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF | `apply/` | IMPLEMENTED + source contract |
+| Current projection VIEW/MATERIALIZED definition compiler | `deployment/current_projection.py` | IMPLEMENTED + source contract; deployment caller/physical transition and live Fabric proof separate |
+| DELTA_PROJECTION affected-key semantics, bootstrap/rebuild, checkpoint and lease gates | `apply/current_projection.py` + `execution/current_projection.py` | IMPLEMENTED reference contract + source tests; no production Spark/Delta adapter or backend dispatch wiring; not end-to-end deployable/FABRIC PROVEN |
 | APPEND stable identity / exact replay no-op / conflicting identity fail-closed | `execution/append.py` + `apply/append.py` + `quality/reconciliation/append.py` | IMPLEMENTED + source contract |
 | FULL incomplete-snapshot destructive guard | capture/apply | IMPLEMENTED; real Fabric proof tied to selected candidate |
 | CDC ordering/dedupe/checkpoint | capture/adapters | IMPLEMENTED; provider live proof separate |
 | Watermark ordering/lookback/bootstrap contracts | capture | IMPLEMENTED; provider live proof separate |
 | CaptureReceipt/progress authority | `contracts/` | IMPLEMENTED |
 | DQ/quarantine fail-closed | `quality/` + runtime | IMPLEMENTED |
-| Declarative reconciliation checks/tolerance/partition/WARN-FAIL/state-gate composition | `metadata/config.py` + `contracts/reconciliation.py` + `quality/reconciliation/engine.py` | IMPLEMENTED + SOURCE PROVEN + INSTALLED-WHEEL PROVEN for selected exact candidate; provider live observation proof separate |
+| Declarative reconciliation checks/finite tolerance/partition/WARN-FAIL/state-gate composition | `metadata/config.py` + `contracts/reconciliation.py` + `quality/reconciliation/engine.py` | IMPLEMENTED + SOURCE PROVEN for current source; installed-wheel/live provider proof is candidate-specific |
 | Strategy-specific reconciliation invariants for FULL/APPEND/SCD2/SNAPSHOT_DIFF | `quality/` | IMPLEMENTED + SOURCE PROVEN; composed with declarative policy rather than replaced |
 | Retry/replay/backfill/unknown-commit recovery | `recovery/` | IMPLEMENTED |
 | FULL_REBUILD scopes: TARGET_ONLY / CAPTURE_AND_TARGET / AUTHORITATIVE_RESET | `contracts/rebuild.py` + `recovery/rebuild.py` | IMPLEMENTED; source contract tests required; live project physical rebuild remains environment-specific |
@@ -91,6 +93,7 @@ Additional semantics:
 ```text
 row accounting enabled by default
 absolute + relative numeric tolerance
+all numeric tolerance and observation values must be finite
 partition-scoped observations
 ERROR vs WARNING severity
 missing/unknown/duplicate/malformed evidence fails closed
@@ -102,7 +105,10 @@ required_for_state_commit=false -> observability-only reconciliation authority
 
 The complete released policy is part of DatasetConfig/config identity and is materialized into the existing Control Plane `reconciliation_policy.definition` JSON column. No schema-version bump is required for the declarative engine.
 
-The selected exact source/wheel has passed post-merge source CI and installed-wheel acceptance. This proves the portable/package contract only; it does not prove real Fabric SQL/Spark observation collection or upgrade the capability to FABRIC PROVEN.
+The superseded exact wheel passed post-merge source CI and installed-wheel acceptance.
+Current packaged hardening requires a new exact post-merge candidate before installed
+wheel evidence can be attributed to current source. Neither result proves real Fabric
+SQL/Spark observation collection or upgrades the capability to FABRIC PROVEN.
 
 ## Package/certification capability
 
@@ -180,6 +186,7 @@ For framework-version regression, compare against the same verified `workload_di
 | Ambiguous-COMMIT recovery/session absence | recovery | source-tested contract; live fault evidence required |
 | Provider-side reconciliation observation queries | implementation/provider adapters | framework contract implemented; exact live query/evidence correctness requires environment proof |
 | Logical target binding/view/alias implementation for a real project | implementation adapter | provider/environment-specific; live validation required |
+| Mode-3 Spark/Delta affected-key read + target MERGE adapter and backend wiring | execution/provider adapter | NOT IMPLEMENTED in current source; required before end-to-end certification |
 
 ## Release readiness
 

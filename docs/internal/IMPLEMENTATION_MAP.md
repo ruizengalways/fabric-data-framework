@@ -61,6 +61,11 @@ Provider mechanics must not become semantic truth.
 | Capability resolution | `metadata/capabilities.py` |
 | FULL/WATERMARK/CDC bootstrap | capture bootstrap modules |
 | APPEND/REPLACE/UPSERT/SCD1/SCD2/SNAPSHOT_DIFF | `apply/` |
+| Current projection semantic/apply contract | `contracts/current_projection.py` + `apply/current_projection.py` |
+| Current projection deployment compiler | `deployment/current_projection.py` |
+| Mode-3 reference execution, bootstrap/rebuild and checkpoint gating | `execution/current_projection.py` |
+| Mode-3 health from existing runtime state | `control_plane/current_projection.py` |
+| Durable dataset mutation claim | `control_plane/dataset_lease.py` |
 | DQ/quarantine | `quality/rules.py` + quarantine modules |
 | Reconciliation policy/check definitions | `metadata/config.py` |
 | Reconciliation observation/result contracts | `contracts/reconciliation.py` |
@@ -74,6 +79,11 @@ Provider mechanics must not become semantic truth.
 | Remote Pipeline child contract/runtime | `execution/pipeline_child.py` |
 
 Capture and apply stay orthogonal. SCD2 never upgrades source fidelity.
+
+The Mode-3 executor currently has only an in-memory reference target. No production
+Spark/Delta target adapter, distributed CDF/affected-key reader, or backend invocation
+path exists. Treat that as a missing physical owner, not as work implicitly owned by the
+provider-neutral apply module.
 
 ## Reconciliation ownership and call flow
 
@@ -351,6 +361,11 @@ framework source/version provenance
 | Physical v1/v2 target names and provider-specific logical-binding adapter | implementation/domain repo |
 | UAT/business validation and approval reference | implementation/domain governance |
 | Old target-version deletion after rollback window | manual operator/governance process |
+
+`materialize_semantic_metadata(...)` consumes one complete domain snapshot. Definitions
+that were previously present for that domain but are absent from the new Git snapshot
+are disabled rather than deleted; environment-local checkpoints and audit evidence are
+preserved. Passing an intentionally partial directory is therefore not a patch operation.
 
 `project-init` never guesses source semantics or creates Fabric resources. `project-validate` is static and never upgrades itself to live evidence.
 

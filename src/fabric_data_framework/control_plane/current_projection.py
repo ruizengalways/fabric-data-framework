@@ -9,6 +9,7 @@ from sqlalchemy import Engine, desc, select
 from fabric_data_framework.contracts.current_projection import (
     CurrentProjectionHealth,
     CurrentProjectionMode,
+    current_projection_checkpoint_partition,
     evaluate_current_projection_health,
 )
 from fabric_data_framework.metadata.config import DatasetConfig, DatasetStatus
@@ -31,7 +32,14 @@ def read_current_projection_health(
     state = read_cdc_checkpoint(engine, config.dataset_id)
     processed_version: int | None = None
     if state is not None:
-        partition = f"delta-cdf:{config.source.object}"
+        if config.schema_contract is None:
+            raise RuntimeError("current projection schema contract is missing")
+        partition = current_projection_checkpoint_partition(
+            table_reference=config.source.object,
+            business_key=config.load.business_key,
+            projected_columns=tuple(field.name for field in config.schema_contract.fields),
+            current_flag_column=projection.history_current_flag_column,
+        )
         position = state.checkpoint.position_for(partition)
         if position is None or not position:
             raise RuntimeError(

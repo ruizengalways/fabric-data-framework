@@ -12,6 +12,7 @@ For a full end-to-end reading path — `DatasetConfig -> ExecutionPlan -> orches
 | source/capture semantics | `capture/` |
 | APPEND/change-log execution | `capture/watermark.py` -> `execution/append.py` -> `apply/append.py` -> `quality/reconciliation/append.py` |
 | Bronze/Silver apply semantics | `apply/`, `execution/` |
+| current-from-SCD2 projection semantics | `contracts/current_projection.py`, `apply/current_projection.py`, `execution/current_projection.py`, `deployment/current_projection.py` |
 | execution-plan contract | `contracts/execution_plan.py` |
 | execution-plan compilation | `execution/plan_compiler.py`, `metadata/capabilities.py` |
 | orchestration | `orchestration/planner.py`, `orchestration/dispatcher.py` |
