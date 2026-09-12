@@ -184,8 +184,17 @@ For a `DELTA_PROJECTION` dataset, inspect `dataset_lease` before retrying. The c
 durable mutual exclusion around target mutation plus checkpoint commit; `expires_at` is
 only a review deadline and never authorizes automatic takeover. If the claim remains
 after a process failure, stop and prove the old executor and any provider-side work
-cannot resume. The current package has no audited abandoned-lease removal command, so
-manual row deletion is not presented as a supported recovery procedure.
+cannot resume. Use the governed `recover_abandoned_dataset_lease(...)` operation only
+after the review deadline, passing the exact lease owner/run/version plus operator, reason
+and durable proof reference. Recovery appends immutable `dataset_lease_recovery_event`
+evidence and removes only the exact abandoned claim in the same Control Plane
+transaction. Never delete the row manually or treat timeout alone as proof of abandonment.
+
+Current-projection physical mode changes are similarly explicit. Use
+`FabricSparkProjectionTransitionCoordinator` rather than changing the source-controlled
+mode and manually deleting checkpoints. The coordinator preserves the stable consumer
+name, rebuilds from authoritative history, records transition evidence and performs an
+exact checkpoint reset only when required.
 
 ## 6. RETRY
 

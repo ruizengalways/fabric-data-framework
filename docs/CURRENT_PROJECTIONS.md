@@ -140,11 +140,16 @@ CDF evidence is complete through frozen upper version M
 history AS OF M is complete for every distinct affected business key
 ```
 
-The executor rejects missing completeness attestations, history rows outside the
-affected-key scope, and CDF records newer than the frozen upper bound. The target read
-boundary is affected-key scoped; a physical adapter must perform that lookup and the
-distinct-key calculation in Spark/Delta rather than collect a large key set or history
-table into the framework process.
+The provider-neutral executor rejects missing completeness attestations, history rows
+outside the affected-key scope, and CDF records newer than the frozen upper bound. The
+production Fabric Spark adapter performs the distinct-key calculation, exact-version
+history reread and target MERGE in Spark/Delta; it does not collect a large key set or
+history table into the framework process.
+
+`adapters/fabric/current_projection.py` owns the Spark/Delta physical work and
+`execution/backends/fabric_spark.py` is the child-runtime dispatch boundary. CDF rows are
+used only to derive distinct business keys. Authoritative values are always reread from
+history `VERSION AS OF M` before target mutation.
 
 ### Bootstrap rule
 
@@ -177,12 +182,13 @@ idempotent: current rows that already equal authoritative history produce no mut
 and deletes of already absent keys produce no mutation. Only after target mutation and
 required reconciliation pass may the independent projection checkpoint advance.
 
-The reference executor acquires the existing durable, environment-local `dataset_lease`
-before reading progress or mutating the projection. This prevents two cooperative
-writers from interleaving target mutation and checkpoint commit. A lease review deadline
-is **not** an automatic takeover time: if an executor disappears, the claim remains until
-an operator proves the old writer cannot resume and performs governed recovery. There is
-currently no packaged automatic abandoned-lease recovery operation.
+The executor acquires the durable, environment-local `dataset_lease` before reading
+progress or mutating the projection. This prevents two cooperative writers from
+interleaving target mutation and checkpoint commit. A lease review deadline is **not** an
+automatic takeover time. If an executor disappears, the claim remains until an operator
+proves the old writer cannot resume. `control_plane/dataset_lease_recovery.py` then
+performs an exact-identity, post-deadline recovery transaction that appends immutable
+actor/reason/proof evidence and removes only that abandoned lease.
 
 If current mutation fails, history remains authoritative and unchanged. The projection
 resumes from the last successfully committed history version.
@@ -274,12 +280,14 @@ orchestration:
 Change `mode` to `MATERIALIZED` or `DELTA_PROJECTION` without changing the stable
 consumer object name.
 
-Changing the configured value is not by itself a safe physical migration. Entering or
-leaving `DELTA_PROJECTION` while a runtime checkpoint exists is blocked. Rebinding an
-existing Mode-3 checkpoint to changed key/schema/source semantics is also blocked. The
-repository does not yet package an audited checkpoint-reset and physical object
-transition coordinator, so such transitions remain an explicit implementation/release
-gap rather than an automatic destructive deployment action.
+Changing the configured value is not by itself a safe physical migration. Normal
+metadata materialization still blocks entering or leaving `DELTA_PROJECTION` while a
+runtime checkpoint exists, and rebinding an existing Mode-3 checkpoint to changed
+key/schema/source semantics fails closed. Physical changes use
+`recovery/current_projection.py`: the coordinator records STARTED/FAILED/COMPLETED
+evidence, rebuilds the desired object from authoritative history and resets only an exact
+checkpoint version when leaving Mode 3. A config edit therefore cannot silently perform
+a destructive state transition.
 
 A projection dataset requires an explicit schema contract. This is the consumer-facing
 column set copied/read from history and prevents SCD2 technical columns from becoming
@@ -318,8 +326,11 @@ prove OneLake CDF retention, Delta time-travel behavior, MLV refresh selection, 
 MERGE behavior, or Fabric operational latency. Those remain real-Fabric certification
 requirements for any release that claims these physical modes.
 
-The current repository contains provider-neutral apply/execution contracts and an
-in-memory reference target. It does **not** yet contain a production Spark/Delta
-`CurrentProjectionTarget`, distributed affected-key/CDF reader, or backend dispatch
-wiring that invokes the Mode-3 executor. Therefore Mode 3 is not an end-to-end deployable
-Fabric capability in the current source, even if its local contract tests pass.
+The current repository contains both the provider-neutral reference executor and a
+Fabric Spark/Delta physical runtime for Mode 3. Local/CI tests cover CDF window selection,
+exact-version reread, affected-key MERGE/delete semantics, checkpoint gating, durable
+lease recovery and governed mode transitions. This makes Mode 3 an end-to-end packaged
+capability, but **not FABRIC PROVEN**: OneLake/Delta CDF retention, `VERSION AS OF`, Spark
+MERGE behavior, Fabric SQL Database concurrency and physical mode-transition syntax still
+require retained execution evidence from the exact selected wheel in an approved Fabric
+environment.
