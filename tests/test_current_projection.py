@@ -1069,7 +1069,7 @@ def test_projection_health_is_derived_from_versions_not_a_second_state_store():
 
 def test_projection_policy_is_promotable_metadata_and_health_reuses_existing_ops_tables(tmp_path):
     engine, projection = _control_plane(tmp_path)
-    assert CONTROL_PLANE_SCHEMA_VERSION == 7
+    assert CONTROL_PLANE_SCHEMA_VERSION == 8
     with engine.connect() as connection:
         row = connection.execute(
             select(current_projection_policy).where(
@@ -1113,7 +1113,7 @@ def test_projection_policy_is_promotable_metadata_and_health_reuses_existing_ops
     assert health.last_successful_projection_run_id == dataset_run_id
 
 
-def test_control_plane_v6_to_v7_adds_projection_definition_without_resetting_runtime(
+def test_control_plane_v6_to_latest_adds_projection_definition_without_resetting_runtime(
     tmp_path,
 ):
     engine, projection = _control_plane(tmp_path)
@@ -1126,11 +1126,11 @@ def test_control_plane_v6_to_v7_adds_projection_definition_without_resetting_run
     with engine.begin() as connection:
         connection.execute(
             schema_migration_history.delete().where(
-                schema_migration_history.c.version == 7
+                schema_migration_history.c.version >= 7
             )
         )
 
-    assert apply_baseline_schema(engine) == 7
+    assert apply_baseline_schema(engine) == 8
     checkpoint_after = read_cdc_checkpoint(engine, projection.dataset_id)
     assert checkpoint_after == checkpoint_before
     with engine.connect() as connection:
@@ -1139,4 +1139,4 @@ def test_control_plane_v6_to_v7_adds_projection_definition_without_resetting_run
                 schema_migration_history.c.version
             )
         ).scalars().all()
-    assert versions == list(range(1, 8))
+    assert versions == list(range(1, 9))

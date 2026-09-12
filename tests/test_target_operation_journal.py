@@ -72,7 +72,7 @@ def _intent(input_payload=None) -> TargetOperationIntent:
 
 def test_control_plane_v4_target_operation_contract_survives_later_migrations():
     engine = _engine()
-    assert CONTROL_PLANE_SCHEMA_VERSION == 7
+    assert CONTROL_PLANE_SCHEMA_VERSION == 8
     assert "target_operation" in ENVIRONMENT_LOCAL_STATE_TABLES
     assert "target_operation_event" in ENVIRONMENT_LOCAL_STATE_TABLES
     assert "target_operation" in table_names()
