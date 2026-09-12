@@ -10,18 +10,20 @@ release:
   public_release: v0.3.0
   source_version: 0.4.0-development-unreleased
   candidate_status: not_frozen
-  exact_candidate_source_selected: true
+  exact_candidate_source_selected: false
   release_allowed: false
   real_fabric_status: FABRIC_CERTIFICATION_REQUIRED
 
 candidate_identity:
-  current_source_candidate_git_sha: 661c4fc82a071ed340c352561946e08d18031f01
-  current_source_framework_artifact_sha256: d5b98aad88885e244061f0eb6e0c8d8b3c6a6a126bc1b3186d16dfd93ce02dec
+  current_source_candidate_git_sha: not_selected_after_projection_production_runtime
+  current_source_framework_artifact_sha256: not_selected_after_projection_production_runtime
   integration_inputs_hash: not_yet_constructed
   integration_inputs_status: blocked_pending_approved_live_DEV_bindings
-  current_source_requires_new_exact_artifact_before_release_claim: false
-  candidate_bytes_must_not_change: true
+  current_source_requires_new_exact_artifact_before_release_claim: true
+  candidate_bytes_must_not_change: false
   selected_candidate:
+    status: not_selected_after_projection_production_runtime
+  superseded_second_review_candidate:
     candidate_git_sha: 661c4fc82a071ed340c352561946e08d18031f01
     candidate_main_framework_ci_run: 34682679599
     candidate_main_installed_wheel_run: 34682679582
@@ -32,7 +34,7 @@ candidate_identity:
     wheel_sha_verified_against_candidate_json: true
     wheel_sha_verified_against_sha256sums: true
     wheel_sha_independently_rehashed: true
-    status: selected_not_frozen
+    status: superseded_by_projection_production_runtime
   superseded_current_projection_candidate:
     candidate_git_sha: ec4b211f5d6545de646f0b0e217e31a403acaf19
     candidate_main_framework_ci_run: 34656625530
@@ -138,7 +140,7 @@ enterprise_topology:
   environments: [DEV, UAT, PROD]
   canonical_control_plane: Fabric SQL Database
   canonical_control_plane_profile: fabric_sql_database_v1
-  control_plane_schema_version: 7
+  control_plane_schema_version: 8
   medallion_data_plane: Lakehouse / OneLake
   warehouse_role: optional SQL-first Gold / dimensional serving
   warehouse_platform: Fabric Warehouse
@@ -255,8 +257,8 @@ certification:
     - integration_inputs_hash
 
 fabric_proof:
-  exact_current_candidate_selected: true
-  current_source_installed_wheel_acceptance: passed_main_run_34682679582
+  exact_current_candidate_selected: false
+  current_source_installed_wheel_acceptance: not_run_for_new_current_source
   current_source_real_fabric_execution: not_run
   bounded_lakehouse_for_current_candidate: not_retained
   control_plane_for_current_candidate: not_retained
@@ -273,10 +275,12 @@ external_execution_boundary:
   do_not_guess_or_reuse_unverified_resource_ids: true
 
 next_boundary:
-  - keep the exact selected candidate bytes immutable while Fabric certification is pending
+  - merge the projection production runtime only after exact PR-head framework and installed-wheel gates pass
+  - verify post-merge main framework and installed-wheel gates
+  - download and independently verify the exact post-merge main wheel bytes
+  - select the new exact executable candidate before any live Fabric certification
   - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials
-  - implement and review the missing production Mode-3 Spark/Delta target, distributed CDF reader, backend dispatch, transition/reset coordinator, and abandoned-lease recovery before claiming end-to-end readiness
-  - bootstrap/read back framework-owned certification assets using the exact selected wheel
+  - bootstrap/read back framework-owned certification assets using the newly selected exact wheel
   - resolve exact item bindings by live Fabric item discovery
   - construct and retain framework-owned integration inputs
   - record integration_inputs_hash without guessing or substituting another identity
@@ -287,7 +291,7 @@ next_boundary:
   - retain exact identity-bound evidence
 ```
 
-## Selected second-independent-review candidate
+## Superseded second-independent-review candidate
 
 The second independent review hardening merged on `main` at:
 
@@ -319,12 +323,10 @@ framework_artifact_sha256
 = d5b98aad88885e244061f0eb6e0c8d8b3c6a6a126bc1b3186d16dfd93ce02dec
 ```
 
-This exact executable candidate is **selected but not frozen**. It has not constructed
-`integration_inputs_hash`, executed Microsoft Fabric, authorized release, or claimed
-Fabric PASS. Mode 3 is also not end-to-end deployable until its documented production
-physical adapters and recovery/transition integration exist. Candidate/evidence identity
-remains `framework_artifact_sha256 + integration_inputs_hash`; the selected wheel bytes
-must not change before identity-bound Fabric certification.
+This exact executable candidate is now **superseded** by the projection production
+runtime, schema-v8 and governed recovery/transition changes. It must not be used for the
+next Fabric certification. No `integration_inputs_hash`, Fabric PASS, release authorization
+or release claim was produced from this historical candidate.
 
 ## Superseded current-projection candidate
 

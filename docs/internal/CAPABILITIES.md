@@ -55,7 +55,7 @@ fabric-data-framework -X-> fabric-customer
 | Source-fidelity/history overclaim guard | `capture/onboarding.py` | IMPLEMENTED + source contract |
 | APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF | `apply/` | IMPLEMENTED + source contract |
 | Current projection VIEW/MATERIALIZED definition compiler | `deployment/current_projection.py` | IMPLEMENTED + source contract; deployment caller/physical transition and live Fabric proof separate |
-| DELTA_PROJECTION affected-key semantics, bootstrap/rebuild, checkpoint and lease gates | `apply/current_projection.py` + `execution/current_projection.py` | IMPLEMENTED reference contract + source tests; no production Spark/Delta adapter or backend dispatch wiring; not end-to-end deployable/FABRIC PROVEN |
+| DELTA_PROJECTION affected-key semantics, bootstrap/rebuild, checkpoint and lease gates | `apply/current_projection.py` + `execution/current_projection.py` + `adapters/fabric/current_projection.py` + `execution/backends/fabric_spark.py` | IMPLEMENTED packaged Spark/Delta path + source tests; live OneLake/CDF/time-travel/MERGE evidence still required before FABRIC PROVEN |
 | APPEND stable identity / exact replay no-op / conflicting identity fail-closed | `execution/append.py` + `apply/append.py` + `quality/reconciliation/append.py` | IMPLEMENTED + source contract |
 | FULL incomplete-snapshot destructive guard | capture/apply | IMPLEMENTED; real Fabric proof tied to selected candidate |
 | CDC ordering/dedupe/checkpoint | capture/adapters | IMPLEMENTED; provider live proof separate |
@@ -105,10 +105,11 @@ required_for_state_commit=false -> observability-only reconciliation authority
 
 The complete released policy is part of DatasetConfig/config identity and is materialized into the existing Control Plane `reconciliation_policy.definition` JSON column. No schema-version bump is required for the declarative engine.
 
-The superseded exact wheel passed post-merge source CI and installed-wheel acceptance.
-Current packaged hardening requires a new exact post-merge candidate before installed
-wheel evidence can be attributed to current source. Neither result proves real Fabric
-SQL/Spark observation collection or upgrades the capability to FABRIC PROVEN.
+The previously selected second-review wheel is superseded by the packaged projection
+production runtime/schema-v8 change. Current source therefore requires a new exact
+post-merge wheel and installed-wheel acceptance before candidate evidence can be
+attributed to it. Source/installed-wheel success will still not prove real Fabric
+SQL/Spark behavior or upgrade any capability to FABRIC PROVEN.
 
 ## Package/certification capability
 

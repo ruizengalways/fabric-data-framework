@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 
 
-CONTROL_PLANE_SCHEMA_VERSION = 7
+CONTROL_PLANE_SCHEMA_VERSION = 8
 CONTROL_PLANE_MIGRATIONS = (
     (1, "phase1_initial_control_plane_schema"),
     (2, "execution_policy_ordering_capture_receipt_recovery_and_cdc"),
@@ -30,6 +30,7 @@ CONTROL_PLANE_MIGRATIONS = (
     (5, "pipeline_aggregate_failure_audit"),
     (6, "quarantine_review_and_manual_correction_governance"),
     (7, "current_projection_semantics"),
+    (8, "projection_runtime_recovery_and_transition_governance"),
 )
 
 NAMING_CONVENTION = {
@@ -236,6 +237,39 @@ dataset_lease = Table(
     Column("lease_version", Integer, nullable=False),
     Column("acquired_at", DateTime(timezone=True), nullable=False),
     Column("expires_at", DateTime(timezone=True), nullable=False),
+)
+
+dataset_lease_recovery_event = Table(
+    "dataset_lease_recovery_event",
+    metadata,
+    Column("event_id", String(36), primary_key=True),
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), nullable=False),
+    Column("lease_owner", String(255), nullable=False),
+    Column("dataset_run_id", String(36), nullable=False),
+    Column("lease_version", Integer, nullable=False),
+    Column("recovered_by", String(255), nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("proof_reference", String(2048), nullable=False),
+    Column("review_deadline", DateTime(timezone=True), nullable=False),
+    Column("recovered_at", DateTime(timezone=True), nullable=False),
+)
+
+current_projection_transition_event = Table(
+    "current_projection_transition_event",
+    metadata,
+    Column("event_id", String(36), primary_key=True),
+    Column("transition_id", String(36), nullable=False),
+    Column("dataset_id", String(255), ForeignKey("dataset.dataset_id"), nullable=False),
+    Column("from_mode", String(64), nullable=False),
+    Column("to_mode", String(64), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("actor", String(255), nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("ticket_reference", String(1024), nullable=True),
+    Column("checkpoint_version_before", Integer, nullable=True),
+    Column("checkpoint_reset", Boolean, nullable=False),
+    Column("detail", Text, nullable=True),
+    Column("occurred_at", DateTime(timezone=True), nullable=False),
 )
 
 pipeline_run = Table(
@@ -515,6 +549,8 @@ ENVIRONMENT_LOCAL_STATE_TABLES = frozenset(
         "cdc_checkpoint",
         "dataset_state",
         "dataset_lease",
+        "dataset_lease_recovery_event",
+        "current_projection_transition_event",
         "pipeline_run",
         "dataset_run",
         "dataset_attempt_lineage",
@@ -580,13 +616,62 @@ def _apply_migration(connection, version: int) -> None:
     if version == 5:
         _add_column_if_missing(connection, pipeline_run, "error_code")
         _add_column_if_missing(connection, pipeline_run, "error_message")
+        return
+
+    if version == 8:
+        # v7 was already released with current-projection semantics. Durable lease
+        # recovery/transition tables are therefore an explicit additive v8 contract.
+        dataset_lease.create(connection, checkfirst=True)
+        dataset_lease_recovery_event.create(connection, checkfirst=True)
+        current_projection_transition_event.create(connection, checkfirst=True)
+
+
+def _assert_latest_schema_shape(engine: Engine) -> None:
+    inspector = inspect(engine)
+    actual = set(inspector.get_table_names())
+    missing = set(metadata.tables) - actual
+    if missing:
+        raise RuntimeError(
+            "Control Plane schema version claims latest but required tables are missing: "
+            + ", ".join(sorted(missing))
+        )
 
 
 def apply_baseline_schema(engine: Engine) -> int:
-    """Idempotently create additive schema and execute/record missing migrations."""
+    """Create/upgrade the additive schema while preserving migration-version meaning.
 
-    metadata.create_all(engine, checkfirst=True)
+    Fresh databases are created at the latest shape and receive the full migration
+    history. Legacy pre-v7 databases retain the historical create-all upgrade behavior.
+    From v7 onward, new physical state is introduced only by explicit migrations; a
+    database claiming the latest version but missing tables fails closed.
+    """
+
+    inspector = inspect(engine)
+    if not inspector.has_table(schema_migration_history.name):
+        metadata.create_all(engine, checkfirst=True)
+        now = datetime.now(timezone.utc)
+        with engine.begin() as connection:
+            for version, name in CONTROL_PLANE_MIGRATIONS:
+                connection.execute(
+                    schema_migration_history.insert().values(
+                        version=version, name=name, applied_at=now
+                    )
+                )
+        _assert_latest_schema_shape(engine)
+        return CONTROL_PLANE_SCHEMA_VERSION
+
     current = current_schema_version(engine)
+    if current > CONTROL_PLANE_SCHEMA_VERSION:
+        raise RuntimeError(
+            f"Control Plane schema version {current} is newer than supported "
+            f"{CONTROL_PLANE_SCHEMA_VERSION}"
+        )
+
+    # Historical migrations 1-6 relied on create_all before individual migration
+    # markers. Preserve that path only for genuinely old installations.
+    if current < 7:
+        metadata.create_all(engine, checkfirst=True)
+
     pending = [item for item in CONTROL_PLANE_MIGRATIONS if item[0] > current]
     if pending:
         now = datetime.now(timezone.utc)
@@ -600,6 +685,7 @@ def apply_baseline_schema(engine: Engine) -> int:
                         applied_at=now,
                     )
                 )
+    _assert_latest_schema_shape(engine)
     return CONTROL_PLANE_SCHEMA_VERSION
 
 
@@ -614,7 +700,9 @@ __all__ = [
     "cdc_checkpoint",
     "current_schema_version",
     "current_projection_policy",
+    "current_projection_transition_event",
     "dataset_lease",
+    "dataset_lease_recovery_event",
     "dataset_attempt_lineage",
     "execution_policy",
     "metadata",

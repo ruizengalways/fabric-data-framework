@@ -63,9 +63,13 @@ Provider mechanics must not become semantic truth.
 | APPEND/REPLACE/UPSERT/SCD1/SCD2/SNAPSHOT_DIFF | `apply/` |
 | Current projection semantic/apply contract | `contracts/current_projection.py` + `apply/current_projection.py` |
 | Current projection deployment compiler | `deployment/current_projection.py` |
-| Mode-3 reference execution, bootstrap/rebuild and checkpoint gating | `execution/current_projection.py` |
+| Mode-3 provider-neutral reference execution, bootstrap/rebuild and checkpoint gating | `execution/current_projection.py` |
+| Mode-3 Fabric Spark/Delta CDF, exact-version reread and affected-key MERGE | `adapters/fabric/current_projection.py` |
+| Fabric Spark current-projection child dispatch | `execution/backends/fabric_spark.py` |
 | Mode-3 health from existing runtime state | `control_plane/current_projection.py` |
 | Durable dataset mutation claim | `control_plane/dataset_lease.py` |
+| Governed abandoned-lease recovery evidence | `control_plane/dataset_lease_recovery.py` |
+| Governed current-projection mode transition/checkpoint reset | `control_plane/current_projection_transition.py` + `recovery/current_projection.py` |
 | DQ/quarantine | `quality/rules.py` + quarantine modules |
 | Reconciliation policy/check definitions | `metadata/config.py` |
 | Reconciliation observation/result contracts | `contracts/reconciliation.py` |
@@ -80,10 +84,12 @@ Provider mechanics must not become semantic truth.
 
 Capture and apply stay orthogonal. SCD2 never upgrades source fidelity.
 
-The Mode-3 executor currently has only an in-memory reference target. No production
-Spark/Delta target adapter, distributed CDF/affected-key reader, or backend invocation
-path exists. Treat that as a missing physical owner, not as work implicitly owned by the
-provider-neutral apply module.
+Mode 3 deliberately keeps two owners: `execution/current_projection.py` is the
+provider-neutral semantic/reference path, while `adapters/fabric/current_projection.py`
+owns distributed Delta CDF, exact-version history reads and affected-key target mutation.
+The Fabric child executor in `execution/backends/fabric_spark.py` binds immutable dispatch
+requests to that physical runtime. Recovery and mode transition mechanics remain outside
+the apply module so provider mechanics cannot redefine projection truth.
 
 ## Reconciliation ownership and call flow
 
