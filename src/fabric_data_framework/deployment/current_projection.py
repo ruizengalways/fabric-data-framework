@@ -218,6 +218,12 @@ def validate_current_projection_bundle(
         if config.schema_contract is not None:
             history_fields = {field.name: field for field in history.schema_contract.fields}
             projection_fields = {field.name: field for field in config.schema_contract.fields}
+            missing_keys = sorted(set(config.load.business_key) - set(projection_fields))
+            if missing_keys:
+                raise ValueError(
+                    f"current projection {config.dataset_id!r} schema must include business key fields: "
+                    + ", ".join(missing_keys)
+                )
             unknown = sorted(set(projection_fields) - set(history_fields))
             if unknown:
                 raise ValueError(
