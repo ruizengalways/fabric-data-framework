@@ -9,18 +9,30 @@ updated: 2026-09-12
 release:
   public_release: v0.3.0
   source_version: 0.4.0-development-unreleased
-  candidate_status: replacement_pending_post_merge
-  exact_candidate_source_selected: false
+  candidate_status: not_frozen
+  exact_candidate_source_selected: true
   release_allowed: false
   real_fabric_status: FABRIC_CERTIFICATION_REQUIRED
 
 candidate_identity:
-  current_source_candidate_git_sha: not_yet_selected_after_second_independent_review
-  current_source_framework_artifact_sha256: not_yet_built
+  current_source_candidate_git_sha: 661c4fc82a071ed340c352561946e08d18031f01
+  current_source_framework_artifact_sha256: d5b98aad88885e244061f0eb6e0c8d8b3c6a6a126bc1b3186d16dfd93ce02dec
   integration_inputs_hash: not_yet_constructed
   integration_inputs_status: blocked_pending_approved_live_DEV_bindings
-  current_source_requires_new_exact_artifact_before_release_claim: true
-  candidate_bytes_must_not_change: false
+  current_source_requires_new_exact_artifact_before_release_claim: false
+  candidate_bytes_must_not_change: true
+  selected_candidate:
+    candidate_git_sha: 661c4fc82a071ed340c352561946e08d18031f01
+    candidate_main_framework_ci_run: 34682679599
+    candidate_main_installed_wheel_run: 34682679582
+    candidate_wheel_artifact_id: 10294725569
+    candidate_wheel_artifact_name: framework-wheel-661c4fc82a071ed340c352561946e08d18031f01
+    candidate_wheel_filename: fabric_data_framework-0.4.0-py3-none-any.whl
+    framework_artifact_sha256: d5b98aad88885e244061f0eb6e0c8d8b3c6a6a126bc1b3186d16dfd93ce02dec
+    wheel_sha_verified_against_candidate_json: true
+    wheel_sha_verified_against_sha256sums: true
+    wheel_sha_independently_rehashed: true
+    status: selected_not_frozen
   superseded_current_projection_candidate:
     candidate_git_sha: ec4b211f5d6545de646f0b0e217e31a403acaf19
     candidate_main_framework_ci_run: 34656625530
@@ -243,8 +255,8 @@ certification:
     - integration_inputs_hash
 
 fabric_proof:
-  exact_current_candidate_selected: false
-  current_source_installed_wheel_acceptance: not_run_for_replacement
+  exact_current_candidate_selected: true
+  current_source_installed_wheel_acceptance: passed_main_run_34682679582
   current_source_real_fabric_execution: not_run
   bounded_lakehouse_for_current_candidate: not_retained
   control_plane_for_current_candidate: not_retained
@@ -261,19 +273,58 @@ external_execution_boundary:
   do_not_guess_or_reuse_unverified_resource_ids: true
 
 next_boundary:
-  - merge second-independent-review runtime hardening only after exact PR-head CI passes
-  - build, install-test, independently hash, and select a new exact post-merge main wheel
+  - keep the exact selected candidate bytes immutable while Fabric certification is pending
   - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials
-  - bootstrap/read back framework-owned certification assets using the new exact selected wheel
+  - implement and review the missing production Mode-3 Spark/Delta target, distributed CDF reader, backend dispatch, transition/reset coordinator, and abandoned-lease recovery before claiming end-to-end readiness
+  - bootstrap/read back framework-owned certification assets using the exact selected wheel
   - resolve exact item bindings by live Fabric item discovery
   - construct and retain framework-owned integration inputs
   - record integration_inputs_hash without guessing or substituting another identity
-  - install/attest the new exact selected wheel in isolated DEV Fabric
+  - install/attest the exact selected wheel in isolated DEV Fabric
   - run certify_installed bounded first
   - stop on any real FAIL
   - run only explicitly required and authorized integration stages
   - retain exact identity-bound evidence
 ```
+
+## Selected second-independent-review candidate
+
+The second independent review hardening merged on `main` at:
+
+```text
+661c4fc82a071ed340c352561946e08d18031f01
+```
+
+The exact post-merge main gates are:
+
+```text
+framework-ci               34682679599  PASS
+installed-wheel-acceptance 34682679582  PASS
+```
+
+The retained framework-ci artifact is:
+
+```text
+artifact id    10294725569
+artifact name  framework-wheel-661c4fc82a071ed340c352561946e08d18031f01
+wheel          fabric_data_framework-0.4.0-py3-none-any.whl
+```
+
+The **inner wheel bytes**, not the outer GitHub Actions artifact ZIP, were independently
+SHA256-hashed after download. The digest exactly matches both `CANDIDATE.json` and
+`SHA256SUMS`:
+
+```text
+framework_artifact_sha256
+= d5b98aad88885e244061f0eb6e0c8d8b3c6a6a126bc1b3186d16dfd93ce02dec
+```
+
+This exact executable candidate is **selected but not frozen**. It has not constructed
+`integration_inputs_hash`, executed Microsoft Fabric, authorized release, or claimed
+Fabric PASS. Mode 3 is also not end-to-end deployable until its documented production
+physical adapters and recovery/transition integration exist. Candidate/evidence identity
+remains `framework_artifact_sha256 + integration_inputs_hash`; the selected wheel bytes
+must not change before identity-bound Fabric certification.
 
 ## Superseded current-projection candidate
 
@@ -449,7 +500,7 @@ provider Completed           != framework semantic PASS
 selected exact wheel         != certified Fabric candidate evidence
 ```
 
-Until a new selected wheel is bound to a real `integration_inputs_hash` and required authorized stages execute in isolated DEV Fabric with retained identity-bound evidence, status remains:
+Until the selected wheel is bound to a real `integration_inputs_hash` and required authorized stages execute in isolated DEV Fabric with retained identity-bound evidence, status remains:
 
 ```text
 FABRIC CERTIFICATION REQUIRED
@@ -457,10 +508,10 @@ FABRIC CERTIFICATION REQUIRED
 
 ## Release boundary
 
-`0.4.0` is not frozen and not release-authorized. The previous executable candidate is
-superseded by packaged runtime hardening; no replacement is selected yet. Even after a
-replacement is selected, release certification remains blocked on unresolved Mode-3
-physical runtime gaps and the external live-Fabric binding/evidence boundary.
+`0.4.0` is not frozen and not release-authorized. The exact post-review executable
+candidate is selected and independently verified, but release certification remains
+blocked on unresolved Mode-3 physical runtime gaps and the external live-Fabric
+binding/evidence boundary.
 
 Any packaged-code change invalidates a selected executable candidate and requires a new exact main wheel. A docs/test-only bookkeeping merge after candidate selection does not change selected wheel bytes. Release promotion must use the exact already-built/certified wheel bytes; no release-time rebuild.
 
@@ -476,9 +527,12 @@ IMPLEMENTATION_MAP.md
 
 Do not add another state/evidence narrative document when code, executable schemas, one canonical topic doc, or one of these three internal files can own the information.
 
-## Runtime-safety hardening in progress
+## Packaged runtime-safety boundary
 
-The current packaged-source change set hardens the following fail-closed boundaries before real Fabric certification:
+The selected packaged source includes fail-closed current-projection hardening for
+bootstrap, exact-version reads, provider evidence, affected-key target mutation,
+semantic checkpoint identity, no-rewind rebuilds, mode-transition guards, dataset
+leases, and bundle validation. It also retains earlier hardening for:
 
 ```text
 watermark overlap -> reread allowed, checkpoint regression forbidden
