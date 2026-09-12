@@ -65,6 +65,32 @@ def test_reconciliation_policy_rejects_duplicate_check_ids_and_invalid_shapes():
             kind=ReconciliationCheckKind.CUSTOM,
         )
 
+    for field in ("absolute_tolerance", "relative_tolerance"):
+        with pytest.raises(ValidationError, match="finite"):
+            ReconciliationCheck(
+                check_id="finite-tolerance",
+                kind=ReconciliationCheckKind.ROW_COUNT_MATCH,
+                **{field: float("inf")},
+            )
+
+
+def test_reconciliation_evidence_rejects_non_finite_values_and_partitions():
+    with pytest.raises(ValidationError, match="actual must be finite"):
+        ReconciliationObservation(check_id="row-count", actual=float("nan"))
+    with pytest.raises(ValidationError, match="partition.*must be finite"):
+        ReconciliationObservation(
+            check_id="row-count",
+            actual=1,
+            partition={"business_date": float("inf")},
+        )
+    with pytest.raises(ValidationError, match="expected must be finite"):
+        ReconciliationMetric(
+            name="invalid-base-metric",
+            expected=float("inf"),
+            actual=0,
+            passed=True,
+        )
+
 
 def test_numeric_count_and_aggregate_checks_apply_tolerance():
     policy = ReconciliationPolicy(

@@ -299,8 +299,8 @@ class ReconciliationCheck(_FrozenModel):
     columns: tuple[str, ...] = ()
     column: str | None = Field(default=None, min_length=1)
     aggregate: ReconciliationAggregate | None = None
-    absolute_tolerance: float = Field(default=0.0, ge=0.0)
-    relative_tolerance: float = Field(default=0.0, ge=0.0)
+    absolute_tolerance: float = Field(default=0.0, ge=0.0, allow_inf_nan=False)
+    relative_tolerance: float = Field(default=0.0, ge=0.0, allow_inf_nan=False)
     max_count: int | None = Field(default=None, ge=0)
     max_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
     extension: str | None = Field(default=None, pattern=_RECONCILIATION_EXTENSION_PATTERN)

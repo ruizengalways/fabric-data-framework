@@ -9,6 +9,7 @@ down aggregates instead of materializing business rows in the framework process.
 from __future__ import annotations
 
 from collections import defaultdict
+import math
 from numbers import Real
 from typing import Iterable, Sequence
 from uuid import UUID
@@ -78,7 +79,8 @@ def _error_metric(
 def _numeric(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, Real):
         return None
-    return float(value)
+    numeric = float(value)
+    return numeric if math.isfinite(numeric) else None
 
 
 def _within_tolerance(

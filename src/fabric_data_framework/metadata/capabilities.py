@@ -241,11 +241,6 @@ class CapabilityRegistry:
             )
         return ExecutionEngine.SPARK
 
-    def resolve_engine(self, config: DatasetConfig) -> ExecutionEngine:
-        """Backward-compatible alias for capture-engine resolution."""
-
-        return self.resolve_capture_engine(config)
-
     def validate_capture(self, config: DatasetConfig) -> ExecutionEngine:
         engine = self.resolve_capture_engine(config)
         capability = self.capability_for(engine, config.execution.capability_profile)

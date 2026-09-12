@@ -277,6 +277,11 @@ allowed difference = 100
 
 Tolerance is part of released semantic configuration. Do not introduce an ad-hoc runtime tolerance merely to make a failed load green.
 
+Tolerance and numeric evidence must be finite. `NaN`, positive infinity, and negative
+infinity are rejected in policy, expected/actual observations, derived metrics, and
+numeric partition values. They must never turn a mismatch into a pass or make provider
+evidence incomparable.
+
 ## 8. Partitioned reconciliation
 
 Whole-table aggregates can hide local defects. Prefer partitioned controls when the business/source grain supports them.
@@ -314,6 +319,7 @@ multiple observations supplied for an unpartitioned check
 partition keys do not match policy
 same partition supplied more than once
 numeric check receives missing/non-numeric evidence
+numeric tolerance/evidence/partition value is NaN or infinite
 UNIQUE_KEY receives invalid duplicate count
 NULL_RATE receives a fraction outside [0, 1]
 CHECKSUM_MATCH lacks either checksum

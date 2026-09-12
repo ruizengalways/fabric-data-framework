@@ -327,6 +327,15 @@ preserve old state
 -> only then install new runtime state if the scope permits it
 ```
 
+For current projections, authoritative SCD2 history remains the rebuild source. A
+`DELTA_PROJECTION` with no checkpoint must bootstrap by rebuilding from a complete
+history snapshot at one frozen Delta version. Retention-gap recovery may rebuild at a
+newer frozen version and advance the same semantic checkpoint, but it may not rewind
+progress. A source/key/projected-schema change or a transition into/out of Mode 3 needs
+an audited physical-object and checkpoint-reset coordinator. That coordinator is not
+implemented in the current package, so metadata deployment blocks the transition while
+state exists instead of deleting state optimistically.
+
 ## 12. Rollback after a v2 cutover
 
 Because v1 is retained, rollback is another explicit cutover, not a destructive restore.

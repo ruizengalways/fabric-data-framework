@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from fabric_data_framework.apply.current_projection import apply_current_projection
 from fabric_data_framework.capture.cdc import (
     CDCEvent,
     CDCOperation,
@@ -16,6 +17,8 @@ from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     LoadPolicy,
+    ReconciliationCheck,
+    ReconciliationCheckKind,
     WatermarkConfig,
 )
 
@@ -65,10 +68,41 @@ def run_semantic_acceptance() -> dict[str, str]:
     if len(batch.events) != 1 or batch.duplicate_events_ignored != 1:
         raise AssertionError("CDC duplicate/idempotency acceptance failed")
 
+    projection = apply_current_projection(
+        ({"customer_id": "C1", "name": "Before"},),
+        (
+            {
+                "customer_id": "C1",
+                "name": "After",
+                "_framework_is_current": True,
+            },
+        ),
+        business_key=("customer_id",),
+        projected_columns=("customer_id", "name"),
+        affected_keys=(("C1",),),
+    )
+    if projection.mutations.updated != 1 or projection.rows != (
+        {"customer_id": "C1", "name": "After"},
+    ):
+        raise AssertionError("current projection derivation acceptance failed")
+
+    try:
+        ReconciliationCheck(
+            check_id="finite-tolerance",
+            kind=ReconciliationCheckKind.ROW_COUNT_MATCH,
+            absolute_tolerance=float("inf"),
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("reconciliation non-finite tolerance acceptance failed")
+
     return {
         "metadata.config": "PASS",
         "incremental.watermark": "PASS",
         "cdc.normalization": "PASS",
+        "current_projection.derive": "PASS",
+        "reconciliation.finite": "PASS",
     }
 
 

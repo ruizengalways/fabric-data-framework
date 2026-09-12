@@ -6,15 +6,17 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from sqlalchemy import Engine, and_, delete, select, update
 
+from fabric_data_framework.contracts.current_projection import CurrentProjectionMode
 from fabric_data_framework.metadata.config import DatasetConfig, canonical_hash
 from ..contracts.group_policy import ExecutionGroupPolicy
 from ..control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     apply_baseline_schema,
+    cdc_checkpoint,
     current_projection_policy,
     data_quality_policy,
     dataset,
@@ -35,6 +37,7 @@ from .contracts import (
     ReleaseManifest,
     build_deployment_plan,
 )
+from .current_projection import validate_current_projection_bundle
 
 
 def load_dataset_configs(config_dir: str | Path) -> tuple[DatasetConfig, ...]:
@@ -121,6 +124,7 @@ def build_release_manifest(
 ) -> ReleaseManifest:
     config_tuple = tuple(configs)
     group_policy_tuple = tuple(execution_group_policies)
+    validate_current_projection_bundle(config_tuple)
     digests = {
         name: artifact_sha256(path) for name, path in sorted((artifacts or {}).items())
     }
@@ -168,9 +172,9 @@ def validate_release_tag(tag: str, package_version: str) -> None:
 def _upsert_definition(
     connection,
     table,
-    key: dict[str, object],
-    insert_values: dict[str, object],
-    update_values: dict[str, object],
+    key: Mapping[str, object],
+    insert_values: Mapping[str, object],
+    update_values: Mapping[str, object],
 ) -> None:
     predicate = and_(*(table.c[column] == value for column, value in key.items()))
     exists = connection.execute(select(table).where(predicate).limit(1)).first() is not None
@@ -189,21 +193,66 @@ def materialize_semantic_metadata(
     framework_version: str,
     execution_group_policies: Iterable[ExecutionGroupPolicy] = (),
 ) -> str:
-    """Idempotently materialize Git semantic definitions while preserving runtime state.
+    """Materialize one complete Git-owned domain snapshot while preserving runtime state.
 
     Execution-group policy remains a source-controlled release input rather than a
     second mutable Control Plane configuration source. Its exact content is still bound
-    into the returned config bundle hash when supplied.
+    into the returned config bundle hash when supplied. Previously materialized domain
+    datasets absent from this snapshot are disabled, not deleted, so removed Git config
+    cannot remain active and environment-local audit/checkpoint evidence remains intact.
     """
 
     config_tuple = tuple(sorted(configs, key=lambda config: config.dataset_id))
     group_policy_tuple = tuple(execution_group_policies)
+    validate_current_projection_bundle(config_tuple)
     bundle_hash = config_bundle_hash(config_tuple, group_policy_tuple)
     apply_baseline_schema(engine)
     now = datetime.now(timezone.utc)
 
     with engine.begin() as connection:
+        active_dataset_ids = {config.dataset_id for config in config_tuple}
+        existing_domain_dataset_ids = tuple(
+            connection.execute(
+                select(dataset.c.dataset_id).where(dataset.c.domain == domain)
+            ).scalars()
+        )
+        for stale_dataset_id in existing_domain_dataset_ids:
+            if stale_dataset_id not in active_dataset_ids:
+                connection.execute(
+                    update(dataset)
+                    .where(dataset.c.dataset_id == stale_dataset_id)
+                    .values(enabled_default=False, updated_at=now)
+                )
+
         for config in config_tuple:
+            existing_projection = connection.execute(
+                select(current_projection_policy.c.mode).where(
+                    current_projection_policy.c.dataset_id == config.dataset_id
+                )
+            ).scalar_one_or_none()
+            desired_projection = (
+                config.current_projection.mode
+                if config.current_projection is not None
+                else None
+            )
+            checkpoint_exists = connection.execute(
+                select(cdc_checkpoint.c.dataset_id)
+                .where(cdc_checkpoint.c.dataset_id == config.dataset_id)
+                .limit(1)
+            ).first() is not None
+            if (
+                checkpoint_exists
+                and (
+                    existing_projection == CurrentProjectionMode.DELTA_PROJECTION.value
+                )
+                != (desired_projection is CurrentProjectionMode.DELTA_PROJECTION)
+            ):
+                raise ValueError(
+                    f"dataset {config.dataset_id!r} cannot enter/leave DELTA_PROJECTION "
+                    "while a runtime CDC checkpoint exists; use the explicit governed "
+                    "projection rebuild/reset procedure first"
+                )
+
             common_audit = {"updated_at": now}
             dataset_insert = {
                 "dataset_id": config.dataset_id,

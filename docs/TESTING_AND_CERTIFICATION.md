@@ -96,7 +96,9 @@ retry/idempotency
 reconciliation fail-closed
 ```
 
-Installed semantic preflight additionally covers framework-owned metadata/config, incremental watermark and CDC normalization/deduplication contracts.
+Installed semantic preflight additionally covers framework-owned metadata/config,
+incremental watermark, CDC normalization/deduplication, current-projection derivation,
+and finite reconciliation-tolerance contracts.
 
 These checks require actual Fabric execution before they can be marked Fabric-proven.
 
