@@ -32,6 +32,7 @@ from fabric_data_framework.control_plane.io import read_cdc_checkpoint
 from fabric_data_framework.control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     apply_baseline_schema,
+    current_projection_transition_event,
     current_schema_version,
     dataset_lease_recovery_event,
     schema_migration_history,
