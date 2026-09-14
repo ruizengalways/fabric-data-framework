@@ -108,6 +108,7 @@ class _ProjectionViews:
 class _ProjectionMutationOutcome:
     affected_keys: int
     mutations: MutationCounts
+    rebuilt: bool = False
 
 
 SparkProjectionReconciliation = Callable[[SparkCurrentProjectionEvidence], bool]
@@ -573,8 +574,6 @@ def _reconcile_and_commit(
     window: _ProjectionVersionWindow,
     outcome: _ProjectionMutationOutcome,
     reconcile: SparkProjectionReconciliation | None,
-    *,
-    rebuilt: bool = False,
 ) -> CurrentProjectionExecutionResult:
     evidence = SparkCurrentProjectionEvidence(
         dataset_id=request.dataset_id,
@@ -582,7 +581,7 @@ def _reconcile_and_commit(
         upper_version=window.upper_version,
         affected_keys=outcome.affected_keys,
         mutations=outcome.mutations,
-        rebuilt=rebuilt,
+        rebuilt=outcome.rebuilt,
     )
     passed = True if reconcile is None else bool(reconcile(evidence))
     next_state = _commit_projection_checkpoint(
@@ -755,6 +754,7 @@ class FabricSparkDeltaCurrentProjectionRuntime:
             outcome = _ProjectionMutationOutcome(
                 affected_keys=row_count,
                 mutations=MutationCounts(inserted=row_count),
+                rebuilt=True,
             )
             return _reconcile_and_commit(
                 engine,
@@ -762,7 +762,6 @@ class FabricSparkDeltaCurrentProjectionRuntime:
                 window,
                 outcome,
                 reconcile,
-                rebuilt=True,
             )
 
 

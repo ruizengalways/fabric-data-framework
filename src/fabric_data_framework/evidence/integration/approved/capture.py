@@ -68,7 +68,7 @@ from ..runner import (
     IntegrationCheckPhysicalBinding,
     build_approved_integration_run_plan,
 )
-from ...safety import assert_safe_retained_text
+from fabric_data_framework.contracts.audit_safety import assert_safe_retained_text
 
 
 _EXTENSION_PATTERN = r"^[a-z][a-z0-9_.-]*$"

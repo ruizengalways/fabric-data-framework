@@ -75,7 +75,7 @@ from ....recovery.warehouse_fault_injection import (
     WarehouseCommitFaultPhase,
 )
 from ....control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
-from ...safety import assert_safe_retained_text
+from fabric_data_framework.contracts.audit_safety import assert_safe_retained_text
 from ....control_plane.target_operation_journal import (
     claim_target_operation,
     mark_target_operation_not_committed,
