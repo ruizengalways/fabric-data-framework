@@ -1,0 +1,92 @@
+name: temporary-finalize-refactor-docs
+
+on:
+  push:
+    branches: [refactor/architecture-readability-boundaries]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: ${{ !contains(github.event.head_commit.message, '[refactor-docs-finalized]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: refactor/architecture-readability-boundaries
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.13'
+      - name: Update canonical ownership docs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('docs/internal/IMPLEMENTATION_MAP.md')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              '  contracts/       provider-neutral immutable runtime/semantic contracts':
+                  '  contracts/       provider-neutral immutable runtime/semantic contracts + deterministic contract invariants',
+              '| Current projection semantic/apply contract | `contracts/current_projection.py` + `apply/current_projection.py` |':
+                  '| Current projection semantic/apply contract | `contracts/current_projection.py` + `apply/current_projection.py` |\n| Current projection shared execution result/error | `contracts/current_projection_execution.py` |',
+              '| Unified environment-dependent orchestrator | `src/fabric_data_framework/certification/unified.py` |':
+                  '| Unified certification public coordinator | `src/fabric_data_framework/certification/unified.py` |\n| Unified certification typed stage execution | `src/fabric_data_framework/certification/unified_stages.py` |',
+              '| Ambiguous-COMMIT runner | `evidence/integration/approved/warehouse_fault.py` | real fault/recovery evidence |':
+                  '| Ambiguous-COMMIT public contract/façade | `evidence/integration/approved/warehouse_fault.py` | stable API/report contract |\n| Ambiguous-COMMIT typed stage execution | `evidence/integration/approved/warehouse_fault_stages.py` | real fault/probe/recovery evidence; retry only from durable NOT_COMMITTED |',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'missing IMPLEMENTATION_MAP anchor: {old}')
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+
+          path = Path('docs/CODE_READING_GUIDE.md')
+          text = path.read_text(encoding='utf-8')
+          old = '''src/fabric_data_framework/certification/simple.py
+          src/fabric_data_framework/certification/unified.py
+          ```'''
+          # Preserve the guide's existing indentation exactly when present without YAML padding.
+          old = old.replace('          ', '')
+          new = '''src/fabric_data_framework/certification/simple.py
+          src/fabric_data_framework/certification/unified.py
+          src/fabric_data_framework/certification/unified_stages.py
+          src/fabric_data_framework/evidence/integration/approved/warehouse_fault.py
+          src/fabric_data_framework/evidence/integration/approved/warehouse_fault_stages.py
+          ```'''.replace('          ', '')
+          if old not in text:
+              raise SystemExit('missing CODE_READING_GUIDE certification anchor')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+          rm -f .github/workflows/refactor-finalize-docs.yml
+      - name: Verify docs and source tree
+        run: |
+          python -m pip install -e '.[dev]'
+          ruff check src tests
+          ruff check --isolated --select C901,PLR0913,PLR0915 \
+            src/fabric_data_framework/certification/unified.py \
+            src/fabric_data_framework/certification/unified_stages.py \
+            src/fabric_data_framework/evidence/integration/approved/warehouse_fault.py \
+            src/fabric_data_framework/evidence/integration/approved/warehouse_fault_stages.py \
+            src/fabric_data_framework/adapters/fabric/current_projection.py
+          mypy \
+            src/fabric_data_framework/contracts/runtime.py \
+            src/fabric_data_framework/contracts/typed_values.py \
+            src/fabric_data_framework/control_plane/repository.py \
+            src/fabric_data_framework/recovery/runtime.py
+          python -m compileall -q src tests
+          test ! -e src/fabric_data_framework/evidence/safety.py
+          test ! -e .github/workflows/refactor-warehouse-fault.yml
+          test ! -e tools/apply_unified_refactor.py
+      - name: Commit finalized docs
+        run: |
+          rm -rf src/fabric_data_framework.egg-info
+          find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          find src tests -name '*.pyc' -delete
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Finalize architecture readability ownership docs [refactor-docs-finalized]'
+          git push origin HEAD:refactor/architecture-readability-boundaries
