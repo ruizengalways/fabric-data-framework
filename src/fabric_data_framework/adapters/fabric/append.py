@@ -58,6 +58,13 @@ class SparkAppendEvidence:
         return MutationCounts(inserted=self.inserted)
 
 
+@dataclass(frozen=True)
+class _AppendStageCounts:
+    incoming_rows: int
+    unique_incoming: int
+    duplicate_incoming: int
+
+
 def _q(value: str) -> str:
     if not value:
         raise ValueError("Spark identifier cannot be empty")
@@ -271,6 +278,101 @@ def _missing_after_merge_sql(stage: str, request: SparkDeltaAppendRequest) -> st
     )
 
 
+def _measure_stage(
+    spark: SparkSessionLike,
+    stage: str,
+    request: SparkDeltaAppendRequest,
+) -> _AppendStageCounts:
+    incoming_rows = _count(
+        spark,
+        f"SELECT COUNT(*) FROM {_relation(request.incoming_relation)} "
+        "/* fdf:append_incoming_count */",
+        label="APPEND incoming row count",
+    )
+    if request.expected_incoming_rows is not None and incoming_rows != request.expected_incoming_rows:
+        raise SparkAppendError(
+            "APPEND staged row count does not match framework accounting: "
+            f"expected={request.expected_incoming_rows}, actual={incoming_rows}"
+        )
+
+    unique_incoming = _count(
+        spark,
+        f"SELECT COUNT(*) FROM {_q(stage)} /* fdf:append_stage_count */",
+        label="APPEND unique incoming row count",
+    )
+    if unique_incoming > incoming_rows:
+        raise SparkAppendError("APPEND distinct stage cannot exceed incoming row count")
+    return _AppendStageCounts(
+        incoming_rows=incoming_rows,
+        unique_incoming=unique_incoming,
+        duplicate_incoming=incoming_rows - unique_incoming,
+    )
+
+
+def _assert_premerge_consistency(
+    spark: SparkSessionLike,
+    stage: str,
+    request: SparkDeltaAppendRequest,
+) -> None:
+    if _has_rows(spark, _incoming_conflict_sql(stage, request)):
+        raise SparkAppendError(
+            "incoming batch reuses append identity with conflicting business payload"
+        )
+    if _has_rows(spark, _target_duplicate_sql(stage, request)):
+        raise SparkAppendError("target contains duplicate APPEND identity for incoming keys")
+    if _has_rows(spark, _target_conflict_sql(stage, request)):
+        raise SparkAppendError("append identity already exists with different business payload")
+
+
+def _measure_replay(
+    spark: SparkSessionLike,
+    stage: str,
+    request: SparkDeltaAppendRequest,
+    counts: _AppendStageCounts,
+) -> tuple[int, int]:
+    replayed = _count(
+        spark,
+        _replay_count_sql(stage, request),
+        label="APPEND replay row count",
+    )
+    if replayed > counts.unique_incoming:
+        raise SparkAppendError("APPEND replay count exceeds unique incoming rows")
+    return replayed, counts.unique_incoming - replayed
+
+
+def _verify_after_merge(
+    spark: SparkSessionLike,
+    stage: str,
+    request: SparkDeltaAppendRequest,
+) -> None:
+    if _has_rows(spark, _missing_after_merge_sql(stage, request)):
+        raise SparkAppendError("APPEND target verification found missing incoming identities")
+    if _has_rows(spark, _target_duplicate_sql(stage, request)):
+        raise SparkAppendError("APPEND target verification found duplicate identities")
+    if _has_rows(spark, _target_conflict_sql(stage, request)):
+        raise SparkAppendError("APPEND target verification found conflicting payload")
+
+
+def _execute_staged_append(
+    spark: SparkSessionLike,
+    stage: str,
+    request: SparkDeltaAppendRequest,
+) -> SparkAppendEvidence:
+    counts = _measure_stage(spark, stage, request)
+    _assert_premerge_consistency(spark, stage, request)
+    replayed, inserted = _measure_replay(spark, stage, request, counts)
+    spark.sql(_merge_sql(stage, request))
+    _verify_after_merge(spark, stage, request)
+    return SparkAppendEvidence(
+        dataset_id=request.dataset_id,
+        incoming_rows=counts.incoming_rows,
+        unique_incoming=counts.unique_incoming,
+        inserted=inserted,
+        replayed=replayed,
+        duplicate_incoming=counts.duplicate_incoming,
+    )
+
+
 class FabricSparkDeltaAppendRuntime:
     """Execute one idempotent APPEND batch entirely inside Spark/Delta."""
 
@@ -289,69 +391,7 @@ class FabricSparkDeltaAppendRuntime:
 
         with _append_lease(control_plane_engine, request):
             with _deduplicated_stage(self._spark, request) as stage:
-                incoming_rows = _count(
-                    self._spark,
-                    f"SELECT COUNT(*) FROM {_relation(request.incoming_relation)} "
-                    "/* fdf:append_incoming_count */",
-                    label="APPEND incoming row count",
-                )
-                if (
-                    request.expected_incoming_rows is not None
-                    and incoming_rows != request.expected_incoming_rows
-                ):
-                    raise SparkAppendError(
-                        "APPEND staged row count does not match framework accounting: "
-                        f"expected={request.expected_incoming_rows}, actual={incoming_rows}"
-                    )
-
-                unique_incoming = _count(
-                    self._spark,
-                    f"SELECT COUNT(*) FROM {_q(stage)} /* fdf:append_stage_count */",
-                    label="APPEND unique incoming row count",
-                )
-                if unique_incoming > incoming_rows:
-                    raise SparkAppendError("APPEND distinct stage cannot exceed incoming row count")
-                duplicate_incoming = incoming_rows - unique_incoming
-
-                if _has_rows(self._spark, _incoming_conflict_sql(stage, request)):
-                    raise SparkAppendError(
-                        "incoming batch reuses append identity with conflicting business payload"
-                    )
-                if _has_rows(self._spark, _target_duplicate_sql(stage, request)):
-                    raise SparkAppendError(
-                        "target contains duplicate APPEND identity for incoming keys"
-                    )
-                if _has_rows(self._spark, _target_conflict_sql(stage, request)):
-                    raise SparkAppendError(
-                        "append identity already exists with different business payload"
-                    )
-
-                replayed = _count(
-                    self._spark,
-                    _replay_count_sql(stage, request),
-                    label="APPEND replay row count",
-                )
-                if replayed > unique_incoming:
-                    raise SparkAppendError("APPEND replay count exceeds unique incoming rows")
-                inserted = unique_incoming - replayed
-
-                self._spark.sql(_merge_sql(stage, request))
-
-                if _has_rows(self._spark, _missing_after_merge_sql(stage, request)):
-                    raise SparkAppendError("APPEND target verification found missing incoming identities")
-                if _has_rows(self._spark, _target_duplicate_sql(stage, request)):
-                    raise SparkAppendError("APPEND target verification found duplicate identities")
-                if _has_rows(self._spark, _target_conflict_sql(stage, request)):
-                    raise SparkAppendError("APPEND target verification found conflicting payload")
-
-                return SparkAppendEvidence(
-                    dataset_id=request.dataset_id,
-                    incoming_rows=incoming_rows,
-                    unique_incoming=unique_incoming,
-                    inserted=inserted,
-                    replayed=replayed,
-                    duplicate_incoming=duplicate_incoming,
-                )
+                return _execute_staged_append(self._spark, stage, request)
 
 
 __all__ = [
