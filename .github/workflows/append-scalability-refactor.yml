@@ -5,11 +5,10 @@ on:
     branches: [refactor/append-scalability-foundations]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   refactor-and-verify:
-    if: ${{ !contains(github.event.head_commit.message, '[append-scalability-staged]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -138,7 +137,7 @@ jobs:
             src/fabric_data_framework/execution/backends/fabric_spark_append.py \
             src/fabric_data_framework/execution/backends/fabric_spark_dataset.py \
             src/fabric_data_framework/adapters/fabric/current_projection.py
-      - name: Commit staged refactor
+      - name: Prepare validated patch
         run: |
           rm -f scripts/_temporary_append_scalability_refactor.py
           rm -f scripts/_temporary_append_scalability_fix.py
@@ -146,8 +145,15 @@ jobs:
           rm -rf src/fabric_data_framework.egg-info
           find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
           find src tests -name '*.pyc' -delete
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'Complete APPEND scalability hard cut [append-scalability-staged]'
-          git push origin HEAD:refactor/append-scalability-foundations
+          git diff --binary HEAD > /tmp/append-scalability.patch
+          git diff --name-status HEAD > /tmp/append-scalability-files.txt
+          test -s /tmp/append-scalability.patch
+      - name: Upload validated patch
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: append-scalability-validated-patch
+          path: |
+            /tmp/append-scalability.patch
+            /tmp/append-scalability-files.txt
+          if-no-files-found: error
+          retention-days: 1
