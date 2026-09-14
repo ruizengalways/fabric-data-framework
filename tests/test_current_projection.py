@@ -44,8 +44,10 @@ from fabric_data_framework.deployment.delivery import (
     build_release_manifest,
     materialize_semantic_metadata,
 )
-from fabric_data_framework.execution.current_projection import (
+from fabric_data_framework.contracts.current_projection_execution import (
     CurrentProjectionExecutionError,
+)
+from fabric_data_framework.execution.current_projection import (
     InMemoryCurrentProjectionTarget,
     execute_delta_current_projection,
     rebuild_delta_current_projection,

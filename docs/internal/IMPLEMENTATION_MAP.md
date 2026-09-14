@@ -76,6 +76,7 @@ Provider mechanics must not become semantic truth.
 | Declarative reconciliation evaluation | `quality/reconciliation/engine.py` |
 | Strategy-specific reconciliation composition | `quality/reconciliation/scd2.py`, `quality/reconciliation/full_replace.py`, `quality/reconciliation/append.py`, `quality/reconciliation/snapshot_diff.py` |
 | Immutable execution-plan contracts | `contracts/execution_plan.py` |
+| Retained text/audit safety | `contracts/audit_safety.py` |
 | Execution-plan compilation | `execution/plan_compiler.py` |
 | Dataset dependency graph / ready-wave planning | `orchestration/planner.py` |
 | Parent dispatch and failure isolation | `orchestration/dispatcher.py` |
@@ -282,7 +283,7 @@ The canonical operator manual for data correctness repair/rebuild/v1-v2 cutover 
 | Copy/Spark runner | `evidence/integration/approved/capture.py` | native provider evidence + verified CaptureReceipt |
 | Warehouse runner | `evidence/integration/approved/warehouse.py` | mutation + marker proof |
 | Ambiguous-COMMIT runner | `evidence/integration/approved/warehouse_fault.py` | real fault/recovery evidence |
-| Secret scan | `evidence/safety.py` | fail closed before retention |
+| Secret scan / retained audit safety | `contracts/audit_safety.py` | provider-neutral fail-closed redaction and retention bounds |
 
 Identity invariant:
 
@@ -422,7 +423,7 @@ src/fabric_data_framework/apply/scd2.py
 src/fabric_data_framework/apply/cdc_scd2.py
   typed change hashing and CDC tombstone/history ordering
 
-src/fabric_data_framework/evidence/safety.py
+src/fabric_data_framework/contracts/audit_safety.py
 src/fabric_data_framework/execution/backends/fabric_pipeline.py
 src/fabric_data_framework/orchestration/dispatcher.py
   bounded recursive audit redaction and terminal ordinary-exception boundaries

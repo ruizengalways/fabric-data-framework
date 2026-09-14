@@ -30,7 +30,7 @@ from fabric_data_framework.contracts.audit import (
 )
 from ..plan_compiler import compile_execution_plan
 from ...control_plane.repository import ControlPlaneRepository
-from ...evidence.safety import (
+from ...contracts.audit_safety import (
     sanitize_audit_details,
     sanitize_audit_text,
     sanitize_audit_value,

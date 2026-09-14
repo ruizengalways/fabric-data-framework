@@ -16,7 +16,7 @@ from pydantic import Field, model_validator
 
 from fabric_data_framework.contracts.base import FrozenModel
 from ..recovery.target_probe import TargetCommitProbeEvidence
-from ..evidence.safety import assert_safe_retained_text
+from ..contracts.audit_safety import assert_safe_retained_text
 
 
 class WarehouseCommitFaultPhase(str, Enum):

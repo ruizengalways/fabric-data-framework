@@ -27,7 +27,7 @@ from .contracts import (
     FabricNativeRunStatus,
 )
 from .rest import FabricJobInstance, FabricJobStatus, FabricRestClient
-from ...evidence.safety import sanitize_audit_details, sanitize_audit_value
+from ...contracts.audit_safety import sanitize_audit_details, sanitize_audit_value
 
 
 def _utcnow() -> datetime:

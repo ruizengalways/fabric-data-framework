@@ -25,7 +25,7 @@ from fabric_data_framework.control_plane.repository import ControlPlaneRepositor
 from fabric_data_framework.deployment.current_projection import (
     compile_current_projection_deployment,
 )
-from fabric_data_framework.evidence.safety import sanitize_audit_text
+from fabric_data_framework.contracts.audit_safety import sanitize_audit_text
 from fabric_data_framework.metadata.config import DatasetStatus, EffectiveDatasetConfig, RunMode
 
 

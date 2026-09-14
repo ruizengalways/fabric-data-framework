@@ -15,7 +15,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, Iterator, Mapping, Protocol, Sequence, runtime_checkable
 from uuid import UUID, uuid4
 
-from pydantic import Field
 from sqlalchemy import Engine
 
 from fabric_data_framework.adapters.cdc.delta_cdf import (
@@ -28,9 +27,12 @@ from fabric_data_framework.apply.current_projection import (
     apply_current_projection,
 )
 from fabric_data_framework.contracts.audit import MutationCounts
-from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.contracts.current_projection import (
     current_projection_checkpoint_partition,
+)
+from fabric_data_framework.contracts.current_projection_execution import (
+    CurrentProjectionExecutionError,
+    CurrentProjectionExecutionResult,
 )
 from fabric_data_framework.contracts.runtime import StateCommitGate
 from fabric_data_framework.capture.cdc import build_cdc_checkpoint
@@ -45,10 +47,6 @@ from fabric_data_framework.control_plane.dataset_lease import (
     acquire_dataset_lease,
     release_dataset_lease,
 )
-
-
-class CurrentProjectionExecutionError(RuntimeError):
-    pass
 
 
 @runtime_checkable
@@ -118,16 +116,6 @@ class InMemoryCurrentProjectionTarget:
             by_key[key] = row
         self._rows = tuple(deepcopy(by_key[key]) for key in sorted(by_key, key=repr))
         return result.mutations
-
-
-class CurrentProjectionExecutionResult(FrozenModel):
-    dataset_id: str = Field(min_length=1)
-    lower_processed_version: int | None = Field(default=None, ge=0)
-    upper_processed_version: int = Field(ge=0)
-    affected_keys: int = Field(ge=0)
-    mutations: MutationCounts
-    checkpoint_version: int = Field(ge=0)
-    no_work: bool = False
 
 
 ProjectionReconciliation = Callable[[CurrentProjectionApplyResult], bool]

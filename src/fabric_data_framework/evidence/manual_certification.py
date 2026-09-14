@@ -26,7 +26,7 @@ from fabric_data_framework.deployment.candidate_artifact import (
     load_candidate_artifact_manifest,
     sha256_file,
 )
-from fabric_data_framework.evidence.safety import assert_safe_retained_text
+from fabric_data_framework.contracts.audit_safety import assert_safe_retained_text
 
 
 MANUAL_CERTIFICATION_SCHEMA_VERSION = 1

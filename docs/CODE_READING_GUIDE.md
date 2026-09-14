@@ -53,7 +53,7 @@ The installable package lives under `src/fabric_data_framework/`.
 | Folder | Primary ownership |
 |---|---|
 | `metadata/` | DatasetConfig, execution metadata, effective config, capability resolution |
-| `contracts/` | stable immutable cross-layer contracts only |
+| `contracts/` | stable immutable cross-layer contracts and deterministic provider-neutral contract invariants |
 | `capture/` | source/capture fidelity, windows, events, onboarding |
 | `apply/` | target state/history transition semantics |
 | `quality/` | DQ, schema, quarantine, reconciliation |

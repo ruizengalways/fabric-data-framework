@@ -33,7 +33,7 @@ from fabric_data_framework.control_plane.io import (
     read_cdc_checkpoint,
 )
 from fabric_data_framework.deployment.current_projection import quote_spark_relation
-from fabric_data_framework.execution.current_projection import (
+from fabric_data_framework.contracts.current_projection_execution import (
     CurrentProjectionExecutionError,
     CurrentProjectionExecutionResult,
 )

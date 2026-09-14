@@ -41,7 +41,7 @@ from .planner import (
     ready_dataset_ids,
 )
 from ..control_plane.repository import ControlPlaneRepository
-from ..evidence.safety import sanitize_audit_text
+from ..contracts.audit_safety import sanitize_audit_text
 
 
 _PIPELINE_ERROR_MESSAGE_LIMIT = 4096
