@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 from sqlalchemy import Engine
@@ -34,6 +34,15 @@ class SparkAppendBatch:
     observations: tuple[ReconciliationObservation, ...] = ()
 
 
+@dataclass(frozen=True)
+class _AppendRunOutcome:
+    status: DatasetStatus
+    mutations: MutationCounts = field(default_factory=MutationCounts)
+    error_code: str | None = None
+    error_message: str | None = None
+    retryable: bool | None = None
+
+
 AppendBatchResolver = Callable[[DatasetDispatchRequest], SparkAppendBatch]
 
 
@@ -56,15 +65,14 @@ class FabricSparkAppendExecutor:
     def _record(
         self,
         request: DatasetDispatchRequest,
-        *,
-        status: DatasetStatus,
-        mutations: MutationCounts = MutationCounts(),
-        error_code: str | None = None,
-        error_message: str | None = None,
-        retryable: bool | None = None,
+        outcome: _AppendRunOutcome,
     ) -> DatasetDispatchOutcome:
         completed = utc_now()
-        safe_message = sanitize_audit_text(error_message) if error_message is not None else None
+        safe_message = (
+            sanitize_audit_text(outcome.error_message)
+            if outcome.error_message is not None
+            else None
+        )
         self._repository.record_dataset_run(
             DatasetRunAudit(
                 dataset_run_id=request.dataset_run_id,
@@ -72,21 +80,21 @@ class FabricSparkAppendExecutor:
                 dataset_id=request.dataset_id,
                 attempt=request.attempt,
                 run_mode=request.run_mode,
-                status=status,
+                status=outcome.status,
                 effective_config_hash=request.effective_config.effective_config_hash,
-                mutations=mutations,
-                error_code=error_code,
+                mutations=outcome.mutations,
+                error_code=outcome.error_code,
                 error_message=safe_message,
-                retryable=retryable,
+                retryable=outcome.retryable,
                 started_at=completed,
                 completed_at=completed,
             )
         )
         return DatasetDispatchOutcome(
             dataset_run_id=request.dataset_run_id,
-            status=status,
-            retryable=retryable,
-            error_code=error_code,
+            status=outcome.status,
+            retryable=outcome.retryable,
+            error_code=outcome.error_code,
             error_message=safe_message,
         )
 
@@ -95,18 +103,22 @@ class FabricSparkAppendExecutor:
         if config.load.apply_strategy is not ApplyStrategy.APPEND:
             return self._record(
                 request,
-                status=DatasetStatus.FAILED,
-                error_code="SPARK_APPEND_CONFIG_MISMATCH",
-                error_message="Fabric Spark APPEND executor received a non-APPEND dataset",
-                retryable=False,
+                _AppendRunOutcome(
+                    status=DatasetStatus.FAILED,
+                    error_code="SPARK_APPEND_CONFIG_MISMATCH",
+                    error_message="Fabric Spark APPEND executor received a non-APPEND dataset",
+                    retryable=False,
+                ),
             )
         if config.schema_contract is None:
             return self._record(
                 request,
-                status=DatasetStatus.FAILED,
-                error_code="SPARK_APPEND_SCHEMA_REQUIRED",
-                error_message="distributed APPEND requires an explicit schema_contract",
-                retryable=False,
+                _AppendRunOutcome(
+                    status=DatasetStatus.FAILED,
+                    error_code="SPARK_APPEND_SCHEMA_REQUIRED",
+                    error_message="distributed APPEND requires an explicit schema_contract",
+                    retryable=False,
+                ),
             )
 
         mutations = MutationCounts()
@@ -144,28 +156,32 @@ class FabricSparkAppendExecutor:
             if blocked:
                 return self._record(
                     request,
-                    status=DatasetStatus.FAILED,
-                    mutations=mutations,
-                    error_code="RECONCILIATION_FAILED",
-                    error_message=(
-                        "required APPEND reconciliation failed after idempotent target mutation; "
-                        "source/framework state must not advance"
+                    _AppendRunOutcome(
+                        status=DatasetStatus.FAILED,
+                        mutations=mutations,
+                        error_code="RECONCILIATION_FAILED",
+                        error_message=(
+                            "required APPEND reconciliation failed after idempotent target mutation; "
+                            "source/framework state must not advance"
+                        ),
                     ),
-                    retryable=None,
                 )
             return self._record(
                 request,
-                status=DatasetStatus.SUCCEEDED,
-                mutations=mutations,
+                _AppendRunOutcome(
+                    status=DatasetStatus.SUCCEEDED,
+                    mutations=mutations,
+                ),
             )
         except Exception as exc:
             return self._record(
                 request,
-                status=DatasetStatus.FAILED,
-                mutations=mutations,
-                error_code="FABRIC_SPARK_APPEND_FAILED",
-                error_message=f"{type(exc).__name__}: {exc}",
-                retryable=None,
+                _AppendRunOutcome(
+                    status=DatasetStatus.FAILED,
+                    mutations=mutations,
+                    error_code="FABRIC_SPARK_APPEND_FAILED",
+                    error_message=f"{type(exc).__name__}: {exc}",
+                ),
             )
 
 
