@@ -25,8 +25,8 @@ jobs:
           python scripts/_temporary_append_scalability_fix.py
       - name: Install development dependencies
         run: python -m pip install -e '.[dev]'
-      - name: Remove only mechanically unused imports
-        run: ruff check --fix --select F401 src tests
+      - name: Remove only mechanically stale or duplicate imports
+        run: ruff check --fix --select F401,F811 src tests
       - name: Verify static, types, focused behavior and complexity
         run: |
           ruff check src tests
