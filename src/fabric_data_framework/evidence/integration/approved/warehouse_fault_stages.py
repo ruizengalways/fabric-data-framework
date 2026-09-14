@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import Engine
@@ -173,6 +172,39 @@ class WarehouseFaultDrillTrace:
     assessment: WarehouseFaultAssessment
 
 
+@dataclass(frozen=True)
+class WarehouseFaultRuntime:
+    request: WarehouseFaultDrillRequest
+    services: WarehouseFaultDrillServices
+    preflight: WarehouseFaultPreflight
+    control_engine: Engine
+    warehouse_engine: Engine
+    marker_store: FabricWarehouseMarkerStore
+    plain_probe: FabricWarehouseTargetCommitProbe
+
+
+@dataclass(frozen=True)
+class FaultArmContext:
+    dataset_run_id: UUID
+    claim: TargetOperationClaim
+    fault_request: FabricWarehouseCommitFaultRequest
+    arm: FabricWarehouseCommitFaultArmEvidence
+
+
+@dataclass(frozen=True)
+class FaultResultContext:
+    check_id: str
+    intent: TargetOperationIntent
+    dataset_run_id: UUID
+    evidence_references: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class FaultEvaluation:
+    reentry_action: str | None
+    retry_eligible: bool
+
+
 def _require_prerequisites(
     spec: IntegrationEvidenceSpec,
     prerequisite_manifest: IntegrationEvidenceManifest,
@@ -314,30 +346,26 @@ def _fault_identity_matches(
 
 
 def _build_result(
+    context: FaultResultContext,
     *,
-    check_id: str,
     status: IntegrationEvidenceStatus,
-    intent: TargetOperationIntent,
-    dataset_run_id: UUID,
     native_operation_id: str | None,
-    evidence_references: tuple[str, ...],
     detail_code: str,
 ) -> IntegrationEvidenceCheckResult:
     assert_safe_retained_text(detail_code, "Warehouse fault drill detail code")
     return IntegrationEvidenceCheckResult(
-        check_id=check_id,
+        check_id=context.check_id,
         kind=IntegrationEvidenceCheckKind.FABRIC_WAREHOUSE_AMBIGUOUS_COMMIT_DRILL,
         status=status,
-        dataset_run_id=dataset_run_id,
-        operation_key=intent.operation_key,
+        dataset_run_id=context.dataset_run_id,
+        operation_key=context.intent.operation_key,
         native_operation_id=native_operation_id,
-        evidence_references=evidence_references,
+        evidence_references=context.evidence_references,
         detail=(
             "approved Warehouse ambiguous-COMMIT fault drill "
             f"{status.value}; reason={detail_code}"
         ),
     )
-
 
 def _atomic_from_committed_marker(
     marker_store: FabricWarehouseMarkerStore,
@@ -520,16 +548,9 @@ def _arm_fault(
 
 
 def _execute_faulted_mutation(
-    marker_store: FabricWarehouseMarkerStore,
+    runtime: WarehouseFaultRuntime,
     injector: FabricWarehouseCommitFaultInjector,
-    *,
-    request: WarehouseFaultDrillRequest,
-    services: WarehouseFaultDrillServices,
-    preflight: WarehouseFaultPreflight,
-    claim: TargetOperationClaim,
-    dataset_run_id: UUID,
-    fault_request: FabricWarehouseCommitFaultRequest,
-    arm: FabricWarehouseCommitFaultArmEvidence,
+    arm_context: FaultArmContext,
 ) -> FaultMutationOutcome:
     session_binding: FabricWarehouseSessionBinding | None = None
     session_binding_capture_exception_type: str | None = None
@@ -537,27 +558,27 @@ def _execute_faulted_mutation(
     def mutation(connection, observed_intent):
         nonlocal session_binding, session_binding_capture_exception_type
         if (
-            request.run_config.enable_session_termination_recovery
+            runtime.request.run_config.enable_session_termination_recovery
             and session_binding is None
         ):
             try:
-                session_binding = services.session_binding_capture(connection)
+                session_binding = runtime.services.session_binding_capture(connection)
             except Exception as exc:
                 session_binding_capture_exception_type = type(exc).__name__
                 raise
-        return preflight.mutation_extension(
+        return runtime.preflight.mutation_extension(
             connection,
             observed_intent,
-            request.run_config.mutation_payload,
+            runtime.request.run_config.mutation_payload,
         )
 
     atomic_result: FabricWarehouseAtomicMutationResult | None = None
     execution_exception_type: str | None = None
     disarm_exception_type: str | None = None
     try:
-        atomic_result = marker_store.execute_atomic(
-            intent=preflight.intent,
-            dataset_run_id=dataset_run_id,
+        atomic_result = runtime.marker_store.execute_atomic(
+            intent=runtime.preflight.intent,
+            dataset_run_id=arm_context.dataset_run_id,
             attempt=1,
             mutation=mutation,
         )
@@ -565,22 +586,21 @@ def _execute_faulted_mutation(
         execution_exception_type = type(exc).__name__
     finally:
         try:
-            injector.disarm(fault_request)
+            injector.disarm(arm_context.fault_request)
         except Exception as exc:
             disarm_exception_type = type(exc).__name__
 
     return FaultMutationOutcome(
-        dataset_run_id=dataset_run_id,
-        claim=claim,
-        fault_request=fault_request,
-        arm=arm,
+        dataset_run_id=arm_context.dataset_run_id,
+        claim=arm_context.claim,
+        fault_request=arm_context.fault_request,
+        arm=arm_context.arm,
         atomic_result=atomic_result,
         session_binding=session_binding,
         session_binding_capture_exception_type=session_binding_capture_exception_type,
         execution_exception_type=execution_exception_type,
         disarm_exception_type=disarm_exception_type,
     )
-
 
 def _mark_unknown_and_probe(
     control_engine: Engine,
@@ -680,18 +700,17 @@ def _session_recovery_eligible(
 
 
 def _recover_session(
-    control_engine: Engine,
-    marker_store: FabricWarehouseMarkerStore,
-    plain_probe: FabricWarehouseTargetCommitProbe,
-    *,
-    request: WarehouseFaultDrillRequest,
-    services: WarehouseFaultDrillServices,
-    preflight: WarehouseFaultPreflight,
+    runtime: WarehouseFaultRuntime,
     mutation: FaultMutationOutcome,
     probe: FaultProbeOutcome,
     verification: FaultVerificationOutcome,
 ) -> SessionRecoveryOutcome:
-    if not _session_recovery_eligible(request, mutation, probe, verification):
+    if not _session_recovery_eligible(
+        runtime.request,
+        mutation,
+        probe,
+        verification,
+    ):
         return SessionRecoveryOutcome(
             probe_evidence=probe.probe_evidence,
             record=probe.record,
@@ -703,12 +722,14 @@ def _recover_session(
 
     admin_engine: Engine | None = None
     try:
-        admin_env_var = request.config.warehouse_admin_database_url_env_var
+        admin_env_var = runtime.request.config.warehouse_admin_database_url_env_var
         assert admin_env_var is not None
         # Read Admin credentials only after the exact unresolved verified-fault gate.
-        admin_database_url = request.environ[admin_env_var]
-        admin_engine = services.warehouse_admin_engine_factory(admin_database_url)
-        authority = services.session_authority_factory(admin_engine)
+        admin_database_url = runtime.request.environ[admin_env_var]
+        admin_engine = runtime.services.warehouse_admin_engine_factory(
+            admin_database_url
+        )
+        authority = runtime.services.session_authority_factory(admin_engine)
         if not isinstance(authority, FabricWarehouseSessionAuthority):
             raise TypeError(
                 "Warehouse session authority factory returned an invalid controller"
@@ -717,15 +738,15 @@ def _recover_session(
         absence_certifier = FabricWarehouseSessionTerminationAbsenceCertifier(
             binding=mutation.session_binding,
             authority=authority,
-            marker_store=marker_store,
+            marker_store=runtime.marker_store,
         )
         recovery_probe = FabricWarehouseTargetCommitProbe(
-            marker_store=marker_store,
+            marker_store=runtime.marker_store,
             absence_certifier=absence_certifier,
         )
         recovered = probe_and_reconcile_target_operation(
-            control_engine,
-            operation_key=preflight.intent.operation_key,
+            runtime.control_engine,
+            operation_key=runtime.preflight.intent.operation_key,
             dataset_run_id=uuid4(),
             attempt=max(2, probe.record.attempt + 1),
             probe=recovery_probe,
@@ -745,11 +766,11 @@ def _recover_session(
             and record.status is TargetOperationStatus.UNKNOWN
         ):
             final_probe = probe_and_reconcile_target_operation(
-                control_engine,
-                operation_key=preflight.intent.operation_key,
+                runtime.control_engine,
+                operation_key=runtime.preflight.intent.operation_key,
                 dataset_run_id=uuid4(),
                 attempt=max(2, record.attempt + 1),
-                probe=plain_probe,
+                probe=runtime.plain_probe,
             )
             probe_evidence = final_probe.evidence
             record = final_probe.record
@@ -758,8 +779,8 @@ def _recover_session(
                 and probe_evidence.resolution is UnknownOutcomeResolution.COMMITTED
             ):
                 atomic_result = _atomic_from_committed_marker(
-                    marker_store,
-                    preflight.intent,
+                    runtime.marker_store,
+                    runtime.preflight.intent,
                 )
         return SessionRecoveryOutcome(
             probe_evidence=probe_evidence,
@@ -782,7 +803,6 @@ def _recover_session(
         if admin_engine is not None:
             admin_engine.dispose()
 
-
 def _claim_reentry(
     control_engine: Engine,
     *,
@@ -800,14 +820,9 @@ def _claim_reentry(
     return reentry.action.value
 
 
-def _failure_reason(
-    request: WarehouseFaultDrillRequest,
+def _execution_failure_reason(
     mutation: FaultMutationOutcome,
     verification: FaultVerificationOutcome,
-    recovery: SessionRecoveryOutcome,
-    *,
-    reentry_action: str | None,
-    retry_eligible: bool,
 ) -> str | None:
     if mutation.session_binding_capture_exception_type is not None:
         return "SESSION_BINDING_CAPTURE_FAILED"
@@ -821,12 +836,21 @@ def _failure_reason(
         return "FAULT_NOT_VERIFIED"
     if not verification.identity_matches:
         return "FAULT_IDENTITY_MISMATCH"
+    return None
+
+
+def _recovery_failure_reason(
+    runtime: WarehouseFaultRuntime,
+    mutation: FaultMutationOutcome,
+    recovery: SessionRecoveryOutcome,
+    evaluation: FaultEvaluation,
+) -> str | None:
     if recovery.exception_type is not None:
         return "SESSION_TERMINATION_RECOVERY_FAILED"
-    if retry_eligible and recovery.absence_safe_to_retry:
+    if evaluation.retry_eligible and recovery.absence_safe_to_retry:
         return "SAFE_NOT_COMMITTED_AFTER_SESSION_TERMINATION"
     if (
-        request.run_config.enable_session_termination_recovery
+        runtime.request.run_config.enable_session_termination_recovery
         and recovery.probe_evidence.resolution is UnknownOutcomeResolution.UNRESOLVED
         and mutation.session_binding is None
     ):
@@ -835,26 +859,45 @@ def _failure_reason(
         return f"MARKER_{recovery.probe_evidence.resolution.value}"
     if recovery.record.status is not TargetOperationStatus.SUCCEEDED:
         return f"FINAL_{recovery.record.status.value}"
-    if reentry_action != TargetOperationAction.SKIP_SUCCEEDED.value:
+    if evaluation.reentry_action != TargetOperationAction.SKIP_SUCCEEDED.value:
         return "REENTRY_NOT_SKIP_SUCCEEDED"
     return None
 
 
+def _failure_reason(
+    runtime: WarehouseFaultRuntime,
+    mutation: FaultMutationOutcome,
+    verification: FaultVerificationOutcome,
+    recovery: SessionRecoveryOutcome,
+    evaluation: FaultEvaluation,
+) -> str | None:
+    execution_failure = _execution_failure_reason(mutation, verification)
+    if execution_failure is not None:
+        return execution_failure
+    return _recovery_failure_reason(
+        runtime,
+        mutation,
+        recovery,
+        evaluation,
+    )
+
 def _assess(
-    control_engine: Engine,
-    *,
-    request: WarehouseFaultDrillRequest,
-    preflight: WarehouseFaultPreflight,
+    runtime: WarehouseFaultRuntime,
     mutation: FaultMutationOutcome,
     verification: FaultVerificationOutcome,
     recovery: SessionRecoveryOutcome,
 ) -> WarehouseFaultAssessment:
     reentry_action = _claim_reentry(
-        control_engine,
-        preflight=preflight,
+        runtime.control_engine,
+        preflight=runtime.preflight,
         record=recovery.record,
     )
-    retry_eligible = recovery.record.status is TargetOperationStatus.NOT_COMMITTED
+    evaluation = FaultEvaluation(
+        reentry_action=reentry_action,
+        retry_eligible=(
+            recovery.record.status is TargetOperationStatus.NOT_COMMITTED
+        ),
+    )
     passed = (
         mutation.execution_exception_type is not None
         and mutation.session_binding_capture_exception_type is None
@@ -864,19 +907,19 @@ def _assess(
         and verification.identity_matches
         and recovery.probe_evidence.resolution is UnknownOutcomeResolution.COMMITTED
         and recovery.record.status is TargetOperationStatus.SUCCEEDED
-        and reentry_action == TargetOperationAction.SKIP_SUCCEEDED.value
+        and evaluation.reentry_action
+        == TargetOperationAction.SKIP_SUCCEEDED.value
         and recovery.atomic_result is not None
     )
     failure_reason = _failure_reason(
-        request,
+        runtime,
         mutation,
         verification,
         recovery,
-        reentry_action=reentry_action,
-        retry_eligible=retry_eligible,
+        evaluation,
     )
     references = _dedupe_references(
-        preflight.references,
+        runtime.preflight.references,
         (mutation.arm.evidence_reference,),
         (
             verification.verification.evidence_reference
@@ -906,12 +949,11 @@ def _assess(
             else IntegrationEvidenceStatus.FAIL
         ),
         failure_reason=failure_reason,
-        reentry_action=reentry_action,
-        retry_eligible=retry_eligible,
+        reentry_action=evaluation.reentry_action,
+        retry_eligible=evaluation.retry_eligible,
         references=references,
         native_operation_id=native_operation_id,
     )
-
 
 def _report_from_trace(
     request: WarehouseFaultDrillRequest,
@@ -1006,32 +1048,26 @@ def _report_from_trace(
 
 
 def _fault_not_armed(
-    control_engine: Engine,
-    *,
-    request: WarehouseFaultDrillRequest,
-    preflight: WarehouseFaultPreflight,
-    dataset_run_id: UUID,
-    claim: TargetOperationClaim,
-    fault_request: FabricWarehouseCommitFaultRequest,
-    arm: FabricWarehouseCommitFaultArmEvidence,
+    runtime: WarehouseFaultRuntime,
+    arm_context: FaultArmContext,
 ) -> tuple[IntegrationEvidenceCheckResult, ApprovedWarehouseFaultDrillReport]:
     current = mark_target_operation_not_committed(
-        control_engine,
-        operation_key=preflight.intent.operation_key,
-        expected_version=claim.record.version,
-        dataset_run_id=dataset_run_id,
+        runtime.control_engine,
+        operation_key=runtime.preflight.intent.operation_key,
+        expected_version=arm_context.claim.record.version,
+        dataset_run_id=arm_context.dataset_run_id,
         attempt=1,
-        outcome_reference=arm.evidence_reference,
+        outcome_reference=arm_context.arm.evidence_reference,
     )
     retained = _dedupe_references(
-        preflight.references,
-        (arm.evidence_reference,),
+        runtime.preflight.references,
+        (arm_context.arm.evidence_reference,),
     )
     mutation = FaultMutationOutcome(
-        dataset_run_id=dataset_run_id,
-        claim=claim,
-        fault_request=fault_request,
-        arm=arm,
+        dataset_run_id=arm_context.dataset_run_id,
+        claim=arm_context.claim,
+        fault_request=arm_context.fault_request,
+        arm=arm_context.arm,
         atomic_result=None,
         session_binding=None,
         session_binding_capture_exception_type=None,
@@ -1053,20 +1089,23 @@ def _fault_not_armed(
         recovery=None,
         assessment=assessment,
     )
-    report = _report_from_trace(request, preflight, trace).model_copy(
-        update={"final_status": current.status}
-    )
+    report = _report_from_trace(
+        runtime.request,
+        runtime.preflight,
+        trace,
+    ).model_copy(update={"final_status": current.status})
     result = _build_result(
-        check_id=request.run_config.check_id,
+        FaultResultContext(
+            check_id=runtime.request.run_config.check_id,
+            intent=runtime.preflight.intent,
+            dataset_run_id=arm_context.dataset_run_id,
+            evidence_references=retained,
+        ),
         status=IntegrationEvidenceStatus.FAIL,
-        intent=preflight.intent,
-        dataset_run_id=dataset_run_id,
         native_operation_id=None,
-        evidence_references=retained,
         detail_code="FAULT_NOT_ARMED",
     )
     return result, report
-
 
 def _run_one(
     request: WarehouseFaultDrillRequest,
@@ -1089,6 +1128,15 @@ def _run_one(
             request.run_config,
         )
         plain_probe = FabricWarehouseTargetCommitProbe(marker_store=marker_store)
+        runtime = WarehouseFaultRuntime(
+            request=request,
+            services=services,
+            preflight=preflight,
+            control_engine=control_engine,
+            warehouse_engine=warehouse_engine,
+            marker_store=marker_store,
+            plain_probe=plain_probe,
+        )
         claim = _claim_fresh_operation(
             control_engine,
             preflight,
@@ -1097,12 +1145,14 @@ def _run_one(
         if claim.action is not TargetOperationAction.EXECUTE:
             return (
                 _build_result(
-                    check_id=request.run_config.check_id,
+                    FaultResultContext(
+                        check_id=request.run_config.check_id,
+                        intent=preflight.intent,
+                        dataset_run_id=dataset_run_id,
+                        evidence_references=preflight.references,
+                    ),
                     status=IntegrationEvidenceStatus.FAIL,
-                    intent=preflight.intent,
-                    dataset_run_id=dataset_run_id,
                     native_operation_id=None,
-                    evidence_references=preflight.references,
                     detail_code=f"FRESH_EXECUTE_REQUIRED_{claim.action.value}",
                 ),
                 None,
@@ -1115,27 +1165,19 @@ def _run_one(
             preflight=preflight,
             fault_request=fault_request,
         )
-        if not arm.armed:
-            return _fault_not_armed(
-                control_engine,
-                request=request,
-                preflight=preflight,
-                dataset_run_id=dataset_run_id,
-                claim=claim,
-                fault_request=fault_request,
-                arm=arm,
-            )
-
-        mutation = _execute_faulted_mutation(
-            marker_store,
-            injector,
-            request=request,
-            services=services,
-            preflight=preflight,
-            claim=claim,
+        arm_context = FaultArmContext(
             dataset_run_id=dataset_run_id,
+            claim=claim,
             fault_request=fault_request,
             arm=arm,
+        )
+        if not arm.armed:
+            return _fault_not_armed(runtime, arm_context)
+
+        mutation = _execute_faulted_mutation(
+            runtime,
+            injector,
+            arm_context,
         )
         probe = _mark_unknown_and_probe(
             control_engine,
@@ -1150,23 +1192,16 @@ def _run_one(
             probe=probe,
         )
         recovery = _recover_session(
-            control_engine,
-            marker_store,
-            plain_probe,
-            request=request,
-            services=services,
-            preflight=preflight,
-            mutation=mutation,
-            probe=probe,
-            verification=verification,
+            runtime,
+            mutation,
+            probe,
+            verification,
         )
         assessment = _assess(
-            control_engine,
-            request=request,
-            preflight=preflight,
-            mutation=mutation,
-            verification=verification,
-            recovery=recovery,
+            runtime,
+            mutation,
+            verification,
+            recovery,
         )
         trace = WarehouseFaultDrillTrace(
             mutation=mutation,
@@ -1177,12 +1212,14 @@ def _run_one(
         )
         report = _report_from_trace(request, preflight, trace)
         result = _build_result(
-            check_id=request.run_config.check_id,
+            FaultResultContext(
+                check_id=request.run_config.check_id,
+                intent=preflight.intent,
+                dataset_run_id=dataset_run_id,
+                evidence_references=assessment.references,
+            ),
             status=assessment.status,
-            intent=preflight.intent,
-            dataset_run_id=dataset_run_id,
             native_operation_id=assessment.native_operation_id,
-            evidence_references=assessment.references,
             detail_code=(
                 assessment.failure_reason
                 or "REAL_FAULT_COMMITTED_RECOVERED"
@@ -1192,7 +1229,6 @@ def _run_one(
     finally:
         warehouse_engine.dispose()
         control_engine.dispose()
-
 
 def execute_approved_warehouse_fault_drill_staged(
     request: WarehouseFaultDrillRequest,
