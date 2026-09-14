@@ -18,6 +18,24 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.13'
+      - name: Verify generator payload identity
+        run: |
+          python - <<'PY'
+          import ast
+          import hashlib
+          from pathlib import Path
+
+          module = ast.parse(Path('tools/apply_unified_refactor.py').read_text())
+          values = {}
+          for node in module.body:
+              if isinstance(node, ast.Assign):
+                  for target in node.targets:
+                      if isinstance(target, ast.Name) and target.id in {'UNIFIED', 'STAGES_PARTS'}:
+                          values[target.id] = ast.literal_eval(node.value)
+          print('UNIFIED', len(values['UNIFIED']), hashlib.sha256(values['UNIFIED'].encode()).hexdigest())
+          for index, part in enumerate(values['STAGES_PARTS']):
+              print('STAGES', index, len(part), hashlib.sha256(part.encode()).hexdigest())
+          PY
       - name: Apply unified certification refactor
         run: python tools/apply_unified_refactor.py
       - name: Install development dependencies
