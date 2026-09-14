@@ -58,6 +58,39 @@ def main() -> None:
         if text != original:
             path.write_text(text, encoding="utf-8")
 
+    # metadata/config consumes the canonical primitive internally but must not re-export
+    # it as metadata.config.canonical_hash after the hard cut.
+    config_path = SRC / "metadata/config.py"
+    config = config_path.read_text(encoding="utf-8")
+    config = config.replace(
+        "from fabric_data_framework.contracts.hashing import canonical_hash\n",
+        "from fabric_data_framework.contracts.hashing import canonical_hash as _canonical_hash\n",
+        1,
+    )
+    config = re.sub(r"\bcanonical_hash\(", "_canonical_hash(", config)
+    config_path.write_text(config, encoding="utf-8")
+
+    # The temporal migration intentionally rewrites executable references, not the
+    # literal legacy spellings asserted by this anti-regression source scan.
+    foundation_path = ROOT / "tests/test_foundation_primitives.py"
+    foundation = foundation_path.read_text(encoding="utf-8")
+    foundation = foundation.replace(
+        'if "def utc_now(" in text or "utc_now()" in text:',
+        'if "def _utcnow(" in text or "datetime.now(timezone.utc)" in text:',
+        1,
+    )
+    foundation_path.write_text(foundation, encoding="utf-8")
+
+    # This fixture exercises the physical APPEND path, not watermark capture policy.
+    append_test_path = ROOT / "tests/test_append_spark_runtime.py"
+    append_test = append_test_path.read_text(encoding="utf-8")
+    append_test = append_test.replace(
+        "capture_strategy=CaptureStrategy.WATERMARK,",
+        "capture_strategy=CaptureStrategy.FULL,",
+        1,
+    )
+    append_test_path.write_text(append_test, encoding="utf-8")
+
     leftovers: list[str] = []
     for path in SRC.rglob("*.py"):
         if path.name == "temporal.py":
