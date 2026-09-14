@@ -20,7 +20,9 @@ jobs:
         with:
           python-version: '3.13'
       - name: Apply hard cut and documentation updates
-        run: python scripts/_temporary_append_scalability_refactor.py
+        run: |
+          python scripts/_temporary_append_scalability_refactor.py
+          python scripts/_temporary_append_scalability_fix.py
       - name: Install development dependencies
         run: python -m pip install -e '.[dev]'
       - name: Remove only mechanically unused imports
@@ -51,6 +53,7 @@ jobs:
       - name: Commit staged refactor
         run: |
           rm -f scripts/_temporary_append_scalability_refactor.py
+          rm -f scripts/_temporary_append_scalability_fix.py
           rm -f .github/workflows/append-scalability-refactor.yml
           rm -rf src/fabric_data_framework.egg-info
           find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
