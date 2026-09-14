@@ -366,6 +366,9 @@ src/fabric_data_framework/certification/semantic.py
 src/fabric_data_framework/certification/bounded.py
 src/fabric_data_framework/certification/simple.py
 src/fabric_data_framework/certification/unified.py
+src/fabric_data_framework/certification/unified_stages.py
+src/fabric_data_framework/evidence/integration/approved/warehouse_fault.py
+src/fabric_data_framework/evidence/integration/approved/warehouse_fault_stages.py
 ```
 
 Proof levels are not interchangeable:
