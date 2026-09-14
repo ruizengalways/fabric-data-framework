@@ -7,7 +7,7 @@ values stay process-local.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from typing import Literal
 
@@ -71,14 +71,9 @@ class UnifiedCertificationReport(FrozenModel):
         return self.overall_status is CertificationOverallStatus.PASS
 
 
-def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
 __all__ = [
     "CertificationCheckResult",
     "CertificationCheckStatus",
     "CertificationOverallStatus",
     "UnifiedCertificationReport",
-    "utcnow",
 ]

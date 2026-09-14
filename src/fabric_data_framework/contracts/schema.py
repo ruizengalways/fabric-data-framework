@@ -7,9 +7,9 @@ a runtime engine's automatic schema-merging behavior.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.hashing import canonical_hash
+
 from enum import Enum
-import hashlib
-import json
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -82,13 +82,7 @@ class SchemaShape(FrozenSchemaModel):
 
     @property
     def fingerprint(self) -> str:
-        encoded = json.dumps(
-            self.canonical_definition(),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-        ).encode("utf-8")
-        return hashlib.sha256(encoded).hexdigest()
+        return canonical_hash(self.canonical_definition())
 
 
 class SchemaContract(SchemaShape):

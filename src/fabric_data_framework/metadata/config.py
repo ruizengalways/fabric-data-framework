@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import require_aware_datetime, utc_now
+
+from fabric_data_framework.contracts.hashing import canonical_hash as _canonical_hash
+
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
-import hashlib
 import json
-from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
@@ -466,7 +468,7 @@ class DatasetConfig(_FrozenModel):
 
     @property
     def config_hash(self) -> str:
-        return canonical_hash(self.model_dump(mode="json"))
+        return _canonical_hash(self.model_dump(mode="json"))
 
 
 class OverrideField(str, Enum):
@@ -498,15 +500,6 @@ _POSITIVE_INT_OVERRIDE_FIELDS = {
 }
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _require_aware(value: datetime, field_name: str) -> None:
-    if value.tzinfo is None or value.utcoffset() is None:
-        raise ValueError(f"{field_name} must be timezone-aware")
-
-
 class RuntimeOverride(_FrozenModel):
     override_id: UUID = Field(default_factory=uuid4)
     dataset_id: str = Field(min_length=1)
@@ -514,18 +507,18 @@ class RuntimeOverride(_FrozenModel):
     value: bool | int
     reason: str = Field(min_length=1)
     requested_by: str = Field(min_length=1)
-    created_at: datetime = Field(default_factory=_utcnow)
-    valid_from: datetime = Field(default_factory=_utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    valid_from: datetime = Field(default_factory=utc_now)
     valid_to: datetime | None = None
     precedence: int = Field(default=0, ge=0)
     enabled: bool = True
 
     @model_validator(mode="after")
     def validate_override(self) -> "RuntimeOverride":
-        _require_aware(self.created_at, "created_at")
-        _require_aware(self.valid_from, "valid_from")
+        require_aware_datetime(self.created_at, "created_at")
+        require_aware_datetime(self.valid_from, "valid_from")
         if self.valid_to is not None:
-            _require_aware(self.valid_to, "valid_to")
+            require_aware_datetime(self.valid_to, "valid_to")
             if self.valid_to <= self.valid_from:
                 raise ValueError("valid_to must be after valid_from")
 
@@ -541,7 +534,7 @@ class RuntimeOverride(_FrozenModel):
         return self
 
     def is_active(self, at: datetime) -> bool:
-        _require_aware(at, "at")
+        require_aware_datetime(at, "at")
         return self.enabled and self.valid_from <= at and (
             self.valid_to is None or at < self.valid_to
         )
@@ -556,17 +549,6 @@ class EffectiveDatasetConfig(_FrozenModel):
 
 class OverrideConflictError(ValueError):
     """Raised when equally-precedent active overrides disagree."""
-
-
-def canonical_hash(payload: Any) -> str:
-    encoded = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        default=str,
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def _select_overrides(
@@ -639,8 +621,8 @@ def resolve_effective_config(
 ) -> EffectiveDatasetConfig:
     """Resolve audited operational overrides into one immutable execution snapshot."""
 
-    evaluation_time = as_of or _utcnow()
-    _require_aware(evaluation_time, "as_of")
+    evaluation_time = as_of or utc_now()
+    require_aware_datetime(evaluation_time, "as_of")
     selected = _select_overrides(config, overrides, evaluation_time)
     effective = config
     for override in selected:

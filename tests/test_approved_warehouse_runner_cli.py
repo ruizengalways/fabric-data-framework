@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,8 +18,7 @@ from fabric_data_framework.metadata.config import (
     OrchestrationPolicy,
     ReconciliationPolicy,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 from fabric_data_framework.deployment.delivery import build_release_manifest
 from fabric_data_framework.contracts.environment import EnvironmentName
 from fabric_data_framework.evidence.integration.evidence import (
@@ -185,7 +185,7 @@ def test_warehouse_cli_routes_exact_inputs_and_writes_report_and_manifest(tmp_pa
     paths, config_dir, spec, warehouse = _artifacts(tmp_path)
     output = tmp_path / "warehouse-partial.json"
     report = tmp_path / "warehouse-report.json"
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     expected = IntegrationEvidenceManifest(
         environment=spec.environment,
         domain=spec.domain,

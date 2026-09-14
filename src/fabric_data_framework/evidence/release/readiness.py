@@ -7,7 +7,9 @@ framework version, candidate git SHA, candidate wheel SHA256 and integration-inp
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import datetime
 from enum import Enum
 import json
 from pathlib import Path
@@ -165,10 +167,6 @@ class ReleaseReadinessReport(FrozenModel):
         return self
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
 def _missing_result(gate: ReleaseReadinessGateSpec) -> ReleaseReadinessGateResult:
     return ReleaseReadinessGateResult(
         gate_id=gate.gate_id,
@@ -235,7 +233,7 @@ def evaluate_release_readiness(
     artifact_sha256: str | None = None,
     proofs: ReleaseReadinessProofBundle | None = None,
     integration_evidence: IntegrationEvidenceManifest | None = None,
-    now=_utcnow,
+    now=utc_now,
 ) -> ReleaseReadinessReport:
     """Evaluate an exact release candidate without inferring missing evidence."""
 

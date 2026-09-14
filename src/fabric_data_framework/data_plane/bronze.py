@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -15,7 +17,7 @@ class FrozenModel(BaseModel):
 
 class BronzeRecord(FrozenModel):
     data: dict[str, Any]
-    ingested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    ingested_at: datetime = Field(default_factory=lambda: utc_now())
     run_id: UUID
     dataset_run_id: UUID
     source_system: str

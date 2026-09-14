@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
 from uuid import uuid4
 
 from sqlalchemy import Column, Integer, MetaData, String, Table, create_engine, select
@@ -27,7 +28,7 @@ from fabric_data_framework.contracts.target_operation import (
 def _control_plane():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     apply_baseline_schema(engine)
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     with engine.begin() as connection:
         connection.execute(
             dataset.insert().values(

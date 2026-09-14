@@ -12,7 +12,9 @@ must never promote SQLite to a production-certified control plane.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Callable
@@ -158,7 +160,7 @@ class ControlPlaneCertificationReport(FrozenModel):
     schema_version: int
     conformance_requested: bool
     checks: tuple[ControlPlaneCertificationCheck, ...]
-    evaluated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    evaluated_at: datetime = Field(default_factory=lambda: utc_now())
 
     @computed_field
     @property
@@ -259,7 +261,7 @@ def _run_probe(
 
 def _transaction_rollback_probe(engine: Engine) -> str:
     marker = f"__cert_tx_{uuid4().hex}"
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     with engine.connect() as connection:
         transaction = connection.begin()
         connection.execute(
@@ -292,7 +294,7 @@ def _transaction_rollback_probe(engine: Engine) -> str:
 
 
 def _seed_certification_dataset(engine: Engine, dataset_id: str) -> None:
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     with engine.begin() as connection:
         connection.execute(
             dataset.insert().values(

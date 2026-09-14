@@ -7,6 +7,8 @@ must follow a successful physical transition.  It never silently resets progress
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID, uuid4
@@ -43,7 +45,7 @@ class CurrentProjectionTransitionEvent(FrozenModel):
     checkpoint_version_before: int | None = Field(default=None, ge=1)
     checkpoint_reset: bool = False
     detail: str | None = None
-    occurred_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    occurred_at: datetime = Field(default_factory=lambda: utc_now())
 
     @model_validator(mode="after")
     def validate_event(self) -> "CurrentProjectionTransitionEvent":

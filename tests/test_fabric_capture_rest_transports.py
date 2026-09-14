@@ -26,8 +26,7 @@ from fabric_data_framework.adapters.fabric.rest import (
 from fabric_data_framework.metadata.config import (
     CaptureStrategy,
     ExecutionEngine,
-    ProgressOwner,
-)
+    ProgressOwner,)
 from fabric_data_framework.contracts.execution_plan import (
     ExecutionKind,
     ExecutionRole,

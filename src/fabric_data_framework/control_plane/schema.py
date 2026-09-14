@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
 
 from sqlalchemy import (
     JSON,
@@ -649,7 +650,7 @@ def apply_baseline_schema(engine: Engine) -> int:
     inspector = inspect(engine)
     if not inspector.has_table(schema_migration_history.name):
         metadata.create_all(engine, checkfirst=True)
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         with engine.begin() as connection:
             for version, name in CONTROL_PLANE_MIGRATIONS:
                 connection.execute(
@@ -674,7 +675,7 @@ def apply_baseline_schema(engine: Engine) -> int:
 
     pending = [item for item in CONTROL_PLANE_MIGRATIONS if item[0] > current]
     if pending:
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         with engine.begin() as connection:
             for version, name in pending:
                 _apply_migration(connection, version)

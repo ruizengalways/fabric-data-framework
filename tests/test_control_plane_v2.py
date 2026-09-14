@@ -16,8 +16,7 @@ from fabric_data_framework.metadata.config import (
     ProgressOwner,
     ReconciliationPolicy,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 from fabric_data_framework.control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
     ENVIRONMENT_LOCAL_STATE_TABLES,

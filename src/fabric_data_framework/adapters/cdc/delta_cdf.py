@@ -14,6 +14,8 @@ the earliest surviving CDF version.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.hashing import canonical_hash
+
 from collections import defaultdict
 from datetime import datetime
 from enum import Enum
@@ -30,7 +32,6 @@ from ...capture.cdc import (
     build_cdc_checkpoint,
     normalize_cdc_batch,
 )
-from fabric_data_framework.metadata.config import canonical_hash
 from fabric_data_framework.contracts.base import FrozenModel
 
 

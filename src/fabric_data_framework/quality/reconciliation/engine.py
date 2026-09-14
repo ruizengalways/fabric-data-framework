@@ -25,8 +25,7 @@ from fabric_data_framework.contracts.reconciliation import (
 from fabric_data_framework.metadata.config import (
     ReconciliationCheck,
     ReconciliationCheckKind,
-    ReconciliationPolicy,
-)
+    ReconciliationPolicy,)
 
 
 class ReconciliationEvaluationError(ValueError):

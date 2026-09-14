@@ -15,8 +15,7 @@ from fabric_data_framework.metadata.config import (
     PipelineStatus,
     ReconciliationPolicy,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 from fabric_data_framework.contracts.dispatch import DatasetDispatchOutcome
 from fabric_data_framework.orchestration.dispatcher import (
     OrchestrationIntegrityError,

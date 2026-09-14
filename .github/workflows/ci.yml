@@ -36,15 +36,18 @@ jobs:
           python -m pip check
       - name: Refactored coordinator complexity ratchet
         run: |
-          # Keep the readability refactor from regressing without forcing unrelated
-          # legacy modules into a repository-wide cleanup. Stable public facades may
-          # carry a narrowly scoped PLR0913 noqa; extracted internal stages may not.
+          # Keep the readability/scalability refactors from regressing without forcing
+          # unrelated legacy modules into a repository-wide cleanup. Stable public
+          # facades may carry a narrowly scoped PLR0913 noqa; extracted internals may not.
           ruff check --isolated --select C901,PLR0913,PLR0915 \
             src/fabric_data_framework/certification/unified.py \
             src/fabric_data_framework/certification/unified_stages.py \
             src/fabric_data_framework/evidence/integration/approved/warehouse_fault.py \
             src/fabric_data_framework/evidence/integration/approved/warehouse_fault_stages.py \
-            src/fabric_data_framework/adapters/fabric/current_projection.py
+            src/fabric_data_framework/adapters/fabric/current_projection.py \
+            src/fabric_data_framework/adapters/fabric/append.py \
+            src/fabric_data_framework/execution/backends/fabric_spark_append.py \
+            src/fabric_data_framework/execution/backends/fabric_spark_dataset.py
       - name: Focused type checks
         run: |
           mypy \

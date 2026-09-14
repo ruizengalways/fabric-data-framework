@@ -12,7 +12,9 @@ The normal evidence-based ``candidate-certification`` path remains unchanged.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import datetime
 from enum import Enum
 from importlib.metadata import PackageNotFoundError, version as package_version
 import json
@@ -141,10 +143,6 @@ class ManualCertificationRecord(FrozenModel):
         return self
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
 def _installed_framework_version() -> str:
     try:
         return package_version("fabric-data-framework")
@@ -224,7 +222,7 @@ def create_manual_certification_record(
     override_reason: str | None = None,
     request_release_authorization: bool = False,
     mode: ManualCertificationMode = ManualCertificationMode.NOTEBOOK,
-    now=_utcnow,
+    now=utc_now,
 ) -> ManualCertificationRecord:
     """Create a traceable notebook/manual certification record.
 

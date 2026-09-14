@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import require_aware_datetime, utc_now
+
+
+from datetime import datetime
 from enum import Enum
 import math
 from typing import Any
@@ -15,15 +18,6 @@ from .base import FrozenModel
 
 ReconciliationValue = str | int | float | bool
 PartitionValue = str | int | float | bool | None
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _require_aware(value: datetime, field_name: str) -> None:
-    if value.tzinfo is None or value.utcoffset() is None:
-        raise ValueError(f"{field_name} must be timezone-aware")
 
 
 def _require_finite(value: ReconciliationValue | None, field_name: str) -> None:
@@ -102,11 +96,11 @@ class ReconciliationResult(FrozenModel):
     status: ReconciliationStatus
     metrics: tuple[ReconciliationMetric, ...] = ()
     blocks_state_advance: bool = True
-    created_at: datetime = Field(default_factory=_utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
     def validate_status(self) -> "ReconciliationResult":
-        _require_aware(self.created_at, "created_at")
+        require_aware_datetime(self.created_at, "created_at")
         failed = tuple(metric for metric in self.metrics if not metric.passed)
         blocking_failed = tuple(metric for metric in failed if metric.blocking)
         if self.status is ReconciliationStatus.PASS and failed:

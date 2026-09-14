@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -22,8 +23,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationPolicy,
     SourceConfig,
     TargetConfig,
-    WatermarkConfig,
-)
+    WatermarkConfig,)
 from fabric_data_framework.deployment.delivery import build_release_manifest
 from fabric_data_framework.contracts.environment import EnvironmentName
 from fabric_data_framework.evidence.integration.evidence import (
@@ -202,7 +202,7 @@ def test_capture_cli_routes_exact_artifacts_and_writes_report_and_partial_manife
     paths, config_dir, spec, capture = _artifacts(tmp_path)
     output = tmp_path / "capture-partial.json"
     report = tmp_path / "capture-report.json"
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     expected = IntegrationEvidenceManifest(
         environment=spec.environment,
         domain=spec.domain,

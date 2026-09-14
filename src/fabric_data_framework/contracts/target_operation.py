@@ -7,7 +7,10 @@ operation key even when a new physical attempt is created.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import require_aware_datetime, utc_now
+
+
+from datetime import datetime
 from enum import Enum
 import hashlib
 import json
@@ -18,15 +21,6 @@ from pydantic import Field, field_validator, model_validator
 
 from .base import FrozenModel
 from .recovery import UnknownOutcomeResolution
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _require_aware(value: datetime, field_name: str) -> None:
-    if value.tzinfo is None or value.utcoffset() is None:
-        raise ValueError(f"{field_name} must be timezone-aware")
 
 
 def fingerprint_semantic_payload(payload: Any) -> str:
@@ -118,7 +112,7 @@ class TargetOperationRecord(FrozenModel):
     outcome_reference: str | None = Field(default=None, max_length=2048)
     error_code: str | None = Field(default=None, max_length=128)
     error_message: str | None = None
-    created_at: datetime = Field(default_factory=_utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime | None = None
     completed_at: datetime | None = None
 
@@ -142,13 +136,13 @@ class TargetOperationRecord(FrozenModel):
     def validate_record(self) -> "TargetOperationRecord":
         if self.operation_key != self.intent.operation_key:
             raise ValueError("operation_key does not match semantic target operation intent")
-        _require_aware(self.created_at, "created_at")
+        require_aware_datetime(self.created_at, "created_at")
         if self.updated_at is not None:
-            _require_aware(self.updated_at, "updated_at")
+            require_aware_datetime(self.updated_at, "updated_at")
             if self.updated_at < self.created_at:
                 raise ValueError("updated_at cannot be before created_at")
         if self.completed_at is not None:
-            _require_aware(self.completed_at, "completed_at")
+            require_aware_datetime(self.completed_at, "completed_at")
             if self.completed_at < self.created_at:
                 raise ValueError("completed_at cannot be before created_at")
         if self.status is TargetOperationStatus.IN_PROGRESS and self.completed_at is not None:
@@ -176,11 +170,11 @@ class TargetOperationEvent(FrozenModel):
     outcome_reference: str | None = Field(default=None, max_length=2048)
     error_code: str | None = Field(default=None, max_length=128)
     error_message: str | None = None
-    occurred_at: datetime = Field(default_factory=_utcnow)
+    occurred_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
     def validate_time(self) -> "TargetOperationEvent":
-        _require_aware(self.occurred_at, "occurred_at")
+        require_aware_datetime(self.occurred_at, "occurred_at")
         return self
 
 

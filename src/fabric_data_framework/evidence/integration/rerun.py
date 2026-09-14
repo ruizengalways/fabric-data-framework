@@ -9,7 +9,8 @@ exactly one Pipeline check NOT_RUN. The original certified manifest remains immu
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
 
 from fabric_data_framework.evidence.integration.evidence import (
     IntegrationEvidenceCheckKind,
@@ -21,16 +22,12 @@ from fabric_data_framework.evidence.integration.evidence import (
 )
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
 def prepare_explicit_pipeline_rerun_prerequisite(
     spec: IntegrationEvidenceSpec,
     certified_manifest: IntegrationEvidenceManifest,
     *,
     check_id: str,
-    now=_utcnow,
+    now=utc_now,
 ) -> IntegrationEvidenceManifest:
     """Return a new exact-spec prerequisite for one explicitly authorized Pipeline rerun."""
 

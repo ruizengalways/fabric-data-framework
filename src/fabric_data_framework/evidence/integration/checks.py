@@ -8,8 +8,10 @@ Credentials and raw provider payloads are deliberately excluded.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from collections.abc import Callable, Iterable
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -28,10 +30,6 @@ from .evidence import (
 from ...recovery.fabric_warehouse import FabricWarehouseAtomicMutationResult
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
 def _references(values: Iterable[str]) -> tuple[str, ...]:
     result = tuple(values)
     if not result:
@@ -46,7 +44,7 @@ def run_fabric_item_read_check(
     workspace_id: UUID,
     item_id: UUID,
     evidence_references: Iterable[str],
-    now: Callable[[], datetime] = _utcnow,
+    now: Callable[[], datetime] = utc_now,
 ) -> IntegrationEvidenceCheckResult:
     """Perform a read-only Fabric Core item authorization smoke check.
 
@@ -109,7 +107,7 @@ def build_fabric_pipeline_check_result(
         raise ValueError("Fabric Pipeline job type does not match invocation binding")
     if job.root_activity_id is None:
         raise ValueError("Fabric Pipeline PASS evidence requires root_activity_id")
-    started_at = job.start_time_utc or _utcnow()
+    started_at = job.start_time_utc or utc_now()
     completed_at = job.end_time_utc or started_at
     return IntegrationEvidenceCheckResult(
         check_id=check_id,

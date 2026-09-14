@@ -23,8 +23,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationPolicy,
     SourceConfig,
     TargetConfig,
-    WatermarkConfig,
-)
+    WatermarkConfig,)
 
 
 def _watermark_config(dataset_id="crm.customer"):

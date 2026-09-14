@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
 from uuid import UUID
 
 from pydantic import Field
@@ -74,7 +75,7 @@ def record_capture_receipt(engine: Engine, receipt: CaptureReceipt) -> None:
                 schema_version=receipt.schema_version,
                 started_at=receipt.started_at,
                 completed_at=receipt.completed_at,
-                created_at=datetime.now(timezone.utc),
+                created_at=utc_now(),
             )
         )
 
@@ -163,7 +164,7 @@ def record_reprocess_request(engine: Engine, request: ReprocessRequest) -> None:
             .where(reprocess_request.c.reprocess_request_id == request_id)
             .values(
                 status=request.status.value,
-                updated_at=request.updated_at or datetime.now(timezone.utc),
+                updated_at=request.updated_at or utc_now(),
             )
         )
 
@@ -388,7 +389,7 @@ def commit_cdc_checkpoint(
         raise ValueError("expected_version must be >= 0")
 
     apply_baseline_schema(engine)
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     serialized = checkpoint.model_dump(mode="json")["positions"]
 
     with engine.begin() as connection:

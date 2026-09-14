@@ -7,7 +7,9 @@ consume the same dependency and failure semantics.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import datetime
 from typing import Iterable, Protocol
 from uuid import UUID, uuid4
 
@@ -17,8 +19,7 @@ from fabric_data_framework.metadata.config import (
     EffectiveDatasetConfig,
     PipelineStatus,
     RunMode,
-    RuntimeOverride,
-)
+    RuntimeOverride,)
 from ..contracts.dispatch import (
     DatasetDispatchOutcome,
     DatasetDispatchRequest,
@@ -45,10 +46,6 @@ from ..contracts.audit_safety import sanitize_audit_text
 
 
 _PIPELINE_ERROR_MESSAGE_LIMIT = 4096
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 class PipelineDispatchIntegrityError(OrchestrationIntegrityError):
@@ -231,7 +228,7 @@ def _record_failed_pipeline(
             status=PipelineStatus.FAILED,
             run_mode=run_mode,
             started_at=started_at,
-            completed_at=_utcnow(),
+            completed_at=utc_now(),
             domain_git_sha=domain_git_sha,
             framework_version=framework_version,
             config_bundle_hash=config_bundle_hash,
@@ -272,7 +269,7 @@ def dispatch_datasets_with_backend(
 ) -> PipelineDispatchResult:
     """Plan once, isolate dataset faults, then aggregate the Pipeline after all work."""
 
-    started_at = _utcnow()
+    started_at = utc_now()
     pipeline_run_id = pipeline_run_id or uuid4()
 
     try:
@@ -396,7 +393,7 @@ def dispatch_datasets_with_backend(
                 status=final_status,
                 run_mode=run_mode,
                 started_at=started_at,
-                completed_at=_utcnow(),
+                completed_at=utc_now(),
                 domain_git_sha=domain_git_sha,
                 framework_version=framework_version,
                 config_bundle_hash=config_bundle_hash,

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 from uuid import UUID, uuid4
 
@@ -13,8 +14,7 @@ from fabric_data_framework.metadata.config import (
     CaptureStrategy,
     DatasetStatus,
     QuarantineDetailMode,
-    RunMode,
-)
+    RunMode,)
 from fabric_data_framework.contracts.audit import (
     DatasetRunAudit,
     RowAccounting,
@@ -57,10 +57,6 @@ class DatasetExecutionResult:
     target_rows: tuple[dict[str, Any], ...]
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
 def _record_step(
     repository: ControlPlaneRepository,
     *,
@@ -69,7 +65,7 @@ def _record_step(
     status: StepStatus,
     details: dict[str, object] | None = None,
 ) -> None:
-    now = _utcnow()
+    now = utc_now()
     repository.record_step_run(
         StepRunAudit(
             dataset_run_id=dataset_run_id,

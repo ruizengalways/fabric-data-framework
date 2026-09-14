@@ -1,24 +1,34 @@
-"""Append-once apply semantics with explicit immutable record identity.
+"""Reference APPEND semantics with explicit immutable record identity.
 
 APPEND is not "blindly extend a list".  A production append target needs a stable
 source-controlled identity so retries/backfills/replays can distinguish an exact
 re-observation from a conflicting reuse of an already-published identity.
+
+This module is the deterministic in-memory semantic oracle used by tests/reference
+execution. Production Fabric APPEND must use the distributed Spark/Delta adapter and
+must never materialize the complete target table in Python.
 """
 
 from __future__ import annotations
+
+from fabric_data_framework.contracts.hashing import canonical_hash
+
+from fabric_data_framework.contracts.append import (
+    APPEND_IDENTITY_HASH,
+    APPEND_PAYLOAD_HASH,
+    RESERVED_APPEND_FIELDS,
+    append_identity_fingerprint,
+    append_payload_fingerprint,
+    business_payload,
+)
+
 
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
 from pydantic import Field
 
-from fabric_data_framework.metadata.config import canonical_hash
 from fabric_data_framework.contracts.base import FrozenModel
-
-
-APPEND_IDENTITY_HASH = "_framework_append_identity_hash"
-APPEND_PAYLOAD_HASH = "_framework_append_payload_hash"
-_RESERVED_APPEND_FIELDS = frozenset({APPEND_IDENTITY_HASH, APPEND_PAYLOAD_HASH})
 
 
 class AppendApplyError(ValueError):
@@ -58,16 +68,6 @@ def _identity(row: Mapping[str, Any], append_identity: tuple[str, ...]) -> tuple
     return tuple(values)
 
 
-def _business_payload(row: Mapping[str, Any]) -> dict[str, Any]:
-    """Return source/business payload while excluding framework-owned volatile evidence."""
-
-    return {key: value for key, value in row.items() if not key.startswith("_framework_")}
-
-
-def _incoming_fingerprint(row: Mapping[str, Any]) -> str:
-    return canonical_hash(_business_payload(row))
-
-
 def _existing_fingerprint_for_incoming(
     existing: Mapping[str, Any], incoming: Mapping[str, Any]
 ) -> str:
@@ -75,7 +75,7 @@ def _existing_fingerprint_for_incoming(
     if stored is not None:
         return str(stored)
 
-    incoming_payload = _business_payload(incoming)
+    incoming_payload = business_payload(incoming)
     missing = [column for column in incoming_payload if column not in existing]
     if missing:
         raise AppendConflictError(
@@ -88,12 +88,12 @@ def _existing_fingerprint_for_incoming(
 
 
 def _decorate(row: Mapping[str, Any], identity: tuple[Any, ...], payload_hash: str) -> dict[str, Any]:
-    if _RESERVED_APPEND_FIELDS.intersection(row):
+    if RESERVED_APPEND_FIELDS.intersection(row):
         raise AppendIdentityError(
             "incoming row cannot provide framework-owned append identity/hash fields"
         )
     decorated = deepcopy(dict(row))
-    decorated[APPEND_IDENTITY_HASH] = canonical_hash(identity)
+    decorated[APPEND_IDENTITY_HASH] = append_identity_fingerprint(identity)
     decorated[APPEND_PAYLOAD_HASH] = payload_hash
     return decorated
 
@@ -131,7 +131,7 @@ def apply_append(
                 f"target already contains duplicate append identity {identity!r}"
             )
         stored_identity_hash = row.get(APPEND_IDENTITY_HASH)
-        if stored_identity_hash is not None and str(stored_identity_hash) != canonical_hash(identity):
+        if stored_identity_hash is not None and str(stored_identity_hash) != append_identity_fingerprint(identity):
             raise AppendIdentityError(
                 f"target append identity evidence does not match row identity {identity!r}"
             )
@@ -143,7 +143,7 @@ def apply_append(
     for raw_row in incoming_rows:
         row = deepcopy(dict(raw_row))
         identity = _identity(row, append_identity)
-        payload_hash = _incoming_fingerprint(row)
+        payload_hash = append_payload_fingerprint(row)
         prior = unique_incoming.get(identity)
         if prior is not None:
             if prior[1] != payload_hash:

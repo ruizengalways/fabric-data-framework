@@ -8,11 +8,18 @@ business keys, then authoritative history is read exactly at the frozen upper ve
 
 from __future__ import annotations
 
+from fabric_data_framework.adapters.fabric.spark_protocols import (
+    SparkFrameLike,
+    SparkSessionLike,
+)
+
+from fabric_data_framework.contracts.temporal import utc_now
+
 from builtins import BaseExceptionGroup
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Callable, Iterator, Protocol
+from datetime import timedelta
+from typing import Callable, Iterator
 from uuid import UUID, uuid4
 
 from sqlalchemy import Engine
@@ -39,31 +46,6 @@ from fabric_data_framework.control_plane.io import (
     read_cdc_checkpoint,
 )
 from fabric_data_framework.deployment.current_projection import quote_spark_relation
-
-
-class SparkFrameLike(Protocol):
-    def collect(self): ...
-    def createOrReplaceTempView(self, name: str) -> None: ...
-
-
-class SparkReaderLike(Protocol):
-    def format(self, value: str) -> "SparkReaderLike": ...
-    def option(self, key: str, value: object) -> "SparkReaderLike": ...
-    def table(self, name: str) -> SparkFrameLike: ...
-
-
-class SparkCatalogLike(Protocol):
-    def tableExists(self, name: str) -> bool: ...
-
-
-class SparkSessionLike(Protocol):
-    @property
-    def read(self) -> SparkReaderLike: ...
-
-    @property
-    def catalog(self) -> SparkCatalogLike: ...
-
-    def sql(self, query: str) -> SparkFrameLike: ...
 
 
 @dataclass(frozen=True)
@@ -314,7 +296,7 @@ def _projection_lease(
             dataset_id=request.dataset_id,
             lease_owner=f"fabric-spark-current-projection:{uuid4()}",
             dataset_run_id=request.dataset_run_id,
-            review_deadline=datetime.now(timezone.utc) + timedelta(days=1),
+            review_deadline=utc_now() + timedelta(days=1),
         )
     except DatasetLeaseConflict as exc:
         raise CurrentProjectionExecutionError(

@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import datetime
 from enum import Enum
 from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
 
 from .base import FrozenModel
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 class QuarantineScope(str, Enum):
@@ -55,7 +53,7 @@ class QuarantineBatch(FrozenModel):
     reason_code: str = Field(min_length=1)
     reason_detail: str | None = None
     source_reference: str | None = None
-    created_at: datetime = Field(default_factory=_utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
     replayed_by_dataset_run_id: UUID | None = None
 
 
@@ -77,7 +75,7 @@ class QuarantineManualCorrection(FrozenModel):
     corrected_by: str = Field(min_length=1)
     reason: str = Field(min_length=1)
     ticket_reference: str | None = None
-    created_at: datetime = Field(default_factory=_utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class QuarantineReviewEvent(FrozenModel):
@@ -93,7 +91,7 @@ class QuarantineReviewEvent(FrozenModel):
     reason: str = Field(min_length=1)
     ticket_reference: str | None = None
     correction_id: UUID | None = None
-    occurred_at: datetime = Field(default_factory=_utcnow)
+    occurred_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
     def validate_resolution_shape(self) -> "QuarantineReviewEvent":

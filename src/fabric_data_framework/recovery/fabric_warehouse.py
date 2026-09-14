@@ -13,6 +13,8 @@ history visibility is not used as primary commit truth.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Protocol, runtime_checkable
@@ -30,10 +32,6 @@ from .target_probe import TargetCommitProbeEvidence, TargetCommitProbeRequest
 
 FABRIC_WAREHOUSE_MARKER_VERSION = 1
 FABRIC_WAREHOUSE_DEFAULT_MARKER_TABLE = "fabric_framework_target_operation_marker"
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _warehouse_datetime(value: datetime) -> datetime:
@@ -105,7 +103,7 @@ class FabricWarehouseOperationMarker(FrozenModel):
     native_operation_id: str | None = Field(default=None, max_length=1024)
     query_label: str | None = Field(default=None, max_length=512)
     detail: str | None = Field(default=None, max_length=4000)
-    recorded_at: datetime = Field(default_factory=_utcnow)
+    recorded_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
     def validate_marker(self) -> "FabricWarehouseOperationMarker":

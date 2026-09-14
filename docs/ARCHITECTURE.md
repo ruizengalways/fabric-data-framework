@@ -162,6 +162,8 @@ Stores observations or ordered events. Appropriate for CDC, application change l
 
 Bronze may legitimately retain repeated source observations caused by bounded lookback. Silver APPEND may deduplicate those observations under a declared stable `append_identity`.
 
+For production Fabric APPEND, target comparison is a distributed physical operation. The framework stages/deduplicates the accepted incoming relation in Spark, joins only inside the engine, fails closed on identity/payload conflicts, and uses Delta `MERGE` for new identities. The production path must not `collect()`, convert to pandas, or otherwise materialize the complete target table in Python. `apply/append.py` is the deterministic semantic reference, not the large-table physical runtime.
+
 The correct choice follows source semantics; it is not selected merely because a downstream model is called SCD2.
 
 ## 7. Provider cursor vs framework checkpoint

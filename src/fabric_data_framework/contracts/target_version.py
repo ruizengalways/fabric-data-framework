@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
 
 from fabric_data_framework.contracts.base import FrozenModel
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 class TargetVersionSpec(FrozenModel):
@@ -68,7 +66,7 @@ class TargetCutoverRequest(FrozenModel):
     requested_by: str = Field(min_length=1)
     reason: str = Field(min_length=1)
     approval_reference: str = Field(min_length=1)
-    created_at: datetime = Field(default_factory=_utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
     def validate_version_change(self) -> "TargetCutoverRequest":

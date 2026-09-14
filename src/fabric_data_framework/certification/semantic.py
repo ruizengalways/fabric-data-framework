@@ -19,8 +19,7 @@ from fabric_data_framework.metadata.config import (
     LoadPolicy,
     ReconciliationCheck,
     ReconciliationCheckKind,
-    WatermarkConfig,
-)
+    WatermarkConfig,)
 
 
 def run_semantic_acceptance() -> dict[str, str]:

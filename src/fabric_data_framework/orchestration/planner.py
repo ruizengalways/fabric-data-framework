@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Iterable, Mapping
 
 from fabric_data_framework.metadata.config import (
@@ -13,8 +15,7 @@ from fabric_data_framework.metadata.config import (
     EffectiveDatasetConfig,
     PipelineStatus,
     RuntimeOverride,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 from ..contracts.dispatch import DatasetDispatchOutcome
 from ..contracts.group_policy import ExecutionGroupPolicy, PipelineFailurePolicy
 from ..metadata.capabilities import CapabilityRegistry, DEFAULT_CAPABILITY_REGISTRY
@@ -49,10 +50,6 @@ class DispatchPlan:
     @property
     def selected_dataset_id_set(self) -> frozenset[str]:
         return frozenset(self.selected_dataset_ids)
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _overrides_by_dataset(
@@ -117,7 +114,7 @@ def build_dispatch_plan(
     if max_concurrency <= 0:
         raise ValueError("max_concurrency must be positive")
 
-    evaluation_time = as_of or _utcnow()
+    evaluation_time = as_of or utc_now()
     deployed = {config.dataset_id: config for config in repository.list_datasets()}
     deployed_ids = frozenset(deployed)
 

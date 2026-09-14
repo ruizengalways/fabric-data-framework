@@ -23,8 +23,7 @@ from fabric_data_framework.metadata.config import (
     RunMode,
     SourceConfig,
     TargetConfig,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 from fabric_data_framework.orchestration.dispatcher import (
     BackendReadyWaveError,
     PipelineFinalizationError,

@@ -23,8 +23,7 @@ from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     EffectiveDatasetConfig,
     ExecutionEngine,
-    RunMode,
-)
+    RunMode,)
 
 
 _ENGINE_TO_KIND = {

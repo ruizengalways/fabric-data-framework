@@ -14,8 +14,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationCheckKind,
     ReconciliationPolicy,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 
 
 def test_declarative_reconciliation_definition_is_materialized_in_control_plane():

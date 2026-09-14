@@ -12,6 +12,8 @@ COMMITTED fault-drill evidence check to PASS.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.hashing import canonical_hash
+
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 import json
@@ -24,9 +26,7 @@ from sqlalchemy import Engine, MetaData, create_engine
 from sqlalchemy.engine import Connection
 
 from fabric_data_framework.metadata.config import (
-    DatasetConfig,
-    canonical_hash,
-)
+    DatasetConfig,)
 from fabric_data_framework.contracts.base import FrozenModel
 from ....contracts.recovery import UnknownOutcomeResolution
 from ....deployment.contracts import ReleaseManifest

@@ -8,6 +8,8 @@ and it never substitutes for approved integration/warehouse evidence.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from datetime import datetime, timezone
 from importlib.metadata import version
 import json
@@ -40,9 +42,7 @@ from fabric_data_framework.quality.reconciliation import reconcile_scd2_batch
 from .models import (
     CertificationCheckResult,
     CertificationCheckStatus,
-    UnifiedCertificationReport,
-    utcnow,
-)
+    UnifiedCertificationReport,)
 
 
 def _safe_check(check_id: str, operation) -> CertificationCheckResult:
@@ -257,7 +257,7 @@ def run_bounded_certification(
 ) -> UnifiedCertificationReport:
     """Execute the bounded real-Fabric suite and optionally retain one JSON report."""
 
-    started_at = utcnow()
+    started_at = utc_now()
     candidate = load_candidate_artifact_manifest(candidate_manifest_path)
     actual_wheel_sha = sha256_file(wheel_path)
 
@@ -315,7 +315,7 @@ def run_bounded_certification(
         artifact_sha256=actual_wheel_sha,
         environment=environment,
         started_at=started_at,
-        completed_at=utcnow(),
+        completed_at=utc_now(),
         checks=tuple(checks),
         blockers=(),
         release_authorized=False,

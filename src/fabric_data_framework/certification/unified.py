@@ -6,11 +6,13 @@ identity loading, authorization-gated execution, evidence assembly, and reportin
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from collections.abc import Mapping
 from pathlib import Path
 
 from .bounded import run_bounded_certification
-from .models import UnifiedCertificationReport, utcnow
+from .models import UnifiedCertificationReport
 from .unified_stages import (
     CertificationAuthorizations,
     UnifiedCertificationRequest,
@@ -41,7 +43,7 @@ def certify(  # noqa: PLR0913 - stable operator-facing certification facade
 ) -> UnifiedCertificationReport:
     """Run bounded checks and optional framework-owned live integration gates."""
 
-    started_at = utcnow()
+    started_at = utc_now()
     request = UnifiedCertificationRequest(
         spark=spark,
         candidate_manifest_path=Path(candidate_manifest_path),

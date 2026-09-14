@@ -21,8 +21,7 @@ from fabric_data_framework.metadata.config import (
     PipelineStatus,
     ReconciliationPolicy,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 from fabric_data_framework.control_plane.schema import pipeline_run, step_run
 from fabric_data_framework.deployment.delivery import build_release_manifest, materialize_semantic_metadata
 from fabric_data_framework.contracts.environment import EnvironmentName

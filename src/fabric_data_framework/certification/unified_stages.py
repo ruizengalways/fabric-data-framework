@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.resources import files
@@ -95,9 +97,7 @@ from fabric_data_framework.metadata.config import DatasetConfig
 from .models import (
     CertificationCheckResult,
     CertificationCheckStatus,
-    UnifiedCertificationReport,
-    utcnow,
-)
+    UnifiedCertificationReport,)
 
 
 _STANDARD_INTEGRATION_CHECKS = (
@@ -1120,7 +1120,7 @@ def assemble_report(
         artifact_sha256=bounded.artifact_sha256,
         environment=request.environment,
         started_at=started_at,
-        completed_at=utcnow(),
+        completed_at=utc_now(),
         checks=checks,
         blockers=tuple(dict.fromkeys(blockers)),
         integration_evidence_path=paths.integration_evidence,

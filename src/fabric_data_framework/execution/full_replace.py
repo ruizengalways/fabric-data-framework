@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 from uuid import UUID, uuid4
 
@@ -56,10 +57,6 @@ class FullReplaceExecutionResult:
     error_message: str | None = None
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
 def _record_step(
     repository: ControlPlaneRepository,
     *,
@@ -67,7 +64,7 @@ def _record_step(
     step_name: str,
     status: StepStatus,
 ) -> None:
-    now = _utcnow()
+    now = utc_now()
     repository.record_step_run(
         StepRunAudit(
             dataset_run_id=dataset_run_id,

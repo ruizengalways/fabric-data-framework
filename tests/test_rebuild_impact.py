@@ -11,8 +11,7 @@ from fabric_data_framework.metadata.config import (
     OrchestrationPolicy,
     ReconciliationPolicy,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 from fabric_data_framework.recovery.rebuild_impact import (
     RebuildImpactError,
     build_rebuild_impact_plan,

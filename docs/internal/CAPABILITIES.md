@@ -56,7 +56,7 @@ fabric-data-framework -X-> fabric-customer
 | APPEND / REPLACE / UPSERT / SCD1 / SCD2 / SNAPSHOT_DIFF | `apply/` | IMPLEMENTED + source contract |
 | Current projection VIEW/MATERIALIZED definition compiler | `deployment/current_projection.py` | IMPLEMENTED + source contract; deployment caller/physical transition and live Fabric proof separate |
 | DELTA_PROJECTION affected-key semantics, bootstrap/rebuild, checkpoint and lease gates | `apply/current_projection.py` + `execution/current_projection.py` + `adapters/fabric/current_projection.py` + `execution/backends/fabric_spark.py` | IMPLEMENTED packaged Spark/Delta path + source tests; live OneLake/CDF/time-travel/MERGE evidence still required before FABRIC PROVEN |
-| APPEND stable identity / exact replay no-op / conflicting identity fail-closed | `execution/append.py` + `apply/append.py` + `quality/reconciliation/append.py` | IMPLEMENTED + source contract |
+| APPEND stable identity / exact replay no-op / conflicting identity fail-closed | `apply/append.py` reference oracle + `execution/backends/fabric_spark_append.py` + `adapters/fabric/append.py` + `quality/reconciliation/append.py` | IMPLEMENTED distributed Spark/Delta path + source contract; live Fabric proof remains candidate-specific |
 | FULL incomplete-snapshot destructive guard | capture/apply | IMPLEMENTED; real Fabric proof tied to selected candidate |
 | CDC ordering/dedupe/checkpoint | capture/adapters | IMPLEMENTED; provider live proof separate |
 | Watermark ordering/lookback/bootstrap contracts | capture | IMPLEMENTED; provider live proof separate |

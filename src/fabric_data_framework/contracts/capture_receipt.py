@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import require_aware_datetime, utc_now
+
+
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -11,18 +14,8 @@ from pydantic import Field, model_validator
 from fabric_data_framework.metadata.config import (
     CaptureStrategy,
     ExecutionEngine,
-    ProgressOwner,
-)
+    ProgressOwner,)
 from fabric_data_framework.contracts.base import FrozenModel
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _require_aware(value: datetime, field_name: str) -> None:
-    if value.tzinfo is None or value.utcoffset() is None:
-        raise ValueError(f"{field_name} must be timezone-aware")
 
 
 class CaptureReceipt(FrozenModel):
@@ -45,13 +38,13 @@ class CaptureReceipt(FrozenModel):
     complete_snapshot: bool | None = None
     external_checkpoint_reference: str | None = None
     schema_version: str | None = None
-    started_at: datetime = Field(default_factory=_utcnow)
-    completed_at: datetime = Field(default_factory=_utcnow)
+    started_at: datetime = Field(default_factory=utc_now)
+    completed_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
     def validate_receipt(self) -> "CaptureReceipt":
-        _require_aware(self.started_at, "started_at")
-        _require_aware(self.completed_at, "completed_at")
+        require_aware_datetime(self.started_at, "started_at")
+        require_aware_datetime(self.completed_at, "completed_at")
         if self.completed_at < self.started_at:
             raise ValueError("completed_at cannot be before started_at")
         if self.rows_written > self.rows_read:

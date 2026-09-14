@@ -8,10 +8,12 @@ No distributed transaction across the two Delta tables is assumed.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from builtins import BaseExceptionGroup
 from contextlib import contextmanager
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Callable, Iterator, Mapping, Protocol, Sequence, runtime_checkable
 from uuid import UUID, uuid4
 
@@ -135,7 +137,7 @@ def _exclusive_projection_mutation(
             dataset_id=dataset_id,
             lease_owner=owner,
             dataset_run_id=dataset_run_id,
-            review_deadline=datetime.now(timezone.utc) + timedelta(days=1),
+            review_deadline=utc_now() + timedelta(days=1),
         )
     except DatasetLeaseConflict as exc:
         raise CurrentProjectionExecutionError(

@@ -15,8 +15,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationPolicy,
     SourceConfig,
     TargetConfig,
-    WatermarkConfig,
-)
+    WatermarkConfig,)
 from fabric_data_framework.quality.quarantine_store import JsonFileQuarantineStore
 from fabric_data_framework.quality.rules import RowRule
 

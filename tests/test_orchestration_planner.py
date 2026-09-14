@@ -13,8 +13,7 @@ from fabric_data_framework.metadata.config import (
     OrchestrationPolicy,
     ReconciliationPolicy,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 from fabric_data_framework.contracts.dispatch import DatasetDispatchOutcome
 from fabric_data_framework.orchestration.planner import (
     OrchestrationIntegrityError,

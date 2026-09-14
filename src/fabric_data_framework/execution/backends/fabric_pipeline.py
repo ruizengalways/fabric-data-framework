@@ -8,10 +8,11 @@ evidence fails closed.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from builtins import ExceptionGroup
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
 import json
 from uuid import UUID, uuid4
 
@@ -138,7 +139,7 @@ class FabricPipelineBackend:
         invocation: FabricPipelineInvocation,
         evidence: FabricJobInstance,
     ) -> None:
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         started_at = evidence.start_time_utc or now
         completed_at = evidence.end_time_utc or now
         if completed_at < started_at:

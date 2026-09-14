@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from fabric_data_framework.contracts.hashing import canonical_hash
+
+from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
@@ -11,7 +15,7 @@ from typing import Iterable, Mapping
 from sqlalchemy import Engine, and_, delete, select, update
 
 from fabric_data_framework.contracts.current_projection import CurrentProjectionMode
-from fabric_data_framework.metadata.config import DatasetConfig, canonical_hash
+from fabric_data_framework.metadata.config import DatasetConfig
 from ..contracts.group_policy import ExecutionGroupPolicy
 from ..control_plane.schema import (
     CONTROL_PLANE_SCHEMA_VERSION,
@@ -140,7 +144,7 @@ def build_release_manifest(
             fabric_item_manifest_version=fabric_item_manifest_version,
             build_id=build_id,
         ),
-        generated_at=generated_at or datetime.now(timezone.utc),
+        generated_at=generated_at or utc_now(),
         artifact_sha256=digests,
     )
 
@@ -207,7 +211,7 @@ def materialize_semantic_metadata(
     validate_current_projection_bundle(config_tuple)
     bundle_hash = config_bundle_hash(config_tuple, group_policy_tuple)
     apply_baseline_schema(engine)
-    now = datetime.now(timezone.utc)
+    now = utc_now()
 
     with engine.begin() as connection:
         active_dataset_ids = {config.dataset_id for config in config_tuple}

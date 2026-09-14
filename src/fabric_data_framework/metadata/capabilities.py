@@ -9,8 +9,7 @@ from fabric_data_framework.metadata.config import (
     CaptureStrategy,
     DatasetConfig,
     ExecutionEngine,
-    ProgressOwner,
-)
+    ProgressOwner,)
 from fabric_data_framework.contracts.base import FrozenModel
 
 

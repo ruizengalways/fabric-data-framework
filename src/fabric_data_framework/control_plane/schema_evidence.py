@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import Engine, select
@@ -24,7 +26,7 @@ def record_schema_change(
 
     apply_baseline_schema(engine)
     evidence_id = schema_change_id or uuid4()
-    timestamp = observed_at or datetime.now(timezone.utc)
+    timestamp = observed_at or utc_now()
     if timestamp.tzinfo is None or timestamp.utcoffset() is None:
         raise ValueError("observed_at must be timezone-aware")
 

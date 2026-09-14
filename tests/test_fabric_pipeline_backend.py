@@ -17,8 +17,7 @@ from fabric_data_framework.metadata.config import (
     RunMode,
     SourceConfig,
     TargetConfig,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 from fabric_data_framework.contracts.dispatch import DatasetDispatchOutcome
 from fabric_data_framework.execution.backends.fabric_pipeline import FabricPipelineBackend
 from fabric_data_framework.control_plane.repository import InMemoryControlPlane

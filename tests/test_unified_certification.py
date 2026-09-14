@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 import json
 from pathlib import Path
 
@@ -11,7 +13,6 @@ from fabric_data_framework.certification import (
 )
 from fabric_data_framework.certification import bounded as bounded_module
 from fabric_data_framework.certification import unified as unified_module
-from fabric_data_framework.certification.models import utcnow
 
 
 REPO_ROOT = Path(__file__).parents[1]
@@ -118,8 +119,8 @@ def test_unified_runner_is_partial_when_exact_integration_inputs_are_absent(
         candidate_git_sha="a" * 40,
         artifact_sha256="b" * 64,
         environment="DEV",
-        started_at=utcnow(),
-        completed_at=utcnow(),
+        started_at=utc_now(),
+        completed_at=utc_now(),
         checks=tuple(
             _pass(check_id)
             for check_id in (
@@ -163,8 +164,8 @@ def test_unified_report_fails_when_any_check_fails():
         candidate_git_sha="a" * 40,
         artifact_sha256="b" * 64,
         environment="DEV",
-        started_at=utcnow(),
-        completed_at=utcnow(),
+        started_at=utc_now(),
+        completed_at=utc_now(),
         checks=(
             _pass("identity.exact"),
             CertificationCheckResult(

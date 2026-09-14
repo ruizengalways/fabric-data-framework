@@ -13,8 +13,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationPolicy,
     SourceConfig,
     TargetConfig,
-    WatermarkConfig,
-)
+    WatermarkConfig,)
 from fabric_data_framework.control_plane.schema import (
     PROMOTABLE_DEFINITION_TABLES,
     apply_baseline_schema,
