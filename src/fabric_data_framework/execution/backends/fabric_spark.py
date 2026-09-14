@@ -7,7 +7,8 @@ routed to the distributed history-CDF runtime and persists a terminal dataset au
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
 from typing import Callable
 
 from sqlalchemy import Engine
@@ -77,7 +78,7 @@ class FabricSparkCurrentProjectionExecutor:
         error_message: str | None = None,
         retryable: bool | None = None,
     ) -> DatasetDispatchOutcome:
-        completed = datetime.now(timezone.utc)
+        completed = utc_now()
         safe_message = sanitize_audit_text(error_message) if error_message is not None else None
         self._repository.record_dataset_run(
             DatasetRunAudit(

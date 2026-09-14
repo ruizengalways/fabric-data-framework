@@ -8,8 +8,10 @@ before a ``FabricNativeRunEvidence`` can be returned to ``FabricCaptureAdapter``
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from collections.abc import Callable, Mapping
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -17,8 +19,7 @@ from pydantic import Field, model_validator
 
 from fabric_data_framework.metadata.config import (
     ExecutionEngine,
-    ProgressOwner,
-)
+    ProgressOwner,)
 from fabric_data_framework.contracts.base import FrozenModel
 from ...contracts.execution_plan import ExecutionKind
 from .contracts import (
@@ -28,10 +29,6 @@ from .contracts import (
 )
 from .rest import FabricJobInstance, FabricJobStatus, FabricRestClient
 from ...contracts.audit_safety import sanitize_audit_details, sanitize_audit_value
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 class FabricCopyJobBinding(FrozenModel):
@@ -243,14 +240,14 @@ class FabricCopyJobCaptureTransport:
             )
 
         binding = self._binding_resolver(request)
-        invoked_at = _utcnow()
+        invoked_at = utc_now()
         job = self._client.run_and_wait_copy_job(
             workspace_id=binding.workspace_id,
             copy_job_id=binding.copy_job_id,
             timeout_seconds=binding.timeout_seconds,
             default_poll_seconds=binding.default_poll_seconds,
         )
-        observed_at = _utcnow()
+        observed_at = utc_now()
         if job.status is not FabricJobStatus.COMPLETED:
             return _failure_evidence(
                 request,
@@ -323,7 +320,7 @@ class FabricSparkJobDefinitionCaptureTransport:
                 "framework-bounded Spark capture resolver returned no executionData"
             )
 
-        invoked_at = _utcnow()
+        invoked_at = utc_now()
         job = self._client.run_and_wait_spark_job_definition(
             workspace_id=binding.workspace_id,
             spark_job_definition_id=binding.spark_job_definition_id,
@@ -331,7 +328,7 @@ class FabricSparkJobDefinitionCaptureTransport:
             timeout_seconds=binding.timeout_seconds,
             default_poll_seconds=binding.default_poll_seconds,
         )
-        observed_at = _utcnow()
+        observed_at = utc_now()
         if job.status is not FabricJobStatus.COMPLETED:
             return _failure_evidence(
                 request,

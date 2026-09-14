@@ -15,8 +15,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationPolicy,
     SourceConfig,
     TargetConfig,
-    WatermarkConfig,
-)
+    WatermarkConfig,)
 from fabric_data_framework.contracts.typed_values import decode_typed_value
 from fabric_data_framework.execution import execute_watermark_scd2
 from fabric_data_framework.quality.rules import RowRule

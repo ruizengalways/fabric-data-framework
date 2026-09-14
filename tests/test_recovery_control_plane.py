@@ -13,8 +13,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationPolicy,
     RunMode,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 from fabric_data_framework.control_plane.schema import (
     ENVIRONMENT_LOCAL_STATE_TABLES,
     PROMOTABLE_DEFINITION_TABLES,

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import require_aware_datetime, utc_now
+
+
+from datetime import datetime
 from enum import Enum
 from uuid import UUID, uuid4
 
@@ -10,15 +13,6 @@ from pydantic import Field, model_validator
 
 from fabric_data_framework.metadata.config import DatasetStatus, PipelineStatus, RunMode
 from .base import FrozenModel
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _require_aware(value: datetime, field_name: str) -> None:
-    if value.tzinfo is None or value.utcoffset() is None:
-        raise ValueError(f"{field_name} must be timezone-aware")
 
 
 class StepStatus(str, Enum):
@@ -57,7 +51,7 @@ class PipelineRunAudit(FrozenModel):
     domain: str = Field(min_length=1)
     status: PipelineStatus
     run_mode: RunMode = RunMode.NORMAL
-    started_at: datetime = Field(default_factory=_utcnow)
+    started_at: datetime = Field(default_factory=utc_now)
     completed_at: datetime | None = None
     domain_git_sha: str = Field(pattern=r"^[0-9a-fA-F]{7,64}$")
     framework_version: str = Field(min_length=1)
@@ -67,9 +61,9 @@ class PipelineRunAudit(FrozenModel):
 
     @model_validator(mode="after")
     def validate_times(self) -> "PipelineRunAudit":
-        _require_aware(self.started_at, "started_at")
+        require_aware_datetime(self.started_at, "started_at")
         if self.completed_at is not None:
-            _require_aware(self.completed_at, "completed_at")
+            require_aware_datetime(self.completed_at, "completed_at")
             if self.completed_at < self.started_at:
                 raise ValueError("completed_at cannot be before started_at")
         if self.status in {PipelineStatus.RUNNING, PipelineStatus.SUCCESS} and (
@@ -94,14 +88,14 @@ class DatasetRunAudit(FrozenModel):
     error_code: str | None = None
     error_message: str | None = None
     retryable: bool | None = None
-    started_at: datetime = Field(default_factory=_utcnow)
+    started_at: datetime = Field(default_factory=utc_now)
     completed_at: datetime | None = None
 
     @model_validator(mode="after")
     def validate_times(self) -> "DatasetRunAudit":
-        _require_aware(self.started_at, "started_at")
+        require_aware_datetime(self.started_at, "started_at")
         if self.completed_at is not None:
-            _require_aware(self.completed_at, "completed_at")
+            require_aware_datetime(self.completed_at, "completed_at")
             if self.completed_at < self.started_at:
                 raise ValueError("completed_at cannot be before started_at")
         return self
@@ -112,15 +106,15 @@ class StepRunAudit(FrozenModel):
     dataset_run_id: UUID
     step_name: str = Field(min_length=1)
     status: StepStatus
-    started_at: datetime = Field(default_factory=_utcnow)
+    started_at: datetime = Field(default_factory=utc_now)
     completed_at: datetime | None = None
     details: dict[str, object] | None = None
 
     @model_validator(mode="after")
     def validate_times(self) -> "StepRunAudit":
-        _require_aware(self.started_at, "started_at")
+        require_aware_datetime(self.started_at, "started_at")
         if self.completed_at is not None:
-            _require_aware(self.completed_at, "completed_at")
+            require_aware_datetime(self.completed_at, "completed_at")
             if self.completed_at < self.started_at:
                 raise ValueError("completed_at cannot be before started_at")
         return self

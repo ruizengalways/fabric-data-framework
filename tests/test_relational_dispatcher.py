@@ -13,8 +13,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationPolicy,
     RunMode,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 from fabric_data_framework.contracts.dispatch import DatasetDispatchOutcome
 from fabric_data_framework.control_plane.schema import apply_baseline_schema, pipeline_run
 from fabric_data_framework.deployment.delivery import config_bundle_hash

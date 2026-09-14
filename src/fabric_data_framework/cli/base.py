@@ -6,8 +6,9 @@ modules must never import from ``fabric_data_framework.cli``.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 import argparse
-from datetime import datetime, timezone
 from importlib.metadata import version
 import json
 import os
@@ -494,8 +495,8 @@ def main(argv: list[str] | None = None) -> int:
                 ci_provider=CIProvider(args.ci_provider),
                 initiated_by=args.initiated_by,
                 approved_by=args.approved_by,
-                started_at=datetime.now(timezone.utc),
-                completed_at=datetime.now(timezone.utc),
+                started_at=utc_now(),
+                completed_at=utc_now(),
                 status=args.status,
             )
             record_deployment_history(create_engine(args.database_url), provenance)

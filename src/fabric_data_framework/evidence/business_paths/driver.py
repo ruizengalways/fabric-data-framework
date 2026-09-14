@@ -8,6 +8,8 @@ manifest. The framework-owned evaluator remains the sole PASS/FAIL authority.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.hashing import canonical_hash
+
 from enum import Enum
 import hashlib
 from pathlib import Path
@@ -19,7 +21,6 @@ from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.deployment.contracts import ReleaseManifest
 from fabric_data_framework.evidence.business_paths.evidence import BusinessPathGate
 from fabric_data_framework.contracts.audit_safety import assert_safe_retained_text
-from fabric_data_framework.metadata.config import canonical_hash
 
 
 class BusinessPathDriverPhase(str, Enum):

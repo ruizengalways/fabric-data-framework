@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.hashing import canonical_hash
+
 from enum import Enum
-import hashlib
-import json
 
 from pydantic import Field, model_validator
 
@@ -68,14 +68,7 @@ class RebuildImpactPlan(FrozenModel):
 
     @property
     def plan_hash(self) -> str:
-        payload = self.model_dump(mode="json")
-        encoded = json.dumps(
-            payload,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-        ).encode("utf-8")
-        return hashlib.sha256(encoded).hexdigest()
+        return canonical_hash(self.model_dump(mode="json"))
 
 
 __all__ = [

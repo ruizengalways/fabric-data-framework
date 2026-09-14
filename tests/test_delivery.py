@@ -1,3 +1,4 @@
+from fabric_data_framework.contracts.temporal import utc_now
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,8 +14,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationPolicy,
     SourceConfig,
     TargetConfig,
-    WatermarkConfig,
-)
+    WatermarkConfig,)
 from fabric_data_framework.control_plane.schema import dataset, deployment_history, watermark
 from fabric_data_framework.deployment.delivery import (
     build_release_manifest,
@@ -104,7 +104,7 @@ def test_materialization_is_idempotent_and_preserves_runtime_watermark(tmp_path:
                 committed_tie_breaker="C100",
                 committed_dataset_run_id="run-1",
                 version=1,
-                created_at=datetime.now(timezone.utc),
+                created_at=utc_now(),
                 updated_at=None,
             )
         )
@@ -152,7 +152,7 @@ def test_materialization_disables_removed_domain_config_and_preserves_runtime_st
                 committed_tie_breaker="A100",
                 committed_dataset_run_id="run-removed",
                 version=1,
-                created_at=datetime.now(timezone.utc),
+                created_at=utc_now(),
                 updated_at=None,
             )
         )

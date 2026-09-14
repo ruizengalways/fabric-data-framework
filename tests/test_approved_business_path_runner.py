@@ -46,8 +46,7 @@ from fabric_data_framework.metadata.config import (
     OrchestrationPolicy,
     ReconciliationPolicy,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 
 
 NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)

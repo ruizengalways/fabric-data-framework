@@ -22,8 +22,7 @@ from fabric_data_framework.metadata.config import (
     RunMode,
     SourceConfig,
     TargetConfig,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 from fabric_data_framework.contracts.execution_plan import ExecutionKind, ExecutionRole
 from fabric_data_framework.execution.plan_compiler import compile_execution_plan
 from fabric_data_framework.metadata import (

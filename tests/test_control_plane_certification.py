@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
 
 from sqlalchemy import create_engine
 
@@ -160,7 +160,7 @@ def test_backend_profiles_are_explicit_and_not_generic_mssql_claims():
 
 def test_conformance_probe_rows_are_cleaned_up(tmp_path):
     engine = _engine(tmp_path)
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     with engine.begin() as connection:
         connection.execute(
             dataset.insert().values(

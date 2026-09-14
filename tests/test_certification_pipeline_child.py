@@ -19,8 +19,7 @@ from fabric_data_framework.metadata.config import (
     DatasetConfig,
     DatasetStatus,
     RunMode,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 
 
 ROOT = Path(__file__).resolve().parents[1]

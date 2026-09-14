@@ -13,6 +13,8 @@ exact operational semantics used by a pipeline run.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.hashing import canonical_hash
+
 from enum import Enum
 
 from pydantic import Field, model_validator
@@ -21,9 +23,7 @@ from .base import FrozenModel
 from fabric_data_framework.metadata.config import (
     DataQualityPolicy,
     DatasetConfig,
-    QuarantineDetailMode,
-    canonical_hash,
-)
+    QuarantineDetailMode,)
 
 
 class PipelineFailurePolicy(str, Enum):

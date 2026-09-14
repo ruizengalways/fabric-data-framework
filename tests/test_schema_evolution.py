@@ -14,8 +14,7 @@ from fabric_data_framework.metadata.config import (
     OrchestrationPolicy,
     ReconciliationPolicy,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 from fabric_data_framework.control_plane.schema import dataset_contract, schema_change
 from fabric_data_framework.control_plane.schema_evidence import record_schema_change
 from fabric_data_framework.deployment.delivery import materialize_semantic_metadata

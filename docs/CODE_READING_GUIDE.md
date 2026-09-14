@@ -278,6 +278,8 @@ entity key != event identity != incremental cursor
 
 Raw/Event Bronze may retain repeated source observations from lookback. Silver APPEND deduplicates under `append_identity`. Exact replay is a no-op; same identity with different business payload fails closed. If two legitimate events are indistinguishable at source, the framework cannot invent event fidelity.
 
+When reading APPEND code, distinguish semantics from physical scale: `apply/append.py` is the in-memory reference oracle, while `adapters/fabric/append.py` owns the production Spark/Delta DISTINCT/JOIN/MERGE path. Production APPEND never reads the complete existing target into Python memory.
+
 ## 8. Control Plane and transient recovery
 
 Read:

@@ -35,8 +35,7 @@ from fabric_data_framework.metadata.config import (
     RunMode,
     SourceConfig,
     TargetConfig,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 
 
 class FakeFrame:
@@ -143,7 +142,7 @@ def _config() -> DatasetConfig:
         source=SourceConfig(system="orders", object="staging.orders_events"),
         target=TargetConfig(layer="silver", object="orders_events"),
         load=LoadPolicy(
-            capture_strategy=CaptureStrategy.WATERMARK,
+            capture_strategy=CaptureStrategy.FULL,
             apply_strategy=ApplyStrategy.APPEND,
             append_identity=("event_id",),
         ),

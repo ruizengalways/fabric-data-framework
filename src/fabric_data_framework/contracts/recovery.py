@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
@@ -12,10 +14,6 @@ from pydantic import Field, ValidationError, model_validator
 from fabric_data_framework.metadata.config import RunMode
 from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.contracts.rebuild import FullRebuildRequestSpec
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 class ReprocessRequestStatus(str, Enum):
@@ -46,7 +44,7 @@ class ReprocessRequest(FrozenModel):
     original_dataset_run_id: UUID | None = None
     range_json: dict[str, Any] | None = None
     status: ReprocessRequestStatus = ReprocessRequestStatus.PENDING
-    created_at: datetime = Field(default_factory=_utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime | None = None
 
     @model_validator(mode="after")
@@ -96,7 +94,7 @@ class DatasetAttemptLineage(FrozenModel):
     attempt: int = Field(ge=1)
     run_mode: RunMode
     reprocess_request_id: UUID | None = None
-    created_at: datetime = Field(default_factory=_utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
     def validate_lineage(self) -> "DatasetAttemptLineage":

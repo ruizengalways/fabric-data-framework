@@ -1,3 +1,4 @@
+from fabric_data_framework.contracts.hashing import canonical_hash
 from datetime import datetime, timezone
 
 import pytest
@@ -25,9 +26,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationPolicy,
     RuntimeOverride,
     SourceConfig,
-    TargetConfig,
-    canonical_hash,
-)
+    TargetConfig,)
 from fabric_data_framework.orchestration.planner import (
     OrchestrationIntegrityError,
     build_dispatch_plan,

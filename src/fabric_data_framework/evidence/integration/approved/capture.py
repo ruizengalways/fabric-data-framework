@@ -9,6 +9,8 @@ bounds/checkpoints and snapshot completeness.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.hashing import canonical_hash
+
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,9 +43,7 @@ from fabric_data_framework.metadata.config import (
     ExecutionEngine,
     ProgressOwner,
     RunMode,
-    canonical_hash,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 from fabric_data_framework.contracts.base import FrozenModel
 from ....contracts.capture_receipt import CaptureReceipt
 from ....contracts.execution_plan import ExecutionKind, ExecutionRole, ExecutionUnit

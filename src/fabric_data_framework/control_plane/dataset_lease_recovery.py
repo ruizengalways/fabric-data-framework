@@ -7,6 +7,8 @@ inside the same transaction that appends immutable recovery evidence.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -32,7 +34,7 @@ class DatasetLeaseRecoveryEvent(FrozenModel):
     reason: str = Field(min_length=1)
     proof_reference: str = Field(min_length=1)
     review_deadline: datetime
-    recovered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    recovered_at: datetime = Field(default_factory=lambda: utc_now())
 
     @model_validator(mode="after")
     def validate_times(self) -> "DatasetLeaseRecoveryEvent":
@@ -67,7 +69,7 @@ def recover_abandoned_dataset_lease(
         raise ValueError("expected_lease_version must be >= 1")
     if not all((dataset_id, expected_lease_owner, recovered_by, reason, proof_reference)):
         raise ValueError("lease recovery identity, actor, reason and proof are required")
-    now = recovered_at or datetime.now(timezone.utc)
+    now = recovered_at or utc_now()
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("recovered_at must be timezone-aware")
 

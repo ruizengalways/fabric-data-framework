@@ -18,8 +18,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationCheckKind,
     ReconciliationPolicy,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 
 
 def _config(*, required=True, severity=ReconciliationSeverity.ERROR) -> DatasetConfig:

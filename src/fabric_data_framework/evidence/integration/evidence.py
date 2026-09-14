@@ -7,8 +7,10 @@ identity participates in framework release certification.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from collections.abc import Callable, Mapping
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 import hashlib
 import json
@@ -63,10 +65,6 @@ def _reject_secret_material(value: str, field_name: str) -> str:
     return value
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
 def _aware(value: datetime, field_name: str) -> None:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{field_name} must be timezone-aware")
@@ -106,8 +104,8 @@ class IntegrationEvidenceCheckResult(FrozenModel):
     check_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z][a-z0-9_.-]*$")
     kind: IntegrationEvidenceCheckKind
     status: IntegrationEvidenceStatus
-    started_at: datetime = Field(default_factory=_utcnow)
-    completed_at: datetime = Field(default_factory=_utcnow)
+    started_at: datetime = Field(default_factory=utc_now)
+    completed_at: datetime = Field(default_factory=utc_now)
     framework_pipeline_run_id: UUID | None = None
     dataset_run_id: UUID | None = None
     operation_key: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -294,7 +292,7 @@ def run_integration_evidence(
     spec: IntegrationEvidenceSpec,
     *,
     runners: Mapping[str, IntegrationEvidenceCheckRunner],
-    now: Callable[[], datetime] = _utcnow,
+    now: Callable[[], datetime] = utc_now,
 ) -> IntegrationEvidenceManifest:
     """Run registered checks in spec order and aggregate credential-free evidence."""
 

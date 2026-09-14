@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
 
 import pytest
 from pydantic import ValidationError
@@ -15,8 +15,7 @@ from fabric_data_framework.metadata.config import (
     RunMode,
     SourceConfig,
     TargetConfig,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 from fabric_data_framework.contracts.execution_plan import ExecutionKind
 from fabric_data_framework.execution.plan_compiler import compile_execution_plan
 from fabric_data_framework.control_plane.schema import (
@@ -120,7 +119,7 @@ def test_control_plane_v3_migration_survives_later_additive_migrations():
         Column("updated_at", DateTime(timezone=True), nullable=True),
     )
     old.create_all(engine)
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     with engine.begin() as connection:
         connection.execute(
             migration_history.insert(),

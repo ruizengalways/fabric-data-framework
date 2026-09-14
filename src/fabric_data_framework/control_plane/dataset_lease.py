@@ -10,6 +10,8 @@ started, so ``expires_at`` is retained only as an operational review deadline.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -102,7 +104,7 @@ def acquire_dataset_lease(
         raise ValueError("review_deadline must be timezone-aware")
 
     apply_baseline_schema(engine)
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     if review_deadline <= now:
         raise ValueError("review_deadline must be in the future")
     state = DatasetLeaseState(

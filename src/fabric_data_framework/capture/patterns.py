@@ -16,8 +16,7 @@ from pydantic import Field
 from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
-    DatasetConfig,
-)
+    DatasetConfig,)
 from fabric_data_framework.contracts.base import FrozenModel
 
 

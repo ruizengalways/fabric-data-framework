@@ -9,8 +9,7 @@ from pydantic import Field, model_validator
 
 from fabric_data_framework.metadata.config import (
     CaptureStrategy,
-    DatasetConfig,
-)
+    DatasetConfig,)
 from fabric_data_framework.contracts.base import FrozenModel
 from .patterns import (
     BronzeWriteMode,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
 from uuid import uuid4
 
 import pytest
@@ -21,8 +22,7 @@ from fabric_data_framework.metadata.config import (
     RunMode,
     SourceConfig,
     TargetConfig,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 from fabric_data_framework.control_plane.schema import (
     apply_baseline_schema,
     pipeline_run,
@@ -135,7 +135,7 @@ def test_pipeline_dataset_and_step_lifecycle_are_durable_and_updatable(tmp_path)
     dataset_run_id = uuid4()
     repository.record_pipeline_run(_pipeline_audit(pipeline_run_id, config))
     effective = resolve_effective_config(config)
-    started = datetime.now(timezone.utc)
+    started = utc_now()
 
     repository.record_dataset_run(
         DatasetRunAudit(
@@ -157,16 +157,16 @@ def test_pipeline_dataset_and_step_lifecycle_are_durable_and_updatable(tmp_path)
             status=DatasetStatus.SUCCEEDED,
             effective_config_hash=effective.effective_config_hash,
             started_at=started,
-            completed_at=datetime.now(timezone.utc),
+            completed_at=utc_now(),
         )
     )
-    step_started = datetime.now(timezone.utc)
+    step_started = utc_now()
     step = StepRunAudit(
         dataset_run_id=dataset_run_id,
         step_name="provider_job",
         status=StepStatus.SUCCEEDED,
         started_at=step_started,
-        completed_at=datetime.now(timezone.utc),
+        completed_at=utc_now(),
         details={"native_run_id": "fabric-123"},
     )
     repository.record_step_run(step)
@@ -260,7 +260,7 @@ def test_fabric_pipeline_child_parent_handoff_uses_relational_outcome_and_step_e
         def invoke(self, invocation):
             # Simulate the released child runtime durably writing its semantic outcome
             # before the provider reports Completed to the parent.
-            child_started = datetime.now(timezone.utc)
+            child_started = utc_now()
             repository.record_dataset_run(
                 DatasetRunAudit(
                     dataset_run_id=invocation.dataset_run_id,
@@ -270,7 +270,7 @@ def test_fabric_pipeline_child_parent_handoff_uses_relational_outcome_and_step_e
                     status=DatasetStatus.SUCCEEDED,
                     effective_config_hash=invocation.effective_config_hash,
                     started_at=child_started,
-                    completed_at=datetime.now(timezone.utc),
+                    completed_at=utc_now(),
                 )
             )
             return FabricJobInstance(
@@ -280,7 +280,7 @@ def test_fabric_pipeline_child_parent_handoff_uses_relational_outcome_and_step_e
                 status=FabricJobStatus.COMPLETED,
                 root_activity_id=root_id,
                 start_time_utc=child_started,
-                end_time_utc=datetime.now(timezone.utc),
+                end_time_utc=utc_now(),
                 failure_reason=None,
             )
 

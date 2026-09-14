@@ -70,8 +70,7 @@ from fabric_data_framework.metadata.config import (
     RunMode,
     SourceConfig,
     TargetConfig,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 
 
 NOW = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc)

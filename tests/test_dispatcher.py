@@ -18,8 +18,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationPolicy,
     RunMode,
     SourceConfig,
-    TargetConfig,
-)
+    TargetConfig,)
 from fabric_data_framework.orchestration.dispatcher import (
     DatasetDispatchOutcome,
     OrchestrationIntegrityError,

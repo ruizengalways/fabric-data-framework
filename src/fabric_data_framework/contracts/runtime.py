@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import require_aware_datetime, utc_now
+
+
 from datetime import datetime, timezone
 import math
 from typing import Any, Iterable
@@ -12,15 +15,6 @@ from pydantic import Field, field_validator, model_validator
 from fabric_data_framework.metadata.config import Criticality, DatasetStatus, PipelineStatus, RunMode
 from .base import FrozenModel
 from .environment import EnvironmentName
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _require_aware(value: datetime, field_name: str) -> None:
-    if value.tzinfo is None or value.utcoffset() is None:
-        raise ValueError(f"{field_name} must be timezone-aware")
 
 
 class RuntimeContext(FrozenModel):
@@ -36,11 +30,11 @@ class RuntimeContext(FrozenModel):
     framework_version: str = Field(min_length=1)
     effective_config_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     deployment_id: UUID | None = None
-    started_at: datetime = Field(default_factory=_utcnow)
+    started_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
     def validate_time(self) -> "RuntimeContext":
-        _require_aware(self.started_at, "started_at")
+        require_aware_datetime(self.started_at, "started_at")
         return self
 
 
@@ -117,7 +111,7 @@ def _validate_watermark_scalar(value: Any, *, allow_none: bool, field_name: str)
     if isinstance(value, float) and not math.isfinite(value):
         raise ValueError(f"{field_name} must be finite")
     if isinstance(value, datetime):
-        _require_aware(value, field_name)
+        require_aware_datetime(value, field_name)
         return value
     if type(value) not in {str, int, float}:
         raise TypeError(f"unsupported {field_name} type: {type(value).__name__}")

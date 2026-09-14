@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
 from uuid import uuid4
 
 import pytest
@@ -119,7 +119,7 @@ def test_delta_cdf_resume_allows_exact_next_version_and_freezes_upper():
 def _operation_engine():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     apply_baseline_schema(engine)
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     with engine.begin() as connection:
         connection.execute(
             dataset.insert().values(

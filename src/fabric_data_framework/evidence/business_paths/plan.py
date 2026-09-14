@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.hashing import canonical_hash
+
 import hashlib
 from pathlib import Path, PurePosixPath
 
@@ -11,7 +13,6 @@ from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.deployment.contracts import ReleaseManifest
 from fabric_data_framework.evidence.business_paths.evidence import BusinessPathGate
 from fabric_data_framework.contracts.audit_safety import assert_safe_retained_text
-from fabric_data_framework.metadata.config import canonical_hash
 
 
 BUSINESS_PATH_PLAN_SCHEMA_VERSION = 1

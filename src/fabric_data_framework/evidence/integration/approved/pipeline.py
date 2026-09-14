@@ -13,9 +13,11 @@ observer to self-report provider success.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
@@ -33,8 +35,7 @@ from fabric_data_framework.metadata.config import (
     DatasetStatus,
     PipelineStatus,
     RunMode,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 from ....control_plane.certification import get_control_plane_backend_profile
 from ....deployment.delivery import config_bundle_hash
 from ....deployment.contracts import ReleaseManifest
@@ -103,10 +104,6 @@ class ApprovedPipelineExecution:
     plan: ApprovedIntegrationRunPlan
     manifest: IntegrationEvidenceManifest
     report: ApprovedPipelineEvidenceReport | None
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _require_pipeline_prerequisites(
@@ -237,7 +234,7 @@ def _safe_failure_result(
     evidence_references: tuple[str, ...],
 ) -> IntegrationEvidenceCheckResult:
     safe_code = _safe_error_code(error_code) or "UNSPECIFIED"
-    now = _utcnow()
+    now = utc_now()
     started_at = job.start_time_utc if job and job.start_time_utc else now
     completed_at = job.end_time_utc if job and job.end_time_utc else now
     return IntegrationEvidenceCheckResult(
@@ -363,7 +360,7 @@ def execute_approved_pipeline(
         engine = engine_factory(database_url)
         repository: SqlAlchemyControlPlaneRepository | None = None
         pipeline_run_id = uuid4()
-        pipeline_started = _utcnow()
+        pipeline_started = utc_now()
         parent_recorded = False
         try:
             repository = SqlAlchemyControlPlaneRepository(
@@ -435,7 +432,7 @@ def execute_approved_pipeline(
                 release_manifest=release_manifest,
                 status=final_status,
                 started_at=pipeline_started,
-                completed_at=_utcnow(),
+                completed_at=utc_now(),
             )
 
             if outcome.status is not DatasetStatus.SUCCEEDED:
@@ -467,7 +464,7 @@ def execute_approved_pipeline(
                         release_manifest=release_manifest,
                         status=PipelineStatus.FAILED,
                         started_at=pipeline_started,
-                        completed_at=_utcnow(),
+                        completed_at=utc_now(),
                     )
                 except Exception:
                     pass

@@ -8,6 +8,8 @@ execution layer and must not be defined here.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.hashing import canonical_hash
+
 from enum import Enum
 
 from pydantic import Field, model_validator
@@ -17,9 +19,7 @@ from fabric_data_framework.metadata.config import (
     ApplyStrategy,
     CaptureStrategy,
     ExecutionEngine,
-    RunMode,
-    canonical_hash,
-)
+    RunMode,)
 
 
 class ExecutionKind(str, Enum):

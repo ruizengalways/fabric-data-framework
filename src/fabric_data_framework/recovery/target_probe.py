@@ -8,7 +8,9 @@ operation journal before recovery proceeds.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
@@ -22,10 +24,6 @@ from fabric_data_framework.contracts.target_operation import (
     TargetOperationRecord,
     TargetOperationStatus,
 )
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 class TargetCommitProbeRequest(FrozenModel):
@@ -66,7 +64,7 @@ class TargetCommitProbeEvidence(FrozenModel):
     evidence_reference: str | None = Field(default=None, max_length=2048)
     native_operation_id: str | None = Field(default=None, max_length=1024)
     detail: str | None = None
-    probed_at: datetime = Field(default_factory=_utcnow)
+    probed_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
     def validate_evidence(self) -> "TargetCommitProbeEvidence":

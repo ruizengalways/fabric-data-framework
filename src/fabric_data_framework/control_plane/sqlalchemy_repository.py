@@ -12,7 +12,8 @@ deployment operation (`control-plane-migrate`) as required by the certification 
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
 from threading import RLock
 from typing import Iterable
 from uuid import UUID
@@ -58,10 +59,6 @@ from fabric_data_framework.contracts.typed_values import (
     encode_typed_value,
 )
 from ..contracts.audit_safety import sanitize_audit_details, sanitize_audit_text
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _require_current_schema(engine: Engine) -> None:
@@ -222,7 +219,7 @@ class SqlAlchemyControlPlaneRepository:
         if expected_version < 0:
             raise ValueError("expected watermark version cannot be negative")
         self._deployed_dataset_row(dataset_id)
-        now = _utcnow()
+        now = utc_now()
         encoded_value = encode_typed_value(position.value)
         encoded_tie_breaker = [encode_typed_value(item) for item in position.tie_breaker]
 
@@ -424,7 +421,7 @@ class SqlAlchemyControlPlaneRepository:
                     schema_version=receipt.schema_version,
                     started_at=receipt.started_at,
                     completed_at=receipt.completed_at,
-                    created_at=_utcnow(),
+                    created_at=utc_now(),
                 )
             )
 
@@ -587,7 +584,7 @@ class SqlAlchemyControlPlaneRepository:
                 .where(reprocess_request.c.reprocess_request_id == key)
                 .values(
                     status=request.status.value,
-                    updated_at=request.updated_at or _utcnow(),
+                    updated_at=request.updated_at or utc_now(),
                 )
             )
 

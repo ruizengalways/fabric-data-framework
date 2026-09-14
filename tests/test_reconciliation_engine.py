@@ -14,8 +14,7 @@ from fabric_data_framework.metadata.config import (
     ReconciliationAggregate,
     ReconciliationCheck,
     ReconciliationCheckKind,
-    ReconciliationPolicy,
-)
+    ReconciliationPolicy,)
 from fabric_data_framework.quality.reconciliation.engine import evaluate_reconciliation_policy
 
 

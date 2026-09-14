@@ -15,8 +15,8 @@ release:
   real_fabric_status: FABRIC_CERTIFICATION_REQUIRED
 
 candidate_identity:
-  current_source_candidate_git_sha: not_selected_after_architecture_readability_refactor
-  current_source_framework_artifact_sha256: not_selected_after_architecture_readability_refactor
+  current_source_candidate_git_sha: not_selected_after_append_scalability_refactor
+  current_source_framework_artifact_sha256: not_selected_after_append_scalability_refactor
   integration_inputs_hash: not_yet_constructed
   integration_inputs_status: blocked_pending_approved_live_DEV_bindings
   current_source_requires_new_exact_artifact_before_release_claim: true
@@ -256,6 +256,12 @@ reconciliation:
   complete_policy_materialized_to_control_plane_definition: true
   control_plane_schema_bump_required: false
 
+append_runtime:
+  in_memory_apply_role: deterministic_reference_only
+  fabric_spark_delta_distributed_path: implemented_source_proven
+  production_target_materialization_in_python_allowed: false
+  live_fabric_proof: not_run_for_current_unselected_source
+
 certification:
   source_tests: required
   exact_wheel_build: required
@@ -287,8 +293,7 @@ external_execution_boundary:
   do_not_guess_or_reuse_unverified_resource_ids: true
 
 next_boundary:
-  - merge the architecture/readability refactor only after exact PR-head CI and installed-wheel acceptance pass
-  - keep release blocked and leave current_source_candidate_git_sha unselected during this refactor task
+  - keep release blocked and leave current_source_candidate_git_sha unselected after the APPEND scalability/foundation refactor
   - select exact post-merge main source + wheel bytes only in a separate explicit candidate-selection task
   - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials
   - bootstrap/read back framework-owned certification assets using that newly selected exact wheel

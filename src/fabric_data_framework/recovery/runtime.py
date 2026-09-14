@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from enum import Enum
 from typing import Generic, Protocol, TypeVar
 from uuid import UUID, uuid4
@@ -186,7 +187,7 @@ def _update_reprocess_status(
     if request is None:
         return None
     updated = request.model_copy(
-        update={"status": status, "updated_at": datetime.now(timezone.utc)}
+        update={"status": status, "updated_at": utc_now()}
     )
     repository.record_reprocess_request(updated)
     return updated

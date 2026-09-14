@@ -15,6 +15,8 @@ marker instead of blindly retrying.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.hashing import canonical_hash
+
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from enum import Enum
@@ -29,9 +31,7 @@ from sqlalchemy.engine import Connection
 
 from fabric_data_framework.metadata.config import (
     DatasetConfig,
-    canonical_hash,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 from fabric_data_framework.contracts.base import FrozenModel
 from ....contracts.recovery import UnknownOutcomeResolution
 from ....control_plane.certification import get_control_plane_backend_profile

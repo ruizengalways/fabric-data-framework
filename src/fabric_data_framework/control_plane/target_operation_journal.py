@@ -8,6 +8,8 @@ reconciliation.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.temporal import utc_now
+
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -173,7 +175,7 @@ def claim_target_operation(
         raise ValueError("attempt must be >= 1")
 
     apply_baseline_schema(engine)
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     key = intent.operation_key
 
     try:
@@ -321,7 +323,7 @@ def transition_target_operation(
         raise ValueError("attempt must be >= 1")
 
     apply_baseline_schema(engine)
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     with engine.begin() as connection:
         row = connection.execute(
             select(target_operation).where(target_operation.c.operation_key == operation_key)

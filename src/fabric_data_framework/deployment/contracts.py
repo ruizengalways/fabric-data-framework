@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import datetime
 from enum import Enum
 import hashlib
 import json
@@ -70,7 +72,7 @@ class ReleaseManifest(FrozenModel):
 
     domain: str = Field(min_length=1)
     bundle: ReleaseBundleIdentity
-    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    generated_at: datetime = Field(default_factory=lambda: utc_now())
     artifact_sha256: dict[str, str] = Field(default_factory=dict)
     promotable_control_plane_tables: tuple[str, ...] = Field(
         default_factory=lambda: tuple(sorted(PROMOTABLE_DEFINITION_TABLES))
@@ -158,7 +160,7 @@ class DeploymentProvenance(FrozenModel):
     ci_provider: CIProvider
     initiated_by: str = Field(min_length=1)
     approved_by: str | None = None
-    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = Field(default_factory=lambda: utc_now())
     completed_at: datetime | None = None
     status: str = Field(min_length=1)
     previous_deployment_id: UUID | None = None

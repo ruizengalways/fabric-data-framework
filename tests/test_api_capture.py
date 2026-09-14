@@ -1,3 +1,4 @@
+from fabric_data_framework.contracts.hashing import canonical_hash
 import pytest
 
 from fabric_data_framework.capture.api import (
@@ -8,7 +9,6 @@ from fabric_data_framework.capture.api import (
     freeze_api_window,
     validate_api_capture,
 )
-from fabric_data_framework.metadata.config import canonical_hash
 
 
 def _page(

@@ -29,8 +29,7 @@ from fabric_data_framework.metadata.config import (
     SourceConfig,
     TargetConfig,
     WatermarkConfig,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 from fabric_data_framework.contracts.execution_plan import (
     ExecutionKind,
     ExecutionRole,

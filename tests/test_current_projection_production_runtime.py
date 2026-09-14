@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import timedelta
 from uuid import uuid4
 
 import pytest
@@ -55,8 +57,7 @@ from fabric_data_framework.metadata.config import (
     RunMode,
     SourceConfig,
     TargetConfig,
-    resolve_effective_config,
-)
+    resolve_effective_config,)
 from fabric_data_framework.recovery.current_projection import (
     FabricSparkProjectionTransitionCoordinator,
 )
@@ -232,7 +233,7 @@ def test_abandoned_lease_recovery_requires_deadline_and_exact_proof(tmp_path):
         dataset_id="projection.customer",
         lease_owner="worker-1",
         dataset_run_id=run_id,
-        review_deadline=datetime.now(timezone.utc) + timedelta(hours=1),
+        review_deadline=utc_now() + timedelta(hours=1),
     )
     with pytest.raises(DatasetLeaseRecoveryConflict, match="deadline"):
         recover_abandoned_dataset_lease(

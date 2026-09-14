@@ -7,12 +7,13 @@ read a different set or a newer version of the same object.
 
 from __future__ import annotations
 
+from fabric_data_framework.contracts.hashing import canonical_hash
+
 from datetime import datetime
 from enum import Enum
 
 from pydantic import Field, model_validator
 
-from fabric_data_framework.metadata.config import canonical_hash
 from fabric_data_framework.contracts.base import FrozenModel
 
 

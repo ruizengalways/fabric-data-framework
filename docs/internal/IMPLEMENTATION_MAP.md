@@ -6,7 +6,7 @@ Use this file to locate the canonical module before changing framework behavior.
 
 ```text
 src/fabric_data_framework/
-  contracts/       provider-neutral immutable runtime/semantic contracts + deterministic contract invariants
+  contracts/       provider-neutral immutable runtime/semantic contracts + deterministic hash/temporal/invariant primitives
   metadata/        DatasetConfig + capability metadata and resolution
   capture/         source/capture semantics and onboarding/bootstrap
   apply/           target apply semantics
@@ -175,18 +175,24 @@ For an application change-log/audit table using `WATERMARK + bounded LOOKBACK ->
 
 ```text
 capture/watermark.py
--> execution/append.py
--> apply/append.py
+-> distributed accepted/staged relation
+-> execution/backends/fabric_spark_append.py
+-> adapters/fabric/append.py
 -> quality/reconciliation/append.py
 -> quality/reconciliation/engine.py
+
+apply/append.py remains the deterministic in-memory reference/oracle; it is not the
+production large-target physical path.
 ```
 
 Ownership remains distinct:
 
 ```text
 capture/watermark.py          source window/overlap semantics
-execution/append.py           capture-neutral APPEND batch coordination
-apply/append.py               append identity, idempotent replay, conflict fail-closed rules
+execution/append.py           capture-neutral in-memory/reference APPEND coordination
+apply/append.py               deterministic semantic oracle for identity/replay/conflict rules
+execution/backends/fabric_spark_append.py distributed accepted-batch coordination + reconciliation/audit
+adapters/fabric/append.py      Spark/Delta DISTINCT/JOIN/MERGE/verification; never collects the target
 quality/reconciliation/append.py             APPEND strategy-specific reconciliation metrics
 quality/reconciliation/engine.py declarative policy composition
 ```

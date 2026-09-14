@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from fabric_data_framework.contracts.temporal import utc_now
+
+from datetime import timezone
 from uuid import uuid4
 
 import pytest
@@ -254,5 +256,5 @@ def test_marker_timestamp_round_trip_is_utc_aware(tmp_path):
     assert result.marker.recorded_at.tzinfo is not None
     assert persisted.recorded_at.tzinfo is not None
     assert persisted.recorded_at.utcoffset() == timezone.utc.utcoffset(
-        datetime.now(timezone.utc)
+        utc_now()
     )
