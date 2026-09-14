@@ -49,7 +49,7 @@ from fabric_data_framework.evidence.integration.runner import (
     build_approved_integration_run_plan,
 )
 from fabric_data_framework.evidence.release.readiness import ReleaseReadinessProofResult
-from fabric_data_framework.evidence.safety import assert_safe_retained_text
+from fabric_data_framework.contracts.audit_safety import assert_safe_retained_text
 from fabric_data_framework.extensions import ExtensionKind, ExtensionRegistry
 from fabric_data_framework.metadata.config import DatasetConfig
 

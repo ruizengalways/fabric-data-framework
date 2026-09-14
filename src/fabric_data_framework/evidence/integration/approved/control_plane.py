@@ -34,7 +34,7 @@ from ..runner import (
     ApprovedIntegrationRunnerConfig,
     build_approved_integration_run_plan,
 )
-from ...safety import assert_safe_retained_text
+from fabric_data_framework.contracts.audit_safety import assert_safe_retained_text
 
 
 EngineFactory = Callable[[str], Engine]

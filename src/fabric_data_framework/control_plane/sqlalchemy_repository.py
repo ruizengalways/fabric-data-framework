@@ -57,7 +57,7 @@ from fabric_data_framework.contracts.typed_values import (
     decode_legacy_or_typed_scalar,
     encode_typed_value,
 )
-from ..evidence.safety import sanitize_audit_details, sanitize_audit_text
+from ..contracts.audit_safety import sanitize_audit_details, sanitize_audit_text
 
 
 def _utcnow() -> datetime:

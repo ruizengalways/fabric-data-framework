@@ -1,4 +1,4 @@
-"""Credential safety, redaction and bounded retention helpers."""
+"""Provider-neutral retained-text and audit-value safety contracts."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ _TRUNCATED = "... [truncated]"
 
 
 def assert_safe_retained_text(value: str, field_name: str = "retained evidence text") -> str:
-    """Reject obvious credential-bearing text before it is written to retained evidence."""
+    """Reject obvious credential-bearing text before it is retained."""
 
     for pattern in _SECRET_PATTERNS:
         if pattern.search(value):
@@ -79,23 +79,28 @@ def _sanitize(value: Any, *, depth: int) -> Any:
     if isinstance(value, (UUID, datetime, date)):
         return str(value)
     if isinstance(value, Mapping):
-        result: dict[str, Any] = {}
-        items = list(value.items())
-        for raw_key, raw_value in items[:AUDIT_MAX_ITEMS]:
+        mapping_result: dict[str, Any] = {}
+        mapping_items = list(value.items())
+        for raw_key, raw_value in mapping_items[:AUDIT_MAX_ITEMS]:
             key = _truncate_text(str(raw_key), 256)
             if _SENSITIVE_KEY.search(key):
-                result[key] = _REDACTED
+                mapping_result[key] = _REDACTED
             else:
-                result[key] = _sanitize(raw_value, depth=depth + 1)
-        if len(items) > AUDIT_MAX_ITEMS:
-            result["_truncated_items"] = len(items) - AUDIT_MAX_ITEMS
-        return result
+                mapping_result[key] = _sanitize(raw_value, depth=depth + 1)
+        if len(mapping_items) > AUDIT_MAX_ITEMS:
+            mapping_result["_truncated_items"] = len(mapping_items) - AUDIT_MAX_ITEMS
+        return mapping_result
     if isinstance(value, (list, tuple)):
-        items = list(value)
-        result = [_sanitize(item, depth=depth + 1) for item in items[:AUDIT_MAX_ITEMS]]
-        if len(items) > AUDIT_MAX_ITEMS:
-            result.append(f"[{len(items) - AUDIT_MAX_ITEMS} more item(s) truncated]")
-        return result
+        sequence_items = list(value)
+        sequence_result = [
+            _sanitize(item, depth=depth + 1)
+            for item in sequence_items[:AUDIT_MAX_ITEMS]
+        ]
+        if len(sequence_items) > AUDIT_MAX_ITEMS:
+            sequence_result.append(
+                f"[{len(sequence_items) - AUDIT_MAX_ITEMS} more item(s) truncated]"
+            )
+        return sequence_result
     return f"[UNSUPPORTED_AUDIT_VALUE:{type(value).__name__}]"
 
 

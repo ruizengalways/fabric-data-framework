@@ -6,7 +6,7 @@ Use this file to locate the canonical module before changing framework behavior.
 
 ```text
 src/fabric_data_framework/
-  contracts/       provider-neutral immutable runtime/semantic contracts
+  contracts/       provider-neutral immutable runtime/semantic contracts + deterministic contract invariants
   metadata/        DatasetConfig + capability metadata and resolution
   capture/         source/capture semantics and onboarding/bootstrap
   apply/           target apply semantics
@@ -62,6 +62,7 @@ Provider mechanics must not become semantic truth.
 | FULL/WATERMARK/CDC bootstrap | capture bootstrap modules |
 | APPEND/REPLACE/UPSERT/SCD1/SCD2/SNAPSHOT_DIFF | `apply/` |
 | Current projection semantic/apply contract | `contracts/current_projection.py` + `apply/current_projection.py` |
+| Current projection shared execution result/error | `contracts/current_projection_execution.py` |
 | Current projection deployment compiler | `deployment/current_projection.py` |
 | Mode-3 provider-neutral reference execution, bootstrap/rebuild and checkpoint gating | `execution/current_projection.py` |
 | Mode-3 Fabric Spark/Delta CDF, exact-version reread and affected-key MERGE | `adapters/fabric/current_projection.py` |
@@ -76,6 +77,7 @@ Provider mechanics must not become semantic truth.
 | Declarative reconciliation evaluation | `quality/reconciliation/engine.py` |
 | Strategy-specific reconciliation composition | `quality/reconciliation/scd2.py`, `quality/reconciliation/full_replace.py`, `quality/reconciliation/append.py`, `quality/reconciliation/snapshot_diff.py` |
 | Immutable execution-plan contracts | `contracts/execution_plan.py` |
+| Retained text/audit safety | `contracts/audit_safety.py` |
 | Execution-plan compilation | `execution/plan_compiler.py` |
 | Dataset dependency graph / ready-wave planning | `orchestration/planner.py` |
 | Parent dispatch and failure isolation | `orchestration/dispatcher.py` |
@@ -263,7 +265,8 @@ The canonical operator manual for data correctness repair/rebuild/v1-v2 cutover 
 | Installed semantic smoke | `src/fabric_data_framework/certification/semantic.py` |
 | Lakehouse bounded Fabric checks | `src/fabric_data_framework/certification/bounded.py` |
 | Conventional one-call API | `src/fabric_data_framework/certification/simple.py` |
-| Unified environment-dependent orchestrator | `src/fabric_data_framework/certification/unified.py` |
+| Unified certification public coordinator | `src/fabric_data_framework/certification/unified.py` |
+| Unified certification typed stage execution | `src/fabric_data_framework/certification/unified_stages.py` |
 | Framework-owned reference integration fixtures/config | `certification_harness/integration_project/` plus packaged certification resources |
 
 `certify_installed()` is the preferred high-level boundary: attest installed bytes first, then execute semantic/Fabric certification.
@@ -281,8 +284,9 @@ The canonical operator manual for data correctness repair/rebuild/v1-v2 cutover 
 | Pipeline runner | `evidence/integration/approved/pipeline.py` | native run + exact durable child outcome |
 | Copy/Spark runner | `evidence/integration/approved/capture.py` | native provider evidence + verified CaptureReceipt |
 | Warehouse runner | `evidence/integration/approved/warehouse.py` | mutation + marker proof |
-| Ambiguous-COMMIT runner | `evidence/integration/approved/warehouse_fault.py` | real fault/recovery evidence |
-| Secret scan | `evidence/safety.py` | fail closed before retention |
+| Ambiguous-COMMIT public contract/façade | `evidence/integration/approved/warehouse_fault.py` | stable API/report contract |
+| Ambiguous-COMMIT typed stage execution | `evidence/integration/approved/warehouse_fault_stages.py` | real fault/probe/recovery evidence; retry only from durable NOT_COMMITTED |
+| Secret scan / retained audit safety | `contracts/audit_safety.py` | provider-neutral fail-closed redaction and retention bounds |
 
 Identity invariant:
 
@@ -422,7 +426,7 @@ src/fabric_data_framework/apply/scd2.py
 src/fabric_data_framework/apply/cdc_scd2.py
   typed change hashing and CDC tombstone/history ordering
 
-src/fabric_data_framework/evidence/safety.py
+src/fabric_data_framework/contracts/audit_safety.py
 src/fabric_data_framework/execution/backends/fabric_pipeline.py
 src/fabric_data_framework/orchestration/dispatcher.py
   bounded recursive audit redaction and terminal ordinary-exception boundaries

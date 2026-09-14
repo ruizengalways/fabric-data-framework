@@ -60,7 +60,7 @@ from fabric_data_framework.contracts.audit import PipelineRunAudit
 from fabric_data_framework.contracts.base import FrozenModel
 from fabric_data_framework.contracts.dispatch import DatasetDispatchOutcome
 from ....control_plane.sqlalchemy_repository import SqlAlchemyControlPlaneRepository
-from ...safety import assert_safe_retained_text
+from fabric_data_framework.contracts.audit_safety import assert_safe_retained_text
 
 
 EngineFactory = Callable[[str], Engine]

@@ -53,7 +53,7 @@ The installable package lives under `src/fabric_data_framework/`.
 | Folder | Primary ownership |
 |---|---|
 | `metadata/` | DatasetConfig, execution metadata, effective config, capability resolution |
-| `contracts/` | stable immutable cross-layer contracts only |
+| `contracts/` | stable immutable cross-layer contracts and deterministic provider-neutral contract invariants |
 | `capture/` | source/capture fidelity, windows, events, onboarding |
 | `apply/` | target state/history transition semantics |
 | `quality/` | DQ, schema, quarantine, reconciliation |
@@ -366,6 +366,9 @@ src/fabric_data_framework/certification/semantic.py
 src/fabric_data_framework/certification/bounded.py
 src/fabric_data_framework/certification/simple.py
 src/fabric_data_framework/certification/unified.py
+src/fabric_data_framework/certification/unified_stages.py
+src/fabric_data_framework/evidence/integration/approved/warehouse_fault.py
+src/fabric_data_framework/evidence/integration/approved/warehouse_fault_stages.py
 ```
 
 Proof levels are not interchangeable:

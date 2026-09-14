@@ -81,4 +81,4 @@ Root-level evidence aliases are intentionally not provided.
 - A simulated framework ACK loss is not evidence of a real provider/network COMMIT disconnect.
 - Candidate business-path proof cannot be packaged without the exact customer/domain ReleaseManifest identity.
 
-`evidence/safety.py` owns fail-closed validation for text retained as integration evidence.
+`contracts/audit_safety.py` owns fail-closed validation for text retained as integration evidence.

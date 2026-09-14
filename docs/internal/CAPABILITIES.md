@@ -140,7 +140,7 @@ integration_inputs_hash
 | Approved integration run planning | `evidence/integration/runner.py` | validates identity, bindings, prerequisites, authorizations |
 | Strict staged merge/rerun | evidence merge/rerun modules | contradictory evidence is not silently overwritten |
 | Pipeline/Copy/Spark/Warehouse runners | approved runner modules | provider result must converge with framework semantic evidence |
-| Retained secret scan | `evidence/safety.py` | fail closed before retention |
+| Retained secret/audit safety | `contracts/audit_safety.py` | fail closed before retention; core does not depend on evidence |
 | Candidate readiness/proof merge | release-readiness modules | exact identities must agree |
 | Candidate certification aggregation | `evidence/release/candidate_certification.py` | aggregation only; no provider execution |
 

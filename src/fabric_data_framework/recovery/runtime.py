@@ -20,7 +20,7 @@ from ..contracts.recovery import (
     UnknownOutcomeResolution,
 )
 from fabric_data_framework.contracts.audit import DatasetRunAudit
-from fabric_data_framework.evidence.safety import sanitize_audit_text
+from fabric_data_framework.contracts.audit_safety import sanitize_audit_text
 
 
 T = TypeVar("T")

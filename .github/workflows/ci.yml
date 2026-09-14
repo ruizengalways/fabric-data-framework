@@ -1,6 +1,7 @@
 name: framework-ci
 
 on:
+  # Pull-request runs are the exact-head merge gate for framework changes.
   pull_request:
   push:
     branches: [main]
@@ -33,6 +34,17 @@ jobs:
           ruff check src tests
           python -m compileall -q src tests
           python -m pip check
+      - name: Refactored coordinator complexity ratchet
+        run: |
+          # Keep the readability refactor from regressing without forcing unrelated
+          # legacy modules into a repository-wide cleanup. Stable public facades may
+          # carry a narrowly scoped PLR0913 noqa; extracted internal stages may not.
+          ruff check --isolated --select C901,PLR0913,PLR0915 \
+            src/fabric_data_framework/certification/unified.py \
+            src/fabric_data_framework/certification/unified_stages.py \
+            src/fabric_data_framework/evidence/integration/approved/warehouse_fault.py \
+            src/fabric_data_framework/evidence/integration/approved/warehouse_fault_stages.py \
+            src/fabric_data_framework/adapters/fabric/current_projection.py
       - name: Focused type checks
         run: |
           mypy \
