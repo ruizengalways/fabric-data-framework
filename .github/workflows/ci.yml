@@ -1,6 +1,7 @@
 name: framework-ci
 
 on:
+  # Pull-request runs are the exact-head merge gate for framework changes.
   pull_request:
   push:
     branches: [main]
