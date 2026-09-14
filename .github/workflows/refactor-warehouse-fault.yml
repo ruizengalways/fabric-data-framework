@@ -1,0 +1,118 @@
+name: temporary-refactor-warehouse-fault
+
+on:
+  push:
+    branches: [refactor/architecture-readability-boundaries]
+
+permissions:
+  contents: write
+
+jobs:
+  refactor-and-verify:
+    if: ${{ !contains(github.event.head_commit.message, '[warehouse-fault-validated]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: refactor/architecture-readability-boundaries
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.13'
+      - name: Replace public runner with typed-stage facade
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/fabric_data_framework/evidence/integration/approved/warehouse_fault.py')
+          source = path.read_text(encoding='utf-8')
+          start = source.index('\ndef _require_prerequisites(')
+          end = source.index('\n\n__all__ = [', start)
+          wrapper = r'''
+          def execute_approved_warehouse_fault_drill(  # noqa: PLR0913
+              *,
+              config: ApprovedIntegrationRunnerConfig,
+              spec: IntegrationEvidenceSpec,
+              prerequisite_manifest: IntegrationEvidenceManifest,
+              release_manifest: ReleaseManifest,
+              configs: Iterable[DatasetConfig],
+              run_config: ApprovedWarehouseFaultDrillConfig,
+              environ: Mapping[str, str],
+              evidence_references: Iterable[str],
+              allow_warehouse_fault_injection: bool,
+              allow_warehouse_session_termination: bool = False,
+              extension_registry: ExtensionRegistry | None = None,
+              control_engine_factory: EngineFactory = create_engine,
+              warehouse_engine_factory: EngineFactory = create_engine,
+              warehouse_admin_engine_factory: EngineFactory = create_engine,
+              marker_store_factory: MarkerStoreFactory = _default_marker_store_factory,
+              session_binding_capture: SessionBindingCapture = capture_fabric_warehouse_session_binding,
+              session_authority_factory: SessionAuthorityFactory = _default_session_authority_factory,
+          ) -> ApprovedWarehouseFaultDrillExecution:
+              """Execute one approved real-fault drill through fail-closed typed stages."""
+
+              from .warehouse_fault_stages import (
+                  WarehouseFaultDrillRequest,
+                  WarehouseFaultDrillServices,
+                  execute_approved_warehouse_fault_drill_staged,
+              )
+
+              request = WarehouseFaultDrillRequest(
+                  config=config,
+                  spec=spec,
+                  prerequisite_manifest=prerequisite_manifest,
+                  release_manifest=release_manifest,
+                  configs=tuple(configs),
+                  run_config=run_config,
+                  environ=environ,
+                  evidence_references=tuple(evidence_references),
+                  allow_warehouse_fault_injection=allow_warehouse_fault_injection,
+                  allow_warehouse_session_termination=allow_warehouse_session_termination,
+              )
+              services = WarehouseFaultDrillServices(
+                  extension_registry=extension_registry,
+                  control_engine_factory=control_engine_factory,
+                  warehouse_engine_factory=warehouse_engine_factory,
+                  warehouse_admin_engine_factory=warehouse_admin_engine_factory,
+                  marker_store_factory=marker_store_factory,
+                  session_binding_capture=session_binding_capture,
+                  session_authority_factory=session_authority_factory,
+              )
+              return execute_approved_warehouse_fault_drill_staged(request, services)
+          '''
+          # Dedent the YAML here-doc indentation preserved in the raw string.
+          import textwrap
+          wrapper = '\n' + textwrap.dedent(wrapper).strip() + '\n'
+          path.write_text(source[:start] + wrapper + source[end:], encoding='utf-8')
+          PY
+          rm -f .github/workflows/refactor-warehouse-fault.yml
+      - name: Install development dependencies
+        run: python -m pip install -e '.[dev]'
+      - name: Clean imports and verify fault drill
+        run: |
+          ruff check --fix --select F401 \
+            src/fabric_data_framework/evidence/integration/approved/warehouse_fault.py \
+            src/fabric_data_framework/evidence/integration/approved/warehouse_fault_stages.py
+          ruff check src tests
+          mypy \
+            src/fabric_data_framework/contracts/runtime.py \
+            src/fabric_data_framework/contracts/typed_values.py \
+            src/fabric_data_framework/control_plane/repository.py \
+            src/fabric_data_framework/recovery/runtime.py
+          pytest -q \
+            tests/test_approved_warehouse_fault_runner.py \
+            tests/test_approved_warehouse_session_termination_recovery.py \
+            tests/test_evidence_import_smoke.py
+          ruff check --isolated --select C901,PLR0913,PLR0915 \
+            src/fabric_data_framework/evidence/integration/approved/warehouse_fault.py \
+            src/fabric_data_framework/evidence/integration/approved/warehouse_fault_stages.py
+      - name: Commit validated refactor
+        run: |
+          rm -rf src/fabric_data_framework.egg-info
+          find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          find src tests -name '*.pyc' -delete
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Refactor Warehouse fault drill into typed stages [warehouse-fault-validated]'
+          git push origin HEAD:refactor/architecture-readability-boundaries
