@@ -137,23 +137,25 @@ jobs:
             src/fabric_data_framework/execution/backends/fabric_spark_append.py \
             src/fabric_data_framework/execution/backends/fabric_spark_dataset.py \
             src/fabric_data_framework/adapters/fabric/current_projection.py
-      - name: Prepare validated patch
+      - name: Prepare validated working tree
         run: |
           rm -f scripts/_temporary_append_scalability_refactor.py
           rm -f scripts/_temporary_append_scalability_fix.py
           rm -f .github/workflows/append-scalability-refactor.yml
-          rm -rf src/fabric_data_framework.egg-info
+          rm -rf src/fabric_data_framework.egg-info .pytest_cache
           find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
           find src tests -name '*.pyc' -delete
           git diff --binary HEAD > /tmp/append-scalability.patch
           git diff --name-status HEAD > /tmp/append-scalability-files.txt
           test -s /tmp/append-scalability.patch
-      - name: Upload validated patch
+          tar --exclude=.git --exclude=.pytest_cache --exclude=src/fabric_data_framework.egg-info -czf /tmp/append-scalability-tree.tar.gz .
+      - name: Upload validated working tree
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: append-scalability-validated-patch
+          name: append-scalability-validated-tree
           path: |
             /tmp/append-scalability.patch
             /tmp/append-scalability-files.txt
+            /tmp/append-scalability-tree.tar.gz
           if-no-files-found: error
           retention-days: 1
