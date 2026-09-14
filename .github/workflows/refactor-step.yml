@@ -20,16 +20,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Apply one-shot refactor
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('tools/apply_architecture_refactor_step1.py')
-          text = path.read_text(encoding='utf-8')
-          if text.endswith("\n'''\n"):
-              path.write_text(text[:-5] + "\n", encoding='utf-8')
-          PY
-          python tools/apply_architecture_refactor_step1.py
-          rm -f .github/workflows/refactor-step.yml
+        run: python tools/apply_architecture_refactor_step1b.py
       - name: Install development dependencies
         run: python -m pip install -e '.[dev]'
       - name: Verify focused boundary changes
