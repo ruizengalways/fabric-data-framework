@@ -24,79 +24,47 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          state_path = Path('docs/internal/STATE.md')
-          state = state_path.read_text(encoding='utf-8')
-          state = state.replace(
-              '''next_boundary:
-  - keep the exact selected candidate wheel bytes immutable while Fabric certification is pending
-  - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials
-  - bootstrap/read back framework-owned certification assets using the exact selected wheel
-  - resolve exact item bindings by live Fabric item discovery
-  - construct and retain framework-owned integration inputs
-  - record integration_inputs_hash without guessing or substituting another identity
-  - install/attest the exact selected wheel in isolated DEV Fabric
-  - run certify_installed bounded first
-  - stop on any real FAIL
-  - run only explicitly required and authorized integration stages
-  - retain exact identity-bound evidence''',
-              '''next_boundary:
-  - merge the architecture/readability refactor only after exact PR-head CI and installed-wheel acceptance pass
-  - keep release blocked and keep current_source_candidate_git_sha unselected during this refactor task
-  - in a separate explicit candidate-selection task, select exact post-merge main source + wheel bytes
-  - obtain and live-verify the approved isolated DEV Fabric workspace/lakehouse identity and runtime credentials
-  - bootstrap/read back framework-owned certification assets using that newly selected exact wheel
-  - resolve exact item bindings by live Fabric item discovery
-  - construct and retain framework-owned integration inputs
-  - record integration_inputs_hash without guessing or substituting another identity
-  - install/attest the newly selected exact wheel in isolated DEV Fabric
-  - run certify_installed bounded first
-  - stop on any real FAIL
-  - run only explicitly required and authorized integration stages
-  - retain exact identity-bound evidence''',
-              1,
-          )
-          state = state.replace(
-              '## Selected projection-production candidate',
-              '## Superseded projection-production candidate',
-              1,
-          )
-          old = '''This exact executable candidate is **selected but not frozen**. It has not constructed
-`integration_inputs_hash`, executed Microsoft Fabric, authorized release, or claimed
-Fabric PASS. Candidate/evidence identity remains
-`framework_artifact_sha256 + integration_inputs_hash`; these selected wheel bytes must
-not change before identity-bound Fabric certification.'''
-          new = '''This historical executable candidate is **superseded by the architecture/readability
-refactor** and is retained only as provenance. It must not be used as the current source
-candidate. This refactor intentionally selects no replacement candidate and performs no
-candidate hash/release bookkeeping. The historical candidate never constructed
-`integration_inputs_hash`, executed Microsoft Fabric, authorized release, or claimed
-Fabric PASS.'''
-          if old not in state:
-              raise SystemExit('missing stale selected-candidate prose anchor')
-          state = state.replace(old, new, 1)
-          state_path.write_text(state, encoding='utf-8')
+          state_path = Path("docs/internal/STATE.md")
+          state = state_path.read_text(encoding="utf-8")
+          replacements = [
+              ("  - keep the exact selected candidate wheel bytes immutable while Fabric certification is pending", "  - merge the architecture/readability refactor only after exact PR-head CI and installed-wheel acceptance pass\n  - keep release blocked and leave current_source_candidate_git_sha unselected during this refactor task\n  - select exact post-merge main source + wheel bytes only in a separate explicit candidate-selection task"),
+              ("  - bootstrap/read back framework-owned certification assets using the exact selected wheel", "  - bootstrap/read back framework-owned certification assets using that newly selected exact wheel"),
+              ("  - install/attest the exact selected wheel in isolated DEV Fabric", "  - install/attest that newly selected exact wheel in isolated DEV Fabric"),
+              ("## Selected projection-production candidate", "## Superseded projection-production candidate"),
+          ]
+          for old, new in replacements:
+              if old not in state:
+                  raise SystemExit(f"missing STATE anchor: {old}")
+              state = state.replace(old, new, 1)
+          old_paragraph = "This exact executable candidate is **selected but not frozen**. It has not constructed\n`integration_inputs_hash`, executed Microsoft Fabric, authorized release, or claimed\nFabric PASS. Candidate/evidence identity remains\n`framework_artifact_sha256 + integration_inputs_hash`; these selected wheel bytes must\nnot change before identity-bound Fabric certification."
+          new_paragraph = "This historical executable candidate is **superseded by the architecture/readability\nrefactor** and is retained only as provenance. It must not be used as the current source\ncandidate. This refactor intentionally selects no replacement candidate and performs no\ncandidate hash/release bookkeeping. The historical candidate never constructed\n`integration_inputs_hash`, executed Microsoft Fabric, authorized release, or claimed\nFabric PASS."
+          if old_paragraph not in state:
+              raise SystemExit("missing stale selected-candidate paragraph")
+          state = state.replace(old_paragraph, new_paragraph, 1)
+          state_path.write_text(state, encoding="utf-8")
 
-          test_path = Path('tests/test_current_docs_consistency.py')
-          test = test_path.read_text(encoding='utf-8')
-          replacements = {
-              '"exact_candidate_source_selected: true",': '"exact_candidate_source_selected: false",',
-              '"current_source_candidate_git_sha: 5d4b69702acc3e362a52a3b890cc7096f2acc02a",': '"current_source_candidate_git_sha: not_selected_after_architecture_readability_refactor",',
-              '"current_source_framework_artifact_sha256: 5e19368c5c63e48e78abb47aa095638d4f0b39c831fc909c37df6817ed7e21a8",': '"current_source_framework_artifact_sha256: not_selected_after_architecture_readability_refactor",',
-              '"current_source_requires_new_exact_artifact_before_release_claim: false",': '"current_source_requires_new_exact_artifact_before_release_claim: true",\n        "candidate_bytes_must_not_change: false",',
-              '"status: selected_not_frozen",': '"status: superseded_by_architecture_readability_refactor",',
-              '"exact_current_candidate_selected: true",': '"exact_current_candidate_selected: false",',
-              '"current_source_installed_wheel_acceptance: passed_main_run_34689765815",': '"current_source_installed_wheel_acceptance: not_run_for_new_current_source",',
-          }
-          for old_token, new_token in replacements.items():
-              if old_token not in test:
-                  raise SystemExit(f'missing docs consistency test anchor: {old_token}')
-              test = test.replace(old_token, new_token, 1)
-          test_path.write_text(test, encoding='utf-8')
+          test_path = Path("tests/test_current_docs_consistency.py")
+          test = test_path.read_text(encoding="utf-8")
+          test_replacements = [
+              ('"exact_candidate_source_selected: true",', '"exact_candidate_source_selected: false",'),
+              ('"current_source_candidate_git_sha: 5d4b69702acc3e362a52a3b890cc7096f2acc02a",', '"current_source_candidate_git_sha: not_selected_after_architecture_readability_refactor",'),
+              ('"current_source_framework_artifact_sha256: 5e19368c5c63e48e78abb47aa095638d4f0b39c831fc909c37df6817ed7e21a8",', '"current_source_framework_artifact_sha256: not_selected_after_architecture_readability_refactor",'),
+              ('"current_source_requires_new_exact_artifact_before_release_claim: false",', '"current_source_requires_new_exact_artifact_before_release_claim: true",\n        "candidate_bytes_must_not_change: false",'),
+              ('"status: selected_not_frozen",', '"status: superseded_by_architecture_readability_refactor",'),
+              ('"exact_current_candidate_selected: true",', '"exact_current_candidate_selected: false",'),
+              ('"current_source_installed_wheel_acceptance: passed_main_run_34689765815",', '"current_source_installed_wheel_acceptance: not_run_for_new_current_source",'),
+          ]
+          for old, new in test_replacements:
+              if old not in test:
+                  raise SystemExit(f"missing test anchor: {old}")
+              test = test.replace(old, new, 1)
+          test_path.write_text(test, encoding="utf-8")
           PY
           rm -f .github/workflows/fix-refactor-state-consistency.yml
+      - name: Install development dependencies
+        run: python -m pip install -e '.[dev]'
       - name: Verify state consistency and architecture gates
         run: |
-          python -m pip install -e '.[dev]'
           pytest -q tests/test_current_docs_consistency.py
           ruff check src tests
           ruff check --isolated --select C901,PLR0913,PLR0915 \
